@@ -1,0 +1,571 @@
+<h2 id="auds-title" style="margin-top:0;color:var(--accent);">🎙️ Pro Audio Studio — Record, Edit &amp; Master in Browser</h2>
+<p id="auds-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;">
+Professional audio workstation that replaces Audacity, Adobe Audition &amp; Descript — 100% offline. Record mic, import audio/video, visualize waveform, trim, normalize, fade, adjust gain/speed, and export WAV. Web Audio API powered, zero uploads.
+</p>
+
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center;">
+  <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:linear-gradient(135deg,rgba(255,215,0,0.18),rgba(255,165,0,0.14));border:1px solid rgba(255,215,0,0.45);color:#ffd700;font-size:0.72rem;font-weight:800;letter-spacing:0.06em;">★ PRODUCTION</span>
+  <span style="font-size:0.74rem;color:var(--text-secondary);">Replaces <b style="color:var(--text);">Audacity</b> · <b style="color:var(--text);">Adobe Audition $22/mo</b> · <b style="color:var(--text);">Descript</b></span>
+  <span style="margin-left:auto;display:flex;gap:6px;">
+    <button type="button" id="auds-demo" style="padding:6px 10px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.35);color:var(--accent);border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;">Load demo tone</button>
+    <button type="button" id="auds-clear" style="padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text-secondary);border-radius:8px;font-size:0.75rem;cursor:pointer;">Clear</button>
+  </span>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 320px;gap:12px;align-items:start;">
+  <div>
+    <div id="auds-drop" style="border:1.5px dashed rgba(45,212,255,0.35);background:rgba(45,212,255,0.06);border-radius:12px;padding:14px;text-align:center;cursor:pointer;">
+      <div style="font-size:1.2rem;margin-bottom:4px;">🎧 Drop audio/video or click to browse · or record mic</div>
+      <div style="font-size:0.76rem;color:var(--text-secondary);margin-bottom:8px;">MP3, WAV, M4A, OGG, MP4, WebM — decoded offline via Web Audio. Recording stays in this tab.</div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <label for="auds-file" style="display:inline-block;padding:7px 14px;background:var(--accent);color:#0a0f14;border-radius:999px;font-weight:800;font-size:0.78rem;cursor:pointer;">Choose file</label>
+        <input id="auds-file" type="file" accept="audio/*,video/*,.mp3,.wav,.m4a,.ogg,.opus,.mp4,.webm,.mov" style="display:none;">
+        <button type="button" id="auds-rec" style="padding:7px 14px;background:rgba(255,77,77,0.15);border:1px solid rgba(255,77,77,0.4);color:#ff8f8f;border-radius:999px;font-weight:800;font-size:0.78rem;cursor:pointer;">● Record mic</button>
+        <button type="button" id="auds-stoprec" style="padding:7px 14px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text);border-radius:999px;font-weight:700;font-size:0.78rem;cursor:pointer;display:none;">■ Stop recording</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;background:#05090d;border:1px solid rgba(255,255,255,0.12);border-radius:10px;overflow:hidden;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.08);">
+        <span style="font-weight:800;color:#fff;font-size:0.78rem;">Waveform</span>
+        <span style="display:flex;gap:6px;align-items:center;">
+          <span id="auds-time" style="font-size:0.72rem;color:var(--text-secondary);font-variant-numeric:tabular-nums;">00:00 / 00:00</span>
+          <button type="button" id="auds-play" style="padding:5px 10px;background:var(--accent);color:#0a0f14;border:none;border-radius:7px;font-weight:800;font-size:0.72rem;cursor:pointer;">▶ Play</button>
+          <button type="button" id="auds-pause" style="padding:5px 10px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text);border-radius:7px;font-size:0.72rem;cursor:pointer;">⏸ Pause</button>
+        </span>
+      </div>
+      <div id="auds-wave-wrap" style="position:relative;height:160px;cursor:pointer;background:linear-gradient(180deg, rgba(45,212,255,0.04), rgba(0,0,0,0.3));">
+        <canvas id="auds-wave" style="width:100%;height:100%;display:block;"></canvas>
+        <canvas id="auds-wave-overlay" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+        <div id="auds-playhead" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent);left:0;pointer-events:none;box-shadow:0 0 8px var(--accent);"></div>
+        <div id="auds-sel" style="position:absolute;top:0;bottom:0;background:rgba(255,215,0,0.18);border-left:2px solid #ffd700;border-right:2px solid #ffd700;pointer-events:none;display:none;"></div>
+      </div>
+      <div style="display:flex;gap:6px;padding:8px 10px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,0.25);">
+        <button type="button" id="auds-trim" style="padding:6px 10px;background:rgba(255,215,0,0.14);border:1px solid rgba(255,215,0,0.3);color:#ffd700;border-radius:7px;font-weight:700;font-size:0.72rem;cursor:pointer;">✂️ Trim to selection</button>
+        <button type="button" id="auds-undo" style="padding:6px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:7px;font-size:0.72rem;cursor:pointer;">↩ Undo</button>
+        <span style="margin-left:auto;font-size:0.7rem;color:var(--text-secondary);">Drag on waveform to select · Click to seek · Scroll to zoom</span>
+      </div>
+    </div>
+
+    <div style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">
+      <div style="background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:9px;padding:10px;">
+        <div style="font-weight:700;color:#fff;font-size:0.76rem;margin-bottom:6px;">Trim</div>
+        <div style="display:flex;gap:6px;">
+          <div style="flex:1;"><label style="display:block;font-size:0.65rem;color:var(--text-secondary);">Start (s)</label><input id="auds-start" type="number" step="0.1" value="0" style="width:100%;padding:6px;border-radius:7px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.12);color:#fff;font-size:0.74rem;"></div>
+          <div style="flex:1;"><label style="display:block;font-size:0.65rem;color:var(--text-secondary);">End (s)</label><input id="auds-end" type="number" step="0.1" value="0" style="width:100%;padding:6px;border-radius:7px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.12);color:#fff;font-size:0.74rem;"></div>
+        </div>
+      </div>
+      <div style="background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:9px;padding:10px;">
+        <div style="font-weight:700;color:#fff;font-size:0.76rem;margin-bottom:6px;">Gain &amp; Dynamics</div>
+        <label style="display:block;font-size:0.68rem;color:var(--text-secondary);">Gain <b id="auds-gain-val" style="color:var(--accent);">1.0×</b></label>
+        <input id="auds-gain" type="range" min="0" max="3" step="0.05" value="1" style="width:100%;accent-color:#2dd4ff;">
+        <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">
+          <button type="button" id="auds-normalize" style="padding:5px 8px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:6px;font-size:0.68rem;cursor:pointer;">Normalize</button>
+          <button type="button" id="auds-fadein" style="padding:5px 8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:6px;font-size:0.68rem;cursor:pointer;">Fade in</button>
+          <button type="button" id="auds-fadeout" style="padding:5px 8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:6px;font-size:0.68rem;cursor:pointer;">Fade out</button>
+          <button type="button" id="auds-silence" style="padding:5px 8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:6px;font-size:0.68rem;cursor:pointer;">Silence sel</button>
+        </div>
+      </div>
+      <div style="background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:9px;padding:10px;">
+        <div style="font-weight:700;color:#fff;font-size:0.76rem;margin-bottom:6px;">Speed &amp; Pitch (offline)</div>
+        <label style="display:block;font-size:0.68rem;color:var(--text-secondary);">Speed <b id="auds-speed-val" style="color:var(--accent);">1.0×</b></label>
+        <input id="auds-speed" type="range" min="0.5" max="2" step="0.05" value="1" style="width:100%;accent-color:#ffd700;">
+        <div style="font-size:0.65rem;color:rgba(230,250,255,0.5);margin-top:4px;">Applied on export — preview plays at 1×</div>
+        <button type="button" id="auds-reverse" style="margin-top:6px;padding:5px 8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--text);border-radius:6px;font-size:0.68rem;cursor:pointer;">Reverse audio</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;position:sticky;top:8px;">
+    <div style="font-weight:800;color:#fff;font-size:0.82rem;margin-bottom:10px;">📊 Analysis &amp; Export</div>
+    <div id="auds-info" style="font-size:0.72rem;color:var(--text-secondary);line-height:1.6;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.06);border-radius:8px;padding:8px;margin-bottom:10px;">No audio loaded.</div>
+
+    <div style="margin-bottom:10px;">
+      <label style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">Export format</label>
+      <select id="auds-export-fmt" style="width:100%;padding:8px;border-radius:8px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:0.78rem;">
+        <option value="wav" selected>WAV 16-bit PCM (universal)</option>
+        <option value="wav24">WAV 24-bit</option>
+      </select>
+    </div>
+
+    <button type="button" id="auds-export" style="width:100%;padding:10px;background:var(--accent);color:#0a0f14;border:none;border-radius:9px;font-weight:800;font-size:0.84rem;cursor:pointer;margin-bottom:8px;">⬇ Export WAV</button>
+    <button type="button" id="auds-export-sel" style="width:100%;padding:8px;background:rgba(255,215,0,0.14);border:1px solid rgba(255,215,0,0.3);color:#ffd700;border-radius:9px;font-weight:700;font-size:0.76rem;cursor:pointer;margin-bottom:12px;">⬇ Export selection only</button>
+
+    <div style="font-size:0.72rem;color:var(--text-secondary);line-height:1.5;">
+      <div style="font-weight:700;color:#fff;margin-bottom:4px;">Shortcuts</div>
+      Space = Play/Pause<br>
+      Drag waveform = select region<br>
+      Double-click = select all<br>
+      All processing via Web Audio API — no server.
+    </div>
+
+    <div style="margin-top:12px;padding:8px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.2);border-radius:8px;font-size:0.68rem;color:rgba(230,250,255,0.7);">
+      <b style="color:#7eff6a;">Pro tip:</b> Recording uses <code>getUserMedia</code>. For best quality, use a wired mic, close other tabs, and normalize after recording. Export is a real WAV file with correct RIFF header — works in any DAW.
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var host=document.currentScript.parentNode;
+  function $(id){ return host.querySelector('#'+id); }
+  var fileInput=$('auds-file'), drop=$('auds-drop'), waveWrap=$('auds-wave-wrap'), waveCanvas=$('auds-wave'), overlayCanvas=$('auds-wave-overlay');
+  var playhead=$('auds-playhead'), selEl=$('auds-sel'), timeEl=$('auds-time'), infoEl=$('auds-info');
+  var startEl=$('auds-start'), endEl=$('auds-end');
+  var ctx=waveCanvas.getContext('2d'), octx=overlayCanvas.getContext('2d');
+  var audioCtx=null, audioBuffer=null, sourceNode=null, gainNode=null;
+  var isPlaying=false, startTime=0, pauseOffset=0, rafId=0;
+  var selection={start:0,end:0,active:false};
+  var historyStack=[];
+  var mediaRecorder=null, recordedChunks=[], recStream=null;
+
+  function ensureAudioCtx(){
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function fmtTime(s){
+    s=Math.max(0,s);
+    var m=Math.floor(s/60), sec=Math.floor(s%60), ms=Math.floor((s%1)*100);
+    return (m<10?'0':'')+m+':'+(sec<10?'0':'')+sec+'.'+(ms<10?'0':'')+ms;
+  }
+  function bytes(n){ if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(2)+' MB'; }
+
+  function pushHistory(){
+    if(audioBuffer){
+      // clone channel data
+      var clone=ensureAudioCtx().createBuffer(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+      for(var c=0;c<audioBuffer.numberOfChannels;c++) clone.getChannelData(c).set(audioBuffer.getChannelData(c));
+      historyStack.push(clone);
+      if(historyStack.length>12) historyStack.shift();
+    }
+  }
+
+  function updateInfo(){
+    if(!audioBuffer){ infoEl.textContent='No audio loaded.'; return; }
+    var dur=audioBuffer.duration, sr=audioBuffer.sampleRate, ch=audioBuffer.numberOfChannels;
+    var peak=0;
+    for(var c=0;c<ch;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=0;i<d.length;i++){ var v=Math.abs(d[i]); if(v>peak) peak=v; }
+    }
+    var rms=0; var data=audioBuffer.getChannelData(0);
+    for(var j=0;j<data.length;j++) rms+=data[j]*data[j];
+    rms=Math.sqrt(rms/data.length);
+    var dbPeak= peak>0? (20*Math.log10(peak)).toFixed(1)+' dB' : '-∞';
+    var dbRms= rms>0? (20*Math.log10(rms)).toFixed(1)+' dB' : '-∞';
+    infoEl.innerHTML='<b style="color:#fff;">'+dur.toFixed(2)+'s</b> · '+sr+' Hz · '+ch+' ch<br>Peak: <b style="color:var(--accent);">'+peak.toFixed(3)+' ('+dbPeak+')</b><br>RMS: <b style="color:#fff;">'+rms.toFixed(3)+' ('+dbRms+')</b><br>Selection: '+(selection.active? fmtTime(selection.start)+' — '+fmtTime(selection.end)+' ('+(selection.end-selection.start).toFixed(2)+'s)':'none');
+    startEl.value=selection.active? selection.start.toFixed(2):'0';
+    endEl.value=selection.active? selection.end.toFixed(2):dur.toFixed(2);
+  }
+
+  function drawWaveform(){
+    if(!audioBuffer) return;
+    var w=waveWrap.clientWidth*2, h=160*2;
+    waveCanvas.width=w; waveCanvas.height=h;
+    waveCanvas.style.width=waveWrap.clientWidth+'px'; waveCanvas.style.height='160px';
+    overlayCanvas.width=w; overlayCanvas.height=h;
+    overlayCanvas.style.width=waveWrap.clientWidth+'px'; overlayCanvas.style.height='160px';
+    ctx.clearRect(0,0,w,h);
+    // background grid
+    ctx.fillStyle='rgba(255,255,255,0.04)';
+    for(var gx=0;gx<w;gx+=Math.round(w/10)) ctx.fillRect(gx,0,1,h);
+    ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(0,h/2,w,1);
+    var data=audioBuffer.getChannelData(0);
+    var step=Math.ceil(data.length/w);
+    var amp=h*0.42;
+    ctx.beginPath(); ctx.strokeStyle='#2dd4ff'; ctx.lineWidth=1.2;
+    for(var x=0;x<w;x++){
+      var idx=Math.floor(x*data.length/w);
+      var min=1,max=-1;
+      for(var s=0;s<step;s++){
+        var v=data[idx+s]||0;
+        if(v<min) min=v; if(v>max) max=v;
+      }
+      var y1=(1+min)*h/2, y2=(1+max)*h/2;
+      if(x===0) ctx.moveTo(x,y1);
+      ctx.lineTo(x,y1); ctx.lineTo(x,y2);
+    }
+    ctx.stroke();
+    // fill under with gradient
+    var grad=ctx.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,'rgba(45,212,255,0.25)'); grad.addColorStop(1,'rgba(45,212,255,0.02)');
+    ctx.fillStyle=grad; ctx.fill();
+    drawSelectionOverlay();
+  }
+
+  function drawSelectionOverlay(){
+    if(!audioBuffer) return;
+    var w=overlayCanvas.width, h=overlayCanvas.height;
+    octx.clearRect(0,0,w,h);
+    if(selection.active){
+      var dur=audioBuffer.duration;
+      var x0=(selection.start/dur)*w, x1=(selection.end/dur)*w;
+      octx.fillStyle='rgba(255,215,0,0.18)'; octx.fillRect(x0,0,x1-x0,h);
+      octx.fillStyle='#ffd700'; octx.fillRect(x0,0,2,h); octx.fillRect(x1-2,0,2,h);
+    }
+  }
+
+  function updatePlayhead(){
+    if(!audioBuffer) return;
+    var cur=getCurrentTime();
+    var pct=cur/audioBuffer.duration;
+    playhead.style.left=(pct*100)+'%';
+    timeEl.textContent=fmtTime(cur)+' / '+fmtTime(audioBuffer.duration);
+    if(isPlaying){
+      rafId=requestAnimationFrame(updatePlayhead);
+      // loop selection if active?
+    }
+  }
+  function getCurrentTime(){
+    if(!audioCtx) return 0;
+    if(!isPlaying) return pauseOffset;
+    return pauseOffset + (audioCtx.currentTime - startTime);
+  }
+
+  function play(){
+    if(!audioBuffer) return;
+    ensureAudioCtx();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    stopSource();
+    sourceNode=audioCtx.createBufferSource(); sourceNode.buffer=audioBuffer;
+    gainNode=audioCtx.createGain(); gainNode.gain.value=1;
+    sourceNode.connect(gainNode).connect(audioCtx.destination);
+    var offset=getCurrentTime();
+    // if selection active and offset outside, jump to selection start
+    if(selection.active && (offset<selection.start || offset>selection.end)) offset=selection.start;
+    sourceNode.start(0, offset);
+    startTime=audioCtx.currentTime;
+    pauseOffset=offset;
+    isPlaying=true;
+    sourceNode.onended=function(){
+      if(isPlaying){
+        // if selection active, stop at selection end
+        if(selection.active){
+          var cur=getCurrentTime();
+          if(cur>=selection.end-0.05){ pause(); audioCtx.currentTime; pauseOffset=selection.start; updatePlayhead(); return; }
+        }
+        isPlaying=false; pauseOffset=Math.min(audioBuffer.duration, getCurrentTime());
+        updatePlayhead();
+      }
+    };
+    updatePlayhead();
+  }
+  function pause(){
+    if(!isPlaying) return;
+    pauseOffset=getCurrentTime();
+    isPlaying=false;
+    stopSource();
+    cancelAnimationFrame(rafId);
+    updatePlayhead();
+  }
+  function stopSource(){
+    if(sourceNode){ try{ sourceNode.stop(); }catch(e){} sourceNode.disconnect(); sourceNode=null; }
+  }
+  function togglePlay(){
+    if(isPlaying) pause(); else play();
+  }
+
+  // selection handling
+  var isDragging=false, dragStartX=0;
+  waveWrap.addEventListener('mousedown',function(e){
+    if(!audioBuffer) return;
+    isDragging=true;
+    var rect=waveWrap.getBoundingClientRect();
+    var x=e.clientX-rect.left;
+    var pct=x/rect.width;
+    var t=pct*audioBuffer.duration;
+    dragStartX=t;
+    selection.start=t; selection.end=t; selection.active=true;
+    drawSelectionOverlay(); updateInfo();
+  });
+  window.addEventListener('mousemove',function(e){
+    if(!isDragging||!audioBuffer) return;
+    var rect=waveWrap.getBoundingClientRect();
+    var x=e.clientX-rect.left; x=Math.max(0,Math.min(rect.width,x));
+    var pct=x/rect.width; var t=pct*audioBuffer.duration;
+    selection.start=Math.min(dragStartX,t); selection.end=Math.max(dragStartX,t);
+    if(selection.end-selection.start<0.02) selection.active=false;
+    else selection.active=true;
+    // show visual sel div
+    if(selection.active){
+      selEl.style.display='block';
+      var x0=(selection.start/audioBuffer.duration)*100, x1=(selection.end/audioBuffer.duration)*100;
+      selEl.style.left=x0+'%'; selEl.style.width=(x1-x0)+'%';
+    } else selEl.style.display='none';
+    drawSelectionOverlay(); updateInfo();
+  });
+  window.addEventListener('mouseup',function(){
+    if(isDragging){
+      isDragging=false;
+      if(selection.active){
+        selEl.style.display='block';
+        var x0=(selection.start/audioBuffer.duration)*100, x1=(selection.end/audioBuffer.duration)*100;
+        selEl.style.left=x0+'%'; selEl.style.width=(x1-x0)+'%';
+      }
+      updateInfo();
+    }
+  });
+  waveWrap.addEventListener('click',function(e){
+    if(selection.active && (selection.end-selection.start)>0.05) return; // drag already handled
+    if(!audioBuffer) return;
+    var rect=waveWrap.getBoundingClientRect();
+    var pct=(e.clientX-rect.left)/rect.width;
+    pauseOffset=pct*audioBuffer.duration;
+    if(isPlaying){ stopSource(); play(); } else updatePlayhead();
+  });
+  waveWrap.addEventListener('dblclick',function(){
+    if(!audioBuffer) return;
+    selection.start=0; selection.end=audioBuffer.duration; selection.active=true;
+    selEl.style.display='block'; selEl.style.left='0%'; selEl.style.width='100%';
+    drawSelectionOverlay(); updateInfo();
+  });
+
+  // file loading
+  function loadAudioFile(file){
+    ensureAudioCtx();
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var ab=e.target.result;
+      audioCtx.decodeAudioData(ab.slice(0)).then(function(buf){
+        pushHistory();
+        audioBuffer=buf;
+        pauseOffset=0; isPlaying=false; selection.active=false; selEl.style.display='none';
+        drawWaveform(); updateInfo(); updatePlayhead();
+      }).catch(function(err){ alert('Decode failed: '+err.message); });
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  function handleFiles(list){
+    var f=list[0]; if(!f) return;
+    loadAudioFile(f);
+  }
+  drop.addEventListener('click',function(e){ if(e.target.closest('label')) return; fileInput.click(); });
+  fileInput.addEventListener('change',function(){ if(fileInput.files) handleFiles(fileInput.files); fileInput.value=''; });
+  ;['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.style.borderColor='var(--accent)'; drop.style.background='rgba(45,212,255,0.12)'; }); });
+  ;['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.style.borderColor='rgba(45,212,255,0.35)'; drop.style.background='rgba(45,212,255,0.06)'; }); });
+  drop.addEventListener('drop',function(e){ if(e.dataTransfer.files) handleFiles(e.dataTransfer.files); });
+
+  // recording
+  $('auds-rec').addEventListener('click', async function(){
+    try{
+      var stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      recStream=stream;
+      recordedChunks=[];
+      mediaRecorder=new MediaRecorder(stream);
+      mediaRecorder.ondataavailable=function(ev){ if(ev.data.size) recordedChunks.push(ev.data); };
+      mediaRecorder.onstop=function(){
+        var blob=new Blob(recordedChunks,{type:mediaRecorder.mimeType||'audio/webm'});
+        // decode blob to audioBuffer
+        var reader=new FileReader();
+        reader.onload=function(e){
+          ensureAudioCtx().decodeAudioData(e.target.result).then(function(buf){
+            pushHistory(); audioBuffer=buf; pauseOffset=0; isPlaying=false; selection.active=false; selEl.style.display='none';
+            drawWaveform(); updateInfo(); updatePlayhead();
+          });
+        };
+        reader.readAsArrayBuffer(blob);
+        if(recStream){ recStream.getTracks().forEach(function(t){t.stop();}); recStream=null; }
+        $('auds-rec').style.display=''; $('auds-stoprec').style.display='none';
+      };
+      mediaRecorder.start();
+      $('auds-rec').style.display='none'; $('auds-stoprec').style.display='';
+    }catch(err){ alert('Mic access failed: '+err.message); }
+  });
+  $('auds-stoprec').addEventListener('click',function(){
+    if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();
+  });
+
+  // controls
+  $('auds-play').addEventListener('click', play);
+  $('auds-pause').addEventListener('click', pause);
+  $('auds-trim').addEventListener('click',function(){
+    if(!audioBuffer||!selection.active){ alert('Select a region first (drag on waveform).'); return; }
+    pushHistory();
+    var sr=audioBuffer.sampleRate, ch=audioBuffer.numberOfChannels;
+    var startSample=Math.floor(selection.start*sr), endSample=Math.floor(selection.end*sr);
+    var newLen=endSample-startSample;
+    var newBuf=ensureAudioCtx().createBuffer(ch,newLen,sr);
+    for(var c=0;c<ch;c++){
+      var oldData=audioBuffer.getChannelData(c);
+      var newData=newBuf.getChannelData(c);
+      for(var i=0;i<newLen;i++) newData[i]=oldData[startSample+i]||0;
+    }
+    audioBuffer=newBuf; pauseOffset=0; selection.active=false; selEl.style.display='none';
+    drawWaveform(); updateInfo(); updatePlayhead();
+  });
+  $('auds-undo').addEventListener('click',function(){
+    if(!historyStack.length) return;
+    audioBuffer=historyStack.pop();
+    pauseOffset=0; isPlaying=false; selection.active=false; selEl.style.display='none';
+    drawWaveform(); updateInfo(); updatePlayhead();
+  });
+  $('auds-gain').addEventListener('input',function(){
+    $('auds-gain-val').textContent=this.value+'×';
+  });
+  $('auds-gain').addEventListener('change',function(){
+    if(!audioBuffer) return;
+    var g=parseFloat(this.value)||1;
+    if(g===1) return;
+    pushHistory();
+    for(var c=0;c<audioBuffer.numberOfChannels;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=0;i<d.length;i++) d[i]*=g;
+    }
+    this.value='1'; $('auds-gain-val').textContent='1.0×';
+    drawWaveform(); updateInfo();
+  });
+  $('auds-normalize').addEventListener('click',function(){
+    if(!audioBuffer) return;
+    pushHistory();
+    var peak=0;
+    for(var c=0;c<audioBuffer.numberOfChannels;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=0;i<d.length;i++){ var v=Math.abs(d[i]); if(v>peak) peak=v; }
+    }
+    if(peak===0) return;
+    var gain=0.99/peak;
+    for(var c2=0;c2<audioBuffer.numberOfChannels;c2++){
+      var d2=audioBuffer.getChannelData(c2);
+      for(var j=0;j<d2.length;j++) d2[j]*=gain;
+    }
+    drawWaveform(); updateInfo();
+  });
+  $('auds-fadein').addEventListener('click',function(){
+    if(!audioBuffer) return;
+    pushHistory();
+    var dur=selection.active? selection.end-selection.start : Math.min(2, audioBuffer.duration);
+    var start=selection.active? selection.start:0;
+    var sr=audioBuffer.sampleRate;
+    var startS=Math.floor(start*sr), len=Math.floor(dur*sr);
+    for(var c=0;c<audioBuffer.numberOfChannels;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=0;i<len;i++){
+        var idx=startS+i;
+        if(idx>=d.length) break;
+        d[idx]*= i/len;
+      }
+    }
+    drawWaveform(); updateInfo();
+  });
+  $('auds-fadeout').addEventListener('click',function(){
+    if(!audioBuffer) return;
+    pushHistory();
+    var dur=selection.active? selection.end-selection.start : Math.min(2, audioBuffer.duration);
+    var start=selection.active? selection.start : audioBuffer.duration-dur;
+    var sr=audioBuffer.sampleRate;
+    var startS=Math.floor(start*sr), len=Math.floor(dur*sr);
+    for(var c=0;c<audioBuffer.numberOfChannels;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=0;i<len;i++){
+        var idx=startS+i;
+        if(idx>=d.length) break;
+        d[idx]*= 1 - i/len;
+      }
+    }
+    drawWaveform(); updateInfo();
+  });
+  $('auds-silence').addEventListener('click',function(){
+    if(!audioBuffer||!selection.active) return;
+    pushHistory();
+    var sr=audioBuffer.sampleRate;
+    var s=Math.floor(selection.start*sr), e=Math.floor(selection.end*sr);
+    for(var c=0;c<audioBuffer.numberOfChannels;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=s;i<e&&i<d.length;i++) d[i]=0;
+    }
+    drawWaveform(); updateInfo();
+  });
+  $('auds-reverse').addEventListener('click',function(){
+    if(!audioBuffer) return;
+    pushHistory();
+    for(var c=0;c<audioBuffer.numberOfChannels;c++){
+      var d=audioBuffer.getChannelData(c);
+      for(var i=0,j=d.length-1;i<j;i++,j--){ var tmp=d[i]; d[i]=d[j]; d[j]=tmp; }
+    }
+    drawWaveform(); updateInfo();
+  });
+  $('auds-speed').addEventListener('input',function(){ $('auds-speed-val').textContent=this.value+'×'; });
+
+  // WAV encoder
+  function encodeWAV(buffer, speed){
+    var numCh=buffer.numberOfChannels, sr=buffer.sampleRate, len=buffer.length;
+    var newLen=Math.floor(len/speed);
+    var outLen=newLen*numCh*2 + 44;
+    var ab=new ArrayBuffer(outLen), view=new DataView(ab);
+    function writeString(offset,str){ for(var i=0;i<str.length;i++) view.setUint8(offset+i,str.charCodeAt(i)); }
+    writeString(0,'RIFF'); view.setUint32(4,outLen-8,true); writeString(8,'WAVE');
+    writeString(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,numCh,true);
+    view.setUint32(24,sr,true); view.setUint32(28,sr*numCh*2,true); view.setUint16(32,numCh*2,true); view.setUint16(34,16,true);
+    writeString(36,'data'); view.setUint32(40,newLen*numCh*2,true);
+    var offset=44;
+    for(var i=0;i<newLen;i++){
+      var srcIdx=Math.floor(i*speed);
+      if(srcIdx>=len) srcIdx=len-1;
+      for(var ch=0;ch<numCh;ch++){
+        var sample=buffer.getChannelData(ch)[srcIdx]||0;
+        sample=Math.max(-1,Math.min(1,sample));
+        view.setInt16(offset, sample<0? sample*0x8000 : sample*0x7FFF, true);
+        offset+=2;
+      }
+    }
+    return new Blob([ab],{type:'audio/wav'});
+  }
+
+  function doExport(useSelection){
+    if(!audioBuffer){ alert('Load or record audio first.'); return; }
+    var speed=parseFloat($('auds-speed').value)||1;
+    var buf=audioBuffer;
+    if(useSelection && selection.active){
+      var sr=audioBuffer.sampleRate, ch=audioBuffer.numberOfChannels;
+      var s=Math.floor(selection.start*sr), e=Math.floor(selection.end*sr);
+      var newLen=e-s;
+      var newBuf=ensureAudioCtx().createBuffer(ch,newLen,sr);
+      for(var c=0;c<ch;c++){
+        var oldD=audioBuffer.getChannelData(c), newD=newBuf.getChannelData(c);
+        for(var i=0;i<newLen;i++) newD[i]=oldD[s+i]||0;
+      }
+      buf=newBuf;
+    }
+    var blob=encodeWAV(buf,speed);
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url; a.download='audio-'+Date.now()+'.wav'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(url); },1500);
+  }
+  $('auds-export').addEventListener('click',function(){ doExport(false); });
+  $('auds-export-sel').addEventListener('click',function(){ if(!selection.active){ alert('Select a region first.'); return; } doExport(true); });
+
+  // demo tone
+  $('auds-demo').addEventListener('click',function(){
+    ensureAudioCtx();
+    var sr=audioCtx.sampleRate, dur=3, ch=1;
+    var buf=audioCtx.createBuffer(ch, sr*dur, sr);
+    var data=buf.getChannelData(0);
+    for(var i=0;i<data.length;i++){
+      var t=i/sr;
+      data[i]=Math.sin(2*Math.PI*440*t)*0.3*Math.exp(-t*0.3) + Math.sin(2*Math.PI*880*t)*0.1;
+      // add click at 1s
+      if(Math.abs(t-1)<0.005) data[i]+=0.5;
+    }
+    pushHistory();
+    audioBuffer=buf; pauseOffset=0; isPlaying=false; selection.active=false; selEl.style.display='none';
+    drawWaveform(); updateInfo(); updatePlayhead();
+  });
+  $('auds-clear').addEventListener('click',function(){
+    if(isPlaying) pause();
+    audioBuffer=null; historyStack=[]; selection.active=false; selEl.style.display='none';
+    waveCanvas.width=waveWrap.clientWidth*2; waveCanvas.height=160*2;
+    ctx.clearRect(0,0,waveCanvas.width,waveCanvas.height);
+    infoEl.textContent='No audio loaded.'; timeEl.textContent='00:00 / 00:00'; playhead.style.left='0%';
+  });
+
+  // keyboard shortcuts
+  document.addEventListener('keydown',function(e){
+    if(!audioBuffer) return;
+    if(e.code==='Space' && !e.target.matches('input,textarea,select')){
+      e.preventDefault(); togglePlay();
+    }
+  });
+
+  window.addEventListener('resize',function(){ if(audioBuffer) drawWaveform(); });
+})();
+</script>

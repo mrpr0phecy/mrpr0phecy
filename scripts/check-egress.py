@@ -59,6 +59,7 @@ KNOWN = {
     "spelling-check": "C",
     "censorship-monitor": "C",
     "premier-league": "C",
+    "pro-seo-audit-toolkit": "C",        # fetches user-supplied URL for SEO audit; offline paste still works
     "thumbnail-generator": "L",           # fetch() only reaches the card's
                                           # own canvas data: URLs (no https
                                           # literal in the file at all)
