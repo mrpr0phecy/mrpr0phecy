@@ -287,7 +287,15 @@ const categoryMap = {
   'pro-regex-studio': 'SaaS & Business Killers',
   'pro-doc-scanner-studio': 'SaaS & Business Killers',
   'pro-video-toolkit': 'SaaS & Business Killers',
-  'pro-invoice-recurring-studio': 'SaaS & Business Killers'
+  'pro-invoice-recurring-studio': 'SaaS & Business Killers',
+  // 2026-09-16 — six more pro studios (Canva, Typeform, Miro, Anki, Carrd, BeeFree killers)
+  'pro-design-canvas-studio': 'SaaS & Business Killers',
+  'pro-form-builder-studio': 'SaaS & Business Killers',
+  'pro-whiteboard-studio': 'SaaS & Business Killers',
+  'pro-flashcard-spaced-repetition-studio': 'SaaS & Business Killers',
+  'pro-landing-page-builder-studio': 'SaaS & Business Killers',
+  'pro-email-visual-builder-studio': 'SaaS & Business Killers',
+  'pro-database-grid-studio': 'SaaS & Business Killers'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
@@ -436,7 +444,15 @@ const saasKillerList = [
   'pro-regex-studio',
   'pro-doc-scanner-studio',
   'pro-video-toolkit',
-  'pro-invoice-recurring-studio'
+  'pro-invoice-recurring-studio',
+  // 2026-09-16 — six more pro studios
+  'pro-design-canvas-studio',
+  'pro-form-builder-studio',
+  'pro-whiteboard-studio',
+  'pro-flashcard-spaced-repetition-studio',
+  'pro-landing-page-builder-studio',
+  'pro-email-visual-builder-studio',
+  'pro-database-grid-studio'
 ];
 
 // 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly
