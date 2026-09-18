@@ -321,8 +321,25 @@ function node(tag, cls, id) {
   };
   self.setAttribute = (k, v) => { if (k === 'class') self.className = v; else self.dataset[k] = v; };
   self.querySelector = (sel) => self.findAll(sel)[0] || null;
+  // Enough of the Web Animations API to prove a pause is a pause: subtree walks
+  // the children, and every animation records its own playState.
+  self.getAnimations = (opts) => {
+    if (self._animThrows) throw new Error('no getAnimations here');
+    const out = (self.anims || []).slice();
+    if (opts && opts.subtree) for (const c of self.children) out.push(...(c.getAnimations ? c.getAnimations(opts) : []));
+    return out;
+  };
   self.querySelectorAll = (sel) => self.findAll(sel);
   return self;
+}
+
+function fakeAnim(name) {
+  const anim = {
+    name, playState: 'running', pauses: 0, plays: 0,
+    pause() { this.pauses++; this.playState = 'paused'; },
+    play() { this.plays++; this.playState = 'running'; },
+  };
+  return anim;
 }
 
 // One card as renderCardContent leaves it: shell + face + tool content + an
@@ -340,6 +357,7 @@ function makeTool(name, top, height) {
   face.appendChild(hint);
   face.hidden = true;
   const tool = node('div', 'card-sandbox-content');
+  tool.anims = [fakeAnim('spin'), fakeAnim('pulse')];
   const injected = node('style');
   const footer = node('div', 'card-footer');
   sandbox.appendChild(face);
@@ -416,6 +434,7 @@ function parkHarness(opts) {
     'let lastShrink = 0;',
     'const explicitRunAll = ' + o.runAll + ';',
     grab('parkHost'), grab('memoryPressure'), grab('setFaceHint'), grab('keepAlive'),
+    grab('pauseParkedAnimations'),
     grab('parkCard'), grab('resumeParked'), grab('prunePark'), grab('parkOutsideWindow'),
     grab('adjustCardHeight'),
     ';({ parkCard, resumeParked, parkOutsideWindow, prunePark, parkHost, memoryPressure, adjustCardHeight,',
@@ -489,6 +508,18 @@ function parkHarness(opts) {
   assert.strictEqual(t.hint.textContent, HINT_PARKED,
     'a parked face must not claim the tool is unstarted');
   assert.ok(!loadedCards.has('loan') && parkedCards.has('loan'), 'the handover of ownership');
+  // …and a parked tool stops repainting nothing.
+  const anims = t.tool.anims;
+  assert.deepStrictEqual(anims.map(a => a.playState), ['paused', 'paused'],
+    'animations inside a parked subtree must be paused while nobody can see them');
+  // Identity, not deep equality: `paused` is an Array built inside the vm, and a
+  // cross-realm prototype makes deepStrictEqual refuse an otherwise identical
+  // pair. What matters here is exactly *which* animations were remembered.
+  const pausedList = parkedCards.get('loan').anims;
+  assert.strictEqual(pausedList.length, 2, 'the paused set is remembered for the wake-up');
+  assert.strictEqual(pausedList[0], anims[0], 'and holds the very animations it paused');
+  assert.strictEqual(pausedList[1], anims[1], 'in the order it found them');
+  assert.strictEqual(anims[0].pauses, 1, 'one pause per animation, not one per pass');
   assert.strictEqual(seen.observes, 1, 'a parked card must be re-armed with the observer');
   assert.deepStrictEqual(pendingCards.map(c => c.dataset.name), ['loan'],
     'and it must be back in the sweep list so the viewport can wake it');
@@ -501,11 +532,24 @@ function parkHarness(opts) {
   assert.strictEqual(t.face.hidden, true, 'a live tool must not show its face');
   assert.strictEqual(t.hint.textContent, HINT_RUN, 'and the hint must go back to the truth');
   assert.ok(loadedCards.has('loan') && !parkedCards.has('loan'), 'it is live again');
+  assert.deepStrictEqual(anims.map(a => a.playState), ['running', 'running'],
+    'waking the tool resumes the animations it parked with');
+  assert.strictEqual(anims[0].plays, 1, 'and plays them once');
   assert.strictEqual(host.children.length, 0, 'the park must not leak holders');
   assert.strictEqual(harnessHost(), host, 'the second park reuses the one host (no pile of containers)');
   assert.strictEqual(seen.sweeps, 1, 'a resume re-measures once, for the content that came back');
   assert.ok(seen.liveCountUpdates > 0,
     'and the toolbar must be retold: a wake-up never passes through the render path that updates it');
+  // An engine that cannot answer must not cost the park.
+  const noWAM = parkHarness();
+  noWAM.api.add('spinner', 9000, 400);
+  const spinner = noWAM.tools.get('spinner');
+  spinner.tool.anims = [{ get playState() { return 'running'; }, pause() { throw new Error('unsupported'); }, play() {} }];
+  spinner.tool._animThrows = true;          // getAnimations itself blows up
+  assert.strictEqual(noWAM.api.parkCard(spinner.card, 'spinner'), true,
+    'a tool whose animation API throws must still park: the park is the point');
+  assert.ok(noWAM.parkedCards.get('spinner').anims === null, 'and no half-taken pause list is kept');
+
   console.log('  ok   park → resume is one node move each way, state and DOM intact');
 }
 
@@ -665,6 +709,123 @@ function parkHarness(opts) {
   assert.ok(/loadingCards\.has\(key\) \|\| parkedCards\.has\(key\)/.test(app),
     'the in-memory cache must not drop a parked tool it still needs to restore');
   console.log('  ok   dead band, park CSS, face-preserving render, park-before-fetch');
+}
+
+
+// ---------------------------------------------------------------- suite 12
+// The warm cursor follows the reader in *both* directions. Warming one way was
+// correct while a catalogue was only ever read downwards; the park made scrolling
+// back up the common case, and a tool woken from the park should find its bytes
+// cached rather than re-fetched (a tool evicted under memory pressure should cost
+// a re-render, not a download). So the cursor turns around with the visitor.
+{
+  const NAMES = Array.from({ length: 40 }, (_, i) => `c${i}`);
+  const WARM_C = parseInt((app.match(/WARM_CONCURRENCY:\s*(\d+)/) || [])[1], 10);
+  const LOOKBEHIND = parseInt((app.match(/WARM_LOOKBEHIND:\s*(\d+)/) || [])[1], 10);
+  assert(WARM_C >= 2, 'could not read WARM_CONCURRENCY from home-app.js');
+  assert(Number.isFinite(LOOKBEHIND) && LOOKBEHIND >= 2,
+    'could not read WARM_LOOKBEHIND from home-app.js — the reverse pass needs to know how far above the fold to start');
+
+  function warmWorld(opts) {
+    const o = Object.assign({ cursor: 20, dir: 1, scrollY: 0, lastScrollY: -1, eligible: null }, opts || {});
+    const requested = [];
+    const ctx = {
+      allCards: NAMES,
+      cardIndexByName: new Map(NAMES.map((n, i) => [n, i])),
+      cardsMetaMap: new Map(),
+      CONFIG: { WARM_CONCURRENCY: WARM_C, WARM_TIMEOUT: 12000, WARM_LOOKBEHIND: LOOKBEHIND },
+      MAX_CONCURRENT_LOADS: 6,
+      activeLoads: 0,
+      document: { hidden: false },
+      window: { scrollY: o.scrollY },
+      navigator: {},
+      // Everything the real warmEligible would refuse is refused here by the
+      // caller's predicate; the walk itself is what this suite is about.
+      warmEligible: o.eligible ? () => o.eligible() : () => true,
+      rememberWarmed: () => {},
+      pumpWarmSoon: () => {},
+      fetchTextWithTimeout: (url) => {
+        requested.push(String(url).replace(/^cards\//, '').replace(/\.html$/, ''));
+        // Never settles, so warmActive stays raised and one pass is bounded by
+        // WARM_CONCURRENCY exactly as it is in the browser.
+        return new Promise(() => {});
+      },
+      setTimeout: () => 0,
+      console: { warn() {}, log() {}, error() {} },
+    };
+    const api = run([
+      'let warmStarted = true;',
+      'let warmActive = 0;',
+      `let warmCursor = ${o.cursor};`,
+      'let warmSweeping = false;',
+      'let warmPending = false;',
+      `let warmDir = ${o.dir};`,
+      `let lastWarmScrollY = ${o.lastScrollY};`,
+      grab('warmCard'), grab('pumpWarm'), grab('noteReadingPosition'),
+      ';({ pumpWarm, noteReadingPosition,',
+      '  state: () => ({ warmCursor, warmDir, warmStarted, warmActive }),',
+      '  set: (k, v) => {',
+      '    if (k === "cursor") warmCursor = v;',
+      '    if (k === "active") warmActive = v;',
+      '    if (k === "started") warmStarted = v;',
+      '  },',
+      '  scroll: (y) => { window.scrollY = y; } });',
+    ].join('\n'), ctx, 'warm-cursor');
+    return { api, requested };
+  }
+
+  // A note is only compared against a previous note, so these worlds start with
+  // one scroll position recorded (the first one on a real page only records).
+  // a) a forward pass walks WARM_CONCURRENCY names and leaves the cursor behind them
+  const fwd = warmWorld({ scrollY: 0, lastScrollY: 0 });
+  fwd.api.pumpWarm();
+  assert.deepStrictEqual(fwd.requested, ['c20', 'c21', 'c22'],
+    'a warm pass must take exactly WARM_CONCURRENCY names from the cursor');
+  assert.strictEqual(fwd.api.state().warmCursor, 20 + WARM_C, 'and stop there, not at the end of the catalogue');
+  assert.strictEqual(fwd.api.state().warmDir, 1, 'a page that has not turned around walks forwards');
+
+  // b) a note from the sweep while still going the same way must not move it
+  fwd.api.scroll(9000);
+  fwd.api.noteReadingPosition([{ cardName: 'c30' }]);
+  assert.strictEqual(fwd.api.state().warmCursor, 20 + WARM_C,
+    'the cursor was already ahead of the reader in the same direction — do not drag it back');
+  // …and no movement at all is not a direction.
+  const still = warmWorld({ scrollY: 5000, lastScrollY: 5000 });
+  still.api.noteReadingPosition([{ cardName: 'c10' }]);
+  assert.strictEqual(still.api.state().warmCursor, 20, 'a frame without scroll must not re-anchor the cursor');
+
+  // c) turning around re-anchors just above the top of the screen and warms up
+  const back = warmWorld({ scrollY: 4000, lastScrollY: 4000 });
+  back.api.scroll(0);                          // …and now the reader is going up
+  back.api.noteReadingPosition([{ cardName: 'c12' }]);
+  const st = back.api.state();
+  assert.strictEqual(st.warmDir, -1, 'the walk reverses with the reader');
+  assert.strictEqual(st.warmCursor, 12 - LOOKBEHIND,
+    'and restarts a look-behind above the front card, so what comes next is already warm');
+  back.api.set('active', 0);                   // pretend the in-flight warm fetches landed
+  back.api.pumpWarm();
+  assert.deepStrictEqual(back.requested, ['c6', 'c5', 'c4'],
+    'a reversed pass warms upwards through the catalogue, starting at the anchor');
+
+  // d) running off an end turns around, and two empty passes stop the walk for good
+  const top = warmWorld({ cursor: 1, dir: -1, scrollY: 0, lastScrollY: 0, eligible: () => false });
+  top.api.pumpWarm();
+  const endState = top.api.state();
+  assert.strictEqual(endState.warmDir, 1, 'reaching the top turns the walk around');
+  assert.strictEqual(endState.warmCursor, 0, 'and restarts it at the end it just turned towards');
+  assert.strictEqual(endState.warmStarted, false,
+    'a pass that queued nothing at an end stops walking 1,194 names forever — in either direction');
+
+  // e) the wiring that makes any of this true: the sweep tells the warm path where
+  //    the reader is, and the catalogue index it needs is built once, not searched.
+  assert.ok(/noteReadingPosition\(visible\.length \? visible : lookAhead\)/.test(app),
+    'the viewport sweep must hand the reader position to the warm path');
+  assert.ok(/cardIndexByName\.set\(allCards\[i\], i\)/.test(app),
+    'the name→index map is built with the grid; 1,194 indexOf() calls per scroll is not how to translate');
+  const reset = app.match(/function resetWarmWindow\(\)[\s\S]*?\n    \}/);
+  assert(reset && /warmDir = 1;/.test(reset[0]),
+    'a filter, sort or density change must reset the direction too, not just the cursor');
+  console.log('  ok   warm-ahead follows the scroll in both directions and still stops when done');
 }
 
 console.log('\nlive-window tests passed');

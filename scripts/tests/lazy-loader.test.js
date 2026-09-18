@@ -335,6 +335,7 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
       window: { innerHeight: 900 },
       mountBudgetFree: () => false,
       parkOutsideWindow: () => {},
+      noteReadingPosition: () => {},
       pumpWarmSoon: () => {},
       loadCard: (card, name) => queued.push(name),
     }, 'sweep-capped');

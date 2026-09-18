@@ -278,16 +278,32 @@ Three changes, each of which is the *whole* of one idea:
   `pruneCardCache()` never evicts a tool that is running *or parked*.
   `#liveToolCount` (`updateLiveCount()`, called from `updateSiteStats()` and by
   the park itself) states both halves: how many tools are in the grid and how
-  many more are alive off it.
+  many more are alive off it. One part of a parked tool's cost *is* clawed back:
+  `pauseParkedAnimations()` calls `getAnimations({subtree: true})` on the holder
+  and pauses each running animation, replaying exactly that set on the way back.
+  It is the only reversible pause available that needs no cooperation from the
+  card, and it is deliberately not a rAF interception — a tool that drives its
+  own frame loop keeps doing it, because stealing frames from the visitor's code
+  is how a page starts lying about being live. The split, measured over the shipped
+  fragments rather than guessed (`grep -lF '@keyframes\|animation:' cards/*.html`):
+  134 animate in CSS and are fully quieted while parked, 168 run a loop of their
+  own and are not, and 5 do both. So the park is a layout/paint guarantee, not a
+  CPU one, and that is the honest shape of it.
 - **Warm-ahead (`startCacheWarm()` / `pumpWarm()` / `warmCard()`).** The
   background pass fetches fragment *text* into `cardCache` and does nothing
   else — no `DOMParser`, no script, no layout, no `.innerHTML`. It walks
   catalogue order from a cursor that follows the reading position (the sweep
   pumps it once per pass; a filter, sort or density change resets the cursor),
   never runs while `activeLoads >= MAX_CONCURRENT_LOADS - 1`, and stops after a
-  full pass that found nothing to do. Because every request is a
-  `cards/*.html` GET, the service worker stores the same responses in
-  `CARDS_CACHE`, so warming on this visit is warming on the next one.
+  full pass that found nothing to do. **The walk is two-way** (`warmDir`,
+  `noteReadingPosition()`): the sweep reports which catalogue index is at the top
+  of the screen and which way the scroll is moving, and when the reader reverses
+  the cursor reverses with them, restarting `WARM_LOOKBEHIND` entries above the
+  fold. That is what the park needs — waking a tool should find its bytes cached,
+  and a tool evicted under memory pressure should cost a re-render, not a
+  download. Because every request is a `cards/*.html` GET, the service worker
+  stores the same responses in `CARDS_CACHE`, so warming on this visit is warming
+  on the next one.
   `warmEligible()` skips anything the mount pipeline owns, including parked
   tools — their bytes are already in the DOM.
 
@@ -1480,11 +1496,19 @@ no polling, and no shrinking at all where LoAF is unsupported.
 which is what lets a parked tile show its face again (see §7); the park also
 owns the width its subtree is laid out at, so nothing inside re-wraps while it
 waits. `home.css` is 17.1 KB gzip of its 18 KB budget. `live-window.test.js` grew
-from 7 suites to 11 (the park's node moves, its refusal rules, the eviction
-contract, and the CSS that must not hide the park with `display`), and
-`lazy-loader.test.js` suite 6 now pins the window instead of the cap.
+from 7 suites to 12 (the park's node moves, its refusal rules, the eviction
+contract, the CSS that must not hide the park with `display`, and the two-way warm
+walk), and `lazy-loader.test.js` suite 6 now pins the window instead of the cap.
 The pass is also gated on scroll distance (`PARK_STEP`), which suite 9 asserts by
-counting rect reads — the one number that says whether a frame is free.
+counting rect reads — the one number that says whether a frame is free. Two
+follow-ons landed with it: parked subtrees get their CSS animations paused and
+re-played on the way back (`pauseParkedAnimations()` — deliberately *not* a
+`requestAnimationFrame` hijack, because stealing frames from the visitor's own
+code is how a page starts lying about being live; it quiets the 134 fragments that
+animate in CSS and leaves the 168 with their loops alone), and warm-ahead walks
+*backwards* when the scroll reverses (`warmDir`, `noteReadingPosition()`,
+`CONFIG.WARM_LOOKBEHIND`), since the park made reversing through the catalogue the
+normal case.
 
 **Changed 2026-09-18 — the main page is a live window, not a trickle.**
 Owner report: *"only nine tools are loading on my mainpage and i have over

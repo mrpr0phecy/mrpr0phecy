@@ -88,7 +88,17 @@ item. This historical list does not override current staff decisions.
     tile height (172 px assumed, not measured), the mount reflow as tiles become
     full-row tools, whether a parked tool's canvas really keeps its size across
     a park/resume round trip, and `⚡ Run all` on a mid-range phone. None of
-    that is observable from a node harness.
+    that is observable from a node harness. **Blocked in the Arena sandbox, and
+    the reason is recorded so nobody re-derives it:** egress there is npm-only, so
+    Chromium's download CDN, jsDelivr, the Debian mirrors and
+    `objects.githubusercontent.com` (release assets) are all unreachable;
+    `@sparticuz/chromium` does install from npm and gets as far as
+    `error while loading shared libraries: libnspr4.so`, and with
+    `@achingbrain/nss` on `LD_LIBRARY_PATH` that becomes
+    `version 'NSS_3.30' not found (required by /tmp/chromium)` — that bundled NSS
+    is a decade too old and nothing reachable ships a newer one. Run the probe
+    locally (`npm i puppeteer`, `python3 -m http.server`) against the numbers in
+    the sentence above instead.
   - [x] Window the DOM. **Landed the same day (stage 2)**, on the owner's
     *"i do want them all running but only a few loaded at a time around the
     viewport"*: the cap became a mount window (`MOUNT_WINDOW_DEFAULT = 24`,
@@ -107,6 +117,14 @@ item. This historical list does not override current staff decisions.
     defaults: which `MOUNT_WINDOW_*` / `PARK_CEILING` pair a mid-range phone
     wants, and whether the LoAF governor converges or breathes. Both are
     stubbable in node; neither is *answerable* there.
+  - [x] Two things the park made necessary, landed the same day: parked subtrees
+    pause their CSS animations and replay them on resume
+    (`pauseParkedAnimations()`), and warm-ahead follows the scroll *upwards* too
+    (`warmDir` + `noteReadingPosition()` + `CONFIG.WARM_LOOKBEHIND`), so a
+    reversed scroll finds bytes cached instead of fetching them again. Suite 12 of
+    `live-window.test.js` pins the cursor in both directions, including the
+    "one empty pass at an end and stop" promise `card-faces.test.js` already
+    held.
   - [ ] Bundle fragments per category (`cards/bundles/<slug>.json`, generated
     and checked like the sitemap) so "run this category" is one request instead
     of 152 — and decide whether an explicit `?install=1` should warm the whole

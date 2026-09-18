@@ -2,7 +2,7 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 9;
+    const APP_VERSION = 10;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -32,6 +32,9 @@
                                 // script). Kept under MAX_CONCURRENT_LOADS - 1 so a warm
                                 // fetch can never delay a tool the visitor is looking at.
         WARM_TIMEOUT: 12000,    // a stalled warm fetch must free its slot, not hold one
+        WARM_LOOKBEHIND: 6,     // how far above the top of the screen a reversed
+                                // warm pass starts, so scrolling back up finds its
+                                // bytes cached instead of fetching them again
         CARD_CACHE_MAX: 96,     // in-memory fragments (~1.5 MB). The service worker's
                                 // CARDS_CACHE is the durable tier, so pruning here is a
                                 // demotion, not a re-download.
@@ -505,6 +508,33 @@
         }
     }
 
+    // A parked tool keeps running — that is the deal — but "keeps running" does
+    // not have to mean "keeps repainting nothing". Every animation on an invisible
+    // subtree is pure waste, and `getAnimations()` is the one pause that is fully
+    // reversible and needs no cooperation from the card. What this deliberately
+    // does *not* touch is a tool driving its own requestAnimationFrame loop: that
+    // is the visitor's code, and stealing frames from it is how a page starts
+    // lying about being live. Measured over the shipped fragments, 134 animate in
+    // CSS and go quiet here, 168 run their own loop and do not — the park is a
+    // layout and paint guarantee, not a CPU one. Returns the paused set so the wake-up can replay it,
+    // or null when there was nothing to pause (or no API to ask).
+    function pauseParkedAnimations(holder) {
+        if (!holder || typeof holder.getAnimations !== 'function') return null;
+        const paused = [];
+        try {
+            for (const anim of holder.getAnimations({ subtree: true })) {
+                if (anim.playState === 'running') {
+                    anim.pause();
+                    paused.push(anim);
+                }
+            }
+        } catch (err) {
+            // An engine that only half-supports this must not cost us the park.
+            return paused.length ? paused : null;
+        }
+        return paused.length ? paused : null;
+    }
+
     function parkCard(card, cardName) {
         const sandbox = card.querySelector(`#card-${cardName}`);
         if (!sandbox) return false;
@@ -536,7 +566,7 @@
         if (face) face.hidden = false;
         setFaceHint(card, true);
         loadedCards.delete(cardName);
-        parkedCards.set(cardName, { card, holder });
+        parkedCards.set(cardName, { card, holder, anims: pauseParkedAnimations(holder) });
         parkOrder.push(cardName);
         // Armed for the way back: the observer wakes it as soon as it is within
         // look-ahead, and the sweep can too (a parked card is not `.loaded`).
@@ -555,6 +585,13 @@
         parkOrder = parkOrder.filter(n => n !== cardName);
         Array.from(parked.holder.children).forEach(node => sandbox.appendChild(node));
         parked.holder.remove();
+        // Frames back: paused *after* the nodes are home, so nothing animates in
+        // the gap between the two moves.
+        if (parked.anims) {
+            for (const anim of parked.anims) {
+                try { anim.play(); } catch (err) { /* the animation has gone away */ }
+            }
+        }
         const face = sandbox.querySelector('.card-face');
         if (face) face.hidden = true;
         target.classList.remove('card-parked');
@@ -583,6 +620,8 @@
             const parked = parkedCards.get(name);
             if (!parked) continue;
             parkedCards.delete(name);
+            // Anything this tool had animating goes with the subtree; its paused
+            // animations are not resumed, because nothing is about to look at them.
             parked.holder.remove();
             // The card goes back to being an ordinary tile (and its height with
             // it — an empty tall row would haunt the layout forever). Its bytes may
@@ -667,6 +706,12 @@
     // pendingCards this is index-stable and never pruned, which is what a
     // cursor needs; the sweep prunes pendingCards underneath it.
     const cardElsByName = new Map();
+    // Catalogue index by name. The warm cursor works in indices and the sweep
+    // only ever has names, and 1,194 indexOf() calls per scroll frame is not how
+    // to translate between them.
+    const cardIndexByName = new Map();
+    let warmDir = 1;
+    let lastWarmScrollY = -1;
 
     // Worth a warm fetch right now? Anything the mount pipeline owns is skipped,
     // so a tool is never downloaded twice and never re-fetched once it runs.
@@ -703,6 +748,35 @@
         setTimeout(pumpWarm, 120);
     }
 
+    // Which way the visitor is moving, and which catalogue entry is at the top of
+    // the screen: two facts the sweep already has and the warm path cannot infer.
+    // Warming used to walk one way only, which is right for a catalogue you read
+    // downwards and wrong for one you scroll back up through — and with a park,
+    // scrolling *up* is now the normal case: waking a parked tool wants its bytes
+    // from cache, and a tool that was evicted under memory pressure should cost a
+    // re-render, not a download. So the cursor turns around with the reader.
+    function noteReadingPosition(near) {
+        if (!warmStarted || !near || !near.length) return;
+        const y = (typeof window !== 'undefined' && window.scrollY) || 0;
+        let dir = 0;
+        if (lastWarmScrollY >= 0) {
+            if (y > lastWarmScrollY + 4) dir = 1;
+            else if (y < lastWarmScrollY - 4) dir = -1;
+        }
+        lastWarmScrollY = y;
+        if (!dir) return;
+        let front = Infinity;
+        for (const candidate of near) {
+            const i = cardIndexByName.get(candidate.cardName);
+            if (i !== undefined && i < front) front = i;
+        }
+        if (front === Infinity) return;
+        front = Math.max(0, front - CONFIG.WARM_LOOKBEHIND);
+        if (dir === warmDir) return;   // already walking with the reader
+        warmDir = dir;
+        warmCursor = Math.min(allCards.length - 1, front);
+    }
+
     function pumpWarm() {
         warmPending = false;
         if (!warmStarted || warmSweeping) return;
@@ -718,19 +792,27 @@
         warmSweeping = true;
         let queued = 0;
         try {
-            while (warmActive < CONFIG.WARM_CONCURRENCY && warmCursor < total) {
-                const cardName = allCards[warmCursor++];
+            // The walk follows `warmDir`: forward down the catalogue, backward up
+            // it. `warmCursor` is the next index to take either way, so a reversal
+            // needs no second cursor and no bookkeeping about what was skipped.
+            while (warmActive < CONFIG.WARM_CONCURRENCY && warmCursor >= 0 && warmCursor < total) {
+                const cardName = allCards[warmCursor];
+                warmCursor += warmDir;
                 if (warmEligible(cardName)) {
                     queued++;
                     warmCard(cardName);
                 }
             }
-            if (warmCursor >= total) {
-                // Wrap once: tools ahead of the cursor that a filter was hiding
-                // (or that just arrived) still get a turn. Two passes that queue
-                // nothing and the catalogue is warm — stop walking 1,194 names
-                // forever.
-                warmCursor = 0;
+            if (warmCursor < 0 || warmCursor >= total) {
+                // Ran off an end: turn around and give the other side a turn —
+                // tools the cursor walked past while a filter was hiding them (or
+                // that just arrived) are still owed a look. A pass that queues
+                // nothing at an end means the catalogue is warm, so walking 1,194
+                // names stops there: `resetWarmWindow()` (a filter, a sort, a
+                // density change) is what re-arms it, and the service worker's
+                // CARDS_CACHE is what makes a later miss cheap regardless.
+                warmDir = -warmDir;
+                warmCursor = warmDir > 0 ? 0 : total - 1;
                 if (queued === 0) warmStarted = false;
             }
         } finally {
@@ -776,6 +858,7 @@
     // means, so the cursor restarts and warms the new result from its top.
     function resetWarmWindow() {
         warmCursor = 0;
+        warmDir = 1;
         if (!warmStarted) { startCacheWarm(); return; }
         pumpWarmSoon();
     }
@@ -1556,6 +1639,8 @@
         
         console.log(`Total active cards: ${cardFiles.length}`);
         allCards = cardFiles;
+        cardIndexByName.clear();
+        for (let i = 0; i < allCards.length; i++) cardIndexByName.set(allCards[i], i);
         lastMatchedNames = [...allCards];
         updateSiteStats();
         updateCategoryCounts();
@@ -2391,6 +2476,7 @@
 
             visible.sort((a, b) => a.distance - b.distance);
             lookAhead.sort((a, b) => a.distance - b.distance);
+            noteReadingPosition(visible.length ? visible : lookAhead);
             const candidates = visible.concat(lookAhead).slice(0, MAX_CONCURRENT_LOADS);
 
             candidates.forEach(({ card, cardName }) => {

@@ -281,7 +281,10 @@ function el(tag) {
   const SRC = grabFn('warmEligible') + '\n' + grabFn('warmCard') + '\n' + grabFn('pumpWarm');
   const PRELUDE =
     'let warmStarted = false;\nlet warmActive = 0;\nlet warmCursor = 0;\n'
-    + 'let warmSweeping = false;\nlet warmPending = false;\n';
+    + 'let warmSweeping = false;\nlet warmPending = false;\n'
+    // The cursor walks in a direction now (see WARM_LOOKBEHIND / the park), so a
+    // world that never scrolls keeps it forwards and never sees a reversal.
+    + 'let warmDir = 1;\nlet lastWarmScrollY = -1;\n';
 
   // names: the catalogue order the cursor walks. Everything else describes the
   // state each card is in, and the real warmEligible() decides.
@@ -301,7 +304,11 @@ function el(tag) {
       cardElsByName: els,
       cardsMetaMap: new Map(),
       isCardHidden: card => card.style.display === 'none',
-      CONFIG: { WARM_CONCURRENCY, WARM_TIMEOUT: 12000, CARD_CACHE_MAX: 96 },
+      CONFIG: { WARM_CONCURRENCY, WARM_TIMEOUT: 12000, CARD_CACHE_MAX: 96, WARM_LOOKBEHIND: 6 },
+      // pumpWarm consults the reader through these two; a world with no scroll
+      // movement gets no re-anchor, which is what these cases are about.
+      cardIndexByName: new Map(names.map((n, i) => [n, i])),
+      window: { scrollY: 0 },
       MAX_CONCURRENT_LOADS,
       activeLoads: opts.activeLoads || 0,
       document: { hidden: !!opts.docHidden },
