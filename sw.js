@@ -27,7 +27,11 @@
 // is what forces the new script onto returning visitors: activate deletes
 // every cache not in this version's name list, so any pinned copy of the
 // old app script goes with them.
-const CACHE_VERSION = 'v5-2026-09-17';
+// v6: ships card faces (zero loading screens) + the idle trickle loader.
+// Navigation responses are network-first so the HTML is always fresh, but
+// JS is stale-while-revalidate — without a version bump a returning
+// visitor's first paint could pair the new HTML with the previous JS.
+const CACHE_VERSION = 'v6-2026-09-18';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

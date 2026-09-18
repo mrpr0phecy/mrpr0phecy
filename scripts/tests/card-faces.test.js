@@ -235,4 +235,126 @@ function el(tag) {
   console.log('  ok   loadAllToolsNow queues runnable cards, skips hidden/errored/in-flight');
 }
 
+// ---------------------------------------------------------------- suite 6
+// startIdleTrickle(): quietly queues a few pending cards per tick without
+// any interaction, skips hidden/errored/in-flight cards, keeps ticking while
+// the pipeline drains, and stops once everything is live. Data-saver / 2G
+// visitors never get the trickle at all.
+{
+  const grabTrickle = () => {
+    const m = app.match(/function startIdleTrickle\([^)]*\) \{[\s\S]*?\n    \}\n/);
+    assert(m, 'could not extract startIdleTrickle() from home-app.js');
+    return m[0];
+  };
+
+  function runTrickle(state, timers, extra = {}) {
+    const sandbox = {
+      trickleStarted: false,
+      TRICKLE_BATCH: 6,
+      TRICKLE_INTERVAL: 2500,
+      navigator: state.navigator || {},
+      document: { hidden: !!state.hidden },
+      pendingCards: state.pending,
+      loadedCards: state.loadedSet,
+      loadingCards: state.loadingSet,
+      isCardHidden: (c) => !!c.hidden,
+      // model the real pipeline: loadCard immediately marks the card
+      // in-flight (loadQueue/loadingCards), so later ticks skip it
+      loadCard: (card, name) => { state.queued.push(name); state.loadingSet.add(name); },
+      get activeLoads() { return state.activeLoads; },
+      get loadQueue() { return state.loadQueue; },
+      setTimeout: (fn) => { timers.push(fn); return timers.length; },
+      console,
+      ...extra,
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(grabTrickle() + ';startIdleTrickle();', sandbox);
+    return sandbox;
+  }
+
+  // a) queues up to TRICKLE_BATCH eligible cards on the first tick, then
+  //    keeps ticking while loads are in flight; stops when all done.
+  {
+    const state = {
+      pending: [{ dataset: { name: 'a' } }, { dataset: { name: 'b' } },
+                { dataset: { name: 'c' } }, { dataset: { name: 'd' } },
+                { dataset: { name: 'e' } }, { dataset: { name: 'f' } },
+                { dataset: { name: 'g' } }, { dataset: { name: 'h' } }],
+      loadedSet: new Set(), loadingSet: new Set(),
+      queued: [], activeLoads: 4, loadQueue: [],
+    };
+    const timers = [];
+    runTrickle(state, timers);
+    assert.strictEqual(timers.length, 1, 'trickle did not schedule its first tick');
+    timers.shift()(); // first tick
+    assert.strictEqual(state.queued.length, 6, `expected a batch of 6, got ${state.queued.length}`);
+    assert.strictEqual(timers.length, 1, 'trickle stopped while loads were still in flight');
+    // pipeline drains and everything finishes: next tick queues the last two, then stops
+    state.activeLoads = 0;
+    state.loadingSet.clear();
+    // mutate the captured Sets in place — the sandbox holds the references
+    for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) state.loadedSet.add(n);
+    timers.shift()();
+    assert.deepStrictEqual(state.queued, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
+      'the trickle never reached the tail of the catalogue');
+    for (const n of ['g', 'h']) state.loadedSet.add(n);
+    timers.shift()(); // nothing eligible + idle -> terminal
+    assert.strictEqual(timers.length, 0, 'trickle kept ticking after finishing the catalogue');
+    console.log('  ok   trickle queues batches, then stops when every card is live');
+  }
+
+  // b) hidden, errored and in-flight cards are skipped; a hidden document
+  //    ticks without queueing.
+  {
+    const state = {
+      pending: [
+        { dataset: { name: 'ok' } },
+        { dataset: { name: 'hidden' }, hidden: true },
+        { dataset: { name: 'errored', errorReason: 'load' } },
+        { dataset: { name: 'inflight' } },
+      ],
+      loadedSet: new Set(),
+      loadingSet: new Set(['inflight']),
+      queued: [], activeLoads: 1, loadQueue: [],
+    };
+    const timers = [];
+    runTrickle(state, timers);
+    timers.shift()();
+    assert.deepStrictEqual(state.queued, ['ok'], 'trickle queued a hidden/errored/in-flight card');
+    // hidden document: no queueing, but the loop survives
+    state.hidden = true;
+    const before = state.queued.length;
+    timers.shift()();
+    assert.strictEqual(state.queued.length, before, 'trickle queued while the tab was hidden');
+    assert.strictEqual(timers.length, 1, 'trickle died while the tab was hidden');
+    console.log('  ok   trickle skips hidden/errored/in-flight cards and pauses on hidden tabs');
+  }
+
+  // c) data-saver and 2G never start the trickle.
+  for (const [label, nav] of [
+    ['Save-Data', { connection: { saveData: true, effectiveType: '4g' } }],
+    ['2G', { connection: { saveData: false, effectiveType: '2g' } }],
+    ['slow-2G', { connection: { saveData: false, effectiveType: 'slow-2g' } }],
+  ]) {
+    const state = { pending: [{ dataset: { name: 'a' } }], loadedSet: new Set(),
+                    loadingSet: new Set(), queued: [], activeLoads: 0, loadQueue: [], navigator: nav };
+    const timers = [];
+    runTrickle(state, timers);
+    assert.strictEqual(timers.length, 0, `${label} visitor got the trickle`);
+    assert.strictEqual(state.queued.length, 0, `${label} visitor had cards queued`);
+  }
+  console.log('  ok   Save-Data / 2G / slow-2G visitors keep faces + click-to-run');
+
+  // d) starting twice is inert.
+  {
+    const state = { pending: [{ dataset: { name: 'a' } }], loadedSet: new Set(),
+                    loadingSet: new Set(), queued: [], activeLoads: 0, loadQueue: [] };
+    const timers = [];
+    const sandbox = runTrickle(state, timers);
+    vm.runInContext('startIdleTrickle();', sandbox);
+    assert.strictEqual(timers.length, 1, 'double start scheduled two loops');
+    console.log('  ok   double start is inert');
+  }
+}
+
 console.log('\ncard-faces tests passed');

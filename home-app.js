@@ -1095,6 +1095,10 @@
                 // Safety net: if the observer missed anything, scroll-driven
                 // loading picks it up (replaces the old 3s polling interval).
                 scrollFallbackLoader();
+                // The whole catalogue is now in the DOM: start the idle
+                // trickle so every remaining face quietly becomes a live
+                // tool without waiting for scrolls or clicks.
+                startIdleTrickle();
             }
         };
         step();
@@ -3129,6 +3133,49 @@
                 : 'Every tool on the page is already live',
             'success'
         );
+    }
+
+    // ===== IDLE TRICKLE LOADER =====
+    // The card faces already display the whole catalogue with no loading
+    // screens; this pass goes further and brings every tool fully live in
+    // the background — no scroll, no click — a few cards at a time. The
+    // shared pipeline stays in charge (nearest-to-viewport first, at most
+    // MAX_CONCURRENT_LOADS fetches), so the trickle can never starve the
+    // cards a visitor is actually looking at: their loads always win the
+    // queue. Data-saver and 2G visitors keep faces + click-to-run instead
+    // of a surprise catalogue download.
+    const TRICKLE_BATCH = 6;
+    const TRICKLE_INTERVAL = 2500;
+    let trickleStarted = false;
+    function startIdleTrickle() {
+        if (trickleStarted) return;
+        try {
+            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn && (conn.saveData || /(^|\b)(slow-)?2g\b/i.test(conn.effectiveType || ''))) return;
+        } catch (err) { /* connection info unavailable: trickle on */ }
+        trickleStarted = true;
+        const step = () => {
+            // A hidden tab neither loads nor entertains anyone: skip the
+            // tick and keep the timer alive for when the visitor returns.
+            if (!document.hidden) {
+                let queued = 0;
+                for (let i = 0; i < pendingCards.length && queued < TRICKLE_BATCH; i++) {
+                    const card = pendingCards[i];
+                    const name = card.dataset.name;
+                    if (!name || loadedCards.has(name) || loadingCards.has(name)) continue;
+                    if (card.dataset.errorReason || isCardHidden(card)) continue;
+                    loadCard(card, name);
+                    queued++;
+                }
+                // Nothing eligible left and the pipeline drained: every tool
+                // the catalogue offers is live — done. Cards resting after
+                // errors stay untouched here (bounded retries and the
+                // manual Retry button own those).
+                if (queued === 0 && activeLoads === 0 && loadQueue.length === 0) return;
+            }
+            setTimeout(step, TRICKLE_INTERVAL);
+        };
+        setTimeout(step, TRICKLE_INTERVAL);
     }
 
     function setViewModeCore(mode) {
