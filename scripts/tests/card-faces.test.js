@@ -313,6 +313,11 @@ function el(tag) {
         return new Promise(() => {});
       },
       rememberWarmed: name => { state.remembered = (state.remembered || []).concat(name); },
+      // The park (home-app.js: THE WINDOW AND THE PARK) is consulted by the warm
+      // path, so this sandbox needs it: parked tools are never re-warmed, and
+      // nothing here mounts or moves DOM.
+      parkedCards: new Set(), parkMode: true, mountWindow: 24, explicitRunAll: false,
+      resumeParked: () => false, parkOutsideWindow: () => {},
       pumpWarmSoon: () => { state.pumps++; },
       setTimeout: (fn) => { state.timers.push(fn); return state.timers.length; },
       console: { warn() {}, log() {}, error() {} },

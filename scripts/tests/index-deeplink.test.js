@@ -67,8 +67,20 @@ const cases = [
   ['?view=CARDS', { q: '', expand: '', cat: '', view: 'cards' }],
   ['?view=list', { q: '', expand: '', cat: '', view: '' }],
   ['?view=' + encodeURIComponent('<script>'), { q: '', expand: '', cat: '', view: '' }],
-];for (const [input, want] of cases) {
-  assert.strictEqual(JSON.stringify(parse(input)), JSON.stringify(want), 'parse(' + JSON.stringify(input) + ')');
+  // ?park=off is the mount window's escape hatch, and only that word means it:
+  // parking is the default the page believes in, so a typo must not disable it.
+  ['?park=off', { q: '', expand: '', cat: '', view: '', park: 'off' }],
+  ['?park=OFF&cat=music-audio', { q: '', expand: '', cat: 'music-audio', view: '', park: 'off' }],
+  ['?park=on', { q: '', expand: '', cat: '', view: '', park: '' }],
+  ['?park=', { q: '', expand: '', cat: '', view: '', park: '' }],
+];
+// Compared as whole objects, so a key added to parseIndexDeepLink() must be
+// spelled out in every vector — which is the point. The fill keeps the
+// parser's own key order.
+const PARSED_KEYS = { q: '', expand: '', cat: '', view: '', park: '' };
+for (const [input, want] of cases) {
+  assert.strictEqual(JSON.stringify(parse(input)), JSON.stringify(Object.assign({}, PARSED_KEYS, want)),
+    'parse(' + JSON.stringify(input) + ')');
 }
 console.log('  ok   parseIndexDeepLink: ' + cases.length + ' vectors (incl. hostile slugs rejected)');
 
@@ -124,6 +136,13 @@ assert(applier.includes("slugifyLabel(p.dataset.category)"),
   'cat must be matched against the shipped category pills');
 assert(applier.includes('currentSelectedCategory = pill.dataset.category'),
   'cat must apply the real filter state, so a reload and a click agree');
+// ?park=off must reach the one flag that turns parking on or off, and must be
+// read before the early return (a URL that only changes behaviour is still a URL).
+const parkAt = applier.indexOf("link.park === 'off'");
+assert(parkAt !== -1 && applier.includes('parkMode = false'),
+  'applyIndexDeepLink must hand ?park=off to parkMode');
+assert(parkAt < applier.indexOf('if (!link.q && !link.expand'),
+  '?park=off is applied before the "nothing to do" early return');
 // and the pills must write the same URL back, or the shared link is a lie
 const writer = grab('slugifyLabel') + NL + html.slice(html.indexOf('// Category pills filter'),
   html.indexOf('// Search clear button'));

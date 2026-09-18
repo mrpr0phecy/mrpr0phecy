@@ -75,21 +75,38 @@ item. This historical list does not override current staff decisions.
   throttle that kept scrolling alive and the reason the page looked like a
   nine-tool site. It is now three: **mosaic density** (a pending tool is a tile,
   ~30 per screen instead of 2–3; a running tool spans the row; `.density-focus`
-  keeps the old reading stack), a **mount budget** (`LIVE_AUTO_CAP = 64`,
-  lifted only by a click or `⚡ Run all`) and **warm-ahead** (a background pass
+  keeps the old reading stack), a **mount window** (a gridful of tools at a
+  time, everything outside it parked; see the sub-bullet below) and **warm-ahead**
+  (a background pass
   that fetches fragment *text* into `cardCache` only, follows the reading
   position, yields to the mount pipeline, and lands in `CARDS_CACHE` for the
   next visit). Filters no longer mount every match either, and
   `index.html?cat=<slug>` / `?view=directory` are real (they were documented in
   `agents.html` and not implemented). ARCHITECTURE.md §3 "The live window";
   pinned by `scripts/tests/live-window.test.js`.
-  - [ ] Verify the mosaic in a real browser before widening it further: tile
-    height (172 px assumed, not measured), the mount reflow as tiles become
-    full-row tools, and `⚡ Run all` on a mid-range phone.
-  - [ ] Window the DOM: render only the tiles near the viewport so 1,194 cards
-    cost ~60 nodes. The sweep/observer already do the hard half; the fiddly
-    half is that filters and `?expand=` need `visibleNames` as the source of
-    truth instead of DOM presence.
+  - [ ] Verify the mosaic and the park in a real browser before widening either:
+    tile height (172 px assumed, not measured), the mount reflow as tiles become
+    full-row tools, whether a parked tool's canvas really keeps its size across
+    a park/resume round trip, and `⚡ Run all` on a mid-range phone. None of
+    that is observable from a node harness.
+  - [x] Window the DOM. **Landed the same day (stage 2)**, on the owner's
+    *"i do want them all running but only a few loaded at a time around the
+    viewport"*: the cap became a mount window (`MOUNT_WINDOW_DEFAULT = 24`,
+    walked 10–40 by a `long-animation-frame` governor and tuned at boot by
+    `deviceMemory`) and any tool that leaves the window is **parked** — its
+    content subtree moves into `#mp-park` (`visibility:hidden`, off-screen,
+    never `display:none`) while its shell stays in the grid holding its row, so
+    1,194 tools can be running while the page lays out ~24. Because nothing is
+    destroyed, waking one is a single `appendChild` and no state is lost — and
+    the `visibleNames`-as-filter-truth refactor turned out to be unnecessary:
+    the shells that filters and `?expand=` query never move. `?park=off` and
+    `⚡ Run all` switch parking off; `prunePark()` evicts a parked tool's DOM
+    only when `performance.memory` reports heap pressure, oldest-parked first.
+    ARCHITECTURE.md §3 and the §7 traps; suites 8–11 of `live-window.test.js`.
+  - [ ] Measure the window and the park in the field before touching the
+    defaults: which `MOUNT_WINDOW_*` / `PARK_CEILING` pair a mid-range phone
+    wants, and whether the LoAF governor converges or breathes. Both are
+    stubbable in node; neither is *answerable* there.
   - [ ] Bundle fragments per category (`cards/bundles/<slug>.json`, generated
     and checked like the sitemap) so "run this category" is one request instead
     of 152 — and decide whether an explicit `?install=1` should warm the whole

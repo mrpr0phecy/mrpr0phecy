@@ -213,15 +213,25 @@ Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.j
   `activeLoads >= MAX_CONCURRENT_LOADS`; the walk still prunes, the errored-card
   retry still runs, and `processLoadQueue()` re-sweeps the moment a slot frees.
 
+- **The park pass is gated on scroll distance, not on frames.**
+  `parkOutsideWindow()` has to measure every *live* tool to know whether the
+  window still covers it. That is a windowful of `getBoundingClientRect()` calls
+  (at most `MOUNT_WINDOW_MAX`, not the whole catalogue) — but the frames it would
+  spend them on are the frames someone is scrolling, so the pass runs once per
+  `PARK_STEP` (240 px) of movement and backs off to `PARK_STEP_MAX` for as long as
+  it keeps finding nothing to park. `invalidateParkPass()` forces one after a
+  resize or a density switch, because both move the window without moving the
+  scroll position.
+
 The IntersectionObserver stays the primary trigger — it knows what entered the
 viewport without asking the layout engine about 1,194 elements.
 
-### The live window: density, mount budget, warm-ahead
+### The live window: density, the park, warm-ahead
 
 **The problem this fixes.** The grid used to be one tool per row of about
 330 px, so a screen held two of them and the whole catalogue was over 400,000
 px of scroll, and none of it became real until its fragment had been fetched,
-parsed *and executed*. and the loader — throttled to 6 mounts per 2.5 s to keep
+parsed *and executed*, and the loader — throttled to 6 mounts per 2.5 s to keep
 scrolling usable — needed ~8 minutes of foreground time to make one page of
 tools real. The site read as "nine tools and a promise". No amount of tuning the
 throttle helped: with one verb (`loadCard`), making the tools visible meant
@@ -243,14 +253,32 @@ Three changes, each of which is the *whole* of one idea:
   the loader's screenful and the CSS's screenful cannot disagree (and
   `scripts/tests/live-window.test.js` reads `minmax()` out of the stylesheet to
   prove it).
-- **Mount budget (`CONFIG.LIVE_AUTO_CAP`).** The observer and the viewport sweep
-  mount what is on screen, nearest first, and stop at 64 running tools. Past
-  that only intent continues: a click on a tile, Enter on a focused face,
-  `⚡ Run all`. A running tool costs a script, a layout and usually a loop for
-  the rest of the visit, and the page cannot know which 1,194 of them matter to
-  you — but it can stop guessing once it has guessed loudly enough. The
-  toolbar's live counter (`#liveToolCount`, updated from `updateSiteStats()`)
-  says which of the two it is doing.
+- **The mount window and the park (`mountBudgetFree()`, `parkCard()`,
+  `resumeParked()`).** The observer and the viewport sweep mount what is on
+  screen, nearest first, and the grid lays out `mountWindow` tools at a time
+  (`MOUNT_WINDOW_DEFAULT = 24`, between `MOUNT_WINDOW_MIN` and `_MAX`). That
+  number limits **layout**, not liveness. A tool mounted outside the window is
+  *parked*: its content subtree moves into `#mp-park` — one
+  `position: fixed; left: -100000px; visibility: hidden` container — while the
+  card shell stays exactly where it is in the grid, keeping its face and its
+  measured row height. A parked tool keeps running, keeps its DOM, keeps every
+  value the visitor typed, costs the visible page no paint and no layout, and
+  wakes up with one `appendChild` rather than a fetch, a parse, a script and a
+  lost form. `keepAlive()` refuses to park a tool under the pointer, one with
+  the caret inside it, or one carrying `data-keep`; `⚡ Run all` and `?park=off`
+  switch parking off entirely, because both of those mean "the window is the
+  page". The window's size is measured, not guessed: `initFrameGovernor()`
+  listens to `PerformanceObserver('long-animation-frame')` and narrows the
+  window when frames are long, growing it back on a later quiet pass — no
+  timers, and a browser without LoAF simply keeps the device default from
+  `deviceBudget()`. `prunePark()` is the only destructive path in the design,
+  and it runs only when `performance.memory` reports the heap under pressure
+  (then oldest-parked first, down to 70% of `PARK_CEILING`): a parked tool is
+  cheaper than a lost one. `cardCache` is capped at `CARD_CACHE_MAX = 96` and
+  `pruneCardCache()` never evicts a tool that is running *or parked*.
+  `#liveToolCount` (`updateLiveCount()`, called from `updateSiteStats()` and by
+  the park itself) states both halves: how many tools are in the grid and how
+  many more are alive off it.
 - **Warm-ahead (`startCacheWarm()` / `pumpWarm()` / `warmCard()`).** The
   background pass fetches fragment *text* into `cardCache` and does nothing
   else — no `DOMParser`, no script, no layout, no `.innerHTML`. It walks
@@ -260,14 +288,15 @@ Three changes, each of which is the *whole* of one idea:
   full pass that found nothing to do. Because every request is a
   `cards/*.html` GET, the service worker stores the same responses in
   `CARDS_CACHE`, so warming on this visit is warming on the next one.
-  `cardCache` itself is capped at `CARD_CACHE_MAX = 96` entries and
-  `pruneCardCache()` never evicts a tool that is running.
+  `warmEligible()` skips anything the mount pipeline owns, including parked
+  tools — their bytes are already in the DOM.
 
 Net effect: **every tool the visitor can see is live within a frame or two of
-arriving** (usually from cache), everything else on the page is a complete,
-searchable, one-click tile, and the page never accrues a thousand animation
-loops. Save-Data and 2G visitors get the tiles and click-to-run with no
-background download at all — the grid is already complete without them.
+arriving** (usually from cache), everything they have already passed stays
+running off-grid with its state intact, everything else on the page is a
+complete, searchable, one-click tile, and the grid never carries more than a
+windowful of layout. Save-Data and 2G visitors get the tiles and click-to-run
+with no background download at all — the grid is already complete without them.
 
 The old idle trickle is gone in both files (a dead copy of its constants sat in
 `home-features.js`; it is gone too). `scripts/tests/live-window.test.js` fails
@@ -932,7 +961,35 @@ there. Also keep `.card`'s `contain-intrinsic-size` honest: the base rule
 carries the size of a running tool (340px), so a pending tile overrides it to
 172px — a skipped tile measured at 340px makes the scrollbar jump as you scroll.
 
-**ID collisions across cards.** All 1194 share one DOM. See §3.
+**The park container must never be `display: none`.** `#mp-park` hides a parked
+tool with `position: fixed` off the left edge plus `visibility: hidden`, and that
+specific pair is the whole trick: the subtree stays laid out and measurable, so a
+tool that sizes its canvas from `clientWidth` keeps real numbers while it waits.
+`display: none` gives every element inside it a zero `clientWidth` and a zero
+`getBoundingClientRect()` — and because a tool that measures on a resize or in a
+frame loop keeps whatever it last saw, a park that momentarily hid the content
+with `display` can leave a tool permanently blank *after* it is resumed.
+`content-visibility: hidden` and `hidden` are wrong for the same reason. What you
+may add is another `contain`, never a change to how it is hidden;
+`scripts/tests/live-window.test.js` suite 11 reads the rule back out of
+`home.css` and fails on `display: none` there.
+
+Two more things that are load-bearing in the park, both pinned by the same suite:
+**a parked card keeps its row.** Its shell never moves and `.card.card-parked`
+keeps `grid-column: 1 / -1` and its inline `min-height`, because a parked row
+collapsing to a tile shortens the document a few hundred pixels above the
+viewport and the page jumps under the scroll (scroll anchoring is not universal).
+And **`renderCardContent()` must not wipe `.card-sandbox`** — it hides the face
+(`face.hidden = true`) instead of `innerHTML = ''`, because the face is what a
+parked or evicted card has to show again, and re-creating it would lose the real
+description `refreshCardFaceDescriptions()` patched in. Parking is also why
+`.card-face[hidden] { display: none }` exists: the face rule sets `display: flex`
+and an author rule beats the UA sheet's `[hidden]`.
+
+**ID collisions across cards.** All 1194 share one DOM. See §3. A parked subtree
+keeps its real ids — it is still in the document, which is exactly why
+`document.getElementById` inside a sleeping tool keeps working; moving content
+out of the grid is not moving it out of the page.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -1398,6 +1455,37 @@ support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
 finance segments. Validated in headless Chromium against the real RSS feeds:
 124 stories / 35 sources, zero console or page errors.
 
+**Changed 2026-09-18 (stage 2) — everything runs, a window is loaded.** Owner
+reply to the entry below: *"i do want them all running but only a few loaded at a
+time around the viewport."* So the cap became a **mount window**
+(`LIVE_AUTO_CAP` is gone; `MOUNT_WINDOW_DEFAULT = 24`, governed 10–40) and the
+grid grew a third card state. A mounted tool that leaves the window is **parked**:
+its content subtree moves into `#mp-park` — off the left edge,
+`visibility: hidden`, never `display: none` — while its shell stays in the grid,
+keeping its face and its measured row. So the visible page pays no layout and no
+paint for it, nothing about the tool is thrown away (timers keep running, forms
+keep their values, `document.getElementById` still finds its nodes), and waking
+it is one `appendChild`. `resumeParked()` sits at the top of `loadCard()` —
+before the queue, so a parked tool never costs a fetch slot — and
+`parkOutsideWindow()` runs inline in the sweep because it measures one rect per
+*live* tool rather than the whole pending list. Intent outranks geometry
+(`keepAlive()`: hover, focus inside, `data-keep`), and `⚡ Run all` /
+`?park=off` switch the whole idea off. `prunePark()` is the only path that
+destroys a tool's DOM and it runs only under `performance.memory` pressure,
+oldest-parked first — the count alone is never a reason. Window size is decided
+by `deviceBudget()` at boot and then by a `long-animation-frame` governor that
+narrows the window when frames are long and grows it back on a quiet park pass:
+no polling, and no shrinking at all where LoAF is unsupported.
+`renderCardContent()` no longer empties `.card-sandbox` — it hides `.card-face`,
+which is what lets a parked tile show its face again (see §7); the park also
+owns the width its subtree is laid out at, so nothing inside re-wraps while it
+waits. `home.css` is 17.1 KB gzip of its 18 KB budget. `live-window.test.js` grew
+from 7 suites to 11 (the park's node moves, its refusal rules, the eviction
+contract, and the CSS that must not hide the park with `display`), and
+`lazy-loader.test.js` suite 6 now pins the window instead of the cap.
+The pass is also gated on scroll distance (`PARK_STEP`), which suite 9 asserts by
+counting rect reads — the one number that says whether a frame is free.
+
 **Changed 2026-09-18 — the main page is a live window, not a trickle.**
 Owner report: *"only nine tools are loading on my mainpage and i have over
 1000, this destroys the point of my site."* Diagnosis, from the shipped numbers:
@@ -1428,11 +1516,14 @@ absence of the trickle; `lazy-loader.test.js` gained the budget suite and
 growth beyond the two toolbar controls (`home.css` is 16.2 KB gzip against its
 18 KB budget, `index.html` 14.5 KB).
 
-Still open, in order of what they would buy: **windowed DOM** (only the tiles
-near the viewport exist, so 1,194 cards cost ~60 nodes — the sweep and observer
-already do the hard part); **per-category bundle fetches** so "run this
-category" is one request instead of 152; and **`?cat=` deep links** so a
-category is a URL a crawler and a phone can treat as a page.
+Landed the same day, in the same pass: **`?cat=` / `?category=` and `?view=`
+deep links** (`parseIndexDeepLink()` / `applyIndexDeepLink()`, written back by
+the pills with `replaceState`), so a category is now a URL a crawler and a phone
+can treat as a page — documented in `agents.html` and `llms.txt`. Still open, in
+order of what they would buy: **per-category bundle fetches** so "run this
+category" is one request instead of a hundred-odd; and a **real-browser pass**
+over the mosaic (a 172 px tile, the mount reflow when a tool arrives, and
+`⚡ Run all` on a phone — none of which a node harness can see).
 
 **Fixed 2026-08-31 (commits `ce0c880`, `bb32e34`)**
 

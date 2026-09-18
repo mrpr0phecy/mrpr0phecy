@@ -46,6 +46,7 @@ HOST_CLASSES = {
     "card", "card-header", "card-header-info", "card-content", "card-actions",
     "card-action-btn", "card-maximize-btn", "card-footer", "card-sandbox",
     "card-sandbox-content", "card-skeleton", "card-cat-badge", "card-pending",
+    "card-parked", "parked-tool",
     "dashboard", "main-header", "sticky-command-bar", "cat-pill", "toolbox",
     "cool-loader", "rating-btn", "embed-btn", "loaded", "visible",
 }
