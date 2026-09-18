@@ -206,8 +206,8 @@ fi
 # staff-*.test.js, so a card-loader regression could ship green.
 if command -v node >/dev/null 2>&1; then
   if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js \
-    && node scripts/tests/lite-tier.test.js; then
-    ok "card loader, first-screen fast path and two-tier catalogue behave as shipped"
+    && node scripts/tests/lite-tier.test.js && node scripts/tests/card-faces.test.js; then
+    ok "card loader, first-screen fast path, two-tier catalogue and card faces behave as shipped"
   else
     fail "card loader regression — see the failing assertion above"
   fi
