@@ -34,6 +34,11 @@ CARDS = os.path.join(ROOT, "cards")
 STYLE_RE = re.compile(r"<style[^>]*>([\s\S]*?)</style>", re.I)
 SCRIPT_RE = re.compile(r"<script[\s\S]*?</script>", re.I)
 COMMENT_RE = re.compile(r"/\*[\s\S]*?\*/")
+# CSS a card injects at runtime: `style.textContent = \`…\`` (or a quoted
+# string). Those rules land in the shared document exactly like a <style>
+# block does — they are simply invisible to a scan that only reads tags. Five
+# cards were still restyling the host grid this way when this was added.
+INJECT_RE = re.compile(r"textContent\s*=\s*(`[^`]*`|'[^']*'|\"[^\"]*\")", re.S)
 
 # Host classes from index.html's card shell + page chrome. A bare rule on
 # any of these rewrites the whole grid.
@@ -98,6 +103,24 @@ def leaking_selectors(selector_list: str):
     return out
 
 
+def css_sources(src: str):
+    """Yield (kind, css) for every chunk of CSS a card can put in the document.
+
+    `style-tag` chunks come from the fragment's own <style> blocks. Script
+    bodies are blanked for that pass so print/download templates are not
+    scanned, and the CSS those templates *inject* is picked up separately by
+    the `script-injected` pass, which reads the literals assigned to
+    textContent.
+    """
+    blanked = SCRIPT_RE.sub(lambda m: " " * len(m.group(0)), src)
+    for m in STYLE_RE.finditer(blanked):
+        yield "style-tag", m.group(1)
+    for m in INJECT_RE.finditer(src):
+        css = m.group(1)[1:-1]
+        if "{" in css:
+            yield "script-injected", css
+
+
 def main() -> int:
     verbose = "--verbose" in sys.argv
     bad = {}
@@ -105,25 +128,33 @@ def main() -> int:
         if not f.endswith(".html"):
             continue
         src = open(os.path.join(CARDS, f), encoding="utf-8").read()
-        # blank <script> bodies so embedded print templates are not scanned
-        src = SCRIPT_RE.sub(lambda m: " " * len(m.group(0)), src)
-        for m in STYLE_RE.finditer(src):
-            for sel, body in rules(m.group(1)):
+        for kind, css in css_sources(src):
+            for sel, body in rules(css):
                 leaks = leaking_selectors(sel)
                 if leaks:
-                    bad.setdefault(f, []).append((leaks, body.strip().replace("\n", " ")[:70]))
+                    bad.setdefault(f, []).append(
+                        (kind, leaks, body.strip().replace("\n", " ")[:70]))
     if not bad:
-        print("CARD CSS OK — no fragment restyles the host shell (.card, body, …)")
+        print("CARD CSS OK — no fragment restyles the host shell (.card, body, …), "
+              "in a <style> block or injected from script")
         return 0
     print(f"CARD CSS LEAKS in {len(bad)} card(s) — these rules restyle the whole home page:")
+    kinds = set()
     for f, items in bad.items():
         print(f"  {f}")
-        for leaks, body in (items if verbose else items[:3]):
-            print(f"      {', '.join(leaks)}  {{ {body} }}")
+        for kind, leaks, body in (items if verbose else items[:3]):
+            kinds.add(kind)
+            print(f"      [{kind}] {', '.join(leaks)}  {{ {body} }}")
         if not verbose and len(items) > 3:
             print(f"      … {len(items) - 3} more (--verbose)")
-    print("\nFix: scope the rules under the card's root id, e.g.\n"
-          "     python3 scripts/scope-card-css.py <slug> [--root-class card]")
+    print("\nFix:")
+    if "style-tag" in kinds:
+        print("  scope the <style> rules under the card's root id, e.g.\n"
+              "     python3 scripts/scope-card-css.py <slug> [--root-class card]")
+    if "script-injected" in kinds:
+        print("  a stylesheet injected from <script> cannot be scoped by that helper:\n"
+              "  delete the leaking rule, or wrap it in the card's own root id — and\n"
+              "  only keep it if the card's own markup actually uses those classes.")
     return 1
 
 

@@ -51,6 +51,10 @@ assert.ok(SHIPPED_CAP >= 1 && SHIPPED_CAP <= 16,
 
 // ---------------------------------------------------------------- card stub
 const STUB = { innerHeight: 900 };
+// Every getBoundingClientRect() a sweep performs. The real grid measures
+// ~1,190 pending cards per sweep, and each read forces layout — so the tests
+// below can pin exactly when measuring is allowed to happen.
+let rectReads = 0;
 
 function makeCard(name, { top, height, width = 300, hidden = false, failed = false, connected = true }) {
   const card = {
@@ -58,7 +62,7 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
     style: { display: hidden ? 'none' : '' },
     isConnected: connected,
     classes: new Set(),
-    getBoundingClientRect: () => ({ top, bottom: top + height, height, width }),
+    getBoundingClientRect: () => { rectReads++; return { top, bottom: top + height, height, width }; },
   };
   if (failed) card.dataset.errorReason = 'load';
   card.classList = {
@@ -78,6 +82,19 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
   const loadedCards = new Set();
   const loadingCards = new Set();
 
+  // The shipped loader state the sweep reads: activeLoads / loadQueue decide
+  // whether a load slot is free, so the harness keeps them mutable.
+  const runtime = {
+    loadedCards, loadingCards,
+    loadCard: (card, name) => queued.push(name),
+    isCardHidden: card => card.style.display === 'none',
+    retryErroredCards: () => { errSweeps++; },
+    MAX_CONCURRENT_LOADS: SHIPPED_CAP,
+    activeLoads: 0,
+    loadQueue: [],
+    window: { get innerHeight() { return STUB.innerHeight; } },
+  };
+
   const api = run(
     'let scrollLoadActive = false;\nlet pendingCards = [];\n'
     + grab('scrollFallbackLoader')
@@ -85,14 +102,7 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
     + ' __setPending: v => { pendingCards = v; },'
     + ' __getPending: () => pendingCards,'
     + ' __reset: () => { scrollLoadActive = false; } });',
-    {
-      loadedCards, loadingCards,
-      loadCard: (card, name) => queued.push(name),
-      isCardHidden: card => card.style.display === 'none',
-      retryErroredCards: () => { errSweeps++; },
-      MAX_CONCURRENT_LOADS: SHIPPED_CAP,
-      window: { get innerHeight() { return STUB.innerHeight; } },
-    }, 'scrollFallbackLoader');
+    runtime, 'scrollFallbackLoader');
 
   // Visible cards load nearest-to-centre first, capped at MAX_CONCURRENT_LOADS.
   STUB.innerHeight = 900;
@@ -166,6 +176,37 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
     'finished cards must be pruned from the pending list');
   loadedCards.clear();
   console.log('  ok   finished cards pruned from the pending list');
+
+  // A saturated pipeline (every slot busy, more work already queued) cannot
+  // start anything, so the sweep must not measure the grid at all — on the
+  // real catalogue that was 1,190 getBoundingClientRect() calls per scroll
+  // frame, all of them for cards it could not load.
+  runtime.activeLoads = SHIPPED_CAP;
+  runtime.loadQueue = new Array(40).fill({ card: null, cardName: 'queued' });
+  api.__setPending(Array.from({ length: 400 },
+    (_, i) => makeCard(`s${i}`, { top: i * 100, height: 90 })));
+  queued.length = 0; errSweeps = 0; api.__reset();
+  const readsBefore = rectReads;
+  api.scrollFallbackLoader();
+  assert.strictEqual(rectReads, readsBefore,
+    `saturated sweep measured ${rectReads - readsBefore} card(s) it could not start`);
+  assert.strictEqual(queued.length, 0, 'a saturated sweep must not queue work');
+  assert.strictEqual(errSweeps, 1, 'the errored-card retry sweep still runs');
+  console.log('  ok   saturated pipeline: no layout reads, nothing queued');
+
+  // ...and the moment a slot frees up the sweep measures and loads again, so
+  // skipping the measurement can never strand a card.
+  runtime.activeLoads = SHIPPED_CAP - 1;
+  runtime.loadQueue = [];
+  api.__reset();
+  const readsIdle = rectReads;
+  api.scrollFallbackLoader();
+  assert.ok(rectReads > readsIdle, 'a free slot must trigger measuring again');
+  assert.ok(queued.length > 0, 'a free slot must start a load');
+  console.log('  ok   a free slot re-enables measuring and starts a load');
+
+  runtime.activeLoads = 0;
+  runtime.loadQueue = [];
 }
 
 // ---------------------------------------------------------------- suite 2

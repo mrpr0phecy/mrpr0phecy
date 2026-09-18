@@ -1,3 +1,9 @@
+    // Shared version of the page's own assets. The stylesheets and scripts are
+    // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
+    // from one deploy must never run against another deploy's CSS or JS
+    // (scripts/check-critical-css.py compares all three).
+    const APP_VERSION = 7;
+
     // ===== CONFIGURATION =====
     const CONFIG = {
         INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() sizes it to the viewport
@@ -49,12 +55,15 @@
         loadCardList();
         setupEventListeners();
         setupStickyCommandBar();
-        initToolbox();
+        initReaderMode();
         // Modern platform features
         registerServiceWorker();
         setupNavigationAPI();
-        setupBroadcastChannel();
         setupScrollEnd();
+        // Panels, toolbox, modal and the directory view: ~40 KB that nothing on
+        // the first screen needs. Fetched at idle (or by the first click that
+        // wants one of them) instead of compiling before the first tools.
+        scheduleFeatureBundle();
         assignVTNames();
         postTask(() => updateSpeculationRules());
         // Observe popover close to sync active states
@@ -65,10 +74,8 @@
                 }
             });
         });
-        initPanels();
         applySavedSettings();
         setupMobileOptimizations();
-        setupStandaloneModal();
     }
     
     if (document.readyState === 'loading') {
@@ -141,618 +148,177 @@
         }, { passive: true });
     }
     
-    // ===== PANEL MANAGEMENT =====
-    function initPanels() {
-        // Close panels when clicking outside
-        document.addEventListener('click', (e) => {
-            const panels = document.querySelectorAll('.panel');
-            const toolbox = document.getElementById('toolbox');
-            
-            panels.forEach(panel => {
-                if (panel.classList.contains('open') && 
-                    !e.target.closest('.panel') && 
-                    !e.target.closest('.sticky-action-btn')) {
-                    closePanel(panel);
-                }
-            });
-            
-            // For toolbox specifically
-            if (toolbox.classList.contains('open') && 
-                !e.target.closest('#toolbox') && 
-                !e.target.closest('#stickyToolboxToggle')) {
-                closeToolbox();
-            }
-        });
-        
-        // Escape key closes panels
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.panel.open').forEach(panel => {
-                    closePanel(panel);
-                });
-                closeToolbox();
-            }
-        });
-        
-        // Setup individual panel toggles
-        document.getElementById('stickyToolboxToggle').addEventListener('click', (e) => {
-            toggleToolbox(e);
-        });
-        
-        document.getElementById('stickyPaletteToggle').addEventListener('click', (e) => {
-            togglePanel('palettePanel', e);
-        });
-        
-        document.getElementById('stickyContributionsToggle').addEventListener('click', (e) => {
-            togglePanel('contributionsPanel', e);
-        });
-        
-        // Contributions close button
-        document.getElementById('contributionsClose').addEventListener('click', () => {
-            closePanel(document.getElementById('contributionsPanel'));
-        });
-        
-        // Toolbox close button - FIXED
-        document.getElementById('toolboxClose').addEventListener('click', (e) => {
-            e.stopPropagation();
-            closeToolbox();
-        });
-        
-        // Reader mode toggle - FIXED VERSION
-        document.getElementById('stickyReaderToggle').addEventListener('click', () => {
-            const isReaderMode = document.body.classList.toggle('reader-mode');
-            document.getElementById('stickyReaderToggle').classList.toggle('active', isReaderMode);
-            localStorage.setItem('readerMode', isReaderMode ? 'on' : 'off');
-            
-            // Force reflow and update card heights
-            setTimeout(() => {
-                document.querySelectorAll('.card').forEach(card => {
-                    adjustCardHeight(card);
-                });
-            }, 50);
-            
-            showNotification(isReaderMode ? 
-                'Reader mode enabled - Cards full width & height' : 
-                'Reader mode disabled - Grid view', 'info');
-        });
-        
-        // Premium sponsorship details toggle
-        const premiumSponsorship = document.getElementById('premiumSponsorship');
-        const premiumDetails = document.getElementById('premiumDetails');
-        if (premiumSponsorship && premiumDetails) {
-            premiumSponsorship.addEventListener('click', (e) => {
-                if (!e.target.closest('a')) {
-                    premiumDetails.classList.toggle('show');
-                }
-            });
-        }
-    }
-    
-    function toggleToolbox(event) {
-        event.stopPropagation();
-        const toolbox = document.getElementById('toolbox');
-        // Modern: Try Popover API
-        if (toolbox && typeof toolbox.showPopover === 'function') {
-            try {
-                if (toolbox.matches(':popover-open')) {
-                    toolbox.hidePopover();
-                    toolbox.classList.remove('open');
-                    document.getElementById('stickyToolboxToggle').classList.remove('active');
-                } else {
-                    // Close other panels
-                    document.querySelectorAll('.panel[popover]:popover-open').forEach(p => {
-                        if (p !== toolbox) { try { p.hidePopover(); } catch {} }
-                    });
-                    document.querySelectorAll('.panel.open').forEach(p => closePanel(p));
-                    toolbox.showPopover();
-                    toolbox.classList.add('open');
-                    document.getElementById('stickyToolboxToggle').classList.add('active');
-                    renderToolbox();
-                }
-                return;
-            } catch (e) {
-                // fallback
-            }
-        }
-        
-        if (toolbox.classList.contains('open')) {
-            closeToolbox();
-        } else {
-            // Close other panels
-            document.querySelectorAll('.panel.open').forEach(panel => {
-                closePanel(panel);
-            });
-            
-            // Open toolbox
-            toolbox.classList.add('open');
-            document.getElementById('stickyToolboxToggle').classList.add('active');
-            
-            // Ensure it's visible and properly positioned
-            renderToolbox();
-        }
-    }
-    
-    function closeToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        if (toolbox && typeof toolbox.hidePopover === 'function') {
-            try { if (toolbox.matches(':popover-open')) toolbox.hidePopover(); } catch {}
-        }
-        toolbox.classList.remove('open');
-        document.getElementById('stickyToolboxToggle').classList.remove('active');
-    }
-    
-    function togglePanel(panelId, event) {
-        event.stopPropagation();
-        const panel = document.getElementById(panelId);
-        // Modern: Try Popover API first
-        if (panel && typeof panel.showPopover === 'function') {
-            try {
-                // Close others via popover
-                document.querySelectorAll('.panel[popover]:popover-open').forEach(p => {
-                    if (p !== panel) {
-                        try { p.hidePopover(); } catch {}
-                    }
-                });
-                if (panel.matches(':popover-open')) {
-                    panel.hidePopover();
-                    document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
-                } else {
-                    panel.showPopover();
-                    document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
-                    event.target.classList.add('active');
-                }
-                return;
-            } catch (e) {
-                // Fall back to class-based
-            }
-        }
-        // Fallback: class-based toggle
-        const button = document.querySelector(`[id^="sticky"][id$="Toggle"]`);
-        
-        // Close all other panels
-        document.querySelectorAll('.panel.open').forEach(p => {
-            if (p !== panel) {
-                closePanel(p);
-            }
-        });
-        
-        // Toggle current panel
-        if (panel.classList.contains('open')) {
-            closePanel(panel);
-        } else {
-            panel.classList.add('open');
-            // Update active button state
-            document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-        }
-    }
-    
-    function closePanel(panel) {
-        // Modern: hide popover if open
-        if (panel && typeof panel.hidePopover === 'function') {
-            try {
-                if (panel.matches(':popover-open')) {
-                    panel.hidePopover();
-                }
-            } catch {}
-        }
-        panel.classList.remove('open');
-        document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
-    }
-    
-    // ===== IMPROVED TOOLBOX SYSTEM =====
-    function initToolbox() {
-        const toolbox = document.getElementById('toolbox');
-        const toolboxTitle = document.getElementById('toolboxTitle');
-        
-        // Load saved toolbox mode
-        const savedMode = localStorage.getItem('toolboxMode');
-        if (savedMode && ['grid', 'list'].includes(savedMode)) {
-            toolboxMode = savedMode;
-        }
-        
-        // Update UI based on loaded mode
-        updateToolboxMode();
-        
-        // Dragging for the entire toolbox
-        let isDragging = false;
-        let dragOffset = { x: 0, y: 0 };
-        
-        toolboxTitle.addEventListener('mousedown', (e) => {
-            if (e.target.tagName === 'BUTTON') return;
-            
-            isDragging = true;
-            const rect = toolbox.getBoundingClientRect();
-            dragOffset.x = e.clientX - rect.left;
-            dragOffset.y = e.clientY - rect.top;
-            
-            document.addEventListener('mousemove', onToolboxDrag);
-            document.addEventListener('mouseup', stopToolboxDrag);
-            toolboxTitle.style.cursor = 'grabbing';
-        });
-        
-        function onToolboxDrag(e) {
-            if (!isDragging) return;
-            e.preventDefault();
-            
-            toolbox.style.left = (e.clientX - dragOffset.x) + 'px';
-            toolbox.style.top = (e.clientY - dragOffset.y) + 'px';
-            toolbox.style.right = 'auto';
-            toolbox.style.bottom = 'auto';
-        }
-        
-        function stopToolboxDrag() {
-            isDragging = false;
-            document.removeEventListener('mousemove', onToolboxDrag);
-            document.removeEventListener('mouseup', stopToolboxDrag);
-            toolboxTitle.style.cursor = '';
-        }
-        
-        // Mode buttons - ONLY IN TOOLBOX
-        document.getElementById('gridModeBtn').addEventListener('click', () => {
-            switchToolboxMode('grid');
-        });
-        
-        document.getElementById('listModeBtn').addEventListener('click', () => {
-            switchToolboxMode('list');
-        });
-        
-        document.getElementById('clearToolboxBtn').addEventListener('click', () => {
-            if (toolboxCards.length === 0) return;
-            
-            if (confirm(`Clear all ${toolboxCards.length} cards from toolbox?`)) {
-                toolboxCards = [];
-                expandedGridCards.clear();
-                expandedListCards.clear();
-                saveToolboxCards();
-                renderToolbox();
-                showNotification('Toolbox cleared', 'success');
-            }
-        });
-        
-        // Load saved toolbox cards
-        loadSavedToolboxCards();
-        
-        // Handle toolbox resize for grid mode
-        let resizeObserver;
-        if (typeof ResizeObserver !== 'undefined') {
-            resizeObserver = new ResizeObserver(() => {
-                if (toolboxMode === 'grid' && toolbox.classList.contains('open')) {
-                    updateGridLayout();
-                }
-            });
-            resizeObserver.observe(toolbox);
-        }
-    }
-    
-    function switchToolboxMode(mode) {
-        toolboxMode = mode;
-        updateToolboxMode();
-        renderToolbox();
-        showNotification(`Toolbox: Switched to ${mode} mode`, 'info');
-    }
-    
-    function updateToolboxMode() {
-        const toolbox = document.getElementById('toolbox');
-        const modeText = document.getElementById('toolboxModeText');
-        const modeIcon = document.getElementById('toolboxIcon');
-        const modeInfo = document.getElementById('toolboxModeInfo');
-        
-        // Remove all mode classes
-        toolbox.classList.remove('grid-mode', 'list-mode');
-        
-        // Update active mode buttons
-        document.querySelectorAll('.toolbox-btn.mode-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Add current mode class and update UI
-        if (toolboxMode === 'grid') {
-            toolbox.classList.add('grid-mode');
-            document.getElementById('gridModeBtn').classList.add('active');
-            modeText.textContent = 'Grid Mode';
-            modeIcon.textContent = '🔲';
-            modeInfo.textContent = 'Click cards to expand • Resize toolbox to adjust grid';
-        } else if (toolboxMode === 'list') {
-            toolbox.classList.add('list-mode');
-            document.getElementById('listModeBtn').classList.add('active');
-            modeText.textContent = 'List Mode';
-            modeIcon.textContent = '📋';
-            modeInfo.textContent = 'Click cards to expand • Clean list view';
-        }
-        
-        // Save mode preference
-        localStorage.setItem('toolboxMode', toolboxMode);
-    }
-    
-    function updateGridLayout() {
-        if (toolboxMode !== 'grid') return;
-        
-        const toolbox = document.getElementById('toolbox');
-        const container = document.querySelector('.grid-mode-container');
-        if (!container) return;
-        
-        // Calculate optimal column width based on toolbox width
-        const toolboxWidth = toolbox.offsetWidth;
-        let columnWidth = 160; // Default
-        
-        if (toolboxWidth < 500) {
-            columnWidth = 120;
-        } else if (toolboxWidth < 600) {
-            columnWidth = 140;
-        } else if (toolboxWidth > 800) {
-            columnWidth = 180;
-        } else if (toolboxWidth > 1000) {
-            columnWidth = 200;
-        }
-        
-        // Update grid template
-        container.style.gridTemplateColumns = `repeat(auto-fill, minmax(${columnWidth}px, 1fr))`;
-    }
-    
-    function renderToolbox() {
-        const toolboxContent = document.getElementById('toolboxContent');
-        
-        if (toolboxCards.length === 0) {
-            toolboxContent.innerHTML = `
-                <div class="toolbox-empty">
-                    <div class="toolbox-empty-icon">🧰</div>
-                    <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
-                    <p style="margin:0;">Add cards by clicking the grid/list buttons on any card</p>
-                    <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">
-                        ${toolboxMode === 'grid' ? 
-                          '• Seamless resizable grid<br>• Click cards to expand<br>• Drag toolbox to reposition' : 
-                          '• Clean expandable list<br>• Click cards to expand<br>• Drag toolbox to reposition'}
-                    </p>
-                </div>
-            `;
-            updateToolboxCardCount();
-            return;
-        }
-        
-        if (toolboxMode === 'grid') {
-            renderGridMode();
-        } else if (toolboxMode === 'list') {
-            renderListMode();
-        }
-    }
-    
-    function renderGridMode() {
-        const toolboxContent = document.getElementById('toolboxContent');
-        
-        toolboxContent.innerHTML = '<div class="grid-mode-container"></div>';
-        const container = toolboxContent.querySelector('.grid-mode-container');
-        
-        toolboxCards.forEach((card, index) => {
-            const isExpanded = expandedGridCards.has(index);
-            const cardElement = createGridCard(card, index, isExpanded);
-            container.appendChild(cardElement);
-        });
-        
-        updateGridLayout();
-        updateToolboxCardCount();
-    }
-    
-    function createGridCard(card, index, isExpanded) {
-        const cardElement = document.createElement('div');
-        cardElement.className = `grid-mode-card ${isExpanded ? 'expanded' : ''}`;
-        cardElement.dataset.index = index;
-        const slug = card.slug || card.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        
-        cardElement.innerHTML = `
-            <div class="grid-mode-card-header">
-                <h4>${card.name}</h4>
-                <div class="grid-mode-card-actions">
-                    <a href="tool.html?card=${encodeURIComponent(slug)}" target="_blank" rel="noopener" class="grid-mode-card-btn" title="Maximise to Standalone Tool" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">
-                        ⛶
-                    </a>
-                    <button class="grid-mode-card-btn expand-btn" title="${isExpanded ? 'Collapse' : 'Expand'}">
-                        ${isExpanded ? '−' : '+'}
-                    </button>
-                    <button class="grid-mode-card-btn remove-btn" title="Remove">
-                        ✕
-                    </button>
-                </div>
-            </div>
-            <div class="grid-mode-card-content">
-                <div class="grid-mode-card-content-inner">${card.content}</div>
-            </div>
-        `;
-        
-        // Add event listeners
-        cardElement.addEventListener('click', (e) => {
-            if (!e.target.closest('.grid-mode-card-actions')) {
-                if (expandedGridCards.has(index)) {
-                    expandedGridCards.delete(index);
-                } else {
-                    expandedGridCards.add(index);
-                }
-                renderGridMode();
-            }
-        });
-        
-        const expandBtn = cardElement.querySelector('.expand-btn');
-        if (expandBtn) {
-            expandBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (expandedGridCards.has(index)) {
-                    expandedGridCards.delete(index);
-                } else {
-                    expandedGridCards.add(index);
-                }
-                renderGridMode();
-            });
-        }
-        
-        const removeBtn = cardElement.querySelector('.remove-btn');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                removeCardFromToolbox(index);
-            });
-        }
-        
-        return cardElement;
-    }
-    
-    function renderListMode() {
-        const toolboxContent = document.getElementById('toolboxContent');
-        
-        toolboxContent.innerHTML = '<div class="list-mode-container"></div>';
-        const container = toolboxContent.querySelector('.list-mode-container');
-        
-        toolboxCards.forEach((card, index) => {
-            const isExpanded = expandedListCards.has(index);
-            const listItem = createListItem(card, index, isExpanded);
-            container.appendChild(listItem);
-        });
-        
-        updateToolboxCardCount();
-    }
-    
-    function createListItem(card, index, isExpanded) {
-        const listItem = document.createElement('div');
-        listItem.className = `list-mode-item ${isExpanded ? 'expanded' : ''}`;
-        listItem.dataset.index = index;
-        const slug = card.slug || card.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        
-        listItem.innerHTML = `
-            <div class="list-mode-item-header">
-                <div class="list-mode-item-name">${card.name}</div>
-            </div>
-            <div class="list-mode-item-actions">
-                <a href="tool.html?card=${encodeURIComponent(slug)}" target="_blank" rel="noopener" class="list-mode-item-btn" title="Maximise to Standalone Tool" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">
-                    ⛶
-                </a>
-                <button class="list-mode-item-btn expand-btn" title="${isExpanded ? 'Collapse' : 'Expand'}">
-                    ${isExpanded ? '−' : '+'}
-                </button>
-                <button class="list-mode-item-btn remove" title="Remove">
-                    ✕
-                </button>
-            </div>
-            <div class="list-mode-item-content">
-                ${card.content}
-            </div>
-        `;
-        
-        // Add event listeners
-        const header = listItem.querySelector('.list-mode-item-header');
-        if (header) {
-            header.addEventListener('click', (e) => {
-                if (expandedListCards.has(index)) {
-                    expandedListCards.delete(index);
-                } else {
-                    expandedListCards.add(index);
-                }
-                renderListMode();
-            });
-        }
-        
-        const expandBtn = listItem.querySelector('.expand-btn');
-        if (expandBtn) {
-            expandBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (expandedListCards.has(index)) {
-                    expandedListCards.delete(index);
-                } else {
-                    expandedListCards.add(index);
-                }
-                renderListMode();
-            });
-        }
-        
-        const removeBtn = listItem.querySelector('.remove');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                removeCardFromToolbox(index);
-            });
-        }
-        
-        return listItem;
-    }
-    
-    function addCardToToolbox(name, contentHTML, mode, slug) {
-        // Check if card already exists
-        const existingIndex = toolboxCards.findIndex(card => card.name === name);
-        if (existingIndex !== -1) {
-            showNotification(`${name} is already in toolbox`, 'info');
-            return;
-        }
-        
-        const cardData = {
-            id: `card-${Date.now()}`,
-            name: name,
-            slug: slug || '',
-            content: contentHTML,
-            timestamp: Date.now()
-        };
-        
-        toolboxCards.push(cardData);
-        saveToolboxCards();
-        
-        // Switch to the specified mode
-        if (mode && mode !== toolboxMode) {
-            toolboxMode = mode;
-            updateToolboxMode();
-        }
-        
-        // Open toolbox if not already open
-        const toolbox = document.getElementById('toolbox');
-        if (!toolbox.classList.contains('open')) {
-            toolbox.classList.add('open');
-            document.getElementById('stickyToolboxToggle').classList.add('active');
-        }
-        
-        renderToolbox();
-        showNotification(`Added ${name} to toolbox ${mode || toolboxMode} mode`, 'success');
-    }
-    
-    function removeCardFromToolbox(index) {
-        if (index >= 0 && index < toolboxCards.length) {
-            const cardName = toolboxCards[index].name;
-            toolboxCards.splice(index, 1);
-            expandedGridCards.delete(index);
-            expandedListCards.delete(index);
-            saveToolboxCards();
-            renderToolbox();
-            showNotification(`Removed ${cardName} from toolbox`, 'success');
-        }
-    }
-    
-    function saveToolboxCardsCore() {
-        localStorage.setItem('toolboxCards', JSON.stringify(toolboxCards));
-        updateToolboxCardCount();
-    }
-    
+    // ===== ON-DEMAND FEATURE BUNDLE =====
+    // Panels, toolbox, maximise modal and the directory view are ~36 KB of the
+    // app that no first screen needs. They live in home-features.js, fetched
+    // after the first cards are on their way (or immediately if something asks
+    // for a feature first) — loading it with the app meant every visitor
+    // compiled it before the first tool appeared.
+    //
+    // `state` below is a live view of this file's own variables: getters and
+    // setters, not copies, so both files always see one value. `fn` exposes the
+    // core functions the bundle calls. `features` is filled by the bundle.
+    const mpHome = window.__mpHome = {
+        features: {},
+        fn: {},
+        state: {},
+        queued: [],
+        ready: false,
+        loaded: false
+    };
+    Object.assign(mpHome.fn, {
+        showNotification, loadCard, getCardRating, saveRatings, transformCardScript,
+        withViewTransition
+    });
 
-    function saveToolboxCards() {
-        saveToolboxCardsCore();
-        // Modern: sync across tabs via BroadcastChannel
-        try { broadcastToolbox(); } catch {}
+    // Calls that only ever want the latest value (a filter pass re-renders the
+    // directory list, a resize re-lays the grid) must not pile up in the queue
+    // while the bundle is still downloading.
+    const FEATURE_COALESCE = new Set(['renderDirectoryList', 'updateGridLayout', 'setViewMode']);
+
+    function loadFeatures() {
+        if (mpHome.loaded) return;
+        mpHome.loaded = true;
+        const script = document.createElement('script');
+        script.src = `home-features.js?v=${APP_VERSION}`;
+        script.async = true;
+        // Low priority: this is never urgent, and on a slow connection it must
+        // not compete with the card fragments the visitor is waiting for.
+        script.fetchPriority = 'low';
+        script.onerror = () => { mpHome.failed = true; };
+        document.head.appendChild(script);
     }
-    function loadSavedToolboxCards() {
-        try {
-            const saved = localStorage.getItem('toolboxCards');
-            if (saved) {
-                toolboxCards = JSON.parse(saved) || [];
-                updateToolboxCardCount();
+
+    // The bundle is not needed to paint or scroll the grid, so it is fetched
+    // once the browser is idle (with a deadline, so a busy page still gets it).
+    function scheduleFeatureBundle() {
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(loadFeatures, { timeout: 2500 });
+        } else {
+            setTimeout(loadFeatures, 1500);
+        }
+    }
+
+    function callFeature(name, args) {
+        const fn = mpHome.features[name];
+        if (fn) {
+            fn.apply(null, args);
+            return;
+        }
+        // The visitor reached a feature before the bundle landed (or it failed):
+        // fetch it now and remember the call, replayed in order on arrival.
+        if (FEATURE_COALESCE.has(name)) {
+            for (const entry of mpHome.queued) {
+                if (entry[0] === name) {
+                    entry[1] = args;
+                    loadFeatures();
+                    return;
+                }
             }
-        } catch (e) {
-            console.error('Failed to load toolbox cards:', e);
-            toolboxCards = [];
         }
+        mpHome.queued.push([name, args]);
+        loadFeatures();
     }
-    
-    function updateToolboxCardCount() {
-        const countElement = document.getElementById('toolboxCardCount');
-        if (countElement) {
-            const count = toolboxCards.length;
-            countElement.textContent = `(${count} card${count !== 1 ? 's' : ''})`;
-        }
+
+    // ===== DELEGATES INTO home-features.js =====
+    // Same names, same signatures: every call site below (and every listener
+    // already attached to a card) keeps working, whether the bundle has landed
+    // yet or not. scripts/tests/app-split.test.js fails if one of these loses
+    // its registration in the bundle.
+    // Reader mode is the one "sticky bar" control that is page chrome rather
+    // than an on-demand panel: it restyles every card, so it stays in the core
+    // and is wired by initApp() instead of travelling with the panels.
+    function initReaderMode() {
+            // Reader mode toggle - FIXED VERSION
+            document.getElementById('stickyReaderToggle').addEventListener('click', () => {
+                const isReaderMode = document.body.classList.toggle('reader-mode');
+                document.getElementById('stickyReaderToggle').classList.toggle('active', isReaderMode);
+                localStorage.setItem('readerMode', isReaderMode ? 'on' : 'off');
+            
+                // Force reflow and update card heights
+                setTimeout(() => {
+                    document.querySelectorAll('.card').forEach(card => {
+                        adjustCardHeight(card);
+                    });
+                }, 50);
+            
+                showNotification(isReaderMode ? 
+                    'Reader mode enabled - Cards full width & height' : 
+                    'Reader mode disabled - Grid view', 'info');
+            });
     }
-    
+
+    function updateGridLayout() { callFeature('updateGridLayout', arguments); }
+    function setViewMode(mode) { callFeature('setViewMode', arguments); }
+    function renderDirectoryList(names) { callFeature('renderDirectoryList', arguments); }
+    function handleDirectoryGridClick(event) { callFeature('handleDirectoryGridClick', arguments); }
+    function openStandaloneModal(cardName) { callFeature('openStandaloneModal', arguments); }
+    function rateCard(cardName, action) { callFeature('rateCard', arguments); }
+    function copyEmbedCode(cardName) { callFeature('copyEmbedCode', arguments); }
+    function addCardToToolbox(name, contentHTML, mode, slug) {
+        callFeature('addCardToToolbox', arguments);
+    }
+
+    // ===== LOADER CONTROLS THAT STAYED IN THE CORE =====
+    // These sit between the moved blocks in the original file but are
+    // core: the pipeline they drive is here, and nothing loads them.
+
+    // Queue every visible, not-yet-loaded card at once. The existing pipeline
+    // stays in charge (nearest-first, MAX_CONCURRENT_LOADS at a time), so the
+    // page never blocks — cards simply go live continuously. No loading UI
+    // exists any more: faces swap to live tools as each fragment arrives.
+    function loadAllToolsNow() {
+        let queued = 0;
+        document.querySelectorAll('.card[data-name]:not(.loaded)').forEach(card => {
+            const name = card.dataset.name;
+            if (!name || loadedCards.has(name) || loadingCards.has(name)) return;
+            if (card.dataset.errorReason || isCardHidden(card)) return;
+            loadCard(card, name);
+            queued++;
+        });
+        showNotification(
+            queued > 0
+                ? `Running all ${queued} tools — each card goes live as it arrives`
+                : 'Every tool on the page is already live',
+            'success'
+        );
+    }
+
+
+    function startIdleTrickle() {
+        if (trickleStarted) return;
+        try {
+            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn && (conn.saveData || /(^|\b)(slow-)?2g\b/i.test(conn.effectiveType || ''))) return;
+        } catch (err) { /* connection info unavailable: trickle on */ }
+        trickleStarted = true;
+        const step = () => {
+            // A hidden tab neither loads nor entertains anyone: skip the
+            // tick and keep the timer alive for when the visitor returns.
+            if (!document.hidden) {
+                let queued = 0;
+                for (let i = 0; i < pendingCards.length && queued < TRICKLE_BATCH; i++) {
+                    const card = pendingCards[i];
+                    const name = card.dataset.name;
+                    if (!name || loadedCards.has(name) || loadingCards.has(name)) continue;
+                    if (card.dataset.errorReason || isCardHidden(card)) continue;
+                    loadCard(card, name);
+                    queued++;
+                }
+                // Nothing eligible left and the pipeline drained: every tool
+                // the catalogue offers is live — done. Cards resting after
+                // errors stay untouched here (bounded retries and the
+                // manual Retry button own those).
+                if (queued === 0 && activeLoads === 0 && loadQueue.length === 0) return;
+            }
+            setTimeout(step, TRICKLE_INTERVAL);
+        };
+        setTimeout(step, TRICKLE_INTERVAL);
+    }
+
+    // (The toolbox itself — its modes, its grid/list renderers, its saved
+    // cards — now lives in home-features.js, along with the panels it opens.)
+
     // ===== COLOR/THEME SYSTEM =====
     function applySavedSettings() {
         // Apply saved accent color
@@ -1553,10 +1119,14 @@
     
     const loadQueue = [];
     let activeLoads = 0;
-    // Four concurrent fetch/render jobs are enough to cover the visible
-    // one-column viewport while leaving the main thread responsive for the
-    // interactive tools themselves (especially canvas-heavy cards).
-    const MAX_CONCURRENT_LOADS = 4;
+    // Six concurrent fetch/render jobs: the grid is one card per row, so a
+    // 900px viewport plus the 600px observer look-ahead wants ~5 tools in
+    // flight to stay ahead of a scroll. Four kept a free slot rare enough that
+    // the viewport sweep spent most of its time measuring cards it could
+    // not start. The sweep now only measures when a slot is free, so the extra
+    // two jobs are the ones that actually fill the screen — the main thread
+    // does less work per frame than it did with four.
+    const MAX_CONCURRENT_LOADS = 6;
     const retryCounts = new Map();
 
     // A card hidden by the current search/category filter must never take a
@@ -2127,6 +1697,19 @@
         // detached card) must not leave the flag set — that used to disable
         // this fallback loader for the rest of the page's life.
         try {
+
+            // Measuring is only worth doing when a load slot is actually free.
+            // getBoundingClientRect() forces layout, and with the one-column grid
+            // that is ~1,190 forced layout reads per scroll frame — measured at
+            // 71,404 reads over 60 frames of a fast scroll, of which exactly 4
+            // could ever start a load, because MAX_CONCURRENT_LOADS slots were
+            // already busy. That work ran on the very frames the user was
+            // scrolling and waiting for cards.
+            //
+            // Nothing is lost by skipping it: the walk below still prunes finished
+            // cards, and processLoadQueue() re-sweeps the moment a slot frees up.
+            const canStart = activeLoads < MAX_CONCURRENT_LOADS;
+
             // The observer has a generous look-ahead for smooth scrolling, but
             // this fallback always gives cards actually on screen first priority.
             // That prevents a fast jump from waiting behind a queue of cards above
@@ -2146,6 +1729,10 @@
                 // time instead of re-walking all 1200+ entries on every scroll.
                 if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
                 stillPending.push(card);
+                // Every load slot is busy: this sweep cannot start anything, so
+                // the rest of the per-card work (and the layout reads it costs) is
+                // skipped. See canStart above.
+                if (!canStart) continue;
                 if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
                 // Failed cards belong to the bounded retryErroredCards() sweep,
                 // not the bulk loader — otherwise every scroll refetches a
@@ -2184,7 +1771,7 @@
             scrollLoadActive = false;
         }
     }
-    
+
     function onScrollLazyLoad() {
         onScrollLoad();
     }
@@ -2400,192 +1987,9 @@
         }
     }
     
-    // ===== STANDALONE MAXIMISE MODAL CONTROLLER =====
-    async function openStandaloneModalCore(cardName) {
-        const modal = document.getElementById('standaloneModal');
-        const titleEl = document.getElementById('standaloneModalTitle');
-        const badgeEl = document.getElementById('standaloneModalCategory');
-        const bodyEl = document.getElementById('standaloneModalBody');
-        const newTabBtn = document.getElementById('standaloneModalNewTabBtn');
-        if (!modal || !bodyEl) return;
+    // (The maximise modal's controller moved to home-features.js; the
+    // openStandaloneModal() delegate above is what the cards call.)
 
-        const meta = cardsMetaMap.get(cardName);
-        const title = meta && meta.title ? meta.title : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        const category = meta && meta.category ? meta.category : 'Interactive Tool';
-        const toolUrl = `tool.html?card=${encodeURIComponent(cardName)}`;
-
-        if (titleEl) titleEl.textContent = title;
-        if (badgeEl) badgeEl.textContent = category;
-        if (newTabBtn) newTabBtn.href = toolUrl;
-
-        bodyEl.innerHTML = `
-            <div class="cool-loader" role="status">
-                <div class="cool-loader-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-                <div class="cool-loader-text">Loading <strong>${title}</strong><span class="cool-dots"></span></div>
-            </div>
-        `;
-
-        modal.classList.add('open');
-        modal.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-
-        try {
-            let html = '';
-            const cached = cardCache.get(cardName);
-            if (cached && (Date.now() - cached.timestamp) < (15 * 60 * 1000)) {
-                html = cached.html;
-            } else {
-                const cardUrl = (meta && meta.path) || `cards/${cardName}.html`;
-                const res = await fetch(cardUrl);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                html = await res.text();
-                cardCache.set(cardName, { html, timestamp: Date.now() });
-            }
-
-            bodyEl.innerHTML = '';
-
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-
-            const scripts = Array.from(doc.querySelectorAll('script'));
-            scripts.forEach(s => s.remove());
-
-            const styles = Array.from(doc.querySelectorAll('style'));
-            styles.forEach(s => s.remove());
-
-            const contentDiv = document.createElement('div');
-            contentDiv.style.cssText = 'max-width:920px;margin:0 auto;';
-            while (doc.body.firstChild) {
-                contentDiv.appendChild(doc.body.firstChild);
-            }
-            bodyEl.appendChild(contentDiv);
-
-            // Inject styles
-            styles.forEach(s => {
-                const newStyle = document.createElement('style');
-                newStyle.textContent = s.textContent;
-                bodyEl.appendChild(newStyle);
-            });
-
-            // Inject scripts
-            scripts.forEach(s => {
-                try {
-                    const newScript = document.createElement('script');
-                    Array.from(s.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-                    newScript.textContent = transformCardScript(s.textContent);
-                    bodyEl.appendChild(newScript);
-                } catch (scriptErr) {
-                    console.warn(`Error running script in standalone modal for ${cardName}:`, scriptErr);
-                }
-            });
-
-        } catch (err) {
-            bodyEl.innerHTML = `
-                <div style="text-align:center;padding:40px;color:#ff4d4d;">
-                    <h3>Failed to load ${title}</h3>
-                    <p style="color:rgba(230,250,255,0.7);">${err.message}</p>
-                    <a href="${toolUrl}" target="_blank" rel="noopener" class="standalone-modal-btn new-tab-btn" style="margin-top:16px;">Open in Separate Page ↗</a>
-                </div>
-            `;
-        }
-    }
-
-
-    async function openStandaloneModal(cardName) {
-        if (document.startViewTransition) {
-            try {
-                document.startViewTransition(async () => {
-                    await openStandaloneModalCore(cardName);
-                });
-                return;
-            } catch {}
-        }
-        await openStandaloneModalCore(cardName);
-    }
-
-    function closeStandaloneModal() {
-        const modal = document.getElementById('standaloneModal');
-        if (!modal) return;
-        modal.classList.remove('open');
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.style.overflow = '';
-        const bodyEl = document.getElementById('standaloneModalBody');
-        if (bodyEl) bodyEl.innerHTML = '';
-    }
-
-    function setupStandaloneModal() {
-        const modalBackdrop = document.getElementById('standaloneModalBackdrop');
-        const modalCloseBtn = document.getElementById('standaloneModalCloseBtn');
-        const modalShareBtn = document.getElementById('standaloneModalShareBtn');
-
-        if (modalBackdrop) modalBackdrop.addEventListener('click', closeStandaloneModal);
-        if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeStandaloneModal);
-        if (modalShareBtn) {
-            modalShareBtn.addEventListener('click', () => {
-                const newTabBtn = document.getElementById('standaloneModalNewTabBtn');
-                const url = newTabBtn ? newTabBtn.href : window.location.href;
-                navigator.clipboard.writeText(url).then(() => {
-                    showNotification('Standalone tool link copied to clipboard!', 'success');
-                }).catch(() => {
-                    showNotification('Link: ' + url, 'info');
-                });
-            });
-        }
-
-        // Close on ESC
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                const modal = document.getElementById('standaloneModal');
-                if (modal && modal.classList.contains('open')) {
-                    closeStandaloneModal();
-                }
-            }
-        });
-    }
-    
-    function rateCard(cardName, action) {
-        const rating = getCardRating(cardName);
-        
-        // Remove previous vote if exists
-        if (rating.userVote === 'up') rating.up--;
-        if (rating.userVote === 'down') rating.down--;
-        
-        // Add new vote
-        if (action === 'up') {
-            rating.up++;
-            rating.userVote = 'up';
-            showNotification('Thanks! Marked as useful 👍', 'success');
-        } else {
-            rating.down++;
-            rating.userVote = 'down';
-            showNotification('Thanks for feedback! We\'ll review 👎', 'info');
-        }
-        
-        saveRatings();
-    }
-    
-    function copyEmbedCode(cardName) {
-        const displayName = cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        const embedCode = `<iframe src="${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}" width="100%" height="450" style="border:none;border-radius:12px;" title="${displayName}"></iframe>`;
-        
-        navigator.clipboard.writeText(embedCode).then(() => {
-            const embedBtn = document.querySelector(`.embed-btn[data-card="${cardName}"]`);
-            if (embedBtn) {
-                embedBtn.innerHTML = '<span>✅</span><span>Copied!</span>';
-                embedBtn.classList.add('copied');
-                
-                setTimeout(() => {
-                    embedBtn.innerHTML = '<span>🔗</span><span>Embed</span>';
-                    embedBtn.classList.remove('copied');
-                }, 2000);
-            }
-            showNotification('Embed code copied to clipboard', 'success');
-        }).catch(err => {
-            console.error('Copy failed:', err);
-            showNotification('Failed to copy embed code', 'error');
-        });
-    }
-    
     let currentSelectedCategory = 'all';
     let currentSearchQuery = '';
     let currentSort = 'default';
@@ -2739,6 +2143,21 @@
     }
 
     // Modern: Update speculation rules based on visible cards (eagerness)
+    // Rewriting the <script type="speculationrules"> element re-evaluates the
+    // rules, and every listed URL is then prefetched. Typing in the search box
+    // changes the visible-card list on every keystroke, so updating the rules
+    // there meant six fresh tool.html prefetches per character — bandwidth
+    // taken from the results the visitor is waiting for. The rules are now
+    // refreshed once the typing stops.
+    let speculationRulesTimer = null;
+    function scheduleSpeculationRulesUpdate() {
+        if (speculationRulesTimer) clearTimeout(speculationRulesTimer);
+        speculationRulesTimer = setTimeout(() => {
+            speculationRulesTimer = null;
+            updateSpeculationRules();
+        }, 700);
+    }
+
     function updateSpeculationRules() {
         const rulesEl = document.getElementById('speculation-rules');
         if (!rulesEl || !('supports' in HTMLScriptElement) ) return;
@@ -2754,8 +2173,15 @@
             // fetch on every filter change. (Same for tools-index.html,
             // which used to sit in the static rules — 390 KB nobody on the
             // home page asked for.)
+            //
+            // "conservative", not "moderate": a prerender runs the whole
+            // standalone page (its scripts included, and they fetch the full
+            // catalogue). At moderate eagerness a mouse crossing the grid
+            // started those page loads while the visitor was still waiting for
+            // the grid's own cards. Conservative still prerenders on the way
+            // into a click, without speculating on hover.
             const rules = {
-                prerender: [{ where: { href_matches: "*/tool.html?card=*" }, eagerness: "moderate" }],
+                prerender: [{ where: { href_matches: "*/tool.html?card=*" }, eagerness: "conservative" }],
                 prefetch: [{ urls: visible }]
             };
             // Update only if changed to avoid re-parse churn
@@ -2816,36 +2242,6 @@
             });
         } catch {}
     }
-
-    // Modern: BroadcastChannel for multi-tab toolbox sync
-    let toolboxChannel = null;
-    function setupBroadcastChannel() {
-        if (!('BroadcastChannel' in window)) return;
-        try {
-            toolboxChannel = new BroadcastChannel('toolbox-sync');
-            toolboxChannel.onmessage = (e) => {
-                if (e.data && e.data.type === 'TOOLBOX_UPDATE') {
-                    // Sync toolbox from other tab
-                    if (Array.isArray(e.data.cards)) {
-                        const current = JSON.stringify(toolboxCards);
-                        const incoming = JSON.stringify(e.data.cards);
-                        if (current !== incoming) {
-                            toolboxCards = e.data.cards;
-                            saveToolboxCards();
-                            renderToolbox();
-                        }
-                    }
-                }
-            };
-        } catch {}
-    }
-    function broadcastToolbox() {
-        if (!toolboxChannel) return;
-        try {
-            toolboxChannel.postMessage({ type: 'TOOLBOX_UPDATE', cards: toolboxCards });
-        } catch {}
-    }
-
     // Modern: scrollend event for lazy load (more efficient than scroll)
     function setupScrollEnd() {
         if ('onscrollend' in window) {
@@ -3034,178 +2430,15 @@
                     assignVTNames();
                     document.__vtRunning = false;
                 });
-                // Update speculation rules after VT
-                postTask(() => updateSpeculationRules());
+                // Update speculation rules after VT (debounced: see above)
+                postTask(() => scheduleSpeculationRulesUpdate());
                 return;
             } catch (e) {
                 document.__vtRunning = false;
             }
         }
         applyFiltersCore();
-        postTask(() => { assignVTNames(); updateSpeculationRules(); });
-    }
-
-    // Chunked render: appending all 1223 directory rows at once blocked the
-    // main thread for ~1s. Batches of 200 across frames keep the view switch
-    // instant, and the token drops stale passes if filters change mid-render.
-    // "View Card" clicks are handled by one delegated listener (attached in
-    // setupEventListeners), not 1223 individual addEventListener calls.
-    let directoryRenderToken = 0;
-    const DIRECTORY_CHUNK = 200;
-    function renderDirectoryList(names) {
-        const dirGrid = document.getElementById('directoryGrid');
-        if (!dirGrid) return;
-        const token = ++directoryRenderToken;
-        directoryDirty = false;
-
-        dirGrid.innerHTML = '';
-        if (names.length === 0) return;
-
-        let i = 0;
-        const step = () => {
-            if (token !== directoryRenderToken) return; // superseded
-            const frag = document.createDocumentFragment();
-            const end = Math.min(i + DIRECTORY_CHUNK, names.length);
-            for (; i < end; i++) {
-                const name = names[i];
-                const meta = cardsMetaMap.get(name) || {};
-                const title = meta.title || name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const desc = meta.description || 'Interactive tool on The Most Useful Site in the World.';
-                const cat = meta.category || 'Productivity & Lifestyle';
-
-                const card = document.createElement('div');
-                card.className = 'directory-card';
-                card.innerHTML = `
-                    <div>
-                        <div class="directory-header">
-                            <h4 class="directory-title">${title}</h4>
-                            <span class="directory-cat-badge">${cat}</span>
-                        </div>
-                        <p class="directory-desc">${desc}</p>
-                    </div>
-                    <div class="directory-actions">
-                        <a href="tool.html?card=${encodeURIComponent(name)}" class="directory-open-link" target="_blank" rel="noopener">
-                            <span>Open Standalone</span> <span>↗</span>
-                        </a>
-                        <button type="button" class="dir-view-card-btn" data-card="${name}" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:0.75rem;padding:2px 6px;">
-                            View Card 🔲
-                        </button>
-                    </div>
-                `;
-                frag.appendChild(card);
-            }
-            dirGrid.appendChild(frag);
-            if (i < names.length) requestAnimationFrame(step);
-        };
-        step();
-    }
-
-    function handleDirectoryGridClick(e) {
-        const btn = e.target.closest('.dir-view-card-btn');
-        if (!btn) return;
-        const cardName = btn.dataset.card;
-        setViewMode('cards');
-        const cardEl = document.querySelector(`.card[data-name="${cardName}"]`);
-        if (cardEl) {
-            cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            if (!loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                loadCard(cardEl, cardName);
-            }
-        }
-    }
-
-    // Queue every visible, not-yet-loaded card at once. The existing pipeline
-    // stays in charge (nearest-first, MAX_CONCURRENT_LOADS at a time), so the
-    // page never blocks — cards simply go live continuously. No loading UI
-    // exists any more: faces swap to live tools as each fragment arrives.
-    function loadAllToolsNow() {
-        let queued = 0;
-        document.querySelectorAll('.card[data-name]:not(.loaded)').forEach(card => {
-            const name = card.dataset.name;
-            if (!name || loadedCards.has(name) || loadingCards.has(name)) return;
-            if (card.dataset.errorReason || isCardHidden(card)) return;
-            loadCard(card, name);
-            queued++;
-        });
-        showNotification(
-            queued > 0
-                ? `Running all ${queued} tools — each card goes live as it arrives`
-                : 'Every tool on the page is already live',
-            'success'
-        );
-    }
-
-    // ===== IDLE TRICKLE LOADER =====
-    // The card faces already display the whole catalogue with no loading
-    // screens; this pass goes further and brings every tool fully live in
-    // the background — no scroll, no click — a few cards at a time. The
-    // shared pipeline stays in charge (nearest-to-viewport first, at most
-    // MAX_CONCURRENT_LOADS fetches), so the trickle can never starve the
-    // cards a visitor is actually looking at: their loads always win the
-    // queue. Data-saver and 2G visitors keep faces + click-to-run instead
-    // of a surprise catalogue download.
-    const TRICKLE_BATCH = 6;
-    const TRICKLE_INTERVAL = 2500;
-    let trickleStarted = false;
-    function startIdleTrickle() {
-        if (trickleStarted) return;
-        try {
-            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-            if (conn && (conn.saveData || /(^|\b)(slow-)?2g\b/i.test(conn.effectiveType || ''))) return;
-        } catch (err) { /* connection info unavailable: trickle on */ }
-        trickleStarted = true;
-        const step = () => {
-            // A hidden tab neither loads nor entertains anyone: skip the
-            // tick and keep the timer alive for when the visitor returns.
-            if (!document.hidden) {
-                let queued = 0;
-                for (let i = 0; i < pendingCards.length && queued < TRICKLE_BATCH; i++) {
-                    const card = pendingCards[i];
-                    const name = card.dataset.name;
-                    if (!name || loadedCards.has(name) || loadingCards.has(name)) continue;
-                    if (card.dataset.errorReason || isCardHidden(card)) continue;
-                    loadCard(card, name);
-                    queued++;
-                }
-                // Nothing eligible left and the pipeline drained: every tool
-                // the catalogue offers is live — done. Cards resting after
-                // errors stay untouched here (bounded retries and the
-                // manual Retry button own those).
-                if (queued === 0 && activeLoads === 0 && loadQueue.length === 0) return;
-            }
-            setTimeout(step, TRICKLE_INTERVAL);
-        };
-        setTimeout(step, TRICKLE_INTERVAL);
-    }
-
-    function setViewModeCore(mode) {
-        currentViewMode = mode;
-        const dashboard = document.getElementById('dashboard');
-        const dirView = document.getElementById('directoryView');
-        const btnCards = document.getElementById('btnViewCards');
-        const btnDir = document.getElementById('btnViewDirectory');
-
-        if (mode === 'directory') {
-            if (dashboard) dashboard.style.display = 'none';
-            if (dirView) dirView.style.display = 'block';
-            if (btnCards) btnCards.classList.remove('active');
-            if (btnDir) btnDir.classList.add('active');
-            // Lazily (re)build the list on first view and after any filter
-            // change. This also fixes the old bug where opening Directory
-            // before ever searching showed an empty list.
-            if (directoryDirty) renderDirectoryList(lastMatchedNames);
-        } else {
-            if (dashboard) dashboard.style.display = 'grid';
-            if (dirView) dirView.style.display = 'none';
-            if (btnCards) btnCards.classList.add('active');
-            if (btnDir) btnDir.classList.remove('active');
-        }
-    }
-
-    function setViewMode(mode) {
-        withViewTransition(() => {
-            setViewModeCore(mode);
-        });
+        postTask(() => { assignVTNames(); scheduleSpeculationRulesUpdate(); });
     }
     
     // ===== SITE STATS (footer + hero counters) =====
@@ -3306,6 +2539,66 @@
     // Make functions globally available for button onclick events
     window.retryLoadCard = retryLoadCard;
 
+    // The state accessors are defined here, after every variable they expose,
+    // so none of them can ever be read before its declaration has run. The rest
+    // of the bridge above only *references* them (through the bundle, which
+    // loads later) and the delegates, which are function declarations.
+    // Written out rather than built with eval(): a CSP without unsafe-eval
+    // would turn these into silent no-ops, and scripts/tests/app-split.test.js
+    // checks the list against what the bundle reaches for.
+    const mpState = mpHome.state;
+    Object.defineProperty(mpState, 'allCards', {
+        get() { return allCards; },
+        set(value) { allCards = value; }
+    });
+    Object.defineProperty(mpState, 'cardCache', {
+        get() { return cardCache; },
+        set(value) { cardCache = value; }
+    });
+    Object.defineProperty(mpState, 'cardsMetaMap', {
+        get() { return cardsMetaMap; },
+        set(value) { cardsMetaMap = value; }
+    });
+    Object.defineProperty(mpState, 'currentViewMode', {
+        get() { return currentViewMode; },
+        set(value) { currentViewMode = value; }
+    });
+    Object.defineProperty(mpState, 'directoryDirty', {
+        get() { return directoryDirty; },
+        set(value) { directoryDirty = value; }
+    });
+    Object.defineProperty(mpState, 'expandedGridCards', {
+        get() { return expandedGridCards; },
+        set(value) { expandedGridCards = value; }
+    });
+    Object.defineProperty(mpState, 'expandedListCards', {
+        get() { return expandedListCards; },
+        set(value) { expandedListCards = value; }
+    });
+    Object.defineProperty(mpState, 'isSearching', {
+        get() { return isSearching; },
+        set(value) { isSearching = value; }
+    });
+    Object.defineProperty(mpState, 'lastMatchedNames', {
+        get() { return lastMatchedNames; },
+        set(value) { lastMatchedNames = value; }
+    });
+    Object.defineProperty(mpState, 'loadedCards', {
+        get() { return loadedCards; },
+        set(value) { loadedCards = value; }
+    });
+    Object.defineProperty(mpState, 'loadingCards', {
+        get() { return loadingCards; },
+        set(value) { loadingCards = value; }
+    });
+    Object.defineProperty(mpState, 'toolboxCards', {
+        get() { return toolboxCards; },
+        set(value) { toolboxCards = value; }
+    });
+    Object.defineProperty(mpState, 'toolboxMode', {
+        get() { return toolboxMode; },
+        set(value) { toolboxMode = value; }
+    });
     // ===== START THE FIRST SCREEN DURING PARSE =====
     // This script sits after #dashboard, so the generated first-screen shells
     // already exist and their fragments are usually already downloaded by the

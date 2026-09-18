@@ -26,10 +26,18 @@
 #  13. staff facility          — configuration and isolated regression tests
 #  14. card name collisions   — scripts/check-card-collisions.py (no cross-card top-level SyntaxError)
 #                               + scripts/check-card-css-leaks.py (no fragment CSS restyles the host grid)
-#  15. home first screen      — scripts/build-home-prerender.py --check, plus the
+#  15. home first screen      — scripts/build-home-prerender.py --check, the
 #                                loader tests in scripts/tests/ that drive the real
 #                                functions out of home-app.js (lazy-loader,
-#                                home-fast-path, lite-tier)
+#                                home-fast-path, lite-tier) and sw.js's fetch
+#                                handler (service-worker: a stale cached
+#                                catalogue must never beat the deployed one) and the
+#                                split itself (app-split: the core must run, and ask
+#                                for home-features.js, without it), plus
+#                                scripts/check-critical-css.py — home.css may only
+#                                hold first-paint rules and must keep the rules
+#                                that hide the deferred containers, so the split
+#                                cannot silently reintroduce a blocking 118 KB
 #  16. input egress           — scripts/check-egress.py: every network-touching
 #                               card must be a reviewed, classified exception, and
 #                               the QR generator must stay fully local (functional
@@ -206,13 +214,22 @@ fi
 # staff-*.test.js, so a card-loader regression could ship green.
 if command -v node >/dev/null 2>&1; then
   if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js \
-    && node scripts/tests/lite-tier.test.js && node scripts/tests/card-faces.test.js; then
-    ok "card loader, first-screen fast path, two-tier catalogue and card faces behave as shipped"
+    && node scripts/tests/lite-tier.test.js && node scripts/tests/card-faces.test.js \
+    && node scripts/tests/service-worker.test.js && node scripts/tests/app-split.test.js; then
+    ok "card loader, first-screen fast path, two-tier catalogue, card faces, cache policy and the on-demand bundle behave as shipped"
   else
     fail "card loader regression — see the failing assertion above"
   fi
 else
   note "node not available — card loader tests skipped"; NOTES=$((NOTES+1))
+fi
+# The main page's stylesheet is split: home.css blocks the first paint and
+# home-deferred.css must style only containers that are hidden until asked for.
+# If the split rots, the page silently goes back to a blocking 118 KB payload.
+if python3 scripts/check-critical-css.py; then
+  ok "main-page stylesheet split holds every first-paint rule in the blocking file; document inline scripts parse"
+else
+  fail "main-page stylesheet split broken — see scripts/check-critical-css.py"
 fi
 
 section "16/21 input egress and the local QR generator"

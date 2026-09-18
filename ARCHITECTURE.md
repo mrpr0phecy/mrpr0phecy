@@ -192,6 +192,133 @@ yields while the loader pipeline is busy (`FIRST_SCREEN_CHUNKS` /
 the user is actually looking at. The yield is bounded, so a busy page cannot
 starve the build.
 
+### What the loader is allowed to do per frame
+
+Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.js`:
+
+- **`MAX_CONCURRENT_LOADS = 6`** fetch/render jobs. The grid is one card per
+  row, so a 900px viewport plus the observer's 600px look-ahead wants ~5 tools
+  in flight to stay ahead of a scroll. Four kept a free slot rare enough that
+  the fallback sweep spent its time measuring cards it could not start.
+- **The viewport sweep only measures when a slot is free.** `scrollFallbackLoader()`
+  walks the pending list to prune finished cards, but every
+  `getBoundingClientRect()` in that walk forces layout: with the whole
+  catalogue pending that was **1,190 reads per scroll frame** (measured —
+  71,404 over 60 frames of fast scrolling) while all four slots were busy, so
+  none of the cards it found could start. It now skips the measuring pass when
+  `activeLoads >= MAX_CONCURRENT_LOADS`; the walk still prunes, the errored-card
+  retry still runs, and `processLoadQueue()` re-sweeps the moment a slot frees.
+
+The IntersectionObserver stays the primary trigger — it knows what entered the
+viewport without asking the layout engine about 1,194 elements.
+
+### The app is split: first screen in one file, on-demand UI in another
+
+`home-app.js` is the page's application. 36 KB of it — the panels (palette,
+contributions, shared toolbox), the whole toolbox, the standalone-maximise
+modal and the alternate directory view — is UI that **no first screen needs**.
+It lives in `home-features.js`, which `home-app.js` requests at idle
+(`requestIdleCallback`, 2.5 s deadline, `fetchPriority: 'low'`) or immediately
+if a click asks for a feature first:
+
+- **The core never waits for the bundle.** `initApp()` runs as soon as
+  `home-app.js` executes; the panel/toolbox/modal listeners are wired by the
+  bundle itself when it lands. Before the split, every visitor compiled all
+  36 KB before the first tool appeared, on the same connection that was still
+  fetching the first screen's fragments.
+- **The core calls into the bundle through eight delegates** of the same name
+  (`updateGridLayout`, `setViewMode`, `renderDirectoryList`,
+  `handleDirectoryGridClick`, `openStandaloneModal`, `rateCard`,
+  `copyEmbedCode`, `addCardToToolbox`), so every existing call site — and every
+  listener already attached to a rendered card — is unchanged. A call that
+  arrives before the bundle lands is queued and replayed in order; calls that
+  only ever want the latest value (a filter pass re-rendering the directory
+  list, a resize re-laying the grid) replace the queued one instead of piling
+  up.
+- **Shared state goes through `window.__mpHome.state`,** which is a set of live
+  getters/setters over the core's own variables — not copies, so both files
+  always see one value. `window.__mpHome.fn` exposes the six core functions the
+  bundle calls (`showNotification`, `loadCard`, `getCardRating`, `saveRatings`,
+  `transformCardScript`, `withViewTransition`).
+- **One version, three files.** `APP_VERSION` in `home-app.js` builds the
+  bundle's URL, `index.html` uses the same number for its `?v=`, and `sw.js`
+  keeps it in `CACHE_VERSION`; `scripts/check-critical-css.py` fails if they
+  drift, and the bundle is in the service worker's precache (a first visit
+  followed by an offline visit must still have working panels).
+- **`scripts/tests/app-split.test.js` drives both real files in a vm:** it
+  executes the core (which must run, and schedule the bundle, without it),
+  queues an early call, then executes the bundle and asserts it registers,
+  replays in order, serves later calls directly, and that the state accessors
+  are live. It also fails if any moved implementation is still defined in the
+  core, or if a delegate loses its registration.
+
+The reader-mode toggle stayed in the core: unlike the panels it restyles every
+card, so it is page chrome rather than an on-demand view.
+
+### The main page's `<head>` is a budget
+
+`index.html`'s head was 132,210 bytes — 71% of the document — mostly the inline
+stylesheet. It is now ~15 KB, and the rule that keeps it that way is: **bytes in
+the document cost every visitor on every navigation, so rationale lives in this
+file, not in HTML comments.** A measured example: the HTML comments alone were
+2,664 bytes gzip (19% of what the page sent). The surviving comments are
+one-liners that point here. What lives here instead:
+
+- **Why the catalogue is fetched by the head bootstrap, not `<link rel="preload">`.**
+  The bootstrap's `fetch()` is same-origin; a preload whose credentials mode
+  does not match the later `fetch()` downloads the file twice on a miss.
+- **Why `home-app.js` is external and deferred.** It parses in parallel with the
+  HTML instead of waiting for the whole document, and it is cached separately, so
+  a revalidated page stops re-sending ~125 KB of JS with it. `defer` executes it
+  right after DOM parse — the same timing it had inline at the end of `<body>`.
+- **Why gtag loads at idle.** Its ~28 KB script used to be requested the moment
+  the head's end parsed, while the first cards were still rendering. The
+  `dataLayer` shim is in place immediately, so every `gtag()` call queues and
+  nothing is lost; `page_view` lands a beat later.
+- **Why Inter is self-hosted and preloaded.** The old chain was
+  head → Google CSS (1 RTT) → woff2 (1 RTT) → ~700 ms of font-swap delay on slow
+  4G. `unicode-range` keeps the latin-ext file unfetched unless a glyph needs it,
+  and `font-display: swap` paints in the system stack meanwhile.
+- **Why the speculation rules are `conservative`.** A prerender runs the whole
+  standalone page (its scripts fetch the full catalogue), so hovering across the
+  grid used to start page loads mid-fetch of the grid's own cards.
+- **Why the first 12 shells are pre-rendered markup.** They paint titles, badges
+  and standalone links with the HTML; `adoptPrerenderedCards()` adopts them
+  instead of rebuilding them, and the head bootstrap already has their fragments
+  in flight. In gzip terms the twelve shells cost ~1.5 KB and remove a full
+  round-trip of empty grey boxes.
+
+### Where the main page's CSS lives
+
+`index.html` used to carry ~118 KB of CSS inline in one `<style>` block. That
+made the first paint wait for every byte of it, on every visit, and re-sent
+~19 KB gzip of identical CSS on every navigation. The sheet is now two cached
+files:
+
+| file | contents | how it is loaded |
+| --- | --- | --- |
+| `home.css` | first-paint rules: base tokens, command bar, hero, search, filters, grid, card shells, skeletons, cool loader, risk notices, card footer | render-blocking `<link>` (unstyled first paint is worse than one RTT that overlaps the HTML download) |
+| `home-deferred.css` | rules for containers that are **hidden at first paint**: palette/contributions panels, toolbox and its grid/list modes, the directory view, the maximise modal, the no-results state, the footer and its music spotlight | `media="print"` + `onload` swap, so it is fetched alongside `home.css` but applied only after the first paint; `<noscript>` link for JS-less readers |
+
+Three properties make the split safe, and `scripts/check-critical-css.py`
+(verify §15) fails the build if any of them is broken:
+
+1. **The rules that hide those containers stay in `home.css`.** `.panel`,
+   `.toolbox`, `#directoryView { display: none }` and the modal's
+   `pointer-events: none` are the mechanism, not styling — a late stylesheet
+   must never be what decides whether a container is visible.
+2. **No deferred selector may mention anything else.** The guard's rule is
+   containment, not a sample: every selector in the deferred file must target
+   one of the hidden containers, so moving a `.card` or `.main-header` rule
+   there fails loudly.
+3. **`home.css` carries the tokens and keyframes it uses**, and the deferred
+   file may only lean on what `home.css` defines (it always loads first).
+
+`index.html` links both (and its scripts) with `?v=N`, and `N` must equal
+`CACHE_VERSION` in `sw.js` — the same deploy-consistency rule the service
+worker enforces for its own caches, since a page from one deploy must never run
+against another deploy's CSS or JS.
+
 ### Anatomy of a card
 
 A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
@@ -678,7 +805,49 @@ HTML is what makes a static site serve stale pages for days after a deploy. It
 also adds precache entries individually rather than via `cache.addAll()`,
 because `addAll()` is atomic — a single 404 aborts the whole install and the
 worker never activates. The previous version had four 404s in its precache list
-and could never have installed. Bump `CACHE_NAME` on any change.
+and could never have installed. Bump `CACHE_VERSION` on any change, and bump it
+**together with** the `?v=` on `index.html`'s stylesheet and script references —
+`scripts/check-critical-css.py` compares the two, because a page from one deploy
+must never be served against another deploy's `home.css` or `home-app.js`.
+
+**The catalogue may never come from a stale cache.** The catalogue decides
+which tools exist, so a cached copy that predates the deploy renders a grid
+with tools missing — the visitor has no way to tell that from a bug. `sw.js`
+therefore routes the catalogue tiers, the card fragments and first-party
+code through `freshFast()`: the cached copy answers instantly only while it is
+inside GitHub Pages' own 10-minute freshness window, after which the network
+decides, with the cache as the fallback if the origin is slower than
+`NETWORK_PATIENCE_MS` (2.5s) or unreachable. This replaced
+stale-while-revalidate, which always handed over the previous deploy's copy and
+only refreshed the cache for the *next* visit — so every newly added tool was
+missing until the visitor happened to load the page twice.
+`scripts/tests/service-worker.test.js` drives the shipped handler and fails if
+a stale catalogue beats the deployed one.
+
+**The precache list must only contain what the fetch handler reads from that
+cache.** Entries are fetched with `cache: 'reload'` (bypassing the HTTP cache)
+on install, so a URL that the handler serves out of `RUNTIME_CACHE` or
+`CARDS_CACHE` is downloaded a second time per install — while the visitor is
+still waiting for the first screen. The service-worker test asserts the list.
+
+**The page's own code needs a second, differently-fetched precache list.**
+`home.css`, `home-deferred.css`, `home-app.js`, `home-features.js` and
+`risk-notices.js` are fetched by a first visit *before* the worker controls
+anything, so the worker's caches never saw them; the next visit offline then
+served the cached `index.html` and 503'd its own stylesheet and script — an
+unstyled page with no cards. Those five URLs are therefore precached into
+`STATIC_CACHE`, and the fetch handler serves them from there (`PAGE_ASSET_PATHS`
+maps the versioned URL back to the bare pathname), so the precache is the copy
+that gets read rather than a second download nobody looks at.
+
+They are precached **without** `cache: 'reload'`, which is safe and free
+because their URLs carry `?v=${PAGE_VERSION}`, derived from `CACHE_VERSION`:
+a new deploy is a new URL, so no entry under them can be stale — and because
+the URL is new, the HTTP cache cannot hold a wrong copy either, so the
+precache reuses the response the page just downloaded instead of fetching
+~260 KB a second time. Bump `CACHE_VERSION` (and, with it, the `?v=` that
+`scripts/check-critical-css.py` compares) or a deploy quietly precaches the
+previous version's code.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
@@ -1285,9 +1454,13 @@ geometric sums, convergence detection, both lease verdict branches).
 - **`viewport-fit=cover` on 1/42 pages, `color-scheme` on 0/42.** Worth adding
   to the full-bleed dark pages for notched phones and native dark scrollbars,
   but it changes layout, so it wants visual testing rather than a blind sweep.
-- **`sw.js` is still unregistered** — see the open question below. For a site of
-  644 offline-first tools it is a large caching win (network-first for HTML,
-  cache-first for cards), but it must be rolled out carefully.
+- **`sw.js`** — registered from `initApp()` and governed by the §7 rules. The
+  catalogue, card fragments and first-party code go through `freshFast()` (the
+  cache may answer only inside GitHub Pages' 10-minute window; after that the
+  network decides), binaries stay cache-first, HTML stays network-first, and
+  the precache list holds only what the fetch handler reads from it.
+  `scripts/tests/service-worker.test.js` drives the shipped handler in
+  `verify.sh` §15.
 - **8 pages use `i.ytimg.com/vi/<id>/maxresdefault.jpg` as their og:image**
   (both ids verified live today). Fine while the videos exist; if one is ever
   deleted the share card silently breaks.
@@ -1304,6 +1477,14 @@ geometric sums, convergence detection, both lease verdict branches).
 - The 12 language pages are thin and machine-translated. Thin translated pages
   can attract a manual action from Google. Either enrich them with genuinely
   localised content or consider consolidating.
-- `sw.js` is correct but unregistered — enable it or delete it.
+- **Element selectors and shared class names inside cards still leak.** All
+  1,194 cards share one document, so a card's bare `button { … }`, `input { … }`
+  or `h2 { … }` rule applies to every other card and to the page chrome, and
+  107 class names (`.actions` in 99 cards, `.row`, `.active`, `.field`, …) are
+  defined by more than one card with different meanings. `check-card-css-leaks.py`
+  fails on host classes and script-injected styles (the damage class that made
+  cards disappear); it does not yet police element selectors or cross-card
+  collisions. Fixing those means scoping ~100 cards — the same shape of
+  mechanical change as P3-T2, so it needs an owner call before staff start.
 - Legacy directories `substitutions/`, `system/`, `digitaldetoxcardshtml/` and
   the duplicate CV files look like dead weight. Confirm before removing.

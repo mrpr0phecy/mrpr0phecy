@@ -64,6 +64,13 @@ const MAX_REDIRECTS = 5;
 // hidden build step; these checks keep their absence loud.
 const CRITICAL_FILES = [
   'index.html',
+  // The main page's stylesheet is external and versioned (?v=): if a deploy
+  // ships index.html without these two, the page renders unstyled, and the
+  // byte comparison is the only thing that notices.
+  'home.css',
+  'home-deferred.css',
+  'home-app.js',
+  'home-features.js',
   'tool.html',
   'listen.html',
   '404.html',
