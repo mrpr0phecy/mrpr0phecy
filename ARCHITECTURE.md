@@ -831,13 +831,14 @@ on install, so a URL that the handler serves out of `RUNTIME_CACHE` or
 still waiting for the first screen. The service-worker test asserts the list.
 
 **The page's own code needs a second, differently-fetched precache list.**
-`index.html`, `home.css`, `home-deferred.css`, `home-app.js` and
+`home.css`, `home-deferred.css`, `home-app.js`, `home-features.js` and
 `risk-notices.js` are fetched by a first visit *before* the worker controls
 anything, so the worker's caches never saw them; the next visit offline then
 served the cached `index.html` and 503'd its own stylesheet and script — an
-unstyled page with no cards. Those four assets are therefore precached into
-`STATIC_CACHE`, which is also the cache the fetch handler serves them from
-(they are the only two lists that may name the same URL).
+unstyled page with no cards. Those five URLs are therefore precached into
+`STATIC_CACHE`, and the fetch handler serves them from there (`PAGE_ASSET_PATHS`
+maps the versioned URL back to the bare pathname), so the precache is the copy
+that gets read rather than a second download nobody looks at.
 
 They are precached **without** `cache: 'reload'`, which is safe and free
 because their URLs carry `?v=${PAGE_VERSION}`, derived from `CACHE_VERSION`:

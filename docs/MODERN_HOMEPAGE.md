@@ -269,7 +269,7 @@ and the 141 KB `cards.json` no longer blocks the grid.
 - `index.html`: +~800 lines of modern CSS + ~200 lines JS helpers, popover attributes, speculation rules, import map, manifest link; app script moved out to `home-app.js`, preload for `cards.json` removed
 - `home-app.js`: new — the homepage application (was inline in `index.html`), now owns the two-tier catalogue load + `enrichCatalogueDescriptions()`
 - `cards/cards-lite.json`: new — generated critical-path tier
-- `sw.js`: v6 — catalogue/fragments/first-party code via `freshFast()` (cached copy answers only inside the 10-minute window), precache trimmed to `index.html` + `cards-lite.json`; version shared with the `?v=` on the page's stylesheets and scripts
+- `sw.js`: v7 — catalogue/fragments/first-party code via `freshFast()` (cached copy answers only inside the 10-minute window), precache trimmed to `index.html` + `cards-lite.json`, and the page's own five files (`home.css`, `home-deferred.css`, `home-app.js`, `home-features.js`, `risk-notices.js`) precached without `cache: 'reload'` so a first visit followed by an offline visit is styled and working; version shared with the `?v=` on the page's stylesheets and scripts
 - `home.css` / `home-deferred.css`: new — the split of the old inline `<style>` block (see §12b)
 - `home-features.js`: new — panels, toolbox, maximise modal and directory view, out of `home-app.js` (see §12c)
 - `scripts/tests/app-split.test.js`: new — drives both files in a vm (core without the bundle, then the bundle against a live queue) and pins the delegate/registration/state contract
