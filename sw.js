@@ -22,7 +22,12 @@
 // priority and the fetch handler caches that copy, so precaching it (with
 // cache:'reload', bypassing the HTTP cache) was a second full download on
 // every install.
-const CACHE_VERSION = 'v4-2026-09-17';
+// v5: ships the catalogue-watchdog home-app.js (stalled fast-path fetches
+// can no longer freeze the grid on the first screen). Bumping the constant
+// is what forces the new script onto returning visitors: activate deletes
+// every cache not in this version's name list, so any pinned copy of the
+// old app script goes with them.
+const CACHE_VERSION = 'v5-2026-09-17';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

@@ -26,9 +26,11 @@ let fetchCount = {};
 const sandbox = {
   console,
   window: {},
+  CONFIG: { FETCH_TIMEOUT: 15000 },
   cardsMetaMap: new Map(),
   currentSearchQuery: '',
   applyFilters: () => { sandbox.filtersRan++; },
+  setTimeout, clearTimeout, AbortController,
   fetch(url) {
     fetchCount[url] = (fetchCount[url] || 0) + 1;
     const body = files[url];
@@ -44,13 +46,26 @@ const grab = name => {
   assert(m, `could not extract ${name}() from home-app.js`);
   return m[0];
 };
+const grabConst = name => {
+  const m = src.match(new RegExp(`const ${name} = [^;]+;`));
+  assert(m, `could not extract const ${name} from home-app.js`);
+  return m[0];
+};
 vm.runInContext(
   [
+    grabConst('FASTPATH_CATALOGUE_TIMEOUT'),
+    grabConst('CATALOGUE_FETCH_TIMEOUT'),
+    grab('withTimeout'),
+    grab('fetchTextWithTimeout'),
     grab('takePrefetchedCatalogue'),
     grab('takePrefetchedFullCatalogue'),
     grab('readCatalogueJson'),
     grab('readFullCatalogueJson'),
-    'let descriptionsEnriched = false;\n' + grab('enrichCatalogueDescriptions'),
+    'let descriptionsEnriched = false;\n'
+    // the merge also refreshes card faces (a DOM concern this sandbox does
+    // not model); stubbed so the catalogue semantics stay the thing under test
+    + 'const refreshCardFaceDescriptions = () => {};\n'
+    + grab('enrichCatalogueDescriptions'),
   ].join('\n'),
   sandbox, { filename: 'home-app.js(extracted)' });
 const tick = ms => new Promise(r => setTimeout(r, ms));
@@ -133,6 +148,54 @@ const tick = ms => new Promise(r => setTimeout(r, ms));
   assert.strictEqual(fetchCount['cards/cards.json'] || 0, 0,
     'full-tier-as-source path must not double-download the catalogue');
   console.log('  ok   full-tier-as-source path does not double-download');
+
+  // ---------------------------------------------------------------- suite 7
+  // REGRESSION: a stalled head-bootstrap catalogue response (a fetch that
+  // never settles — service-worker black hole, blocked request) used to hang
+  // readCatalogueJson() forever with no fallback, which froze the home grid
+  // at the pre-rendered first screen ("only the first few tools load") with
+  // no error and no retry. The bootstrap promise is now raced against
+  // FASTPATH_CATALOGUE_TIMEOUT; the direct fetch must win afterwards.
+  {
+    fetchCount = {};
+    sandbox.window.__mpFastPath = { json: new Promise(() => {}), full: null, cards: new Map() };
+    const t0 = Date.now();
+    const recovered = await vm.runInContext('readCatalogueJson()', sandbox);
+    const elapsed = Date.now() - t0;
+    assert(Array.isArray(recovered) && recovered.length > 0,
+      'a stalled bootstrap fetch must fall through to the direct fetch, not hang');
+    assert(elapsed >= 4500 && elapsed < 9000,
+      `stalled bootstrap must be abandoned via the timeout race (took ${elapsed}ms)`);
+    assert.strictEqual(fetchCount['cards/cards-lite.json'], 1,
+      'the direct fetch fires exactly once after the race');
+    console.log(`  ok   stalled bootstrap fetch is raced (${elapsed}ms) and the grid still builds`);
+  }
+
+  // ---------------------------------------------------------------- suite 8
+  // The retry pass calls readCatalogueJson(true): the fast path is skipped
+  // entirely, so even a still-stalled bootstrap promise cannot delay it.
+  {
+    fetchCount = {};
+    sandbox.window.__mpFastPath = { json: new Promise(() => {}), full: null, cards: new Map() };
+    const t0 = Date.now();
+    const direct = await vm.runInContext('readCatalogueJson(true)', sandbox);
+    const elapsed = Date.now() - t0;
+    assert(Array.isArray(direct) && direct.length > 0, 'bypass path must fetch and parse');
+    assert(elapsed < 1000, `bypass must not wait on the fast path (took ${elapsed}ms)`);
+    console.log('  ok   bypass path ignores the fast path entirely');
+    delete sandbox.window.__mpFastPath;
+  }
+
+  // ---------------------------------------------------------------- suite 9
+  // A bootstrap response that REJECTS (network error) falls through too.
+  {
+    fetchCount = {};
+    sandbox.window.__mpFastPath = { json: Promise.reject(new Error('network dead')), full: null, cards: new Map() };
+    const rejected = await vm.runInContext('readCatalogueJson()', sandbox);
+    assert(Array.isArray(rejected) && rejected.length > 0, 'rejected bootstrap must fall through to the direct fetch');
+    assert.strictEqual(fetchCount['cards/cards-lite.json'], 1, 'exactly one direct fetch after rejection');
+    console.log('  ok   rejected bootstrap fetch falls through cleanly');
+  }
 
   console.log('\nlite-tier tests passed');
 })().catch(err => { console.error(err); process.exit(1); });
