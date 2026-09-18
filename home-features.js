@@ -911,8 +911,8 @@
     // cards a visitor is actually looking at: their loads always win the
     // queue. Data-saver and 2G visitors keep faces + click-to-run instead
     // of a surprise catalogue download.
-    const TRICKLE_BATCH = 6;
-    const TRICKLE_INTERVAL = 2500;
+    const TRICKLE_BATCH = 30;
+    const TRICKLE_INTERVAL = 400;
     let trickleStarted = false;
     function setViewModeCore(mode) {
         S.currentViewMode = mode;
