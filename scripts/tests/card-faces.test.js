@@ -39,17 +39,23 @@ const html = fs.readFileSync(INDEX, 'utf8');
 }
 
 // ---------------------------------------------------------------- suite 2
-// The generated index ships faces (with descriptions), not skeletons.
-// Index must display all cards, not a 9/12-card slice.
+// The generated index ships first-screen faces (with descriptions), not
+// skeletons — exactly MARKUP shells (twelve), not the whole catalogue.
+// The grid still displays every tool: buildPlaceholders() builds the rest
+// from cards-lite.json at runtime. Pre-rendering all ~1194 here made
+// index.html 2.1 MB and queued every tool on first paint.
 {
   const prerender = html.match(/HOME-PRERENDER:BEGIN([\s\S]*?)HOME-PRERENDER:END/);
   assert(prerender, 'HOME-PRERENDER block missing from index.html');
   const block = prerender[1];
+  // Read the count from the generator itself so the two cannot drift.
+  const GEN = path.join(ROOT, 'scripts', 'build-home-prerender.py');
+  const genSrc = fs.readFileSync(GEN, 'utf8');
+  const markupM = genSrc.match(/^MARKUP\s*=\s*(\d+)/m);
+  assert(markupM, 'could not read MARKUP from scripts/build-home-prerender.py');
+  const expected = parseInt(markupM[1], 10);
   const faces = (block.match(/class="card-face"/g) || []).length;
-  // The catalogue is 1194 cards — index must contain all, not 9 or 12.
-  const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
-  const expected = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf8')).length;
-  assert.strictEqual(faces, expected, `expected ${expected} generated faces (full catalogue), found ${faces}`);
+  assert.strictEqual(faces, expected, `expected ${expected} generated faces (first screen), found ${faces}`);
   assert.ok(!block.includes('card-skeleton'),
     'generated shells still contain a skeleton');
   const descs = (block.match(/class="card-face-desc"/g) || []).length;
@@ -59,7 +65,14 @@ const html = fs.readFileSync(INDEX, 'utf8');
   // Faces are keyboard-reachable and labelled.
   assert.ok(block.includes('role="button"') && block.includes('tabindex="0"'),
     'generated faces must be focusable buttons');
-  console.log(`  ok   ${expected} generated faces with descriptions (full catalogue), no skeleton`);
+  // The shells must be the first cards in catalogue order (what the loader
+  // would build first), so the head bootstrap's prefetches land in them.
+  const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
+  const names = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf8')).map(c => c.name).sort();
+  const rendered = [...block.matchAll(/<div class="card card-pending" data-name="([^"]+)"/g)].map(m => m[1]);
+  assert.deepStrictEqual(rendered, names.slice(0, expected),
+    'pre-rendered shells are not the first cards in catalogue order');
+  console.log(`  ok   ${expected} first-screen faces with descriptions, in catalogue order, no skeleton`);
 }
 
 // ---------------------------------------------------------------- suite 3
@@ -245,11 +258,14 @@ function el(tag) {
 // the pipeline drains, and stops once everything is live. Data-saver / 2G
 // visitors never get the trickle at all.
 {
-  // Extract the real trickle batch/interval from the shipped file —
-  // the index now displays the full catalogue (1194), so the trickle
-  // was bumped from the old 6-per-2.5s throttle to show all quickly.
+  // Extract the real trickle batch from the shipped file so the harness
+  // follows it. The trickle is a gentle 6-per-2.5s background top-up: every
+  // card already displays as a readable face, so it only stays ahead of a
+  // scroll rather than refetching the catalogue in the background.
   const BATCH_M = app.match(/TRICKLE_BATCH\s*=\s*(\d+)/);
   const ACTUAL_BATCH = BATCH_M ? parseInt(BATCH_M[1], 10) : 6;
+  const INTERVAL_M = app.match(/TRICKLE_INTERVAL\s*=\s*(\d+)/);
+  const ACTUAL_INTERVAL = INTERVAL_M ? parseInt(INTERVAL_M[1], 10) : 2500;
   const grabTrickle = () => {
     const m = app.match(/function startIdleTrickle\([^)]*\) \{[\s\S]*?\n    \}\n/);
     assert(m, 'could not extract startIdleTrickle() from home-app.js');
@@ -260,7 +276,7 @@ function el(tag) {
     const sandbox = {
       trickleStarted: false,
       TRICKLE_BATCH: ACTUAL_BATCH,
-      TRICKLE_INTERVAL: 400,
+      TRICKLE_INTERVAL: ACTUAL_INTERVAL,
       navigator: state.navigator || {},
       document: { hidden: !!state.hidden },
       pendingCards: state.pending,
@@ -284,7 +300,7 @@ function el(tag) {
   // a) queues up to TRICKLE_BATCH eligible cards on the first tick, then
   //    keeps ticking while loads are in flight; stops when all done.
   //    Build a pending set larger than one batch so batching is exercised
-  //    regardless of the current batch size (6 → 30 after the full-catalogue fix).
+  //    regardless of the current batch size.
   {
     const total = ACTUAL_BATCH + 2;
     const pending = Array.from({ length: total }, (_, i) => ({ dataset: { name: `n${i}` } }));

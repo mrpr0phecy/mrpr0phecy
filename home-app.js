@@ -6,9 +6,8 @@
 
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() now returns the full catalogue
-        INITIAL_STAGGER: 2,    // ms between first-batch fetch starts (was 18/50 — lowered so 1194 cards queue in ~2.4s, not 21s)
-                                // that LOAD_DELAY: 100). MAX_CONCURRENT_LOADS already
+        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() caps it at 12 (viewport + look-ahead)
+        INITIAL_STAGGER: 18,    // ms between first-batch fetch starts. MAX_CONCURRENT_LOADS already
                                 // caps the work in flight, and the head bootstrap has
                                 // usually downloaded the first screen's fragments
                                 // before this runs, so a long stagger only delayed the
@@ -285,11 +284,14 @@
     }
 
 
-    // Full-catalogue trickle — was 6 per 2.5s, throttled to save data.
-    // The index must display all cards, so run a larger batch on a
-    // short interval; data-saver/2G visitors still keep click-to-run.
-    const TRICKLE_BATCH = 30;
-    const TRICKLE_INTERVAL = 400;
+    // Idle trickle: 6 cards per 2.5s tick, throttled to save data. Every
+    // card already displays as a readable face from the grid build, so the
+    // trickle only needs to stay ahead of a scroll — a larger batch on a
+    // short interval refetched the whole catalogue in the background and
+    // starved the tools the visitor was actually looking at. Data-saver/2G
+    // visitors keep click-to-run and never get the trickle at all.
+    const TRICKLE_BATCH = 6;
+    const TRICKLE_INTERVAL = 2500;
     let trickleStarted = false;
     function startIdleTrickle() {
         if (trickleStarted) return;
@@ -1096,11 +1098,22 @@
         showCatalogueError(lastError);
     }
     
-    // Display every card — the index must show the full catalogue, not a
-    // 9/12-card slice. The old viewport look-ahead capped the first batch
-    // at 12, which left hundreds of faces un-queued until scroll.
+    // The first batch is the viewport plus the observer's 600px look-ahead,
+    // capped at 12 (which is why HOME-PRERENDER ships exactly twelve shells:
+    // no first-load card waits on even the lite tier). Everything else loads
+    // on scroll (observer + viewport sweep), on click, or via the idle
+    // trickle. Queuing the whole catalogue here stalled the visible tools
+    // behind hundreds of alphabetical fetches and turned pickNearestQueued()
+    // into an O(n^2) getBoundingClientRect storm — every pick scanned all
+    // ~1194 queued cards, each read forcing layout.
     function computeInitialBatch() {
-        return allCards.length || CONFIG.INITIAL_LOAD;
+        try {
+            const viewport = (typeof window !== 'undefined' && window.innerHeight) || 900;
+            const rows = Math.ceil((viewport + 600) / 320);
+            return Math.min(12, Math.max(CONFIG.INITIAL_LOAD, rows));
+        } catch (err) {
+            return CONFIG.INITIAL_LOAD;
+        }
     }
     
     function loadInitialCards() {
