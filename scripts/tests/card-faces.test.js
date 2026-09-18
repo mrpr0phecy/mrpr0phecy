@@ -39,23 +39,27 @@ const html = fs.readFileSync(INDEX, 'utf8');
 }
 
 // ---------------------------------------------------------------- suite 2
-// The generated first screen ships faces (with descriptions), not skeletons.
+// The generated index ships faces (with descriptions), not skeletons.
+// Index must display all cards, not a 9/12-card slice.
 {
   const prerender = html.match(/HOME-PRERENDER:BEGIN([\s\S]*?)HOME-PRERENDER:END/);
   assert(prerender, 'HOME-PRERENDER block missing from index.html');
   const block = prerender[1];
   const faces = (block.match(/class="card-face"/g) || []).length;
-  assert.strictEqual(faces, 12, `expected 12 generated faces, found ${faces}`);
+  // The catalogue is 1194 cards — index must contain all, not 9 or 12.
+  const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
+  const expected = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf8')).length;
+  assert.strictEqual(faces, expected, `expected ${expected} generated faces (full catalogue), found ${faces}`);
   assert.ok(!block.includes('card-skeleton'),
     'generated shells still contain a skeleton');
   const descs = (block.match(/class="card-face-desc"/g) || []).length;
-  assert.strictEqual(descs, 12, 'every generated face must carry a description');
+  assert.strictEqual(descs, expected, 'every generated face must carry a description');
   assert.ok(!/card-face-desc>\s*</.test(block),
     'a generated face has an empty description — the generator must embed it');
   // Faces are keyboard-reachable and labelled.
   assert.ok(block.includes('role="button"') && block.includes('tabindex="0"'),
     'generated faces must be focusable buttons');
-  console.log('  ok   12 generated first-screen faces with descriptions, no skeleton');
+  console.log(`  ok   ${expected} generated faces with descriptions (full catalogue), no skeleton`);
 }
 
 // ---------------------------------------------------------------- suite 3
@@ -241,6 +245,11 @@ function el(tag) {
 // the pipeline drains, and stops once everything is live. Data-saver / 2G
 // visitors never get the trickle at all.
 {
+  // Extract the real trickle batch/interval from the shipped file —
+  // the index now displays the full catalogue (1194), so the trickle
+  // was bumped from the old 6-per-2.5s throttle to show all quickly.
+  const BATCH_M = app.match(/TRICKLE_BATCH\s*=\s*(\d+)/);
+  const ACTUAL_BATCH = BATCH_M ? parseInt(BATCH_M[1], 10) : 6;
   const grabTrickle = () => {
     const m = app.match(/function startIdleTrickle\([^)]*\) \{[\s\S]*?\n    \}\n/);
     assert(m, 'could not extract startIdleTrickle() from home-app.js');
@@ -250,8 +259,8 @@ function el(tag) {
   function runTrickle(state, timers, extra = {}) {
     const sandbox = {
       trickleStarted: false,
-      TRICKLE_BATCH: 6,
-      TRICKLE_INTERVAL: 2500,
+      TRICKLE_BATCH: ACTUAL_BATCH,
+      TRICKLE_INTERVAL: 400,
       navigator: state.navigator || {},
       document: { hidden: !!state.hidden },
       pendingCards: state.pending,
@@ -274,12 +283,13 @@ function el(tag) {
 
   // a) queues up to TRICKLE_BATCH eligible cards on the first tick, then
   //    keeps ticking while loads are in flight; stops when all done.
+  //    Build a pending set larger than one batch so batching is exercised
+  //    regardless of the current batch size (6 → 30 after the full-catalogue fix).
   {
+    const total = ACTUAL_BATCH + 2;
+    const pending = Array.from({ length: total }, (_, i) => ({ dataset: { name: `n${i}` } }));
     const state = {
-      pending: [{ dataset: { name: 'a' } }, { dataset: { name: 'b' } },
-                { dataset: { name: 'c' } }, { dataset: { name: 'd' } },
-                { dataset: { name: 'e' } }, { dataset: { name: 'f' } },
-                { dataset: { name: 'g' } }, { dataset: { name: 'h' } }],
+      pending,
       loadedSet: new Set(), loadingSet: new Set(),
       queued: [], activeLoads: 4, loadQueue: [],
     };
@@ -287,17 +297,18 @@ function el(tag) {
     runTrickle(state, timers);
     assert.strictEqual(timers.length, 1, 'trickle did not schedule its first tick');
     timers.shift()(); // first tick
-    assert.strictEqual(state.queued.length, 6, `expected a batch of 6, got ${state.queued.length}`);
+    assert.strictEqual(state.queued.length, ACTUAL_BATCH, `expected a batch of ${ACTUAL_BATCH}, got ${state.queued.length}`);
     assert.strictEqual(timers.length, 1, 'trickle stopped while loads were still in flight');
     // pipeline drains and everything finishes: next tick queues the last two, then stops
     state.activeLoads = 0;
     state.loadingSet.clear();
     // mutate the captured Sets in place — the sandbox holds the references
-    for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) state.loadedSet.add(n);
+    for (let i = 0; i < ACTUAL_BATCH; i++) state.loadedSet.add(`n${i}`);
     timers.shift()();
-    assert.deepStrictEqual(state.queued, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
+    const expectedAll = pending.map(p => p.dataset.name);
+    assert.deepStrictEqual(state.queued, expectedAll,
       'the trickle never reached the tail of the catalogue');
-    for (const n of ['g', 'h']) state.loadedSet.add(n);
+    for (let i = ACTUAL_BATCH; i < total; i++) state.loadedSet.add(`n${i}`);
     timers.shift()(); // nothing eligible + idle -> terminal
     assert.strictEqual(timers.length, 0, 'trickle kept ticking after finishing the catalogue');
     console.log('  ok   trickle queues batches, then stops when every card is live');

@@ -65,14 +65,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "index.html")
 CARDS_JSON = os.path.join(ROOT, "cards", "cards.json")
 
-# How many first-screen card shells to pre-render, and how many of those to
-# start fetching in <head>. MARKUP covers a tall first viewport:
-# computeInitialBatch() sizes the first load to viewport+look-ahead, capped
-# at 12, so 12 shells means no first-load card ever waits on the lite index.
-# FETCH matches CONFIG.INITIAL_LOAD's floor (6) — the loader asks for exactly
-# that many on a normal viewport, and every extra prefetch is bandwidth taken
-# from the catalogue tiers.
-MARKUP = 12
+# How many card shells to pre-render. Set to a large number so
+# index.html contains the full catalogue — the homepage must display all
+# cards, not a 9/12-card slice. The first-screen optimisation is kept
+# for the fetch bootstrap (FETCH) but the markup now covers every
+# tool so no-JS, crawlers and first paint all see the complete
+# catalogue. Slice is clamped to catalogue length at build time.
+MARKUP = 5000
 FETCH = 6
 
 FAST_PATH = ("<!--HOME-FAST-PATH:BEGIN", "<!--HOME-FAST-PATH:END-->")

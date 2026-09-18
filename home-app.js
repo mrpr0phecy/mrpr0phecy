@@ -6,8 +6,8 @@
 
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() sizes it to the viewport
-        INITIAL_STAGGER: 18,    // ms between first-batch fetch starts (was 50, before
+        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() now returns the full catalogue
+        INITIAL_STAGGER: 2,    // ms between first-batch fetch starts (was 18/50 — lowered so 1194 cards queue in ~2.4s, not 21s)
                                 // that LOAD_DELAY: 100). MAX_CONCURRENT_LOADS already
                                 // caps the work in flight, and the head bootstrap has
                                 // usually downloaded the first screen's fragments
@@ -285,6 +285,12 @@
     }
 
 
+    // Full-catalogue trickle — was 6 per 2.5s, throttled to save data.
+    // The index must display all cards, so run a larger batch on a
+    // short interval; data-saver/2G visitors still keep click-to-run.
+    const TRICKLE_BATCH = 30;
+    const TRICKLE_INTERVAL = 400;
+    let trickleStarted = false;
     function startIdleTrickle() {
         if (trickleStarted) return;
         try {
@@ -1090,17 +1096,11 @@
         showCatalogueError(lastError);
     }
     
-    // The catalogue is intentionally one card per row. Load the first
-    // viewport plus a comfortable look-ahead instead of deriving a batch from
-    // the old multi-column grid. The fallback sweep below runs again after
-    // layout settles, so a tool that grows after its script starts cannot leave
-    // the next visible card stuck on a skeleton.
+    // Display every card — the index must show the full catalogue, not a
+    // 9/12-card slice. The old viewport look-ahead capped the first batch
+    // at 12, which left hundreds of faces un-queued until scroll.
     function computeInitialBatch() {
-        const viewportHeight = window.innerHeight || 800;
-        const estimatedCardHeight = 320;
-        const lookAhead = 520;
-        const viewportCards = Math.ceil((viewportHeight + lookAhead) / estimatedCardHeight);
-        return Math.min(12, Math.max(CONFIG.INITIAL_LOAD, viewportCards));
+        return allCards.length || CONFIG.INITIAL_LOAD;
     }
     
     function loadInitialCards() {
@@ -2353,9 +2353,7 @@
                 visibleCount++;
                 matchedNames.push(name);
                 if (cardEl && !loadedCards.has(name) && !loadingCards.has(name)) {
-                    if (visibleCount <= 12) {
-                        loadCard(cardEl, name);
-                    }
+                    loadCard(cardEl, name);
                 }
             }
         });
