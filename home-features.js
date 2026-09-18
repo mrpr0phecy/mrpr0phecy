@@ -1,22 +1,20 @@
 /* home-features.js — the main page's on-demand UI.
 
    Panels (palette, contributions, shared toolbox), the toolbox itself, the
-   standalone-maximise modal and the alternate directory view live here rather
-   than in home-app.js. Nothing in this file is needed to paint, filter or
-   scroll the tool grid, and it is 35 KB of the app: loading it with the app
-   meant every visitor compiled it before the first tools appeared, and a slow
-   phone paid that on top of the card fetches. home-app.js loads it after the
-   first screen's cards have been asked for, or immediately if something asks
-   for a feature first (a click on a panel button, a rating, an embed button).
+   standalone-maximise modal, multi-tab toolbox sync and the alternate
+   directory view live here rather than in home-app.js. Nothing in this file is
+   needed to paint, show or scroll the grid, and it is ~36 KB of the app:
+   loading it with the app meant every visitor compiled it before the first
+   card appeared. home-app.js requests it at idle, or immediately if a click
+   asks for a feature first.
 
    Shared state comes from window.__mpHome, declared by home-app.js: `state` is
-   a live view of the app's own variables (plain getters/setters), `fn` the core
-   functions called from here, `features` the registrations at the bottom of
-   this file. For every name registered there, home-app.js keeps a delegate of
-   the same name, so its call sites (and any listener that survives a reload of
-   this file) are unchanged. scripts/tests/app-split.test.js fails if a
-   registration and a delegate drift apart, or if a state name the core does not
-   expose is reached for here.
+   a live view of the app's own variables (getters/setters, not copies), `fn`
+   the core functions called from here, `features` the registrations at the
+   bottom. For every name registered there, home-app.js keeps a delegate of the
+   same name, so its call sites are unchanged.
+   scripts/tests/app-split.test.js fails if a registration and a delegate drift
+   apart, or if a state name the core does not expose is reached for here.
 */
 (function () {
     'use strict';
@@ -81,6 +79,8 @@
             e.stopPropagation();
             closeToolbox();
         });
+        
+        
         // Premium sponsorship details toggle
         const premiumSponsorship = document.getElementById('premiumSponsorship');
         const premiumDetails = document.getElementById('premiumDetails');
@@ -92,6 +92,7 @@
             });
         }
     }
+    
     function toggleToolbox(event) {
         event.stopPropagation();
         const toolbox = document.getElementById('toolbox');
@@ -203,6 +204,7 @@
         panel.classList.remove('open');
         document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
     }
+
     function initToolbox() {
         const toolbox = document.getElementById('toolbox');
         const toolboxTitle = document.getElementById('toolboxTitle');
@@ -262,7 +264,7 @@
         document.getElementById('clearToolboxBtn').addEventListener('click', () => {
             if (S.toolboxCards.length === 0) return;
             
-            if (confirm(`Clear all ${S.toolboxCards.length} cards from toolbox?`)) {
+            if (confirm(`Clear all ${toolboxCards.length} cards from toolbox?`)) {
                 S.toolboxCards = [];
                 S.expandedGridCards.clear();
                 S.expandedListCards.clear();
@@ -362,7 +364,7 @@
                     <h3 style="color:var(--accent);margin-bottom:8px;">Empty Toolbox</h3>
                     <p style="margin:0;">Add cards by clicking the grid/list buttons on any card</p>
                     <p style="margin-top:8px;font-size:0.8rem;color:var(--text-secondary);">
-                        ${S.toolboxMode === 'grid' ? 
+                        ${toolboxMode === 'grid' ? 
                           '• Seamless resizable grid<br>• Click cards to expand<br>• Drag toolbox to reposition' : 
                           '• Clean expandable list<br>• Click cards to expand<br>• Drag toolbox to reposition'}
                     </p>
@@ -568,7 +570,7 @@
         }
         
         renderToolbox();
-        showNotification(`Added ${name} to toolbox ${mode || S.toolboxMode} mode`, 'success');
+        showNotification(`Added ${name} to toolbox ${mode || toolboxMode} mode`, 'success');
     }
     
     function removeCardFromToolbox(index) {
@@ -614,6 +616,7 @@
             countElement.textContent = `(${count} card${count !== 1 ? 's' : ''})`;
         }
     }
+
     async function openStandaloneModalCore(cardName) {
         const modal = document.getElementById('standaloneModal');
         const titleEl = document.getElementById('standaloneModalTitle');
@@ -798,7 +801,10 @@
             showNotification('Failed to copy embed code', 'error');
         });
     }
-    
+
+
+    // Modern: BroadcastChannel for multi-tab toolbox sync
+    let toolboxChannel = null;
     function setupBroadcastChannel() {
         if (!('BroadcastChannel' in window)) return;
         try {
@@ -826,13 +832,13 @@
         } catch {}
     }
 
-    // Modern: scrollend event for lazy load (more efficient than scroll)
 
-    // Chunked render: appending all 1194 directory rows at once blocked the
+
+    // Chunked render: appending all 1223 directory rows at once blocked the
     // main thread for ~1s. Batches of 200 across frames keep the view switch
     // instant, and the token drops stale passes if filters change mid-render.
     // "View Card" clicks are handled by one delegated listener (attached in
-    // setupEventListeners), not 1194 individual addEventListener calls.
+    // setupEventListeners), not 1223 individual addEventListener calls.
     let directoryRenderToken = 0;
     const DIRECTORY_CHUNK = 200;
     function renderDirectoryList(names) {
@@ -896,7 +902,18 @@
             }
         }
     }
-
+    // ===== IDLE TRICKLE LOADER =====
+    // The card faces already display the whole catalogue with no loading
+    // screens; this pass goes further and brings every tool fully live in
+    // the background — no scroll, no click — a few cards at a time. The
+    // shared pipeline stays in charge (nearest-to-viewport first, at most
+    // MAX_CONCURRENT_LOADS fetches), so the trickle can never starve the
+    // cards a visitor is actually looking at: their loads always win the
+    // queue. Data-saver and 2G visitors keep faces + click-to-run instead
+    // of a surprise catalogue download.
+    const TRICKLE_BATCH = 6;
+    const TRICKLE_INTERVAL = 2500;
+    let trickleStarted = false;
     function setViewModeCore(mode) {
         S.currentViewMode = mode;
         const dashboard = document.getElementById('dashboard');
@@ -926,7 +943,7 @@
             setViewModeCore(mode);
         });
     }
-    
+
     // ------------------------------------------------------------- registration
     // Every name here must have a same-named delegate in home-app.js (the guard
     // checks) — these are the entry points the core can reach.
@@ -937,10 +954,10 @@
     };
     MP.ready = true;
 
-    // Startup, in place of the initApp() calls this code used to answer:
-    // wire the panels and toolbox, the modal's own buttons, and multi-tab
-    // toolbox sync. All of it before the replay below, because a queued click
-    // must land on wired UI.
+    // Startup, in place of the initApp() calls this code used to answer: wire
+    // the panels and toolbox, the modal's own buttons, and multi-tab toolbox
+    // sync. All of it before the replay below, because a queued click must land
+    // on wired UI.
     setupBroadcastChannel();
     initToolbox();
     initPanels();

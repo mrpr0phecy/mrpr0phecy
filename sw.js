@@ -22,27 +22,37 @@
 // priority and the fetch handler caches that copy, so precaching it (with
 // cache:'reload', bypassing the HTTP cache) was a second full download on
 // every install.
-// v6: the main page's 118 KB inline stylesheet is now two cached files
-// (home.css render-blocking, home-deferred.css applied after first paint), and
-// index.html references its stylesheets and scripts with ?v=N so a page can
-// never be served against another deploy's CSS or JS. The version here must
-// match those query strings — scripts/check-critical-css.py fails if it drifts.
-// v5: "stale while revalidate" still meant a returning visitor rendered the
-// PREVIOUS catalogue on their first visit after every deploy — every tool
-// added since their last visit was simply absent from the grid until they
-// came back a second time. The catalogue, card fragments and first-party
-// code now use freshFast(): the cached copy may answer instantly only while
-// it is inside GitHub Pages' own 10-minute freshness window, and after that
-// the network decides, with the cached copy as a safety net if the network
-// is slow or gone. Nobody runs yesterday's tool list any more, and repeat
-// visits inside the window are still served from cache with no request at
-// all. The precache list is also trimmed to the two URLs the fetch handler
-// actually reads out of STATIC_CACHE: home-app.js, risk-notices.js and both
-// fonts were precached with cache:'reload' (bypassing the HTTP cache) and
-// then served from RUNTIME_CACHE, so every install downloaded ~133 KB of
-// fonts and the app script a second time, in the background, while the
-// visitor was still waiting for the first screen's tools.
-const CACHE_VERSION = 'v6-2026-09-17';
+// v5: ships the catalogue-watchdog home-app.js (a stalled fast-path fetch can
+// no longer freeze the grid on the first screen) and the precache trim:
+// tools-index.html and og-tools.png moved to runtime caching (they cost
+// ~110 KB of background bandwidth on EVERY install/reactivation, and the
+// navigate fallback chain already covers the index offline), './' removed as
+// a duplicate of './index.html'.
+// Still v5: "stale while revalidate" meant a returning visitor rendered the
+// PREVIOUS catalogue on their first visit after a deploy — every tool added
+// since their last visit was simply absent from the grid until they came back
+// a second time. The catalogue, card fragments and first-party code now use
+// freshFast(): the cached copy may answer instantly only while it is inside
+// GitHub Pages' own 10-minute freshness window, and after that the network
+// decides, with the cached copy as a safety net if the network is slow or gone.
+// Nobody runs yesterday's tool list any more, and repeat visits inside the
+// window are served from cache with no request at all.
+// v6: ships card faces (zero loading screens) plus the idle trickle loader, and
+// the main page's 118 KB inline stylesheet becomes two cached files (home.css
+// render-blocking, home-deferred.css applied after the first paint). Navigation
+// responses are network-first so the HTML is always fresh, but JS is
+// stale-while-revalidate — without a version bump a returning visitor's first
+// paint could pair the new HTML with the previous JS.
+// v7: the app is split. The first screen no longer contains the panels, the
+// toolbox, the maximise modal or the directory view — those live in
+// home-features.js and are fetched at idle — so a version bump is what makes
+// returning visitors pick the new pair up. The page's own files (both
+// stylesheets, both scripts, risk-notices.js) are also precached into
+// STATIC_CACHE now, without cache:'reload' and served from there: before this,
+// a first visit followed by an offline visit rendered an unstyled page with no
+// cards. Every one of those URLs carries a ?v= derived from this constant, so a
+// deploy is a new URL and a stale entry is impossible.
+const CACHE_VERSION = 'v7-2026-09-18';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

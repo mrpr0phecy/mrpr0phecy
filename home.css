@@ -1,24 +1,24 @@
 /* home.css — part of the main page's stylesheet.
 
-   The main page used to carry all 117,837 bytes of CSS inline in a single
-   <style> block, so every navigation re-transferred 18,865 bytes gzip of
-   CSS and the browser had to receive the whole 117 KB before it could paint
-   anything. The styles are now split in two files, both cached across visits:
+   The main page used to carry all 118,068 bytes of CSS inline in a single
+   <style> block, so every navigation re-transferred 18,943 bytes gzip of
+   CSS and the browser had to receive the whole block before it could paint.
+   The styles are now two files, both cached across visits:
 
-     home.css            the first-paint rules (above-the-fold chrome, the card
-                         grid and its shells/skeletons) — linked render-blocking,
-                         because unstyled first paint is worse than one RTT;
+     home.css            the first-paint rules (chrome, card faces, grid) —
+                         linked render-blocking, because unstyled first paint
+                         is worse than one RTT that overlaps the HTML;
      home-deferred.css   the rules for containers that are hidden at first
-                         paint (panels, toolbox, grid/list modes, the directory
-                         view, the maximise modal, the footer) — fetched
-                         alongside home.css but applied only after the first
-                         paint (media="print" -> "all").
+                         paint (panels, toolbox, directory view, maximise
+                         modal, footer) — fetched alongside but applied only
+                         after the first paint (media="print" -> "all").
 
-   It is render-blocking on purpose: an external stylesheet costs one RTT that overlaps the HTML download, and it is served from the HTTP/SW cache on every later visit — unlike the inline block this replaces, which every navigation paid for again.
+   It is render-blocking on purpose: one RTT that overlaps the HTML download, then served from cache on every later visit — unlike the inline block, which every navigation paid for again.
 
    Invariants enforced by scripts/check-critical-css.py: every class the first
    paint can show is styled by home.css; every var()/keyframes name used here is
-   defined here; index.html's ?v= matches CACHE_VERSION in sw.js.
+   defined here; index.html's ?v=, APP_VERSION in home-app.js and CACHE_VERSION
+   in sw.js all match.
 */
         /* ===== MODERN PLATFORM FEATURES (2024-2026) =====
            @property enables animatable typed custom properties.
@@ -380,6 +380,7 @@
             }
         }
 
+        
         /* ===== NORMAL MODE (Responsive Grid) ===== */
         body:not(.reader-mode) .dashboard {
             display: grid;
@@ -534,7 +535,6 @@
             opacity: 1;
         }
         
-        /* ===== PANELS (Palette, Contributions) ===== */
         .panel {
             position: fixed;
             background: rgba(10, 15, 20, 0.98);
@@ -550,15 +550,6 @@
             pointer-events: none;
             overflow: hidden;
         }
-        
-        .panel.open {
-            display: block;
-            transform: translateY(0) scale(1);
-            opacity: 1;
-            pointer-events: auto;
-        }
-        
-        /* Palette Panel */
         
         /* ===== IMPROVED TOOLBOX ===== */
         .toolbox {
@@ -1304,11 +1295,7 @@
         }
         
         /* ===== SITE FOOTER (auto-counts cards) ===== */
-
         @media (max-width: 480px) {
-            .site-footer-inner {
-                gap: var(--space-xl) var(--space-2xl);
-            }
             .main-header {
                 padding: var(--space-2xl) var(--space-md) var(--space-xl);
             }
@@ -1884,45 +1871,53 @@
         }
 
 
-        /* ===== STATIC SKELETON =====
-           What a queued card shows. The animated loader below is now reserved
-           for the handful of cards actually fetching: with 1165 placeholders
-           the old design ran roughly 10,000 infinite animations at once
-           (8155 waveform bars + 1165 scan lines + 1194 card pulses) and the
-           page could not stay responsive. */
-        .card-skeleton {
+        /* ===== CARD FACE =====
+           What an unloaded card shows instead of a skeleton: a finished,
+           readable card body built from the catalogue (icon, description,
+           run hint). No bars, no waveform, no "Loading" text anywhere on
+           the grid — every card looks complete the moment it is built,
+           and the live tool swaps the face out silently when its fragment
+           arrives. Clicking a face runs the tool immediately. */
+        .card-face {
             display: flex;
             flex-direction: column;
-            align-items: center;
             justify-content: center;
-            gap: 14px;
-            padding: 36px 20px;
+            gap: 12px;
+            padding: 26px 24px;
             min-height: 150px;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: background 0.18s ease;
         }
-        .card-skeleton-bars {
-            display: flex;
-            align-items: flex-end;
-            gap: 5px;
-            height: 38px;
+        .card-face:hover {
+            background: color-mix(in srgb, var(--accent) 7%, transparent);
         }
-        .card-skeleton-bars i {
-            width: 5px;
-            border-radius: 3px;
-            background: color-mix(in srgb, var(--accent) 24%, transparent);
+        .card-face:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
         }
-        .card-skeleton-bars i:nth-child(1) { height: 34%; }
-        .card-skeleton-bars i:nth-child(2) { height: 58%; }
-        .card-skeleton-bars i:nth-child(3) { height: 84%; }
-        .card-skeleton-bars i:nth-child(4) { height: 100%; }
-        .card-skeleton-bars i:nth-child(5) { height: 74%; }
-        .card-skeleton-bars i:nth-child(6) { height: 50%; }
-        .card-skeleton-bars i:nth-child(7) { height: 30%; }
-        .card-skeleton-text {
-            font-size: 0.78rem;
+        .card-face-icon {
+            font-size: 34px;
+            line-height: 1;
+            filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 35%, transparent));
+        }
+        .card-face-desc {
+            margin: 0;
+            font-size: 0.86rem;
             color: var(--text-secondary);
-            opacity: 0.7;
-            text-align: center;
+            line-height: 1.55;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
+        .card-face-hint {
+            font-size: 0.72rem;
+            letter-spacing: 0.03em;
+            color: color-mix(in srgb, var(--accent) 75%, var(--text-secondary));
+            opacity: 0.85;
+        }
+
 
         /* thin build-progress line, out of flow so it cannot disturb layout */
         #buildProgress {
@@ -2079,9 +2074,7 @@
         }
 
 
-        /* ===== EMPTY SEARCH STATE ===== */
 
-        /* ===== FOOTER MUSIC SPOTLIGHT ===== */
         /* ===== RESPONSIVE FIXES (batch audit) ===== */
         /* ===== AURORA GLASS REDESIGN =====
            Pure-CSS overhaul: animated aurora backdrop, glass hero / pills /
@@ -2485,4 +2478,5 @@
                 container-type: inline-size;
             }
         }
+
 

@@ -1,8 +1,8 @@
     // Shared version of the page's own assets. The stylesheets and scripts are
-    // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a
-    // page from one deploy must never run against another deploy's CSS or JS
+    // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
+    // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 6;
+    const APP_VERSION = 7;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -33,6 +33,120 @@
     let toolboxMode = 'grid'; // 'grid' or 'list'
     let expandedGridCards = new Set();
     let expandedListCards = new Set();
+    
+    // Background themes
+    const themes = {
+        'default': { bg1: '#0a0f14', bg2: '#141e28' },
+        'deep-blue': { bg1: '#05080c', bg2: '#0f151f' },
+        'deep-purple': { bg1: '#12081a', bg2: '#1f1229' },
+        'deep-teal': { bg1: '#061616', bg2: '#0f2525' },
+        'deep-red': { bg1: '#160606', bg2: '#251010' },
+        'deep-forest': { bg1: '#081408', bg2: '#152015' },
+        'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
+    };
+    
+    // ===== INITIALIZATION =====
+    let isAppInitialized = false;
+    function initApp() {
+        if (isAppInitialized) return;
+        isAppInitialized = true;
+        console.log('🚀 The Most Useful Site - Loading...');
+        loadRatings();
+        loadCardList();
+        setupEventListeners();
+        setupStickyCommandBar();
+        initReaderMode();
+        // Modern platform features
+        registerServiceWorker();
+        setupNavigationAPI();
+        setupScrollEnd();
+        // Panels, toolbox, modal and the directory view: ~40 KB that nothing on
+        // the first screen needs. Fetched at idle (or by the first click that
+        // wants one of them) instead of compiling before the first tools.
+        scheduleFeatureBundle();
+        assignVTNames();
+        postTask(() => updateSpeculationRules());
+        // Observe popover close to sync active states
+        document.querySelectorAll('[popover]').forEach(pop => {
+            pop.addEventListener('toggle', (e) => {
+                if (e.newState === 'closed') {
+                    document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
+                }
+            });
+        });
+        applySavedSettings();
+        setupMobileOptimizations();
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp, { once: true });
+    } else {
+        initApp();
+    }
+    
+    // ===== MOBILE OPTIMIZATIONS =====
+    function setupMobileOptimizations() {
+        // Detect touch devices
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
+        if (isTouchDevice) {
+            // Add touch-specific optimizations
+            document.body.classList.add('touch-device');
+            
+            // Increase button tap targets for mobile
+            const style = document.createElement('style');
+            style.textContent = `
+                @media (max-width: 768px) {
+                    .card-action-btn, .rating-btn, .embed-btn, .grid-mode-card-btn, .list-mode-item-btn {
+                        min-height: 44px;
+                        min-width: 44px;
+                    }
+                    
+                    .card-sandbox input, .card-sandbox button, .card-sandbox select {
+                        font-size: 16px !important;
+                        min-height: 44px !important;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+    
+    // ===== STICKY COMMAND BAR =====
+    function setupStickyCommandBar() {
+        const stickyBar = document.getElementById('stickyCommandBar');
+        const mainSearchInput = document.getElementById('mainSearchInput');
+        const stickySearchInput = document.getElementById('stickySearchInput');
+        
+        // Sync search inputs. NOTE: no performSearch() here — the debounced
+        // 'input' listeners in setupEventListeners() already fire the search.
+        // Calling it here as well ran the full 1223-card filter pass twice
+        // per keystroke (once instantly, once debounced).
+        if (mainSearchInput && stickySearchInput) {
+            mainSearchInput.addEventListener('input', (e) => {
+                stickySearchInput.value = e.target.value;
+            });
+            
+            stickySearchInput.addEventListener('input', (e) => {
+                mainSearchInput.value = e.target.value;
+            });
+        }
+        
+        // Handle scroll to show/hide sticky bar
+        let lastScrollTop = 0;
+        window.addEventListener('scroll', () => {
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            if (scrollTop > CONFIG.STICKY_THRESHOLD) {
+                stickyBar.classList.add('show');
+            } else {
+                stickyBar.classList.remove('show');
+            }
+            
+            lastScrollTop = scrollTop;
+            onScrollLazyLoad();
+        }, { passive: true });
+    }
     
     // ===== ON-DEMAND FEATURE BUNDLE =====
     // Panels, toolbox, maximise modal and the directory view are ~36 KB of the
@@ -111,6 +225,29 @@
     // already attached to a card) keeps working, whether the bundle has landed
     // yet or not. scripts/tests/app-split.test.js fails if one of these loses
     // its registration in the bundle.
+    // Reader mode is the one "sticky bar" control that is page chrome rather
+    // than an on-demand panel: it restyles every card, so it stays in the core
+    // and is wired by initApp() instead of travelling with the panels.
+    function initReaderMode() {
+            // Reader mode toggle - FIXED VERSION
+            document.getElementById('stickyReaderToggle').addEventListener('click', () => {
+                const isReaderMode = document.body.classList.toggle('reader-mode');
+                document.getElementById('stickyReaderToggle').classList.toggle('active', isReaderMode);
+                localStorage.setItem('readerMode', isReaderMode ? 'on' : 'off');
+            
+                // Force reflow and update card heights
+                setTimeout(() => {
+                    document.querySelectorAll('.card').forEach(card => {
+                        adjustCardHeight(card);
+                    });
+                }, 50);
+            
+                showNotification(isReaderMode ? 
+                    'Reader mode enabled - Cards full width & height' : 
+                    'Reader mode disabled - Grid view', 'info');
+            });
+    }
+
     function updateGridLayout() { callFeature('updateGridLayout', arguments); }
     function setViewMode(mode) { callFeature('setViewMode', arguments); }
     function renderDirectoryList(names) { callFeature('renderDirectoryList', arguments); }
@@ -122,146 +259,66 @@
         callFeature('addCardToToolbox', arguments);
     }
 
-    // Background themes
-    const themes = {
-        'default': { bg1: '#0a0f14', bg2: '#141e28' },
-        'deep-blue': { bg1: '#05080c', bg2: '#0f151f' },
-        'deep-purple': { bg1: '#12081a', bg2: '#1f1229' },
-        'deep-teal': { bg1: '#061616', bg2: '#0f2525' },
-        'deep-red': { bg1: '#160606', bg2: '#251010' },
-        'deep-forest': { bg1: '#081408', bg2: '#152015' },
-        'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
-    };
-    
-    // ===== INITIALIZATION =====
-    let isAppInitialized = false;
-    function initApp() {
-        if (isAppInitialized) return;
-        isAppInitialized = true;
-        console.log('🚀 The Most Useful Site - Loading...');
-        loadRatings();
-        loadCardList();
-        setupEventListeners();
-        setupStickyCommandBar();
-        initReaderMode();
-        // Modern platform features
-        registerServiceWorker();
-        setupNavigationAPI();
-        setupScrollEnd();
-        // Panels, toolbox, modal and the directory view: ~36 KB that nothing on
-        // the first screen needs. Fetched at idle (or by the first click that
-        // wants one of them) instead of compiling before the first tools.
-        scheduleFeatureBundle();
-        assignVTNames();
-        postTask(() => updateSpeculationRules());
-        // Observe popover close to sync active states
-        document.querySelectorAll('[popover]').forEach(pop => {
-            pop.addEventListener('toggle', (e) => {
-                if (e.newState === 'closed') {
-                    document.querySelectorAll('.sticky-action-btn').forEach(btn => btn.classList.remove('active'));
-                }
-            });
+    // ===== LOADER CONTROLS THAT STAYED IN THE CORE =====
+    // These sit between the moved blocks in the original file but are
+    // core: the pipeline they drive is here, and nothing loads them.
+
+    // Queue every visible, not-yet-loaded card at once. The existing pipeline
+    // stays in charge (nearest-first, MAX_CONCURRENT_LOADS at a time), so the
+    // page never blocks — cards simply go live continuously. No loading UI
+    // exists any more: faces swap to live tools as each fragment arrives.
+    function loadAllToolsNow() {
+        let queued = 0;
+        document.querySelectorAll('.card[data-name]:not(.loaded)').forEach(card => {
+            const name = card.dataset.name;
+            if (!name || loadedCards.has(name) || loadingCards.has(name)) return;
+            if (card.dataset.errorReason || isCardHidden(card)) return;
+            loadCard(card, name);
+            queued++;
         });
-        applySavedSettings();
-        setupMobileOptimizations();
+        showNotification(
+            queued > 0
+                ? `Running all ${queued} tools — each card goes live as it arrives`
+                : 'Every tool on the page is already live',
+            'success'
+        );
     }
-    
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initApp, { once: true });
-    } else {
-        initApp();
-    }
-    
-    // ===== MOBILE OPTIMIZATIONS =====
-    function setupMobileOptimizations() {
-        // Detect touch devices
-        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        
-        if (isTouchDevice) {
-            // Add touch-specific optimizations
-            document.body.classList.add('touch-device');
-            
-            // Increase button tap targets for mobile
-            const style = document.createElement('style');
-            style.textContent = `
-                @media (max-width: 768px) {
-                    .card-action-btn, .rating-btn, .embed-btn, .grid-mode-card-btn, .list-mode-item-btn {
-                        min-height: 44px;
-                        min-width: 44px;
-                    }
-                    
-                    .card-sandbox input, .card-sandbox button, .card-sandbox select {
-                        font-size: 16px !important;
-                        min-height: 44px !important;
-                    }
+
+
+    function startIdleTrickle() {
+        if (trickleStarted) return;
+        try {
+            const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+            if (conn && (conn.saveData || /(^|\b)(slow-)?2g\b/i.test(conn.effectiveType || ''))) return;
+        } catch (err) { /* connection info unavailable: trickle on */ }
+        trickleStarted = true;
+        const step = () => {
+            // A hidden tab neither loads nor entertains anyone: skip the
+            // tick and keep the timer alive for when the visitor returns.
+            if (!document.hidden) {
+                let queued = 0;
+                for (let i = 0; i < pendingCards.length && queued < TRICKLE_BATCH; i++) {
+                    const card = pendingCards[i];
+                    const name = card.dataset.name;
+                    if (!name || loadedCards.has(name) || loadingCards.has(name)) continue;
+                    if (card.dataset.errorReason || isCardHidden(card)) continue;
+                    loadCard(card, name);
+                    queued++;
                 }
-            `;
-            document.head.appendChild(style);
-        }
-    }
-    
-    // ===== STICKY COMMAND BAR =====
-    function setupStickyCommandBar() {
-        const stickyBar = document.getElementById('stickyCommandBar');
-        const mainSearchInput = document.getElementById('mainSearchInput');
-        const stickySearchInput = document.getElementById('stickySearchInput');
-        
-        // Sync search inputs. NOTE: no performSearch() here — the debounced
-        // 'input' listeners in setupEventListeners() already fire the search.
-        // Calling it here as well ran the full 1194-card filter pass twice
-        // per keystroke (once instantly, once debounced).
-        if (mainSearchInput && stickySearchInput) {
-            mainSearchInput.addEventListener('input', (e) => {
-                stickySearchInput.value = e.target.value;
-            });
-            
-            stickySearchInput.addEventListener('input', (e) => {
-                mainSearchInput.value = e.target.value;
-            });
-        }
-        
-        // Handle scroll to show/hide sticky bar
-        let lastScrollTop = 0;
-        window.addEventListener('scroll', () => {
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            
-            if (scrollTop > CONFIG.STICKY_THRESHOLD) {
-                stickyBar.classList.add('show');
-            } else {
-                stickyBar.classList.remove('show');
+                // Nothing eligible left and the pipeline drained: every tool
+                // the catalogue offers is live — done. Cards resting after
+                // errors stay untouched here (bounded retries and the
+                // manual Retry button own those).
+                if (queued === 0 && activeLoads === 0 && loadQueue.length === 0) return;
             }
-            
-            lastScrollTop = scrollTop;
-            onScrollLazyLoad();
-        }, { passive: true });
-    }
-    
-    // Reader mode is the one "sticky bar" control that is page chrome rather
-    // than an on-demand panel: it restyles every card, so it stays in the core
-    // and is wired by initApp() instead of travelling with the panels.
-    function initReaderMode() {
-        document.getElementById('stickyReaderToggle').addEventListener('click', () => {
-            const isReaderMode = document.body.classList.toggle('reader-mode');
-            document.getElementById('stickyReaderToggle').classList.toggle('active', isReaderMode);
-            localStorage.setItem('readerMode', isReaderMode ? 'on' : 'off');
-
-            // Reader mode restyles every card, so heights change under the
-            // loader: re-measure once the browser has applied the class.
-            setTimeout(() => {
-                document.querySelectorAll('.card').forEach(card => {
-                    adjustCardHeight(card);
-                });
-            }, 50);
-
-            showNotification(isReaderMode ?
-                'Reader mode enabled - Cards full width & height' :
-                'Reader mode disabled - Grid view', 'info');
-        });
+            setTimeout(step, TRICKLE_INTERVAL);
+        };
+        setTimeout(step, TRICKLE_INTERVAL);
     }
 
-    // ===== ON-DEMAND FEATURES (panels, toolbox, modal, directory view) =====
-    // ===== IMPROVED TOOLBOX SYSTEM =====
-    
+    // (The toolbox itself — its modes, its grid/list renderers, its saved
+    // cards — now lives in home-features.js, along with the panels it opens.)
+
     // ===== COLOR/THEME SYSTEM =====
     function applySavedSettings() {
         // Apply saved accent color
@@ -412,6 +469,16 @@
     let initialLoadKicked = false;
     let pendingCards = [];
 
+    // Extracts the leading emoji from a catalogue title ("🌀 3D Spirograph
+    // Nebula" → "🌀") for the card face icon. Falls back to the site emoji.
+    function titleEmoji(title) {
+        try {
+            const m = String(title || '').match(/^(\p{Extended_Pictographic}(?:\uFE0F|\u200D|\p{Extended_Pictographic})*)/u);
+            if (m && m[1]) return m[1];
+        } catch (err) { /* older engine without unicode property escapes */ }
+        return '🧰';
+    }
+
     function createPlaceholder(cardName, index) {
         const meta = cardsMetaMap.get(cardName);
         const displayName = meta && meta.title ? meta.title : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -424,35 +491,84 @@
         card.dataset.displayName = displayName;
         card.dataset.category = category;
         // No data-desc: every description was being copied into a DOM attribute
-        // as well, which duplicated ~190 KB of catalogue text into 1194
+        // as well, which duplicated ~190 KB of catalogue text into 1128
         // attribute writes during the build. cardsMetaMap is the single source
         // and is always populated before a placeholder exists (see applyFilters).
 
-        card.innerHTML = `
-            <div class="card-header">
-                <div class="card-header-info">
-                    <h3>${displayName}</h3>
-                    <span class="card-cat-badge">${category}</span>
-                </div>
-                <div class="card-actions">
-                    <button class="card-action-btn add-grid" title="Add to Grid Mode">🔲</button>
-                    <button class="card-action-btn add-list" title="Add to List Mode">📋</button>
-                    <a href="tool.html?card=${encodeURIComponent(cardName)}" target="_blank" rel="noopener" class="card-maximize-btn" title="Maximise to Standalone Tool" aria-label="Maximise ${displayName} to standalone">
-                        <span class="max-icon">⛶</span>
-                        <span class="max-label">Standalone</span>
-                    </a>
-                </div>
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.innerHTML = `
+            <div class="card-header-info">
+                <h3>${displayName}</h3>
+                <span class="card-cat-badge">${category}</span>
             </div>
-            <div class="card-content">
-                <div class="card-sandbox" id="card-${cardName}">
-                    <div class="card-skeleton" aria-hidden="true">
-                        <div class="card-skeleton-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-                        <div class="card-skeleton-text">${displayName}</div>
-                    </div>
-                </div>
+            <div class="card-actions">
+                <button class="card-action-btn add-grid" title="Add to Grid Mode">🔲</button>
+                <button class="card-action-btn add-list" title="Add to List Mode">📋</button>
+                <a href="tool.html?card=${encodeURIComponent(cardName)}" target="_blank" rel="noopener" class="card-maximize-btn" title="Maximise to Standalone Tool" aria-label="Maximise ${displayName} to standalone">
+                    <span class="max-icon">⛶</span>
+                    <span class="max-label">Standalone</span>
+                </a>
             </div>
         `;
+
+        // The card FACE replaces the old skeleton: a finished-looking card
+        // body built straight from the catalogue, so every one of the 1194
+        // cards is readable the moment the grid builds — no bars, no
+        // waveform, no "Loading…" anywhere. The live tool replaces this face
+        // silently once its fragment arrives (or on click, right away).
+        const content = document.createElement('div');
+        content.className = 'card-content';
+        const sandbox = document.createElement('div');
+        sandbox.className = 'card-sandbox';
+        sandbox.id = `card-${cardName}`;
+
+        const face = document.createElement('div');
+        face.className = 'card-face';
+        face.setAttribute('role', 'button');
+        face.setAttribute('tabindex', '0');
+        face.setAttribute('aria-label', `Run ${displayName} now`);
+
+        const icon = document.createElement('div');
+        icon.className = 'card-face-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = titleEmoji(displayName);
+
+        const desc = document.createElement('p');
+        desc.className = 'card-face-desc';
+        if (meta && meta.description) {
+            desc.textContent = meta.description;
+        } else {
+            // Lite tier has no descriptions; refreshCardFaceDescriptions()
+            // fills this in when the full catalogue lands in the background.
+            desc.textContent = 'Tap to run this tool right here — nothing to install, nothing to sign up for.';
+            desc.dataset.placeholder = '1';
+        }
+
+        const hint = document.createElement('div');
+        hint.className = 'card-face-hint';
+        hint.textContent = 'Click to run';
+
+        face.append(icon, desc, hint);
+        sandbox.appendChild(face);
+        content.appendChild(sandbox);
+        card.append(header, content);
         return card;
+    }
+
+    // Descriptions from the full catalogue arrive after the lite-tier faces
+    // are already on the page; patch the still-pending faces in one pass.
+    // Loaded cards are skipped — their faces are gone, replaced by the tool.
+    function refreshCardFaceDescriptions() {
+        const faces = document.querySelectorAll('.card.card-pending .card-face-desc[data-placeholder]');
+        faces.forEach(desc => {
+            const card = desc.closest('.card');
+            const meta = card && cardsMetaMap.get(card.dataset.name);
+            if (meta && meta.description) {
+                desc.textContent = meta.description;
+                delete desc.dataset.placeholder;
+            }
+        });
     }
 
     function updateBuildProgress(done, total) {
@@ -545,6 +661,10 @@
                 // Safety net: if the observer missed anything, scroll-driven
                 // loading picks it up (replaces the old 3s polling interval).
                 scrollFallbackLoader();
+                // The whole catalogue is now in the DOM: start the idle
+                // trickle so every remaining face quietly becomes a live
+                // tool without waiting for scrolls or clicks.
+                startIdleTrickle();
             }
         };
         step();
@@ -587,17 +707,56 @@
         });
     }
 
-    // The parsed catalogue, or null. Prefers the copy the head bootstrap
-    // already downloaded; falls back to fetching it here.
-    async function readCatalogueJson() {
-        let text = null;
-        const prefetched = takePrefetchedCatalogue();
-        if (prefetched) text = await prefetched.catch(() => null);
-        if (text === null || text === undefined) {
-            const res = await fetch('cards/cards-lite.json');
+    // Abortable fetch with a hard deadline. Resolves to the body text, or
+    // null on any failure/timeout — callers fall through to the next source.
+    // Every catalogue request goes through this: a request that never settles
+    // must cost the pipeline one timeout, never the whole grid.
+    async function fetchTextWithTimeout(url, ms) {
+        const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), ms || CONFIG.FETCH_TIMEOUT) : null;
+        try {
+            const res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
             if (!res.ok) return null;
-            text = await res.text();
+            return await res.text();
+        } catch (err) {
+            return null;
+        } finally {
+            if (timer) clearTimeout(timer);
         }
+    }
+
+    // How long to wait on the head bootstrap's in-flight catalogue response
+    // before fetching the file directly. The bootstrap starts the download in
+    // <head>, seconds before this code runs, so 5s is generous. The wait MUST
+    // exist: readCatalogueJson() sits on the critical path between the page
+    // booting and buildPlaceholders() creating the other ~1180 cards, and an
+    // unbounded await there (a fetch that stalls instead of failing — service
+    // worker black hole, blocked request, bfcache edge case) left the grid
+    // frozen at the pre-rendered first screen with no error and no retry.
+    const FASTPATH_CATALOGUE_TIMEOUT = 5000;
+    // Deadline for the loader's OWN catalogue requests (lite, full and the
+    // GitHub API fallback). Tighter than the fragment timeout: these sit on
+    // the critical path and every second spent here delays the grid. Worst
+    // bounded case before the grid or the error box appears: ~5s fast-path
+    // race + 10s lite + 10s full per attempt, three attempts, then the
+    // GitHub fallback pages — always finite, never a silent freeze.
+    const CATALOGUE_FETCH_TIMEOUT = 10000;
+
+    // The parsed catalogue, or null. Prefers the copy the head bootstrap
+    // already downloaded — raced against FASTPATH_CATALOGUE_TIMEOUT so a
+    // stalled bootstrap can never hold the critical path; falls back to
+    // fetching the file here. Pass bypassFastPath (set by the retry pass in
+    // loadCardList) to go straight to the network.
+    async function readCatalogueJson(bypassFastPath) {
+        let text = null;
+        if (!bypassFastPath) {
+            const prefetched = takePrefetchedCatalogue();
+            if (prefetched) text = await withTimeout(prefetched, FASTPATH_CATALOGUE_TIMEOUT);
+        }
+        if (text === null || text === undefined) {
+            text = await fetchTextWithTimeout('cards/cards-lite.json', CATALOGUE_FETCH_TIMEOUT);
+        }
+        if (text === null || text === undefined) return null;
         try {
             return JSON.parse(text);
         } catch (err) {
@@ -617,21 +776,33 @@
         return promise;
     }
 
-    async function readFullCatalogueJson() {
+    async function readFullCatalogueJson(bypassFastPath) {
         let text = null;
-        const prefetched = takePrefetchedFullCatalogue();
-        if (prefetched) text = await prefetched.catch(() => null);
-        if (text === null || text === undefined) {
-            const res = await fetch('cards/cards.json');
-            if (!res.ok) return null;
-            text = await res.text();
+        if (!bypassFastPath) {
+            const prefetched = takePrefetchedFullCatalogue();
+            if (prefetched) text = await withTimeout(prefetched, FASTPATH_CATALOGUE_TIMEOUT);
         }
+        if (text === null || text === undefined) {
+            text = await fetchTextWithTimeout('cards/cards.json', CATALOGUE_FETCH_TIMEOUT);
+        }
+        if (text === null || text === undefined) return null;
         try {
             return JSON.parse(text);
         } catch (err) {
             console.warn('cards.json did not parse', err);
             return null;
         }
+    }
+
+    // Drop any still-pending head-bootstrap catalogue responses so a retry
+    // always goes back to the network instead of re-consuming the same
+    // stalled promise. (Card fragments stay: executeLoadCard() already races
+    // each with its own timeout before refetching.)
+    function invalidateFastPathCatalogue() {
+        const fastPath = window.__mpFastPath;
+        if (!fastPath) return;
+        fastPath.json = null;
+        fastPath.full = null;
     }
 
     // Descriptions live only in the full catalogue. Merges them into
@@ -664,6 +835,9 @@
                 if (!meta.category && item.category) meta.category = item.category;
             });
             console.log(`Merged ${merged} descriptions from full catalogue`);
+            // Faces built from the lite tier carry a stand-in description;
+            // upgrade them in place now the real text is available.
+            refreshCardFaceDescriptions();
             // An active search ran against the title-only index — re-run it
             // now that descriptions are in, so results upgrade in place.
             if (merged > 0 && currentSearchQuery.trim()) applyFilters();
@@ -721,165 +895,199 @@
         return shells.length;
     }
 
+    // Build the catalogue and start the grid. Resolves once
+    // buildPlaceholders() is running (it then completes on its own); throws
+    // only when every source failed, so the caller can decide whether to
+    // retry or surface the error.
+    async function buildCatalogue(allowFastPath) {
+        console.log('Loading card list...');
+        let cardFiles = [];
+        
+        // 1. Try the local catalogue first (instant, zero GitHub API rate
+        //    limits). The critical path is the LITE tier (name/title/
+        //    category, ~110 KB): the grid can build the moment it arrives,
+        //    while the full tier (~548 KB, descriptions included — the
+        //    bulk of the old single-file payload) keeps downloading at low
+        //    priority in the background for search. readCatalogueJson()
+        //    consumes the head bootstrap's in-flight response instead of
+        //    asking for the file a second time — raced against a timeout,
+        //    so a stalled bootstrap response cannot block the build.
+        try {
+            const cardsData = await readCatalogueJson(!allowFastPath);
+            if (Array.isArray(cardsData) && cardsData.length > 0) {
+                cardsData.forEach(item => {
+                    // lite entries are {n, t, c}; description arrives via
+                    // enrichCatalogueDescriptions() once the full tier settles
+                    cardsMetaMap.set(item.n, { name: item.n, title: item.t, category: item.c });
+                });
+                cardFiles = Array.from(cardsMetaMap.keys()).sort();
+                console.log(`Loaded ${cardFiles.length} cards from cards-lite.json (descriptions loading in background)`);
+            }
+        } catch (err) {
+            console.warn('Could not load cards-lite.json, trying full cards.json...', err);
+        }
+        
+        // 1b. Lite tier unavailable (blocked fetch, offline first visit) —
+        //     fall back to the full catalogue, which has everything the
+        //     lite tier does plus descriptions.
+        if (cardFiles.length === 0) {
+            const fullData = await readFullCatalogueJson(!allowFastPath);
+            if (Array.isArray(fullData) && fullData.length > 0) {
+                fullData.forEach(item => {
+                    const name = item.name || item.id || item.file.replace(/\.html$/, '');
+                    cardsMetaMap.set(name, item);
+                });
+                cardFiles = Array.from(cardsMetaMap.keys()).sort();
+                console.log(`Loaded ${cardFiles.length} cards from full cards.json`);
+            }
+        }
+        
+        // 2. Fallback to GitHub API if local fetch failed. The contents
+        //    API returns at most 1000 entries per request and the catalogue
+        //    is larger than that, so page through until a short page proves
+        //    the directory is exhausted (a single request used to silently
+        //    truncate the catalogue to its first page). Each request is
+        //    bounded by fetchTextWithTimeout.
+        if (cardFiles.length === 0) {
+            console.log('Falling back to GitHub API for card list...');
+            const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
+            let page = 1;
+            for (;;) {
+                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${CONFIG.GITHUB_PATH}?page=${page}`;
+                const body = await fetchTextWithTimeout(url, CATALOGUE_FETCH_TIMEOUT);
+                if (body === null) {
+                    throw new Error('GitHub API unreachable');
+                }
+                let data;
+                try {
+                    data = JSON.parse(body);
+                } catch (err) {
+                    throw new Error('GitHub API returned invalid JSON');
+                }
+                if (!Array.isArray(data) || data.length === 0) break;
+                data.forEach(item => {
+                    if (item.type === 'file' && item.name.endsWith('.html')) {
+                        cardFiles.push(item.name.replace(/\.html$/, ''));
+                    }
+                });
+                // A full 1000-entry page means more may follow; anything
+                // short ends the directory. The cap is only a guard.
+                if (data.length < 1000 || page >= 5) break;
+                page++;
+            }
+            cardFiles.sort();
+        }
+        
+        console.log(`Total active cards: ${cardFiles.length}`);
+        allCards = cardFiles;
+        lastMatchedNames = [...allCards];
+        updateSiteStats();
+        updateCategoryCounts();
+        
+        const dashboard = document.getElementById('dashboard');
+
+        // Keep the generated first-screen shells — some are already
+        // rendering real tools at this point — and remove only what has to
+        // go: anonymous skeletons (no data-name) and any pre-rendered shell
+        // for a tool that is no longer in the catalogue. Still done before
+        // initIntersectionObserver() so the observer never sees a skeleton.
+        const inCatalogue = new Set(cardFiles);
+        Array.from(dashboard.children).forEach((el) => {
+            const name = (el.dataset && el.dataset.name) || '';
+            if (!name || !inCatalogue.has(name)) el.remove();
+        });
+        dashboard.removeAttribute('aria-busy');
+        
+        if (cardFiles.length === 0) {
+            dashboard.innerHTML = `
+                <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-secondary);">
+                    <div style="font-size:48px;margin-bottom:16px;">📁</div>
+                    <h3 style="color:var(--accent);margin-bottom:8px;">No cards found</h3>
+                    <p style="margin:0;">Create some cards in the /cards/ directory</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Create card placeholders in batches across frames.
+        // Building all 1165 at once blocked the main thread for seconds and
+        // left the page unresponsive; the first batch now paints almost
+        // immediately and the rest stream in.
+        initIntersectionObserver();
+        // the scroll listener already exists in setupEventListeners(); it
+        // calls onScrollLazyLoad(), which routes into the throttle below
+        window.addEventListener('resize', onScrollLoad, { passive: true });
+        window.addEventListener('orientationchange', onScrollLoad, { passive: true });
+        window.addEventListener('load', onScrollLoad, { passive: true });
+        window.addEventListener('pageshow', onScrollLoad, { passive: true });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') onScrollLoad();
+        });
+        // Fonts / images landing after first paint can shift the grid.
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(onScrollLoad).catch(() => {});
+        buildPlaceholders(cardFiles, dashboard);
+        // Documented deep links (?q=, ?expand=): applied once the
+        // catalogue is ready. Never throws (see applyIndexDeepLink).
+        applyIndexDeepLink();
+        // The grid now runs on the lite tier; bring descriptions into
+        // search in the background. A no-op when the full tier was the
+        // data source (descriptions already present). Deferred: the
+        // 548 KB full tier no longer competes with the first screen's
+        // fragments — it starts when the browser is idle, or the instant
+        // the visitor reaches for the search box, whichever is first.
+        scheduleDescriptionEnrichment();
+    }
+
+    // Worst case, every attempt failed: render the retry box. Built with
+    // DOM APIs — error.message comes from the network and must never be
+    // interpolated into innerHTML.
+    function showCatalogueError(error) {
+        const dashboard = document.getElementById('dashboard');
+        if (!dashboard) return;
+        dashboard.removeAttribute('aria-busy');
+        const box = document.createElement('div');
+        box.style.cssText = 'grid-column:1/-1;text-align:center;padding:40px;color:var(--error);';
+        const icon = document.createElement('div');
+        icon.style.cssText = 'font-size:48px;margin-bottom:16px;';
+        icon.textContent = '⚠️';
+        const heading = document.createElement('h3');
+        heading.style.cssText = 'color:var(--error);margin-bottom:8px;';
+        heading.textContent = 'Failed to load cards';
+        const detail = document.createElement('p');
+        detail.style.cssText = 'margin-bottom:16px;';
+        detail.textContent = (error && error.message) || 'Unknown error';
+        const retryBtn = document.createElement('button');
+        retryBtn.style.cssText = 'padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;';
+        retryBtn.textContent = 'Retry';
+        retryBtn.addEventListener('click', () => location.reload());
+        box.append(icon, heading, detail, retryBtn);
+        dashboard.appendChild(box);
+        showNotification('Failed to load cards from GitHub', 'error');
+    }
+
     async function loadCardList() {
         if (isCardListLoaded) return;
         isCardListLoaded = true;
-        try {
-            console.log('Loading card list...');
-            let cardFiles = [];
-            
-            // 1. Try the local catalogue first (instant, zero GitHub API rate
-            //    limits). The critical path is the LITE tier (name/title/
-            //    category, ~110 KB): the grid can build the moment it arrives,
-            //    while the full tier (~548 KB, descriptions included — the
-            //    bulk of the old single-file payload) keeps downloading at low
-            //    priority in the background for search. readCatalogueJson()
-            //    consumes the head bootstrap's in-flight response instead of
-            //    asking for the file a second time.
+        // Three bounded passes. Every request inside buildCatalogue has a
+        // hard deadline, so a pass always terminates — but a single hung
+        // source must never silence the grid for good: pass 2 retries with
+        // the head bootstrap's prefetched responses excluded (the stalled
+        // fast path is the known way this page used to freeze on its first
+        // screen), and pass 3 adds the GitHub API fallback. Only after all
+        // three fail does the visitor see the error box with a Retry button.
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
             try {
-                const cardsData = await readCatalogueJson();
-                if (Array.isArray(cardsData) && cardsData.length > 0) {
-                    cardsData.forEach(item => {
-                        // lite entries are {n, t, c}; description arrives via
-                        // enrichCatalogueDescriptions() once the full tier settles
-                        cardsMetaMap.set(item.n, { name: item.n, title: item.t, category: item.c });
-                    });
-                    cardFiles = Array.from(cardsMetaMap.keys()).sort();
-                    console.log(`Loaded ${cardFiles.length} cards from cards-lite.json (descriptions loading in background)`);
-                }
-            } catch (err) {
-                console.warn('Could not load cards-lite.json, trying full cards.json...', err);
-            }
-            
-            // 1b. Lite tier unavailable (blocked fetch, offline first visit) —
-            //     fall back to the full catalogue, which has everything the
-            //     lite tier does plus descriptions.
-            if (cardFiles.length === 0) {
-                const fullData = await readFullCatalogueJson();
-                if (Array.isArray(fullData) && fullData.length > 0) {
-                    fullData.forEach(item => {
-                        const name = item.name || item.id || item.file.replace(/\.html$/, '');
-                        cardsMetaMap.set(name, item);
-                    });
-                    cardFiles = Array.from(cardsMetaMap.keys()).sort();
-                    console.log(`Loaded ${cardFiles.length} cards from full cards.json`);
-                }
-            }
-            
-            // 2. Fallback to GitHub API if local fetch failed. The contents
-            // API returns at most 1000 entries per request and the catalogue
-            // is larger than that, so page through until a short page proves
-            // the directory is exhausted (a single request used to silently
-            // truncate the catalogue to its first page).
-            if (cardFiles.length === 0) {
-                console.log('Falling back to GitHub API for card list...');
-                const [owner, repo] = CONFIG.GITHUB_REPO.split('/');
-                let page = 1;
-                for (;;) {
-                    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${CONFIG.GITHUB_PATH}?page=${page}`;
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        throw new Error(`GitHub API error: ${response.status}`);
-                    }
-                    const data = await response.json();
-                    if (!Array.isArray(data) || data.length === 0) break;
-                    data.forEach(item => {
-                        if (item.type === 'file' && item.name.endsWith('.html')) {
-                            cardFiles.push(item.name.replace(/\.html$/, ''));
-                        }
-                    });
-                    // A full 1000-entry page means more may follow; anything
-                    // short ends the directory. The cap is only a guard.
-                    if (data.length < 1000 || page >= 5) break;
-                    page++;
-                }
-                cardFiles.sort();
-            }
-            
-            console.log(`Total active cards: ${cardFiles.length}`);
-            allCards = cardFiles;
-            lastMatchedNames = [...allCards];
-            updateSiteStats();
-            updateCategoryCounts();
-            
-            const dashboard = document.getElementById('dashboard');
-
-            // Keep the generated first-screen shells — some are already
-            // rendering real tools at this point — and remove only what has to
-            // go: anonymous skeletons (no data-name) and any pre-rendered shell
-            // for a tool that is no longer in the catalogue. Still done before
-            // initIntersectionObserver() so the observer never sees a skeleton.
-            const inCatalogue = new Set(cardFiles);
-            Array.from(dashboard.children).forEach((el) => {
-                const name = (el.dataset && el.dataset.name) || '';
-                if (!name || !inCatalogue.has(name)) el.remove();
-            });
-            dashboard.removeAttribute('aria-busy');
-            
-            if (cardFiles.length === 0) {
-                dashboard.innerHTML = `
-                    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-secondary);">
-                        <div style="font-size:48px;margin-bottom:16px;">📁</div>
-                        <h3 style="color:var(--accent);margin-bottom:8px;">No cards found</h3>
-                        <p style="margin:0;">Create some cards in the /cards/ directory</p>
-                    </div>
-                `;
+                if (attempt > 1) invalidateFastPathCatalogue();
+                await buildCatalogue(attempt === 1);
                 return;
+            } catch (error) {
+                lastError = error;
+                console.error(`Error loading card list (attempt ${attempt}/3):`, error);
             }
-            
-            // Create card placeholders in batches across frames.
-            // Building all 1194 at once blocked the main thread for seconds and
-            // left the page unresponsive; the first batch now paints almost
-            // immediately and the rest stream in.
-            initIntersectionObserver();
-            // the scroll listener already exists in setupEventListeners(); it
-            // calls onScrollLazyLoad(), which routes into the throttle below
-            window.addEventListener('resize', onScrollLoad, { passive: true });
-            window.addEventListener('orientationchange', onScrollLoad, { passive: true });
-            window.addEventListener('load', onScrollLoad, { passive: true });
-            window.addEventListener('pageshow', onScrollLoad, { passive: true });
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'visible') onScrollLoad();
-            });
-            // Fonts / images landing after first paint can shift the grid.
-            if (document.fonts && document.fonts.ready) document.fonts.ready.then(onScrollLoad).catch(() => {});
-            buildPlaceholders(cardFiles, dashboard);
-            // Documented deep links (?q=, ?expand=): applied once the
-            // catalogue is ready. Never throws (see applyIndexDeepLink).
-            applyIndexDeepLink();
-            // The grid now runs on the lite tier; bring descriptions into
-            // search in the background. A no-op when the full tier was the
-            // data source (descriptions already present). Deferred: the
-            // 548 KB full tier no longer competes with the first screen's
-            // fragments — it starts when the browser is idle, or the instant
-            // the visitor reaches for the search box, whichever is first.
-            scheduleDescriptionEnrichment();
-
-        } catch (error) {
-            console.error('Error loading card list:', error);
-            const dashboard = document.getElementById('dashboard');
-            dashboard.removeAttribute('aria-busy');
-            // Built with DOM APIs: error.message comes from the network and
-            // must not be interpolated into innerHTML.
-            const box = document.createElement('div');
-            box.style.cssText = 'grid-column:1/-1;text-align:center;padding:40px;color:var(--error);';
-            const icon = document.createElement('div');
-            icon.style.cssText = 'font-size:48px;margin-bottom:16px;';
-            icon.textContent = '⚠️';
-            const heading = document.createElement('h3');
-            heading.style.cssText = 'color:var(--error);margin-bottom:8px;';
-            heading.textContent = 'Failed to load cards';
-            const detail = document.createElement('p');
-            detail.style.cssText = 'margin-bottom:16px;';
-            detail.textContent = (error && error.message) || 'Unknown error';
-            const retryBtn = document.createElement('button');
-            retryBtn.style.cssText = 'padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);color:var(--accent);border-radius:8px;cursor:pointer;';
-            retryBtn.textContent = 'Retry';
-            retryBtn.addEventListener('click', () => location.reload());
-            box.append(icon, heading, detail, retryBtn);
-            dashboard.appendChild(box);
-            showNotification('Failed to load cards from GitHub', 'error');
+            await new Promise(r => setTimeout(r, 600 * attempt));
         }
+        showCatalogueError(lastError);
     }
     
     // The catalogue is intentionally one card per row. Load the first
@@ -969,38 +1177,13 @@
         if (activeLoads === 0 && loadQueue.length === 0) scheduleViewportSweep();
     }
 
-    // The animated waveform is now shown only on cards genuinely fetching —
-    // at most MAX_CONCURRENT_LOADS at a time — instead of on all 1194
-    // placeholders simultaneously.
-    function showActiveLoader(card, cardName) {
-        const sandbox = card.querySelector(`#card-${cardName}`);
-        if (!sandbox || !sandbox.querySelector('.card-skeleton')) return;
-        const name = card.dataset.displayName || cardName;
-        const loader = document.createElement('div');
-        loader.className = 'cool-loader';
-        loader.setAttribute('role', 'status');
-        const bars = document.createElement('div');
-        bars.className = 'cool-loader-bars';
-        bars.setAttribute('aria-hidden', 'true');
-        for (let bi = 0; bi < 7; bi++) bars.appendChild(document.createElement('i'));
-        const text = document.createElement('div');
-        text.className = 'cool-loader-text';
-        text.textContent = 'Loading ';
-        const strong = document.createElement('strong');
-        strong.textContent = name;
-        const dots = document.createElement('span');
-        dots.className = 'cool-dots';
-        text.appendChild(strong);
-        text.appendChild(dots);
-        loader.appendChild(bars);
-        loader.appendChild(text);
-        sandbox.innerHTML = '';
-        sandbox.appendChild(loader);
-    }
+    // No per-card loading UI any more: placeholders ship as finished card
+    // faces (see createPlaceholder), so there is nothing to spin and nothing
+    // that says "Loading". A queued card simply keeps its face; the live tool
+    // swaps in silently when the fragment arrives.
 
     async function executeLoadCard(card, cardName) {
         loadingCards.add(cardName);
-        showActiveLoader(card, cardName);
         
         // Check cache
         const cached = cardCache.get(cardName);
@@ -1448,6 +1631,14 @@
     
     function initIntersectionObserver() {
         if (observer) observer.disconnect();
+        // Very old browsers without IntersectionObserver: don't throw (this
+        // runs during parse in adoptPrerenderedCards — an exception here used
+        // to kill the first-screen kick too). The viewport sweep below is the
+        // loader of last resort and covers everything on its own.
+        if (typeof IntersectionObserver === 'undefined') {
+            observer = null;
+            return;
+        }
         
         observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
@@ -1485,7 +1676,7 @@
     // Driven by scroll, throttled to one pass per frame. This replaces a
     // setInterval that re-queried every unloaded card and called
     // getBoundingClientRect() in a loop every 3 seconds whether or not the
-    // user had moved — forced synchronous layout, 1194 times, forever.
+    // user had moved — forced synchronous layout, 1165 times, forever.
     function onScrollLoad() {
         if (scrollRafPending) return;
         scrollRafPending = true;
@@ -1502,79 +1693,85 @@
     function scrollFallbackLoader() {
         if (scrollLoadActive) return;
         scrollLoadActive = true;
+        // try/finally: an exception mid-sweep (an extension-mangled DOM, a
+        // detached card) must not leave the flag set — that used to disable
+        // this fallback loader for the rest of the page's life.
+        try {
 
-        // Measuring is only worth doing when a load slot is actually free.
-        // getBoundingClientRect() forces layout, and with the one-column grid
-        // that is ~1,190 forced layout reads per scroll frame — measured at
-        // 71,404 reads over 60 frames of a fast scroll, of which exactly 4
-        // could ever start a load, because MAX_CONCURRENT_LOADS slots were
-        // already busy. That work ran on the very frames the user was
-        // scrolling and waiting for cards.
-        //
-        // Nothing is lost by skipping it: the walk below still prunes finished
-        // cards, and processLoadQueue() re-sweeps the moment a slot frees up.
-        const canStart = activeLoads < MAX_CONCURRENT_LOADS;
+            // Measuring is only worth doing when a load slot is actually free.
+            // getBoundingClientRect() forces layout, and with the one-column grid
+            // that is ~1,190 forced layout reads per scroll frame — measured at
+            // 71,404 reads over 60 frames of a fast scroll, of which exactly 4
+            // could ever start a load, because MAX_CONCURRENT_LOADS slots were
+            // already busy. That work ran on the very frames the user was
+            // scrolling and waiting for cards.
+            //
+            // Nothing is lost by skipping it: the walk below still prunes finished
+            // cards, and processLoadQueue() re-sweeps the moment a slot frees up.
+            const canStart = activeLoads < MAX_CONCURRENT_LOADS;
 
-        // The observer has a generous look-ahead for smooth scrolling, but
-        // this fallback always gives cards actually on screen first priority.
-        // That prevents a fast jump from waiting behind a queue of cards above
-        // the viewport and fixes the "it stops showing tools" failure mode.
-        const viewportTop = -80;
-        const viewportBottom = window.innerHeight + 120;
-        const lookAheadTop = -400;
-        const lookAheadBottom = window.innerHeight + 500;
-        const visible = [];
-        const lookAhead = [];
-        const stillPending = [];
+            // The observer has a generous look-ahead for smooth scrolling, but
+            // this fallback always gives cards actually on screen first priority.
+            // That prevents a fast jump from waiting behind a queue of cards above
+            // the viewport and fixes the "it stops showing tools" failure mode.
+            const viewportTop = -80;
+            const viewportBottom = window.innerHeight + 120;
+            const lookAheadTop = -400;
+            const lookAheadBottom = window.innerHeight + 500;
+            const visible = [];
+            const lookAhead = [];
+            const stillPending = [];
 
-        for (let i = 0; i < pendingCards.length; i++) {
-            const card = pendingCards[i];
-            const cardName = card.dataset.name;
-            // Prune finished cards so the list — and this loop — shrinks over
-            // time instead of re-walking all 1194 entries on every scroll.
-            if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
-            stillPending.push(card);
-            // Every load slot is busy: this sweep cannot start anything, so
-            // the rest of the per-card work (and the layout reads it costs) is
-            // skipped. See canStart above.
-            if (!canStart) continue;
-            if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
-            // Failed cards belong to the bounded retryErroredCards() sweep,
-            // not the bulk loader — otherwise every scroll refetches a
-            // permanently broken card forever.
-            if (card.dataset.errorReason) continue;
-            // Hidden by the active filter: skip, but keep it pending.
-            if (isCardHidden(card)) continue;
+            for (let i = 0; i < pendingCards.length; i++) {
+                const card = pendingCards[i];
+                const cardName = card.dataset.name;
+                // Prune finished cards so the list — and this loop — shrinks over
+                // time instead of re-walking all 1200+ entries on every scroll.
+                if (!cardName || loadedCards.has(cardName) || !card.isConnected) continue;
+                stillPending.push(card);
+                // Every load slot is busy: this sweep cannot start anything, so
+                // the rest of the per-card work (and the layout reads it costs) is
+                // skipped. See canStart above.
+                if (!canStart) continue;
+                if (loadingCards.has(cardName) || card.classList.contains('loading-fallback')) continue;
+                // Failed cards belong to the bounded retryErroredCards() sweep,
+                // not the bulk loader — otherwise every scroll refetches a
+                // permanently broken card forever.
+                if (card.dataset.errorReason) continue;
+                // Hidden by the active filter: skip, but keep it pending.
+                if (isCardHidden(card)) continue;
 
-            // No early "past the viewport" break here: filters reorder cards
-            // with CSS `order`, so DOM position says nothing about where a
-            // card is on screen.
-            const rect = card.getBoundingClientRect();
-            if (rect.width === 0 && rect.height === 0) continue;
+                // No early "past the viewport" break here: filters reorder cards
+                // with CSS `order`, so DOM position says nothing about where a
+                // card is on screen.
+                const rect = card.getBoundingClientRect();
+                if (rect.width === 0 && rect.height === 0) continue;
 
-            const distance = Math.abs((rect.top + rect.bottom) / 2 - window.innerHeight / 2);
-            const candidate = { card, cardName, distance };
-            if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
-                visible.push(candidate);
-            } else if (rect.bottom >= lookAheadTop && rect.top <= lookAheadBottom) {
-                lookAhead.push(candidate);
+                const distance = Math.abs((rect.top + rect.bottom) / 2 - window.innerHeight / 2);
+                const candidate = { card, cardName, distance };
+                if (rect.bottom >= viewportTop && rect.top <= viewportBottom) {
+                    visible.push(candidate);
+                } else if (rect.bottom >= lookAheadTop && rect.top <= lookAheadBottom) {
+                    lookAhead.push(candidate);
+                }
             }
+
+            visible.sort((a, b) => a.distance - b.distance);
+            lookAhead.sort((a, b) => a.distance - b.distance);
+            const candidates = visible.concat(lookAhead).slice(0, MAX_CONCURRENT_LOADS);
+
+            candidates.forEach(({ card, cardName }) => {
+                card.classList.add('loading-fallback');
+                loadCard(card, cardName);
+            });
+
+            pendingCards = stillPending;
+            retryErroredCards();
+        } finally {
+            scrollLoadActive = false;
         }
-
-        visible.sort((a, b) => a.distance - b.distance);
-        lookAhead.sort((a, b) => a.distance - b.distance);
-        const candidates = visible.concat(lookAhead).slice(0, MAX_CONCURRENT_LOADS);
-
-        candidates.forEach(({ card, cardName }) => {
-            card.classList.add('loading-fallback');
-            loadCard(card, cardName);
-        });
-
-        pendingCards = stillPending;
-        retryErroredCards();
-        scrollLoadActive = false;
     }
-    
+
     function onScrollLazyLoad() {
         onScrollLoad();
     }
@@ -1668,6 +1865,29 @@
         if (btnViewCards) btnViewCards.addEventListener('click', () => setViewMode('cards'));
         if (btnViewDir) btnViewDir.addEventListener('click', () => setViewMode('directory'));
 
+        // Load-all: fetch and run every tool on the page now, instead of as
+        // the visitor scrolls. Two-click confirm — the full catalogue is a
+        // large download and phone visitors should not trigger it by accident.
+        const loadAllBtn = document.getElementById('btnLoadAllTools');
+        if (loadAllBtn) {
+            loadAllBtn.addEventListener('click', () => {
+                if (!loadAllBtn.dataset.armed) {
+                    loadAllBtn.dataset.armed = '1';
+                    loadAllBtn.textContent = `⚡ Confirm: run all ${allCards.length || ''}`;
+                    setTimeout(() => {
+                        if (loadAllBtn && loadAllBtn.dataset.armed) {
+                            delete loadAllBtn.dataset.armed;
+                            loadAllBtn.textContent = '⚡ Load all';
+                        }
+                    }, 6000);
+                    return;
+                }
+                delete loadAllBtn.dataset.armed;
+                loadAllBtn.textContent = '⚡ Load all';
+                loadAllToolsNow();
+            });
+        }
+
         // Single delegated listener for directory "View Card" buttons —
         // renderDirectoryList() no longer attaches one listener per row.
         const dirGrid = document.getElementById('directoryGrid');
@@ -1703,6 +1923,16 @@
                 e.preventDefault();
                 mainSearchInput.focus();
             }
+            // Enter/Space on a focused card face runs that tool now
+            else if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('card-face')) {
+                e.preventDefault();
+                const face = document.activeElement;
+                const card = face.closest('.card');
+                const cardName = card && card.dataset.name;
+                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    loadCard(card, cardName);
+                }
+            }
         });
         
         // Window resize handler for responsive adjustments. Throttled to one
@@ -1731,6 +1961,18 @@
     function handleCardClick(event) {
         const target = event.target;
         
+        // Card face: clicking it runs the tool immediately (instead of
+        // waiting for the scroll-driven loader). Silent swap — no loading UI.
+        const face = target.closest('.card-face');
+        if (face) {
+            const card = face.closest('.card');
+            const cardName = card && card.dataset.name;
+            if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                loadCard(card, cardName);
+            }
+            return;
+        }
+
         // Standalone / Maximise button
         const maximizeBtn = target.closest('.card-maximize-btn, .card-expand');
         if (maximizeBtn) {
@@ -1745,7 +1987,9 @@
         }
     }
     
-    // ===== STANDALONE MAXIMISE MODAL CONTROLLER =====
+    // (The maximise modal's controller moved to home-features.js; the
+    // openStandaloneModal() delegate above is what the cards call.)
+
     let currentSelectedCategory = 'all';
     let currentSearchQuery = '';
     let currentSort = 'default';
@@ -1998,9 +2242,7 @@
             });
         } catch {}
     }
-
-    // Modern: BroadcastChannel for multi-tab toolbox sync
-    let toolboxChannel = null;
+    // Modern: scrollend event for lazy load (more efficient than scroll)
     function setupScrollEnd() {
         if ('onscrollend' in window) {
             window.addEventListener('scrollend', () => {
@@ -2118,7 +2360,7 @@
             }
         });
 
-        // Rebuilding the (usually hidden) 1194-node directory list on every
+        // Rebuilding the (usually hidden) 1223-node directory list on every
         // keystroke was the biggest filter jank. Only rebuild it when it is
         // actually on screen; otherwise just remember the match list.
         lastMatchedNames = matchedNames;
@@ -2198,9 +2440,10 @@
         applyFiltersCore();
         postTask(() => { assignVTNames(); scheduleSpeculationRulesUpdate(); });
     }
+    
     // ===== SITE STATS (footer + hero counters) =====
     // O(1): this runs after every single card render, so it must not scan
-    // the DOM or the 1194-entry catalogue. loadedCards is the source of
+    // the DOM or the 1223-entry catalogue. loadedCards is the source of
     // truth; category counts are computed once in updateCategoryCounts().
     function updateSiteStats() {
         const total = allCards.length;
@@ -2361,7 +2604,7 @@
     // already exist and their fragments are usually already downloaded by the
     // head bootstrap. Adopting them here — instead of on DOMContentLoaded, and
     // instead of after cards.json — removes the serialisation the home page
-    // used to have: HTML -> 136 KB catalogue index -> 1194 placeholders ->
+    // used to have: HTML -> 136 KB catalogue index -> 1128 placeholders ->
     // first fragment fetch. initApp() still runs on DOMContentLoaded and owns
     // everything else; loadCardList() keeps these shells and builds around them.
     adoptPrerenderedCards();
