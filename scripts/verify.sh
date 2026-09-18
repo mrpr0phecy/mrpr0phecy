@@ -31,7 +31,9 @@
 #                                functions out of home-app.js (lazy-loader,
 #                                home-fast-path, lite-tier) and sw.js's fetch
 #                                handler (service-worker: a stale cached
-#                                catalogue must never beat the deployed one), plus
+#                                catalogue must never beat the deployed one) and the
+#                                split itself (app-split: the core must run, and ask
+#                                for home-features.js, without it), plus
 #                                scripts/check-critical-css.py — home.css may only
 #                                hold first-paint rules and must keep the rules
 #                                that hide the deferred containers, so the split
@@ -212,8 +214,9 @@ fi
 # staff-*.test.js, so a card-loader regression could ship green.
 if command -v node >/dev/null 2>&1; then
   if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js \
-    && node scripts/tests/lite-tier.test.js && node scripts/tests/service-worker.test.js; then
-    ok "card loader, first-screen fast path, two-tier catalogue and cache policy behave as shipped"
+    && node scripts/tests/lite-tier.test.js && node scripts/tests/service-worker.test.js \
+    && node scripts/tests/app-split.test.js; then
+    ok "card loader, first-screen fast path, two-tier catalogue, cache policy and the on-demand bundle behave as shipped"
   else
     fail "card loader regression — see the failing assertion above"
   fi

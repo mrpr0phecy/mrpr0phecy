@@ -69,6 +69,8 @@ const CRITICAL_FILES = [
   // byte comparison is the only thing that notices.
   'home.css',
   'home-deferred.css',
+  'home-app.js',
+  'home-features.js',
   'tool.html',
   'listen.html',
   '404.html',

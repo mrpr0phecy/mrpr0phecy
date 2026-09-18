@@ -59,8 +59,10 @@ const PRECACHE_URLS = [
     './cards/cards-lite.json'
 ];
 
-// The page's own code and stylesheets, cached in the same store the fetch
-// handler serves them from — WITHOUT cache:'reload'. They are the reason a
+// The page's own code and stylesheets — including home-features.js, which
+// home-app.js fetches at idle (it is the on-demand UI: panels, toolbox, modal,
+// directory view) — cached in the same store the fetch handler serves them
+// from, WITHOUT cache:'reload'. They are the reason a
 // first visit followed by an offline visit used to render an unstyled page
 // with no cards: the browser fetched them before the worker controlled the
 // page, so nothing had stored them for the worker to serve.
@@ -79,10 +81,12 @@ const PRECACHE_ASSETS = [
     `./home.css?v=${PAGE_VERSION}`,
     `./home-deferred.css?v=${PAGE_VERSION}`,
     `./home-app.js?v=${PAGE_VERSION}`,
+    `./home-features.js?v=${PAGE_VERSION}`,
     `./risk-notices.js?v=${PAGE_VERSION}`
 ];
 // Pathnames the handler must serve from STATIC_CACHE, where they are precached.
-const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/home-app.js', '/risk-notices.js'];
+const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/home-app.js',
+                          '/home-features.js', '/risk-notices.js'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.

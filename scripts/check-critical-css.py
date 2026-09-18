@@ -16,8 +16,10 @@ paint can show. This guard enforces the properties the split depends on:
      would silently restore the serial 19 KB that this change removed;
   2. home.css is linked render-blocking, home-deferred.css is linked without
      blocking (media="print" + onload swap) with a <noscript> fallback;
-  3. ?v= on the stylesheets and the deferred scripts matches CACHE_VERSION in
-     sw.js, so a page can never be served against another deploy's CSS/JS;
+  3. the asset version is the same in all three places that decide it —
+     index.html's ?v=, APP_VERSION in home-app.js (which builds
+     home-features.js?v=<it>) and CACHE_VERSION in sw.js — so a page can never
+     be served against another deploy's CSS or JS;
   4. every selector in home-deferred.css is confined to a container that is
      hidden at first paint (the HIDDEN list below) — anything else, e.g. a
      moved `.card` or `.main-header` rule, fails loudly;
@@ -48,6 +50,8 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "index.html")
 HOME_CSS = os.path.join(ROOT, "home.css")
+APP = os.path.join(ROOT, "home-app.js")
+FEATURES = os.path.join(ROOT, "home-features.js")
 DEFERRED_CSS = os.path.join(ROOT, "home-deferred.css")
 SW = os.path.join(ROOT, "sw.js")
 
@@ -229,19 +233,29 @@ def main() -> int:
         problems.append("home-deferred.css needs a <noscript> fallback — "
                         "without JS the media swap never happens and panels stay unstyled")
 
-    # 3 — one version across the page and the service worker
-    versions = {
-        m.group(2)
-        for m in re.finditer(r'(home(?:-deferred)?\.css|home-app\.js|risk-notices\.js)\?v=(\d+)', index)
-    }
+    # 3 — one version across the page, the app and the service worker
+    linked = {m.group(2) for m in re.finditer(
+        r'(home(?:-deferred)?\.css|home-app\.js|risk-notices\.js)\?v=(\d+)', index)}
+    app = re.search(r"const APP_VERSION = (\d+);", read(APP))
     cache_version = re.search(r"CACHE_VERSION\s*=\s*'v(\d+)-", sw)
     if not cache_version:
         problems.append("sw.js: CACHE_VERSION is not in the 'vN-date' form")
-    elif versions != {cache_version.group(1)}:
+    if not app:
+        problems.append("home-app.js: const APP_VERSION is missing — the on-demand "
+                        "bundle is requested with home-features.js?v=<APP_VERSION>")
+    if cache_version and app and linked != {cache_version.group(1)} | {app.group(1)}:
         problems.append(
-            f"version mismatch: index.html links ?v={sorted(versions) or 'nothing'} "
-            f"but sw.js CACHE_VERSION is v{cache_version.group(1)} — bump them together "
-            f"so a page can never run against another deploy's assets")
+            f"version mismatch: index.html links ?v={sorted(linked) or 'nothing'}, "
+            f"home-app.js APP_VERSION={app.group(1)}, sw.js CACHE_VERSION=v"
+            f"{cache_version.group(1)} — bump them together so a page can never run "
+            f"against another deploy's assets")
+    if app and f'home-features.js?v=${{APP_VERSION}}' not in read(APP):
+        problems.append("home-app.js must request the bundle as "
+                        "home-features.js?v=${APP_VERSION} — a bare home-features.js "
+                        "would be served from a previous deploy's cache")
+    if not os.path.exists(FEATURES):
+        problems.append("home-features.js is missing — home-app.js delegates the "
+                        "panels, toolbox, modal and directory view to it")
 
     # 4 — nothing the first paint can show may be styled by the deferred file
     tokens = [token for token, _why, _sel, _decl in HIDDEN]
@@ -330,7 +344,7 @@ def main() -> int:
     if verbose:
         print(f"  linked: {blocking[0].strip()}")
         print(f"  async:  {async_links[0].strip()}")
-        print(f"  version: v{cache_version.group(1)} (stylesheets, scripts, sw.js)")
+        print(f"  version: v{app.group(1)} (stylesheets, scripts, bundle, sw.js)")
         print(f"  {len(rules(css))} rules critical, {len(rules(deferred))} deferred")
     share = len(deferred.encode()) * 100 // (len(css.encode()) + len(deferred.encode()))
     print(f"CRITICAL CSS OK — {len(css.encode()):,} B critical / {len(deferred.encode()):,} B deferred "

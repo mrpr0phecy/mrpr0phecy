@@ -198,12 +198,14 @@ const body = (res) => res.text();
     const version = CACHE_VERSION.split('-')[0].replace(/^v/, '');
     const w = makeWorker();
     for (const [name, text] of [['/home.css', 'CACHED CSS'], ['/home-deferred.css', 'CACHED DEFERRED CSS'],
-                                ['/home-app.js', 'CACHED APP'], ['/risk-notices.js', 'CACHED NOTICES']]) {
+                                ['/home-app.js', 'CACHED APP'], ['/home-features.js', 'CACHED FEATURES'],
+                                ['/risk-notices.js', 'CACHED NOTICES']]) {
       await w.put(STATIC, `${name}?v=${version}`, text, 0);
     }
     w.setNetwork(() => Promise.reject(new Error('offline')));
     for (const [name, text] of [['/home.css', 'CACHED CSS'], ['/home-deferred.css', 'CACHED DEFERRED CSS'],
-                                ['/home-app.js', 'CACHED APP'], ['/risk-notices.js', 'CACHED NOTICES']]) {
+                                ['/home-app.js', 'CACHED APP'], ['/home-features.js', 'CACHED FEATURES'],
+                                ['/risk-notices.js', 'CACHED NOTICES']]) {
       const res = await w.dispatch(`${name}?v=${version}`);
       assert.strictEqual(res.status, 200, `${name} must be served offline from the precache`);
       assert.strictEqual(await body(res), text, `${name} offline body came from the wrong store`);
@@ -217,7 +219,7 @@ const body = (res) => res.text();
   {
     const paths = [...((SRC.match(/const PAGE_ASSET_PATHS = \[([^\]]*)\]/) || [])[1] || '')
       .matchAll(/'([^']+)'/g)].map((m) => m[1]);
-    assert.strictEqual(paths.length, 4, `expected 4 page assets, found ${paths.length}`);
+    assert.strictEqual(paths.length, 5, `expected 5 page assets, found ${paths.length}`);
     assert.ok(SRC.includes("const PAGE_VERSION = CACHE_VERSION.split('-')[0]"),
       'PAGE_VERSION must be derived from CACHE_VERSION, or a deploy serves the old version');
     for (const name of paths) {

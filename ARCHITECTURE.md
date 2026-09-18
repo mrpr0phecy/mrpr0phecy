@@ -212,6 +212,49 @@ Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.j
 The IntersectionObserver stays the primary trigger — it knows what entered the
 viewport without asking the layout engine about 1,194 elements.
 
+### The app is split: first screen in one file, on-demand UI in another
+
+`home-app.js` is the page's application. 36 KB of it — the panels (palette,
+contributions, shared toolbox), the whole toolbox, the standalone-maximise
+modal and the alternate directory view — is UI that **no first screen needs**.
+It lives in `home-features.js`, which `home-app.js` requests at idle
+(`requestIdleCallback`, 2.5 s deadline, `fetchPriority: 'low'`) or immediately
+if a click asks for a feature first:
+
+- **The core never waits for the bundle.** `initApp()` runs as soon as
+  `home-app.js` executes; the panel/toolbox/modal listeners are wired by the
+  bundle itself when it lands. Before the split, every visitor compiled all
+  36 KB before the first tool appeared, on the same connection that was still
+  fetching the first screen's fragments.
+- **The core calls into the bundle through eight delegates** of the same name
+  (`updateGridLayout`, `setViewMode`, `renderDirectoryList`,
+  `handleDirectoryGridClick`, `openStandaloneModal`, `rateCard`,
+  `copyEmbedCode`, `addCardToToolbox`), so every existing call site — and every
+  listener already attached to a rendered card — is unchanged. A call that
+  arrives before the bundle lands is queued and replayed in order; calls that
+  only ever want the latest value (a filter pass re-rendering the directory
+  list, a resize re-laying the grid) replace the queued one instead of piling
+  up.
+- **Shared state goes through `window.__mpHome.state`,** which is a set of live
+  getters/setters over the core's own variables — not copies, so both files
+  always see one value. `window.__mpHome.fn` exposes the six core functions the
+  bundle calls (`showNotification`, `loadCard`, `getCardRating`, `saveRatings`,
+  `transformCardScript`, `withViewTransition`).
+- **One version, three files.** `APP_VERSION` in `home-app.js` builds the
+  bundle's URL, `index.html` uses the same number for its `?v=`, and `sw.js`
+  keeps it in `CACHE_VERSION`; `scripts/check-critical-css.py` fails if they
+  drift, and the bundle is in the service worker's precache (a first visit
+  followed by an offline visit must still have working panels).
+- **`scripts/tests/app-split.test.js` drives both real files in a vm:** it
+  executes the core (which must run, and schedule the bundle, without it),
+  queues an early call, then executes the bundle and asserts it registers,
+  replays in order, serves later calls directly, and that the state accessors
+  are live. It also fails if any moved implementation is still defined in the
+  core, or if a delegate loses its registration.
+
+The reader-mode toggle stayed in the core: unlike the panels it restyles every
+card, so it is page chrome rather than an on-demand view.
+
 ### The main page's `<head>` is a budget
 
 `index.html`'s head was 132,210 bytes — 71% of the document — mostly the inline
