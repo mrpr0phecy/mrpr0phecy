@@ -67,6 +67,34 @@ item. This historical list does not override current staff decisions.
     changed in one go, so it is not a first-screen win any more.
   - [ ] Decide whether analytics should keep loading during the first screen.
     Owner call: CONSTRAINTS.md keeps the analytics footprint out of agent hands.
+- [x] **Make the main page hold the whole catalogue, not a screenful.** Landed
+  2026-09-18, in response to *"only nine tools are loading on my mainpage and i
+  have over 1000, this destroys the point of my site"*. The loader had one verb
+  — a card became real only when it was fetched, parsed and executed — so the
+  background trickle (6 mounts per 2.5 s, ~8 minutes for 1,194) was both the
+  throttle that kept scrolling alive and the reason the page looked like a
+  nine-tool site. It is now three: **mosaic density** (a pending tool is a tile,
+  ~30 per screen instead of 2–3; a running tool spans the row; `.density-focus`
+  keeps the old reading stack), a **mount budget** (`LIVE_AUTO_CAP = 64`,
+  lifted only by a click or `⚡ Run all`) and **warm-ahead** (a background pass
+  that fetches fragment *text* into `cardCache` only, follows the reading
+  position, yields to the mount pipeline, and lands in `CARDS_CACHE` for the
+  next visit). Filters no longer mount every match either, and
+  `index.html?cat=<slug>` / `?view=directory` are real (they were documented in
+  `agents.html` and not implemented). ARCHITECTURE.md §3 "The live window";
+  pinned by `scripts/tests/live-window.test.js`.
+  - [ ] Verify the mosaic in a real browser before widening it further: tile
+    height (172 px assumed, not measured), the mount reflow as tiles become
+    full-row tools, and `⚡ Run all` on a mid-range phone.
+  - [ ] Window the DOM: render only the tiles near the viewport so 1,194 cards
+    cost ~60 nodes. The sweep/observer already do the hard half; the fiddly
+    half is that filters and `?expand=` need `visibleNames` as the source of
+    truth instead of DOM presence.
+  - [ ] Bundle fragments per category (`cards/bundles/<slug>.json`, generated
+    and checked like the sitemap) so "run this category" is one request instead
+    of 152 — and decide whether an explicit `?install=1` should warm the whole
+    catalogue into the service worker for offline use.
+
 - [x] Build one `help.html` covering site mechanics, privacy, money and safety,
   with matching `FAQPage` JSON-LD and client-side search. Verified shipped
   2026-09-15 (the box was never ticked): `help.html` has the `FAQPage` JSON-LD

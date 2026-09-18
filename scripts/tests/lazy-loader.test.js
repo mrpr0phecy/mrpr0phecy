@@ -93,6 +93,11 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
     activeLoads: 0,
     loadQueue: [],
     window: { get innerHeight() { return STUB.innerHeight; } },
+    // Whether the grid is allowed to run any more tools at all (LIVE_AUTO_CAP,
+    // suite 6) is the other thing that can stop a sweep. Suites 1-5 hold it
+    // open; suite 6 drives the shipped function against a closed budget.
+    mountBudgetFree: () => true,
+    pumpWarmSoon: () => {},
   };
 
   const api = run(
@@ -241,6 +246,80 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
   flush();
   assert.strictEqual(passes, 2, 'expected a further sweep after more scrolling');
   console.log('  ok   further scrolling schedules a fresh sweep');
+}
+
+// ---------------------------------------------------------------- suite 6
+// LIVE_AUTO_CAP: the grid mounts a screenful of tools and then stops guessing.
+// A running tool costs a script and a layout for the rest of the visit, so past
+// the cap the automatic paths decline — while a click, which is intent, still
+// calls loadCard() directly and is never gated here.
+{
+  const capMatch = html.match(/LIVE_AUTO_CAP:\s*(\d+)/);
+  assert(capMatch, 'could not read LIVE_AUTO_CAP from home-app.js');
+  const LIVE_AUTO_CAP = parseInt(capMatch[1], 10);
+  assert.ok(LIVE_AUTO_CAP >= 8,
+    `LIVE_AUTO_CAP=${LIVE_AUTO_CAP} is smaller than a mosaic screenful, so the grid would stop before the fold`);
+
+  const grabFn = (name) => {
+    const m = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
+    assert(m, `could not extract ${name}() from home-app.js`);
+    return m[0];
+  };
+
+  // The shipped budget function, fed by the shipped counters.
+  const loadedCards = new Set();
+  const loadingCards = new Set();
+  const loadQueue = [];
+  const budget = run(
+    'let explicitRunAll = false;\n'
+    + grabFn('liveMountCount') + '\n' + grabFn('mountBudgetFree')
+    + '\n;({ liveMountCount, mountBudgetFree, setRunAll: v => { explicitRunAll = v; } });',
+    { loadedCards, loadingCards, loadQueue, CONFIG: { LIVE_AUTO_CAP } },
+    'mountBudgetFree');
+
+  assert.strictEqual(budget.mountBudgetFree(), true, 'an empty grid must not be at its cap');
+  for (let i = 0; i < LIVE_AUTO_CAP; i++) loadedCards.add(`t${i}`);
+  assert.strictEqual(budget.liveMountCount(), LIVE_AUTO_CAP, 'liveMountCount must count rendered tools');
+  assert.strictEqual(budget.mountBudgetFree(), false,
+    `the grid may keep mounting past ${LIVE_AUTO_CAP} running tools`);
+
+  // Queued and in-flight count too: a burst must not overshoot the cap simply
+  // because nothing has rendered yet. 1 + 1 + 2 against a cap of 4.
+  const mid = run('let explicitRunAll = false;\n' + grabFn('liveMountCount') + '\n'
+    + grabFn('mountBudgetFree') + '\n;({ mountBudgetFree });',
+    { loadedCards: new Set(['a']), loadingCards: new Set(['b']), loadQueue: [0],
+      CONFIG: { LIVE_AUTO_CAP: 4 } }, 'budget-mid');
+  assert.strictEqual(mid.mountBudgetFree(), true, 'three tools against a cap of four is not at the cap');
+  const full = run('let explicitRunAll = false;\n' + grabFn('liveMountCount') + '\n'
+    + grabFn('mountBudgetFree') + '\n;({ mountBudgetFree });',
+    { loadedCards: new Set(['a', 'b']), loadingCards: new Set(['c']), loadQueue: [0, 1],
+      CONFIG: { LIVE_AUTO_CAP: 4 } }, 'budget-full');
+  assert.strictEqual(full.mountBudgetFree(), false, 'in-flight work is free to overshoot the cap');
+
+  // ⚡ Run all lifts it: the visitor asked, so the page stops second-guessing.
+  budget.setRunAll(true);
+  assert.strictEqual(budget.mountBudgetFree(), true, 'an explicit run-all must not be capped');
+  console.log(`  ok   the grid stops at ${LIVE_AUTO_CAP} running tools; ⚡ Run all lifts it`);
+
+  // And a closed budget really does stop the sweep from queueing work.
+  const queued = [];
+  const api = run(
+    'let scrollLoadActive = false;\nlet pendingCards = [];\n'
+    + grabFn('scrollFallbackLoader')
+    + '\n;({ scrollFallbackLoader, __setPending: v => { pendingCards = v; } });',
+    {
+      loadedCards: new Set(), loadingCards: new Set(), loadQueue: [],
+      isCardHidden: () => false, retryErroredCards: () => {},
+      MAX_CONCURRENT_LOADS: SHIPPED_CAP, activeLoads: 0,
+      window: { innerHeight: 900 },
+      mountBudgetFree: () => false,
+      pumpWarmSoon: () => {},
+      loadCard: (card, name) => queued.push(name),
+    }, 'sweep-capped');
+  api.__setPending(Array.from({ length: 6 }, (_, i) => makeCard(`k${i}`, { top: i * 100, height: 90 })));
+  api.scrollFallbackLoader();
+  assert.deepStrictEqual(queued, [], 'a capped grid still queued mounts from the sweep');
+  console.log('  ok   at the cap the viewport sweep queues nothing (clicks still mount)');
 }
 
 console.log('\nlazy-loader tests passed');

@@ -2,11 +2,11 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 7;
+    const APP_VERSION = 8;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() caps it at 12 (viewport + look-ahead)
+        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() derives the rest from the grid (see DENSITY)
         INITIAL_STAGGER: 18,    // ms between first-batch fetch starts. MAX_CONCURRENT_LOADS already
                                 // caps the work in flight, and the head bootstrap has
                                 // usually downloaded the first screen's fragments
@@ -15,10 +15,39 @@
         FETCH_TIMEOUT: 15000,   // ms before a card fetch is aborted and its slot freed
         MAX_AUTO_RETRIES: 2,    // silent retries before the card shows its error/Retry UI
         AUTO_RETRY_LIMIT: 3,    // extra scroll-driven retries per failed card before it rests for a manual Retry
+        LIVE_AUTO_CAP: 64,      // tools the grid will run on its own. Past this it stops
+                                // mounting new ones and leaves that to clicks / ⚡ Run all,
+                                // because 64 running tools is already 64 scripts, 64
+                                // canvases and however many animation loops.
+        WARM_CONCURRENCY: 3,    // background fragment downloads (bytes only — no DOM, no
+                                // script). Kept under MAX_CONCURRENT_LOADS - 1 so a warm
+                                // fetch can never delay a tool the visitor is looking at.
+        WARM_TIMEOUT: 12000,    // a stalled warm fetch must free its slot, not hold one
+        CARD_CACHE_MAX: 96,     // in-memory fragments (~1.5 MB). The service worker's
+                                // CARDS_CACHE is the durable tier, so pruning here is a
+                                // demotion, not a re-download.
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
         STICKY_THRESHOLD: 200
     };
+
+    // ===== DENSITY =====
+    // A catalogue of 1,194 tools is not a list you scroll: at one tool per
+    // row, ~330 px each, the grid was over 400,000 px long — several hundred
+    // screens — and everything below the first few rows was out of reach.
+    // This table decides how many tools a screen holds, and it is the same fact
+    // the CSS is written against —
+    // `min`/`row`/`gap` mirror `repeat(auto-fill, minmax(<min>, 1fr))`, the row
+    // height and the gap in home.css. Changing one without the other makes the
+    // loader mount tools for a grid that is not there.
+    const DENSITY = {
+        // narrow* mirror the `@media (max-width: 560px)` override in home.css:
+        // a phone gets 150px tiles and an 8px gutter, so a screen there is
+        // still ~2 tools wide rather than a lone column of tiles.
+        mosaic: { min: 212, row: 176, gap: 12, cap: 24, narrowAt: 560, narrowMin: 150, narrowGap: 8 },
+        focus:  { min: 980, row: 330, gap: 24, cap: 12, narrowAt: 0, narrowMin: 980, narrowGap: 24 }
+    };
+    const DENSITY_DEFAULT = 'mosaic';
     
     // ===== STATE MANAGEMENT =====
     let allCards = [];
@@ -32,6 +61,14 @@
     let toolboxMode = 'grid'; // 'grid' or 'list'
     let expandedGridCards = new Set();
     let expandedListCards = new Set();
+    // Grid density ('mosaic' | 'focus'), and whether the visitor has asked for
+    // every tool to run. explicitRunAll is the only thing that lifts
+    // CONFIG.LIVE_AUTO_CAP — an opt-in is not the same as the page guessing.
+    // Read from storage at declaration time: the first screen's batch size is
+    // derived from the density, and reading it later means answering that
+    // question for the wrong grid.
+    let currentDensity = savedDensity();
+    let explicitRunAll = false;
     
     // Background themes
     const themes = {
@@ -50,6 +87,10 @@
         if (isAppInitialized) return;
         isAppInitialized = true;
         console.log('🚀 The Most Useful Site - Loading...');
+        // Density before anything measures the grid: buildCatalogue() asks
+        // computeInitialBatch() how big a screenful is, and a reflow between
+        // the answer and the paint would make it the wrong answer.
+        applyDensity(currentDensity);
         loadRatings();
         loadCardList();
         setupEventListeners();
@@ -266,7 +307,13 @@
     // stays in charge (nearest-first, MAX_CONCURRENT_LOADS at a time), so the
     // page never blocks — cards simply go live continuously. No loading UI
     // exists any more: faces swap to live tools as each fragment arrives.
+    //
+    // This is also the only thing that lifts LIVE_AUTO_CAP. The cap exists
+    // because a tool that runs costs a script, a layout and possibly a
+    // requestAnimationFrame loop for the rest of the visit, and the page cannot
+    // know which of 1,194 tools matter to you; clicking ⚡ is you telling it.
     function loadAllToolsNow() {
+        explicitRunAll = true;
         let queued = 0;
         document.querySelectorAll('.card[data-name]:not(.loaded)').forEach(card => {
             const name = card.dataset.name;
@@ -284,44 +331,240 @@
     }
 
 
-    // Idle trickle: 6 cards per 2.5s tick, throttled to save data. Every
-    // card already displays as a readable face from the grid build, so the
-    // trickle only needs to stay ahead of a scroll — a larger batch on a
-    // short interval refetched the whole catalogue in the background and
-    // starved the tools the visitor was actually looking at. Data-saver/2G
-    // visitors keep click-to-run and never get the trickle at all.
-    const TRICKLE_BATCH = 6;
-    const TRICKLE_INTERVAL = 2500;
-    let trickleStarted = false;
-    function startIdleTrickle() {
-        if (trickleStarted) return;
+    // ===== WARM-AHEAD: "BYTES HERE" IS NOT "RUNNING HERE" =====
+    // The old loader had one verb, so it had one problem. A card became a live
+    // tool only when it was fetched, parsed AND executed, and the one pipeline
+    // that did all three had to be throttled to protect scrolling — so the
+    // page ran a handful of tools at a time while the other 1,185 sat as faces
+    // an hour of trickling away from ever becoming real. It read like a site
+    // with nine tools and a promise of a thousand.
+    //
+    // Two jobs, two paths:
+    //
+    //   MOUNT (what runs) is driven by the viewport. The observer and the
+    //     sweep mount the tools a visitor can actually see, nearest first, at
+    //     MAX_CONCURRENT_LOADS, under CONFIG.LIVE_AUTO_CAP.
+    //   WARM (what is downloaded) is the same window one step ahead. A warm
+    //     fetch puts the fragment text into cardCache and does nothing else: no
+    //     DOMParser, no script, no layout. It costs the main thread a string.
+    //
+    // By the time a tool reaches the screen its bytes are usually already
+    // local, so mounting it is the cache branch of executeLoadCard() — a
+    // millisecond, not a round trip. And because every one of these requests is
+    // a `cards/*.html` GET, the service worker stores the same responses in
+    // CARDS_CACHE, so what you warmed on this visit is warm on the next one.
+    //
+    // Deliberately not a timer over the whole catalogue: warming walks forward
+    // from where the visitor is, so the bandwidth goes to the part of the page
+    // they are reading. Save-Data / 2G get no warm-ahead at all — the tiles are
+    // already complete without it, and a click still costs one fetch.
+    let warmStarted = false;
+    let warmActive = 0;
+    let warmCursor = 0;
+    let warmSweeping = false;
+    let warmPending = false;
+    // Every card element the grid has built, by catalogue slug. Unlike
+    // pendingCards this is index-stable and never pruned, which is what a
+    // cursor needs; the sweep prunes pendingCards underneath it.
+    const cardElsByName = new Map();
+
+    // Worth a warm fetch right now? Anything the mount pipeline owns is skipped,
+    // so a tool is never downloaded twice and never re-fetched once it runs.
+    function warmEligible(cardName) {
+        if (!cardName) return false;
+        if (loadedCards.has(cardName) || loadingCards.has(cardName)) return false;
+        if (cardCache.has(cardName)) return false;
+        const card = cardElsByName.get(cardName);
+        if (!card || !card.isConnected) return false;
+        if (card.dataset.errorReason || isCardHidden(card)) return false;
+        return true;
+    }
+
+    // Started once by the grid build. Idempotent, like the trickle it replaces,
+    // and gated on the same connection hints.
+    function startCacheWarm() {
+        if (warmStarted) return;
         try {
             const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
             if (conn && (conn.saveData || /(^|\b)(slow-)?2g\b/i.test(conn.effectiveType || ''))) return;
-        } catch (err) { /* connection info unavailable: trickle on */ }
-        trickleStarted = true;
-        const step = () => {
-            // A hidden tab neither loads nor entertains anyone: skip the
-            // tick and keep the timer alive for when the visitor returns.
-            if (!document.hidden) {
-                let queued = 0;
-                for (let i = 0; i < pendingCards.length && queued < TRICKLE_BATCH; i++) {
-                    const card = pendingCards[i];
-                    const name = card.dataset.name;
-                    if (!name || loadedCards.has(name) || loadingCards.has(name)) continue;
-                    if (card.dataset.errorReason || isCardHidden(card)) continue;
-                    loadCard(card, name);
+        } catch (err) { /* no connection info: warm on */ }
+        warmStarted = true;
+        pumpWarmSoon();
+    }
+
+    // Coalesced: every completed warm fetch and every viewport sweep asks for a
+    // pass, and both can fire many times in one frame.
+    function pumpWarmSoon() {
+        if (warmPending) return;
+        warmPending = true;
+        setTimeout(pumpWarm, 120);
+    }
+
+    function pumpWarm() {
+        warmPending = false;
+        if (!warmStarted || warmSweeping) return;
+        // A hidden tab downloads nothing; the visibilitychange hook in
+        // buildCatalogue() sweeps on return, which pumps us again.
+        if (typeof document !== 'undefined' && document.hidden) return;
+        // Mounts own the connection. If the pipeline is at (or one below) its
+        // cap there is no spare bandwidth, and a tool on screen must not queue
+        // behind a tool the visitor has not reached yet.
+        if (activeLoads >= MAX_CONCURRENT_LOADS - 1) return;
+        const total = allCards.length;
+        if (!total) return;
+        warmSweeping = true;
+        let queued = 0;
+        try {
+            while (warmActive < CONFIG.WARM_CONCURRENCY && warmCursor < total) {
+                const cardName = allCards[warmCursor++];
+                if (warmEligible(cardName)) {
                     queued++;
+                    warmCard(cardName);
                 }
-                // Nothing eligible left and the pipeline drained: every tool
-                // the catalogue offers is live — done. Cards resting after
-                // errors stay untouched here (bounded retries and the
-                // manual Retry button own those).
-                if (queued === 0 && activeLoads === 0 && loadQueue.length === 0) return;
             }
-            setTimeout(step, TRICKLE_INTERVAL);
-        };
-        setTimeout(step, TRICKLE_INTERVAL);
+            if (warmCursor >= total) {
+                // Wrap once: tools ahead of the cursor that a filter was hiding
+                // (or that just arrived) still get a turn. Two passes that queue
+                // nothing and the catalogue is warm — stop walking 1,194 names
+                // forever.
+                warmCursor = 0;
+                if (queued === 0) warmStarted = false;
+            }
+        } finally {
+            warmSweeping = false;
+        }
+    }
+
+    function warmCard(cardName) {
+        warmActive++;
+        const meta = cardsMetaMap.get(cardName);
+        const url = (meta && meta.path) || `cards/${cardName}.html`;
+        fetchTextWithTimeout(url, CONFIG.WARM_TIMEOUT).then(html => {
+            if (typeof html === 'string' && html.length > 0) rememberWarmed(cardName, html);
+        }).catch(() => { /* a card that will not warm stays a readable face */ })
+          .finally(() => {
+            warmActive--;
+            // Never pump synchronously from here: the last completion of a
+            // batch would re-enter the loop that queued it.
+            pumpWarmSoon();
+        });
+    }
+
+    // The memory half of the bargain — a warm catalogue must not become 18 MB
+    // of strings. Oldest-not-running first; CARDS_CACHE is the durable tier, so
+    // a dropped entry is a hit one level down, not a new request.
+    function rememberWarmed(cardName, html) {
+        if (cardCache.size >= CONFIG.CARD_CACHE_MAX && !cardCache.has(cardName)) pruneCardCache();
+        cardCache.set(cardName, { html: html, timestamp: Date.now() });
+    }
+
+    function pruneCardCache() {
+        const target = Math.floor(CONFIG.CARD_CACHE_MAX * 0.75);
+        for (const key of Array.from(cardCache.keys())) {
+            if (cardCache.size <= target) break;
+            if (loadedCards.has(key) || loadingCards.has(key)) continue;
+            cardCache.delete(key);
+        }
+    }
+
+    // A filter, a sort or a density change moves what "ahead of the visitor"
+    // means, so the cursor restarts and warms the new result from its top.
+    function resetWarmWindow() {
+        warmCursor = 0;
+        if (!warmStarted) { startCacheWarm(); return; }
+        pumpWarmSoon();
+    }
+
+    // ===== MOUNT BUDGET =====
+    // Tools the page has committed to running: rendered, in flight or queued.
+    // Only the automatic paths consult it — a click is not a guess.
+    function liveMountCount() {
+        return loadedCards.size + loadingCards.size + loadQueue.length;
+    }
+
+    function mountBudgetFree() {
+        return explicitRunAll || liveMountCount() < CONFIG.LIVE_AUTO_CAP;
+    }
+
+    // ===== GRID DENSITY =====
+    // Mosaic is the default and is what makes "1,194 tools on one page" true on
+    // a screen: a tool that is not running is a tile, not a 330 px row. Focus
+    // is the old one-per-row reading stack, remembered per visitor. Because the
+    // dense layout is what CSS gives a page without JS, the class only ever
+    // *adds* the wide single-column mode (`.density-focus`) — no scripting and
+    // you still get the whole catalogue, densely.
+    function savedDensity() {
+        try {
+            const saved = localStorage.getItem('density');
+            return DENSITY[saved] ? saved : DENSITY_DEFAULT;
+        } catch (err) {
+            return DENSITY_DEFAULT;
+        }
+    }
+
+    // Pure: this is the geometry that decides how many tools a screen holds, and
+    // therefore how many the loader starts without being asked. Driven directly
+    // by scripts/tests/live-window.test.js.
+    function gridMetrics(viewportH, containerW, density) {
+        const m = DENSITY[density] || DENSITY[DENSITY_DEFAULT];
+        const w = Math.max(280, Number(containerW) || 1200);
+        const h = Math.max(320, Number(viewportH) || 900);
+        const narrow = m.narrowAt > 0 && w <= m.narrowAt;
+        const min = narrow ? m.narrowMin : m.min;
+        const gap = narrow ? m.narrowGap : m.gap;
+        const cols = Math.max(1, Math.floor((w + gap) / (min + gap)));
+        const rows = Math.max(1, Math.ceil((h + m.row) / (m.row + gap)));
+        const screen = cols * rows;
+        return { cols, rows, screen, batch: Math.min(m.cap, Math.max(CONFIG.INITIAL_LOAD, screen)) };
+    }
+
+    function applyDensity(mode) {
+        const next = DENSITY[mode] ? mode : DENSITY_DEFAULT;
+        currentDensity = next;
+        const body = document.body;
+        if (body) {
+            body.classList.toggle('density-focus', next === 'focus');
+            body.classList.toggle('density-mosaic', next !== 'focus');
+        }
+        document.querySelectorAll('[data-density]').forEach(btn => {
+            const on = btn.dataset.density === next;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        updateLiveCount();
+        return next;
+    }
+
+    function setDensity(mode) {
+        const applied = applyDensity(mode);
+        try { localStorage.setItem('density', applied); } catch (err) { /* private mode */ }
+        // A denser grid means more tools per screen, so the window the loader
+        // must fill changed with it. No heights are rewritten: row geometry is
+        // CSS's job, and adjustCardHeight() only matters once a tool runs.
+        resetWarmWindow();
+        scheduleViewportSweep();
+    }
+
+    // One line of honesty in the toolbar: how many of the tools on the page are
+    // actually running right now. O(1) — this is called after every card render.
+    function updateLiveCount() {
+        const liveEl = document.getElementById('liveToolCount');
+        if (!liveEl) return;
+        const total = allCards.length;
+        if (!total) return;
+        const running = loadedCards.size;
+        const whole = running >= total;
+        const capped = !whole && !explicitRunAll && running >= CONFIG.LIVE_AUTO_CAP;
+        liveEl.textContent = whole ? `all ${total} running` : `${running} of ${total} running`;
+        liveEl.classList.toggle('full', whole);
+        liveEl.classList.toggle('capped', capped);
+        if (whole) {
+            liveEl.title = 'Every tool in the catalogue is live on this page.';
+        } else if (capped) {
+            liveEl.title = `${CONFIG.LIVE_AUTO_CAP} tools is what the grid runs on its own — a running tool costs a script and a layout for the whole visit. Click a tile to run it anyway, or ⚡ Run all to ignore the budget.`;
+        } else {
+            liveEl.title = 'Tools come live as they reach the screen, and the grid keeps their bytes warmed a step ahead of the scroll. Click any tile to run it now.';
+        }
     }
 
     // (The toolbox itself — its modes, its grid/list renderers, its saved
@@ -561,6 +804,10 @@
         sandbox.appendChild(face);
         content.appendChild(sandbox);
         card.append(header, content);
+        // The warm path needs a slug -> element index for the whole catalogue;
+        // a placeholder is registered the moment it exists, so a filter that
+        // hides it later is visible to warmEligible() without a second query.
+        cardElsByName.set(cardName, card);
         return card;
     }
 
@@ -669,10 +916,11 @@
                 // Safety net: if the observer missed anything, scroll-driven
                 // loading picks it up (replaces the old 3s polling interval).
                 scrollFallbackLoader();
-                // The whole catalogue is now in the DOM: start the idle
-                // trickle so every remaining face quietly becomes a live
-                // tool without waiting for scrolls or clicks.
-                startIdleTrickle();
+                // The whole catalogue is now in the DOM. Do not start mounting
+                // it — that is what the viewport is for. Warm it instead: the
+                // bytes come in ahead of the scroll, and every tool the visitor
+                // reaches mounts from cache.
+                startCacheWarm();
             }
         };
         step();
@@ -891,7 +1139,9 @@
 
         shells.forEach((card) => {
             const name = card.dataset.name;
-            if (!name || loadedCards.has(name) || loadingCards.has(name)) return;
+            if (!name) return;
+            cardElsByName.set(name, card);
+            if (loadedCards.has(name) || loadingCards.has(name)) return;
             pendingCards.push(card);
         });
 
@@ -1098,19 +1348,24 @@
         showCatalogueError(lastError);
     }
     
-    // The first batch is the viewport plus the observer's 600px look-ahead,
-    // capped at 12 (which is why HOME-PRERENDER ships exactly twelve shells:
-    // no first-load card waits on even the lite tier). Everything else loads
-    // on scroll (observer + viewport sweep), on click, or via the idle
-    // trickle. Queuing the whole catalogue here stalled the visible tools
-    // behind hundreds of alphabetical fetches and turned pickNearestQueued()
-    // into an O(n^2) getBoundingClientRect storm — every pick scanned all
-    // ~1194 queued cards, each read forcing layout.
+    // The first batch is a screenful of tools, whatever a screen means at the
+    // density the visitor is using (gridMetrics(): mosaic is 2–6 columns of
+    // tiles, focus is one tool per row). It used to be `viewport ÷ 320px,
+    // capped at 12`, which in a single-column grid is six tools — a number that
+    // looked a lot like "the site has six tools" once you scrolled one row.
+    //
+    // Twelve pre-rendered shells are still what HOME-PRERENDER ships, so the
+    // first screen's worth of *cards with content in the HTML* is covered even
+    // on focus; a mosaic's extra tiles are already finished-looking as tiles, so
+    // waiting ~200 ms for their fragments costs nothing you can see. Queuing
+    // more than a screen here would put the visible tools behind an alphabetical
+    // pile of hundreds of fetches, which is the trap this function exists to
+    // avoid.
     function computeInitialBatch() {
         try {
             const viewport = (typeof window !== 'undefined' && window.innerHeight) || 900;
-            const rows = Math.ceil((viewport + 600) / 320);
-            return Math.min(12, Math.max(CONFIG.INITIAL_LOAD, rows));
+            const width = (typeof window !== 'undefined' && window.innerWidth) || 1200;
+            return gridMetrics(viewport, width, currentDensity).batch;
         } catch (err) {
             return CONFIG.INITIAL_LOAD;
         }
@@ -1219,7 +1474,7 @@
             if (prefetched) {
                 const prefetchedHtml = await withTimeout(prefetched, CONFIG.FETCH_TIMEOUT);
                 if (typeof prefetchedHtml === 'string' && prefetchedHtml.length > 0) {
-                    cardCache.set(cardName, { html: prefetchedHtml, timestamp: Date.now() });
+                    rememberWarmed(cardName, prefetchedHtml);
                     renderCardContent(card, cardName, prefetchedHtml);
                     loadedCards.add(cardName);
                     return;   // the finally below still frees the slot + unobserves
@@ -1249,11 +1504,10 @@
             
             const html = await response.text();
             
-            // Cache the content
-            cardCache.set(cardName, {
-                html: html,
-                timestamp: Date.now()
-            });
+            // Cache the content through the warm path's helper, so a mount and
+            // a warm fetch share one cap: 1,194 fragments in memory is 18 MB,
+            // and the cap is what makes warming safe to leave running.
+            rememberWarmed(cardName, html);
             
             renderCardContent(card, cardName, html);
             loadedCards.add(cardName);
@@ -1664,7 +1918,8 @@
                     if (isCardHidden(card)) return;
                     const cardName = card.dataset.name;
                     
-                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)
+                        && mountBudgetFree()) {
                         loadCard(card, cardName);
                     }
                 }
@@ -1721,7 +1976,10 @@
             //
             // Nothing is lost by skipping it: the walk below still prunes finished
             // cards, and processLoadQueue() re-sweeps the moment a slot frees up.
-            const canStart = activeLoads < MAX_CONCURRENT_LOADS;
+            // The live cap is folded in for the same reason — when the grid has
+            // as many running tools as it is allowed, measuring cannot change
+            // anything, and a click (which ignores the cap) starts the load.
+            const canStart = activeLoads < MAX_CONCURRENT_LOADS && mountBudgetFree();
 
             // The observer has a generous look-ahead for smooth scrolling, but
             // this fallback always gives cards actually on screen first priority.
@@ -1780,6 +2038,10 @@
 
             pendingCards = stillPending;
             retryErroredCards();
+            // The sweep knows where the visitor is; tell the warm path, whose
+            // cursor follows the same front. Cheap (it is coalesced) and it is
+            // what keeps warming alive when a mount fails or a filter changes.
+            pumpWarmSoon();
         } finally {
             scrollLoadActive = false;
         }
@@ -1828,12 +2090,23 @@
             stickySearchInput.addEventListener('input', (e) => debouncedSearch(e.target.value));
         }
         
-        // Category pills filter
+        // Category pills filter, and say so in the URL: `?cat=music-audio` is
+        // both the shareable form of this click and what applyIndexDeepLink()
+        // reads back. replaceState, not pushState — a filter is a view of this
+        // page, not a new page, and the back button must leave the page rather
+        // than unwind every pill someone tapped.
         document.querySelectorAll('.cat-pill').forEach(pill => {
             pill.addEventListener('click', () => {
                 document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
                 pill.classList.add('active');
                 currentSelectedCategory = pill.dataset.category;
+                const slug = slugifyLabel(currentSelectedCategory);
+                try {
+                    const url = (slug && slug !== 'all')
+                        ? `${location.pathname}?cat=${encodeURIComponent(slug)}`
+                        : location.pathname;
+                    history.replaceState(null, '', url);
+                } catch (err) { /* file:// or a sandboxed frame: filtering still works */ }
                 applyFilters();
             });
         });
@@ -1872,6 +2145,12 @@
             });
         }
 
+        // Grid density (mosaic <-> focus). Remembered by setDensity(); the
+        // markup carries aria-pressed so the state is readable without CSS.
+        document.querySelectorAll('[data-density]').forEach(btn => {
+            btn.addEventListener('click', () => setDensity(btn.dataset.density));
+        });
+
         // View mode buttons
         const btnViewCards = document.getElementById('btnViewCards');
         const btnViewDir = document.getElementById('btnViewDirectory');
@@ -1887,16 +2166,19 @@
                 if (!loadAllBtn.dataset.armed) {
                     loadAllBtn.dataset.armed = '1';
                     loadAllBtn.textContent = `⚡ Confirm: run all ${allCards.length || ''}`;
+                    loadAllBtn.title = 'Fetch and run every tool on the page now — hundreds of megabytes and every tool at once. There is no undo.';
                     setTimeout(() => {
                         if (loadAllBtn && loadAllBtn.dataset.armed) {
                             delete loadAllBtn.dataset.armed;
-                            loadAllBtn.textContent = '⚡ Load all';
+                            loadAllBtn.textContent = '⚡ Run all';
+                            loadAllBtn.title = 'Fetch and run every tool on the page now — a large download; cards go live as they arrive';
                         }
                     }, 6000);
                     return;
                 }
                 delete loadAllBtn.dataset.armed;
-                loadAllBtn.textContent = '⚡ Load all';
+                loadAllBtn.textContent = '⚡ Run all';
+                loadAllBtn.title = 'Fetch and run every tool on the page now — a large download; cards go live as they arrive';
                 loadAllToolsNow();
             });
         }
@@ -1986,6 +2268,21 @@
             return;
         }
 
+        // Mosaic tiles: the whole tile is the button, not just its lower half —
+        // at 212px there is barely a lower half. Real controls keep their own
+        // behaviour, so this claims only a click that has nowhere else to go.
+        // A click is intent: it is never turned away by LIVE_AUTO_CAP.
+        if (currentDensity === 'mosaic') {
+            const tile = target.closest('.card.card-pending');
+            if (tile && !target.closest('a, button, input, select, textarea, label')) {
+                const cardName = tile.dataset.name;
+                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    loadCard(tile, cardName);
+                }
+                return;
+            }
+        }
+
         // Standalone / Maximise button
         const maximizeBtn = target.closest('.card-maximize-btn, .card-expand');
         if (maximizeBtn) {
@@ -2017,15 +2314,35 @@
     // index.html?q=<query> pre-fills catalogue search;
     // index.html?expand=<tool-slug> opens one tool inline.
     // Pure parser: extracted and pinned by scripts/tests/index-deeplink.test.js.
+    // Categories in a URL are slugs, the same shape the catalogue's own file
+    // names use: "Music & Audio" is `?cat=music-audio`. Pure; both directions
+    // (a label from the pills and a slug from a link) run through it, so the
+    // comparison cannot be spoofed into a filter that does not exist.
+    function slugifyLabel(label) {
+        return String(label || '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 60);
+    }
+
     function parseIndexDeepLink(search) {
-        const out = { q: '', expand: '' };
+        const out = { q: '', expand: '', cat: '', view: '' };
         try {
             const params = new URLSearchParams(search || '');
             out.q = (params.get('q') || '').trim();
-            const raw = (params.get('expand') || '').trim().toLowerCase();
             // Catalogue slugs are [a-z0-9-]. Anything else is ignored here —
             // the value is only ever used for map lookup, never rendered.
+            const raw = (params.get('expand') || '').trim().toLowerCase();
             out.expand = /^[a-z0-9-]{1,80}$/.test(raw) ? raw : '';
+            // `cat=` and the longer `category=` (as published in agents.html)
+            // are the same link. Slug-shaped only; the value is looked up
+            // against the catalogue's own categories in applyIndexDeepLink and
+            // never rendered.
+            out.cat = slugifyLabel((params.get('cat') || params.get('category') || '').trim());
+            // Which of the two grids to show. Anything else is no view at all,
+            // and the page keeps the density the visitor saved.
+            const rawView = (params.get('view') || '').trim().toLowerCase();
+            out.view = rawView === 'cards' || rawView === 'directory' ? rawView : '';
         } catch (err) { /* malformed query string: plain homepage */ }
         return out;
     }
@@ -2035,9 +2352,23 @@
     function applyIndexDeepLink() {
         try {
             const link = parseIndexDeepLink(window.location.search);
-            if (!link.q && !link.expand) return;
+            if (!link.q && !link.expand && !link.cat && !link.view) return;
             const main = document.getElementById('mainSearchInput');
             const sticky = document.getElementById('stickySearchInput');
+            // ?cat= is the one page of this size that deserves a URL: 1,194
+            // tools in one grid is a browse, and a category is the address for
+            // the part of it a visitor (or a crawler, or a link in a chat)
+            // actually meant.
+            if (link.view) setViewMode(link.view);
+            if (link.cat) {
+                const pills = Array.from(document.querySelectorAll('.cat-pill'));
+                const pill = pills.find(p => slugifyLabel(p.dataset.category) === link.cat);
+                if (pill) {
+                    pills.forEach(p => p.classList.remove('active'));
+                    pill.classList.add('active');
+                    currentSelectedCategory = pill.dataset.category;
+                }
+            }
             if (link.expand && cardsMetaMap.has(link.expand)) {
                 const meta = cardsMetaMap.get(link.expand) || {};
                 const title = String(meta.title || link.expand).replace(/^[^\w\s]+/, '').trim() || link.expand;
@@ -2063,6 +2394,8 @@
                 if (main) main.value = link.q;
                 if (sticky) sticky.value = link.q;
                 performSearch(link.q);
+            } else if (link.cat) {
+                applyFilters();
             }
         } catch (err) { /* deep link failed: plain homepage */ }
     }
@@ -2365,9 +2698,12 @@
             if (isVisible) {
                 visibleCount++;
                 matchedNames.push(name);
-                if (cardEl && !loadedCards.has(name) && !loadingCards.has(name)) {
-                    loadCard(cardEl, name);
-                }
+                // No loadCard() per match. A search that matches 400 tools used
+                // to queue 400 fetch+parse+execute jobs on the keystroke that
+                // typed them, ahead of the 24 actually on screen; and a category
+                // pill for Productivity (152 tools) was one click on a fork in
+                // the road. The sweep and the observer mount what the window
+                // holds, and the warm path takes care of the bytes for the rest.
             }
         });
 
@@ -2380,9 +2716,10 @@
         } else {
             directoryDirty = true;
         }
-        // Anything beyond the first 12 that lands in the viewport (or is
+        // Anything beyond the first screenful that lands in the viewport (or is
         // scrolled to later) is picked up by the sweep + observer, which no
         // longer ignore cards while a filter is active.
+        resetWarmWindow();
         scheduleViewportSweep();
 
         const resultsCountEl = document.getElementById('resultsCountText');
@@ -2469,7 +2806,7 @@
         const loadedEl = document.getElementById('footerLoadedCards');
         if (totalEl) totalEl.textContent = total;
         if (loadedEl) loadedEl.textContent = loaded;
-
+        updateLiveCount();
     }
 
     // Category pill counts only change when the catalogue loads, so compute
@@ -2618,4 +2955,9 @@
     // used to have: HTML -> 136 KB catalogue index -> 1128 placeholders ->
     // first fragment fetch. initApp() still runs on DOMContentLoaded and owns
     // everything else; loadCardList() keeps these shells and builds around them.
+    // Before the shells are adopted: adoptPrerenderedCards() runs
+    // loadInitialCards(), which asks computeInitialBatch() how many tools the
+    // first screen should hold, and that answer depends on the density the
+    // visitor saved.
+    applyDensity(currentDensity);
     adoptPrerenderedCards();

@@ -115,7 +115,7 @@ function el(tag) {
     createElement: (tag) => el(tag),
     querySelectorAll: () => [],
   };
-  const sandbox = { cardsMetaMap, document, console };
+  const sandbox = { cardsMetaMap, document, console, cardElsByName: new Map() };
   vm.createContext(sandbox);
   vm.runInContext(grab('titleEmoji') + '\n' + grab('createPlaceholder'), sandbox,
     { filename: 'home-app.js(extracted)' });
@@ -253,134 +253,174 @@ function el(tag) {
 }
 
 // ---------------------------------------------------------------- suite 6
-// startIdleTrickle(): quietly queues a few pending cards per tick without
-// any interaction, skips hidden/errored/in-flight cards, keeps ticking while
-// the pipeline drains, and stops once everything is live. Data-saver / 2G
-// visitors never get the trickle at all.
+// Warm-ahead (startCacheWarm / pumpWarm / warmCard / warmEligible): the grid
+// downloads the catalogue one step ahead of the reader WITHOUT mounting
+// anything. This is the half of the fix for "only a handful of my tools ever
+// load": the old trickle mounted 6 cards per 2.5s, so 1,194 tools were an hour
+// of work and the page read as a nine-tool site. Bytes are cheap; *running* a
+// tool is what has to stay tied to the viewport, so the background pass only
+// fetches into cardCache and the mount path reads from it.
 {
-  // Extract the real trickle batch from the shipped file so the harness
-  // follows it. The trickle is a gentle 6-per-2.5s background top-up: every
-  // card already displays as a readable face, so it only stays ahead of a
-  // scroll rather than refetching the catalogue in the background.
-  const BATCH_M = app.match(/TRICKLE_BATCH\s*=\s*(\d+)/);
-  const ACTUAL_BATCH = BATCH_M ? parseInt(BATCH_M[1], 10) : 6;
-  const INTERVAL_M = app.match(/TRICKLE_INTERVAL\s*=\s*(\d+)/);
-  const ACTUAL_INTERVAL = INTERVAL_M ? parseInt(INTERVAL_M[1], 10) : 2500;
-  const grabTrickle = () => {
-    const m = app.match(/function startIdleTrickle\([^)]*\) \{[\s\S]*?\n    \}\n/);
-    assert(m, 'could not extract startIdleTrickle() from home-app.js');
+  // Read the shipped numbers from the real source instead of assuming them, the
+  // way the trickle test read TRICKLE_BATCH — a silent change in the loader must
+  // not be hidden by a stale constant here.
+  const CONC_M = app.match(/WARM_CONCURRENCY:\s*(\d+)/);
+  assert(CONC_M, 'could not read WARM_CONCURRENCY from home-app.js');
+  const WARM_CONCURRENCY = parseInt(CONC_M[1], 10);
+  const LOADS_M = app.match(/const MAX_CONCURRENT_LOADS = (\d+);/);
+  assert(LOADS_M, 'could not read MAX_CONCURRENT_LOADS from home-app.js');
+  const MAX_CONCURRENT_LOADS = parseInt(LOADS_M[1], 10);
+  assert.ok(WARM_CONCURRENCY < MAX_CONCURRENT_LOADS,
+    `warming (${WARM_CONCURRENCY}) must never out-eat mounting (${MAX_CONCURRENT_LOADS})`);
+
+  const grabFn = (name) => {
+    const m = app.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
+    assert(m, `could not extract ${name}() from home-app.js`);
     return m[0];
   };
+  const SRC = grabFn('warmEligible') + '\n' + grabFn('warmCard') + '\n' + grabFn('pumpWarm');
+  const PRELUDE =
+    'let warmStarted = false;\nlet warmActive = 0;\nlet warmCursor = 0;\n'
+    + 'let warmSweeping = false;\nlet warmPending = false;\n';
 
-  function runTrickle(state, timers, extra = {}) {
+  // names: the catalogue order the cursor walks. Everything else describes the
+  // state each card is in, and the real warmEligible() decides.
+  function makeWorld(opts = {}) {
+    const names = opts.names || Array.from({ length: WARM_CONCURRENCY + 2 }, (_, i) => `n${i}`);
+    const state = { warmed: [], timers: [], pumps: 0 };
+    const els = new Map(names.map(n => [n, {
+      isConnected: !(opts.disconnected || []).includes(n),
+      dataset: (opts.errored || []).includes(n) ? { name: n, errorReason: 'load' } : { name: n },
+      style: { display: (opts.hidden || []).includes(n) ? 'none' : '' },
+    }]));
     const sandbox = {
-      trickleStarted: false,
-      TRICKLE_BATCH: ACTUAL_BATCH,
-      TRICKLE_INTERVAL: ACTUAL_INTERVAL,
-      navigator: state.navigator || {},
-      document: { hidden: !!state.hidden },
-      pendingCards: state.pending,
-      loadedCards: state.loadedSet,
-      loadingCards: state.loadingSet,
-      isCardHidden: (c) => !!c.hidden,
-      // model the real pipeline: loadCard immediately marks the card
-      // in-flight (loadQueue/loadingCards), so later ticks skip it
-      loadCard: (card, name) => { state.queued.push(name); state.loadingSet.add(name); },
-      get activeLoads() { return state.activeLoads; },
-      get loadQueue() { return state.loadQueue; },
-      setTimeout: (fn) => { timers.push(fn); return timers.length; },
-      console,
-      ...extra,
+      allCards: names,
+      loadedCards: new Set(opts.loaded || []),
+      loadingCards: new Set(opts.loading || []),
+      cardCache: new Map(Object.entries(opts.cache || {})),
+      cardElsByName: els,
+      cardsMetaMap: new Map(),
+      isCardHidden: card => card.style.display === 'none',
+      CONFIG: { WARM_CONCURRENCY, WARM_TIMEOUT: 12000, CARD_CACHE_MAX: 96 },
+      MAX_CONCURRENT_LOADS,
+      activeLoads: opts.activeLoads || 0,
+      document: { hidden: !!opts.docHidden },
+      navigator: opts.navigator || {},
+      // A fragment request that never settles, so warmActive stays raised —
+      // which is exactly what bounds a pass to WARM_CONCURRENCY.
+      fetchTextWithTimeout: url => {
+        state.warmed.push(String(url).replace(/^cards\//, '').replace(/\.html$/, ''));
+        return new Promise(() => {});
+      },
+      rememberWarmed: name => { state.remembered = (state.remembered || []).concat(name); },
+      pumpWarmSoon: () => { state.pumps++; },
+      setTimeout: (fn) => { state.timers.push(fn); return state.timers.length; },
+      console: { warn() {}, log() {}, error() {} },
     };
     vm.createContext(sandbox);
-    vm.runInContext(grabTrickle() + ';startIdleTrickle();', sandbox);
-    return sandbox;
+    vm.runInContext(PRELUDE + SRC, sandbox, { filename: 'warm-ahead' });
+    vm.runInContext('warmStarted = true;', sandbox);
+    state.sandbox = sandbox;
+    state.names = names;
+    return state;
+  }
+  const read = (state, expr) => vm.runInContext(expr, state.sandbox);
+
+  // a) one pass queues exactly WARM_CONCURRENCY requests and leaves the cursor
+  //    after them (not after the whole catalogue), so the next pass resumes.
+  {
+    const world = makeWorld();
+    read(world, 'pumpWarm();');
+    assert.deepStrictEqual(world.warmed, world.names.slice(0, WARM_CONCURRENCY),
+      `a warm pass queued ${world.warmed.join(',')} , expected the first ${WARM_CONCURRENCY}`);
+    assert.strictEqual(read(world, 'warmCursor'), WARM_CONCURRENCY,
+      'the cursor did not land where the pass stopped');
+    assert.strictEqual(read(world, 'warmStarted'), true, 'a productive pass switched warming off');
+    console.log('  ok   one warm pass queues WARM_CONCURRENCY names and parks the cursor');
   }
 
-  // a) queues up to TRICKLE_BATCH eligible cards on the first tick, then
-  //    keeps ticking while loads are in flight; stops when all done.
-  //    Build a pending set larger than one batch so batching is exercised
-  //    regardless of the current batch size.
+  // b) loaded, loading, cached, hidden, errored and detached cards are never
+  //    warmed; a hidden tab downloads nothing.
   {
-    const total = ACTUAL_BATCH + 2;
-    const pending = Array.from({ length: total }, (_, i) => ({ dataset: { name: `n${i}` } }));
-    const state = {
-      pending,
-      loadedSet: new Set(), loadingSet: new Set(),
-      queued: [], activeLoads: 4, loadQueue: [],
+    const names = ['ok', 'loaded', 'loading', 'cached', 'hidden', 'errored', 'gone'];
+    const world = makeWorld({
+      names,
+      loaded: ['loaded'], loading: ['loading'], cache: { cached: '<html>' },
+      hidden: ['hidden'], errored: ['errored'], disconnected: ['gone'],
+    });
+    read(world, 'pumpWarm();');
+    assert.deepStrictEqual(world.warmed, ['ok'],
+      `the warm path queued something it must not: ${world.warmed.join(',')}`);
+    console.log('  ok   warm skips loaded/in-flight/cached/hidden/errored/detached cards');
+
+    const hiddenTab = makeWorld({ names: ['a'], docHidden: true });
+    read(hiddenTab, 'pumpWarm();');
+    assert.deepStrictEqual(hiddenTab.warmed, [], 'a hidden tab downloaded the catalogue');
+    console.log('  ok   a hidden tab downloads nothing');
+  }
+
+  // c) the mount pipeline owns the connection: at its cap the warm pass
+  //    declines outright, so a tool on screen never queues behind one the
+  //    visitor has not reached.
+  {
+    const busy = makeWorld({ names: ['a', 'b'], activeLoads: MAX_CONCURRENT_LOADS });
+    read(busy, 'pumpWarm();');
+    assert.deepStrictEqual(busy.warmed, [], 'warming ran while every mount slot was busy');
+    const idle = makeWorld({ names: ['a', 'b'], activeLoads: MAX_CONCURRENT_LOADS - 2 });
+    read(idle, 'pumpWarm();');
+    assert.ok(idle.warmed.length > 0, 'warming sat on its hands with a slot spare');
+    console.log('  ok   warming yields to the mount pipeline');
+  }
+
+  // d) a catalogue that needs nothing ends the pass instead of walking 1,194
+  //    names forever — the timer the old trickle kept alive is gone.
+  {
+    const world = makeWorld({ names: ['a', 'b', 'c'], cache: { a: '<i>', b: '<i>', c: '<i>' } });
+    read(world, 'pumpWarm();');
+    assert.deepStrictEqual(world.warmed, []);
+    assert.strictEqual(read(world, 'warmStarted'), false, 'warming kept running after a whole empty pass');
+    console.log('  ok   a warm catalogue switches the pass off (no forever timer)');
+  }
+
+  // e) startCacheWarm(): gated on Save-Data / 2G, idempotent, and it kicks a
+  //    pump rather than mounting anything itself.
+  {
+    const grabStart = grabFn('startCacheWarm');
+    const runStart = (navigator) => {
+      const sandbox = {
+        navigator,
+        warmStarted: false,
+        pumpWarmSoon: () => { sandbox.pumps = (sandbox.pumps || 0) + 1; },
+      };
+      vm.createContext(sandbox);
+      vm.runInContext(grabStart, sandbox);
+      return sandbox;
     };
-    const timers = [];
-    runTrickle(state, timers);
-    assert.strictEqual(timers.length, 1, 'trickle did not schedule its first tick');
-    timers.shift()(); // first tick
-    assert.strictEqual(state.queued.length, ACTUAL_BATCH, `expected a batch of ${ACTUAL_BATCH}, got ${state.queued.length}`);
-    assert.strictEqual(timers.length, 1, 'trickle stopped while loads were still in flight');
-    // pipeline drains and everything finishes: next tick queues the last two, then stops
-    state.activeLoads = 0;
-    state.loadingSet.clear();
-    // mutate the captured Sets in place — the sandbox holds the references
-    for (let i = 0; i < ACTUAL_BATCH; i++) state.loadedSet.add(`n${i}`);
-    timers.shift()();
-    const expectedAll = pending.map(p => p.dataset.name);
-    assert.deepStrictEqual(state.queued, expectedAll,
-      'the trickle never reached the tail of the catalogue');
-    for (let i = ACTUAL_BATCH; i < total; i++) state.loadedSet.add(`n${i}`);
-    timers.shift()(); // nothing eligible + idle -> terminal
-    assert.strictEqual(timers.length, 0, 'trickle kept ticking after finishing the catalogue');
-    console.log('  ok   trickle queues batches, then stops when every card is live');
+    for (const [label, nav] of [
+      ['Save-Data', { connection: { saveData: true, effectiveType: '4g' } }],
+      ['2G', { connection: { saveData: false, effectiveType: '2g' } }],
+      ['slow-2G', { connection: { saveData: false, effectiveType: 'slow-2g' } }],
+    ]) {
+      const sandbox = runStart(nav);
+      vm.runInContext('startCacheWarm();', sandbox);
+      assert.ok(!sandbox.pumps, `${label} visitor got the warm-ahead pass`);
+      assert.strictEqual(vm.runInContext('warmStarted', sandbox), false, `${label} visitor had warming marked started`);
+    }
+    console.log('  ok   Save-Data / 2G keep tiles + click-to-run, no background download');
+
+    const sandbox = runStart({ connection: { saveData: false, effectiveType: '4g' } });
+    vm.runInContext('startCacheWarm(); startCacheWarm();', sandbox);
+    assert.strictEqual(sandbox.pumps, 1, 'warming did not start exactly once on a normal connection');
+    console.log('  ok   startCacheWarm kicks once, never twice');
   }
 
-  // b) hidden, errored and in-flight cards are skipped; a hidden document
-  //    ticks without queueing.
+  // f) no coupling back the other way: a warm fetch must never render, execute
+  //    or touch the DOM. That is what makes 1,194 of them affordable.
   {
-    const state = {
-      pending: [
-        { dataset: { name: 'ok' } },
-        { dataset: { name: 'hidden' }, hidden: true },
-        { dataset: { name: 'errored', errorReason: 'load' } },
-        { dataset: { name: 'inflight' } },
-      ],
-      loadedSet: new Set(),
-      loadingSet: new Set(['inflight']),
-      queued: [], activeLoads: 1, loadQueue: [],
-    };
-    const timers = [];
-    runTrickle(state, timers);
-    timers.shift()();
-    assert.deepStrictEqual(state.queued, ['ok'], 'trickle queued a hidden/errored/in-flight card');
-    // hidden document: no queueing, but the loop survives
-    state.hidden = true;
-    const before = state.queued.length;
-    timers.shift()();
-    assert.strictEqual(state.queued.length, before, 'trickle queued while the tab was hidden');
-    assert.strictEqual(timers.length, 1, 'trickle died while the tab was hidden');
-    console.log('  ok   trickle skips hidden/errored/in-flight cards and pauses on hidden tabs');
-  }
-
-  // c) data-saver and 2G never start the trickle.
-  for (const [label, nav] of [
-    ['Save-Data', { connection: { saveData: true, effectiveType: '4g' } }],
-    ['2G', { connection: { saveData: false, effectiveType: '2g' } }],
-    ['slow-2G', { connection: { saveData: false, effectiveType: 'slow-2g' } }],
-  ]) {
-    const state = { pending: [{ dataset: { name: 'a' } }], loadedSet: new Set(),
-                    loadingSet: new Set(), queued: [], activeLoads: 0, loadQueue: [], navigator: nav };
-    const timers = [];
-    runTrickle(state, timers);
-    assert.strictEqual(timers.length, 0, `${label} visitor got the trickle`);
-    assert.strictEqual(state.queued.length, 0, `${label} visitor had cards queued`);
-  }
-  console.log('  ok   Save-Data / 2G / slow-2G visitors keep faces + click-to-run');
-
-  // d) starting twice is inert.
-  {
-    const state = { pending: [{ dataset: { name: 'a' } }], loadedSet: new Set(),
-                    loadingSet: new Set(), queued: [], activeLoads: 0, loadQueue: [] };
-    const timers = [];
-    const sandbox = runTrickle(state, timers);
-    vm.runInContext('startIdleTrickle();', sandbox);
-    assert.strictEqual(timers.length, 1, 'double start scheduled two loops');
-    console.log('  ok   double start is inert');
+    const warm = grabFn('warmCard');
+    assert.ok(!/renderCardContent|innerHTML|loadCard\(|document\.querySelector/.test(warm),
+      'warmCard() does more than fetch bytes — that is the mount path\u2019s job');
+    console.log('  ok   a warm fetch is bytes only: no render, no script, no layout');
   }
 }
 

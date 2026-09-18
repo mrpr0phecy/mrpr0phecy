@@ -175,11 +175,13 @@ verified by `bash scripts/verify.sh`:
   twice.)
 - **`HOME-PRERENDER`** (in `#dashboard`) ships the first twelve cards as real
   markup — title, category badge, standalone link — so the first screen paints
-  with the HTML (no JSON at all) and a crawler sees real tool links. Twelve
-  covers `computeInitialBatch()`'s cap, so no first-load card waits on even
-  the lite tier. `adoptPrerenderedCards()` adopts these shells during parse
-  and starts rendering into them; `loadCardList()` keeps them and builds the
-  rest of the catalogue around them, dropping any shell whose tool has gone.
+  with the HTML (no JSON at all) and a crawler sees real tool links. Twelve is
+  the whole batch in focus density and half of it in mosaic (24); a mosaic tile
+  the extra twelve slots hold is already finished-looking without its
+  fragment, which is why the shell count can stay put.
+  `adoptPrerenderedCards()` adopts these shells during parse and starts
+  rendering into them; `loadCardList()` keeps them and builds the rest of the
+  catalogue around them, dropping any shell whose tool has gone.
 
 The same script also re-syncs the per-category count badges on the filter pills
 (`updateCategoryCounts()` overwrote them at runtime, so 21 of 27 had silently
@@ -196,10 +198,12 @@ starve the build.
 
 Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.js`:
 
-- **`MAX_CONCURRENT_LOADS = 6`** fetch/render jobs. The grid is one card per
-  row, so a 900px viewport plus the observer's 600px look-ahead wants ~5 tools
-  in flight to stay ahead of a scroll. Four kept a free slot rare enough that
-  the fallback sweep spent its time measuring cards it could not start.
+- **`MAX_CONCURRENT_LOADS = 6`** fetch/render jobs. A mosaic screen wants
+  ~24 tools and a 900px single-column screen ~5, so the point is not to match a
+  screenful exactly — it is to keep enough slots free that the nearest-first
+  pick is never waiting on a card the visitor has scrolled past. Four made a
+  free slot rare enough that the fallback sweep spent its time measuring cards
+  it could not start.
 - **The viewport sweep only measures when a slot is free.** `scrollFallbackLoader()`
   walks the pending list to prune finished cards, but every
   `getBoundingClientRect()` in that walk forces layout: with the whole
@@ -211,6 +215,64 @@ Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.j
 
 The IntersectionObserver stays the primary trigger — it knows what entered the
 viewport without asking the layout engine about 1,194 elements.
+
+### The live window: density, mount budget, warm-ahead
+
+**The problem this fixes.** The grid used to be one tool per row of about
+330 px, so a screen held two of them and the whole catalogue was over 400,000
+px of scroll, and none of it became real until its fragment had been fetched,
+parsed *and executed*. and the loader — throttled to 6 mounts per 2.5 s to keep
+scrolling usable — needed ~8 minutes of foreground time to make one page of
+tools real. The site read as "nine tools and a promise". No amount of tuning the
+throttle helped: with one verb (`loadCard`), making the tools visible meant
+making them run, and running all of them is not a thing a browser does.
+
+Three changes, each of which is the *whole* of one idea:
+
+- **Density (`DENSITY` in `home-app.js` + `MOSAIC DENSITY` in `home.css`).**
+  Mosaic is the default: a pending tool is a tile (title + description, no
+  badge, no action row) in a `repeat(auto-fill, minmax(212px, 1fr))` grid, and a
+  *running* tool spans the whole row (`.card.loaded { grid-column: 1 / -1 }`).
+  One screen now holds ~30 tools instead of 2, and the whole catalogue is ~40
+  screens instead of several hundred. `body.density-focus` is the old reading
+  stack, kept for visitors who choose it — the class only ever *adds* the wide
+  layout, so a page with no JS still gets the dense grid, which is the better
+  first visit.
+  `gridMetrics(viewportH, containerW, density)` is the single place that turns
+  that geometry into a number; `computeInitialBatch()` is just its answer, so
+  the loader's screenful and the CSS's screenful cannot disagree (and
+  `scripts/tests/live-window.test.js` reads `minmax()` out of the stylesheet to
+  prove it).
+- **Mount budget (`CONFIG.LIVE_AUTO_CAP`).** The observer and the viewport sweep
+  mount what is on screen, nearest first, and stop at 64 running tools. Past
+  that only intent continues: a click on a tile, Enter on a focused face,
+  `⚡ Run all`. A running tool costs a script, a layout and usually a loop for
+  the rest of the visit, and the page cannot know which 1,194 of them matter to
+  you — but it can stop guessing once it has guessed loudly enough. The
+  toolbar's live counter (`#liveToolCount`, updated from `updateSiteStats()`)
+  says which of the two it is doing.
+- **Warm-ahead (`startCacheWarm()` / `pumpWarm()` / `warmCard()`).** The
+  background pass fetches fragment *text* into `cardCache` and does nothing
+  else — no `DOMParser`, no script, no layout, no `.innerHTML`. It walks
+  catalogue order from a cursor that follows the reading position (the sweep
+  pumps it once per pass; a filter, sort or density change resets the cursor),
+  never runs while `activeLoads >= MAX_CONCURRENT_LOADS - 1`, and stops after a
+  full pass that found nothing to do. Because every request is a
+  `cards/*.html` GET, the service worker stores the same responses in
+  `CARDS_CACHE`, so warming on this visit is warming on the next one.
+  `cardCache` itself is capped at `CARD_CACHE_MAX = 96` entries and
+  `pruneCardCache()` never evicts a tool that is running.
+
+Net effect: **every tool the visitor can see is live within a frame or two of
+arriving** (usually from cache), everything else on the page is a complete,
+searchable, one-click tile, and the page never accrues a thousand animation
+loops. Save-Data and 2G visitors get the tiles and click-to-run with no
+background download at all — the grid is already complete without them.
+
+The old idle trickle is gone in both files (a dead copy of its constants sat in
+`home-features.js`; it is gone too). `scripts/tests/live-window.test.js` fails
+if `TRICKLE_BATCH`/`startIdleTrickle` come back, and
+`card-faces.test.js` suite 6 now drives the warm path instead.
 
 ### The app is split: first screen in one file, on-demand UI in another
 
@@ -860,6 +922,16 @@ and `bash scripts/verify.sh` fails until the blocks match the catalogue. The
 same script owns the per-category count badges. Everything below the first
 screen is still purely data-driven.
 
+**The grid's geometry lives in two files.** `DENSITY` in `home-app.js` (tile
+width, row height, gap, narrow breakpoint) and the `MOSAIC DENSITY` block in
+`home.css` are one fact written twice, because JS decides how many tools a
+screen holds and CSS decides what a screen looks like. `scripts/tests/live-window.test.js`
+regexes `minmax(212px` and `max-width: 560px` out of the stylesheet and compares
+them with the table, so the loader cannot size a batch for a grid that is not
+there. Also keep `.card`'s `contain-intrinsic-size` honest: the base rule
+carries the size of a running tool (340px), so a pending tile overrides it to
+172px — a skipped tile measured at 340px makes the scrollbar jump as you scroll.
+
 **ID collisions across cards.** All 1194 share one DOM. See §3.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
@@ -1325,6 +1397,42 @@ support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
 `AbortSignal.timeout`, and a `rail-hidden` auto-dodge during sports/weather/
 finance segments. Validated in headless Chromium against the real RSS feeds:
 124 stories / 35 sources, zero console or page errors.
+
+**Changed 2026-09-18 — the main page is a live window, not a trickle.**
+Owner report: *"only nine tools are loading on my mainpage and i have over
+1000, this destroys the point of my site."* Diagnosis, from the shipped numbers:
+`computeInitialBatch()` returned `min(12, max(6, ceil((viewport+600)/320)))` =
+**6** on a 900 px screen; the grid was **one tool per 330 px row**, so a screen
+held 2–3 tools and the catalogue was ~400,000 px long; and the only background
+path was an idle trickle of **6 mounts per 2.5 s** — ~8 minutes of foreground
+time to make one page of 1,194 tools real, at ~15 KB and one `DOMParser` +
+script execution each. Nine live tools at the top was not a fetch bug: one verb
+(`loadCard` = fetch + parse + run) meant "show the catalogue" and "run the
+catalogue" were the same expensive act, throttled to protect scrolling.
+
+Three changes (see §3 "The live window"): mosaic density as the default grid
+(~30 tools a screen, a running tool spans the row, `.density-focus` keeps the old
+layout), a **mount budget** (`LIVE_AUTO_CAP = 64`, lifted only by a click or
+`⚡ Run all`), and **warm-ahead** — a background pass that fetches fragment text
+into `cardCache` only, follows the reading position, yields to the mount
+pipeline, and lands in the service worker's `CARDS_CACHE` for the next visit.
+`applyFiltersCore()` no longer mounts every match either: a Productivity pill
+(152 tools) used to queue 152 fetch+parse+execute jobs on one click.
+`cardCache` is capped at 96 entries (`pruneCardCache()` keeps running tools);
+`gridMetrics()` is the single source for "how many tools is a screen"; the idle
+trickle is deleted from both home-app.js and home-features.js. New
+`scripts/tests/live-window.test.js` (7 suites, wired into `verify.sh` §15)
+pins the geometry, the CSS mirror, the density preference, the cache cap and the
+absence of the trickle; `lazy-loader.test.js` gained the budget suite and
+`card-faces.test.js` suite 6 now drives warm-ahead. No `index.html` payload
+growth beyond the two toolbar controls (`home.css` is 16.2 KB gzip against its
+18 KB budget, `index.html` 14.5 KB).
+
+Still open, in order of what they would buy: **windowed DOM** (only the tiles
+near the viewport exist, so 1,194 cards cost ~60 nodes — the sweep and observer
+already do the hard part); **per-category bundle fetches** so "run this
+category" is one request instead of 152; and **`?cat=` deep links** so a
+category is a URL a crawler and a phone can treat as a page.
 
 **Fixed 2026-08-31 (commits `ce0c880`, `bb32e34`)**
 

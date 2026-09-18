@@ -102,6 +102,7 @@ function shell(name) {
   const observed = [];
   const built = [];
   let initialKicks = 0;
+  let warmStarts = 0;
   const rafQueue = [];
   const timeouts = [];
 
@@ -123,6 +124,7 @@ function shell(name) {
       isSearching: false,
       applyFilters: () => {},
       scrollFallbackLoader: () => {},
+      startCacheWarm: () => { warmStarts++; },
       requestAnimationFrame: cb => rafQueue.push(cb),
       setTimeout: (cb, ms) => timeouts.push(cb),
     }, 'buildPlaceholders');
@@ -147,6 +149,13 @@ function shell(name) {
   assert.strictEqual(initialKicks, 1, `loadInitialCards ran ${initialKicks} times`);
   assert.strictEqual(api.__kicked(), true);
   console.log('  ok   the initial load is kicked exactly once');
+
+  // A finished grid warms itself instead of mounting itself: the whole
+  // catalogue goes into the DOM, and only after that does the byte-ahead path
+  // start. Zero here means the trickle's old job (make every card live as fast
+  // as the pipeline allows) has crept back into the build.
+  assert.strictEqual(warmStarts, 1, `the warm-ahead pass started ${warmStarts} times after the build`);
+  console.log('  ok   a built catalogue starts the warm-ahead pass once, not a mount storm');
 }
 
 // ---------------------------------------------------------------- suite 3
@@ -217,6 +226,7 @@ function shell(name) {
     + '\n;({ adoptPrerenderedCards, __pending: () => pendingCards, __kicked: () => initialLoadKicked });',
     {
       document: { getElementById: id => (id === 'dashboard' ? dashboard : null) },
+      cardElsByName: new Map(),
       loadRatings: () => { ratingsLoads++; },
       initIntersectionObserver: () => { observerInits++; },
       loadInitialCards: () => { initialKicks++; },
@@ -239,7 +249,8 @@ function shell(name) {
   const empty = run('let pendingCards = [];\nlet initialLoadKicked = false;\n'
     + 'const loadedCards = new Set();\nconst loadingCards = new Set();\n'
     + grab('adoptPrerenderedCards') + '\n;({ adoptPrerenderedCards });',
-  { document: { getElementById: () => ({ querySelectorAll: () => [] }) }, console: { log() {} } },
+  { document: { getElementById: () => ({ querySelectorAll: () => [] }) },
+    cardElsByName: new Map(), console: { log() {} } },
   'adoptPrerenderedCards-empty');
   assert.strictEqual(empty.adoptPrerenderedCards(), 0);
   console.log('  ok   adoption is inert when the generated block is missing');
