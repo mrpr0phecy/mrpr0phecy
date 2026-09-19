@@ -84,12 +84,17 @@ function escapeHtml(str) {
 
 async function loadIndex() {
   try {
-    const res = await fetch('tools-index.json');
+    // Low priority on purpose: this is the browse chrome (featured, trending,
+    // category tiles and the A–Z library), and at ~880 KB it must not outrank
+    // the card fragments the first screen is waiting for.
+    const res = await fetch('tools-index.json', { priority: 'low' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     INDEX = await res.json();
   } catch (err) {
     try {
-      const res = await fetch('/tools-index.json');
+      // Absolute-path retry, for the pages that serve this from a subdirectory.
+      const res = await fetch('/tools-index.json', { priority: 'low' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       INDEX = await res.json();
     } catch (e) {
       console.error('Could not load tools-index.json', e);
@@ -105,6 +110,34 @@ async function loadIndex() {
   renderPage();
   setupSearch();
   handleUrlParams();
+}
+
+// The search boxes this page can ship. `#tool-search` is the homepage hero box
+// (and the one home-app.js now resolves too), `#mainSearchInput` the older id,
+// `#stickySearchInput` the command bar. Every box gets the same behaviour.
+const SEARCH_INPUT_IDS = ['tool-search', 'mainSearchInput', 'stickySearchInput'];
+
+function searchInputs() {
+  return SEARCH_INPUT_IDS.map(id => document.getElementById(id)).filter(Boolean);
+}
+
+// home-app.js is the interactive catalogue: it renders the matching tools as
+// cards that actually run, and it counts matches over title + description +
+// category (plus a fuzzy pass). This module counts over title + description +
+// category + tags. Two lists from two field sets disagree — "7 tools" above
+// "Found 4 tools" below, on the same page, for the same query — so when the
+// grid is live it is the single results surface and this module stands aside.
+// When the grid app is missing (blocked, failed, old cache) the static list
+// below still answers the query exactly as it always did.
+function gridOwnsResults() {
+  // Not merely "the app object exists": home-app.js creates that as it parses,
+  // long before the catalogue lands. The grid owns the results only once it has
+  // tools to filter — if its catalogue fetch failed or is still out, this
+  // module must keep answering or a search would return nothing at all.
+  try {
+    const cards = window.__mpHome && window.__mpHome.state && window.__mpHome.state.allCards;
+    return Array.isArray(cards) && cards.length > 0;
+  } catch { return false; }
 }
 
 function cardHTML(t) {
@@ -156,74 +189,93 @@ function renderCategories() {
 }
 
 function setupSearch() {
-  const input = document.getElementById('tool-search');
+  const inputs = searchInputs();
   const resultsContainer = document.getElementById('search-results');
   const browseSections = document.querySelectorAll('.discovery-browse-section');
-  if (!input) return;
+  if (!inputs.length || !INDEX) return;
 
-  let timer;
-  input.addEventListener('input', e => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      const q = e.target.value.trim().toLowerCase();
-      if (!q) {
-        if (resultsContainer) {
-          resultsContainer.style.display = 'none';
-          resultsContainer.innerHTML = '';
-        }
-        browseSections.forEach(s => s.style.display = '');
-        filtered = [...INDEX.tools];
-        currentLetter = 'ALL';
-        updateAlphaButtons();
-        page = 1;
-        renderPage();
-        return;
-      }
+  const clearResults = () => {
+    if (!resultsContainer) return;
+    resultsContainer.style.display = 'none';
+    resultsContainer.innerHTML = '';
+  };
 
-      filtered = INDEX.tools.filter(t =>
-        t.title.toLowerCase().includes(q) ||
-        t.description.toLowerCase().includes(q) ||
-        (t.categoryName && t.categoryName.toLowerCase().includes(q)) ||
-        (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q)))
-      );
+  const runSearch = (raw) => {
+    const value = String(raw == null ? '' : raw);
+    // One query, every box. Setting .value never fires an input event, so this
+    // cannot loop with the listeners below (or with home-app.js's own sync).
+    inputs.forEach(el => { if (el.value !== value) el.value = value; });
+    const q = value.trim().toLowerCase();
 
-      // ---- Instrumentation: log every search, zero-result is the goldmine ----
-      try { mpLogSearch(q, filtered.length); } catch {}
-
-      if (resultsContainer) {
-        browseSections.forEach(s => s.style.display = 'none');
-        resultsContainer.style.display = 'block';
-        resultsContainer.innerHTML = `
-          <div class="search-summary">
-            <h2>Search Results: <strong>${filtered.length}</strong> ${filtered.length === 1 ? 'tool' : 'tools'} matching "${escapeHtml(q)}"</h2>
-            <button class="clear-search-btn" id="clearSearchBtn">Clear Search ✕</button>
-          </div>
-          <div class="card-grid">
-            ${filtered.length > 0 ? filtered.slice(0, 48).map(cardHTML).join('') : '<p class="no-results">No tools found matching your query. Try searching for "calculator", "finance", "converter", or "timer".</p>'}
-          </div>
-        `;
-        const clearBtn = document.getElementById('clearSearchBtn');
-        if (clearBtn) {
-          clearBtn.addEventListener('click', () => {
-            input.value = '';
-            input.dispatchEvent(new Event('input'));
-            input.focus();
-          });
-        }
-      }
-
+    if (!q) {
+      clearResults();
+      browseSections.forEach(s => s.style.display = '');
+      filtered = [...INDEX.tools];
+      currentLetter = 'ALL';
+      updateAlphaButtons();
       page = 1;
       renderPage();
-    }, 120);
-  });
+      return;
+    }
+
+    filtered = INDEX.tools.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      (t.categoryName && t.categoryName.toLowerCase().includes(q)) ||
+      (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q)))
+    );
+
+    // ---- Instrumentation: log every search, zero-result is the goldmine ----
+    try { mpLogSearch(q, filtered.length); } catch {}
+
+    if (gridOwnsResults()) {
+      // The grid below answers this query with tools that run. Hide the browse
+      // chrome so the answer is what meets the eye, and render no second list.
+      browseSections.forEach(s => s.style.display = 'none');
+      clearResults();
+    } else if (resultsContainer) {
+      browseSections.forEach(s => s.style.display = 'none');
+      resultsContainer.style.display = 'block';
+      resultsContainer.innerHTML = `
+        <div class="search-summary">
+          <h2>Search Results: <strong>${filtered.length}</strong> ${filtered.length === 1 ? 'tool' : 'tools'} matching "${escapeHtml(q)}"</h2>
+          <button class="clear-search-btn" id="clearSearchBtn">Clear Search ✕</button>
+        </div>
+        <div class="card-grid">
+          ${filtered.length > 0 ? filtered.slice(0, 48).map(cardHTML).join('') : '<p class="no-results">No tools found matching your query. Try searching for "calculator", "finance", "converter", or "timer".</p>'}
+        </div>
+      `;
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          const first = searchInputs()[0];
+          if (!first) return;
+          first.value = '';
+          first.dispatchEvent(new Event('input', { bubbles: true }));
+          first.focus();
+        });
+      }
+    }
+
+    page = 1;
+    renderPage();
+  };
+
+  let timer;
+  inputs.forEach(el => el.addEventListener('input', (e) => {
+    clearTimeout(timer);
+    const value = e.target.value;
+    timer = setTimeout(() => runSearch(value), 120);
+  }));
 
   // Popular chips
   document.querySelectorAll('.popular-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const q = chip.dataset.query || chip.textContent.trim();
-      input.value = q;
-      input.dispatchEvent(new Event('input'));
-      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const first = inputs[0];
+      first.value = q;
+      first.dispatchEvent(new Event('input', { bubbles: true }));
+      first.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   });
 }
@@ -330,10 +382,11 @@ function handleUrlParams() {
   const cat = params.get('cat') || params.get('category');
 
   if (q) {
-    const input = document.getElementById('tool-search');
+    const input = searchInputs()[0];
     if (input) {
       input.value = q;
-      input.dispatchEvent(new Event('input'));
+      // Bubbling, so a page that also listens higher up sees the deep link.
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     }
   } else if (cat) {
     const catSlug = cat.toLowerCase();

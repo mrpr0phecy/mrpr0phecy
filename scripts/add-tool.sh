@@ -7,7 +7,9 @@
 #   1. registers the slug in generate-cards-json.js under the given category
 #      (categoryMap — explicit filename map, immune to substring stealing)
 #   2. regenerates cards/cards.json
-#   3. syncs every published count + the sitemap (scripts/sync-counts.py, D-001)
+#   3. syncs every published count, the sitemap and the derived catalogue
+#      artefacts (tools-index.json, category pages, the home page's generated
+#      blocks) — scripts/sync-counts.py, D-001
 #   4. smoke-tests the card in a shared DOM (scripts/test-card.js)
 #   5. runs scripts/verify.sh
 #   6. commits and pushes the current branch (unless --no-push)
@@ -48,8 +50,13 @@ print('indexed:', e['title'], '|', e['category'])
 print('desc   :', e['description'][:120])
 "
 
-# 3. counts + sitemap
+# 3. counts + sitemap + every derived catalogue artefact. build-home-prerender.py
+#    reads tools-index.json for the category hub links, so it must be current.
 python3 scripts/sync-counts.py
+node scripts/build-tools-index.js >/dev/null
+node scripts/build-category-pages.js >/dev/null
+python3 scripts/build-sitemap.py >/dev/null
+python3 scripts/build-home-prerender.py
 
 # 4. smoke test
 node scripts/test-card.js "$FILE"

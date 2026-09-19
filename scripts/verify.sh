@@ -275,6 +275,11 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "index deep-link regression — see scripts/tests/index-deeplink.test.js"
   fi
+  if node scripts/tests/home-search.test.js; then
+    ok "index.html search: both boxes wired to the real grid, no HTML sink, discovery defers to the grid"
+  else
+    fail "home search regression — see scripts/tests/home-search.test.js"
+  fi
   if python3 scripts/build-tool-pages.py --check; then
     ok "tools/ pages: rendered from scripts/tool-pages.json, no drift"
   else

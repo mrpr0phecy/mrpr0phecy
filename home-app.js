@@ -272,10 +272,44 @@
         }
     }
     
+    // ===== THE SEARCH INPUT, RESOLVED =====
+    // The homepage's hero search box has been `#tool-search` ever since the
+    // discovery layout; `#mainSearchInput` is the older id and is what
+    // indexbeta.html still ships. This app used to look for the older id only,
+    // so on the real homepage every `mainSearchInput` lookup returned null and
+    // the hero box was wired to nothing: it never filtered the grid, it never
+    // synced with the sticky bar, `?q=` could not fill it, and the documented
+    // `/` shortcut threw `Cannot read properties of null (reading 'focus')`.
+    // One resolver, both ids, so a page that ships either one works.
+    const MAIN_SEARCH_IDS = ['tool-search', 'mainSearchInput'];
+    function getMainSearchInput() {
+        for (const id of MAIN_SEARCH_IDS) {
+            const el = document.getElementById(id);
+            if (el) return el;
+        }
+        return null;
+    }
+
+    // True when the visitor is inside something that takes text. The keyboard
+    // shortcuts live on `document`, so without this they fire while someone is
+    // typing a regex or a URL into one of the tools on the page.
+    function isTypingTarget(el) {
+        if (!el || !el.tagName) return false;
+        if (el.isContentEditable) return true;
+        const tag = el.tagName;
+        if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+        if (tag === 'INPUT') {
+            const type = String(el.type || 'text').toLowerCase();
+            return !['button', 'submit', 'reset', 'checkbox', 'radio',
+                     'range', 'color', 'file', 'image'].includes(type);
+        }
+        return false;
+    }
+
     // ===== STICKY COMMAND BAR =====
     function setupStickyCommandBar() {
         const stickyBar = document.getElementById('stickyCommandBar');
-        const mainSearchInput = document.getElementById('mainSearchInput');
+        const mainSearchInput = getMainSearchInput();
         const stickySearchInput = document.getElementById('stickySearchInput');
         
         // Sync search inputs. NOTE: no performSearch() here — the debounced
@@ -1823,7 +1857,7 @@
         enrichmentScheduled = true;
         let fired = false;
         const go = () => { if (fired) return; fired = true; enrichCatalogueDescriptions(); };
-        ['mainSearchInput', 'stickySearchInput'].forEach(id => {
+        MAIN_SEARCH_IDS.concat(['stickySearchInput']).forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('focus', go, { once: true, passive: true });
         });
@@ -2875,7 +2909,7 @@
     // ===== EVENT HANDLERS =====
     function setupEventListeners() {
         // Search functionality
-        const mainSearchInput = document.getElementById('mainSearchInput');
+        const mainSearchInput = getMainSearchInput();
         const mainSearchBtn = document.getElementById('mainSearchBtn');
         const stickySearchInput = document.getElementById('stickySearchInput');
         
@@ -3034,10 +3068,18 @@
                 e.preventDefault();
                 document.getElementById('stickyContributionsToggle').click();
             }
-            // / to focus search
-            else if (e.key === '/' && document.activeElement !== mainSearchInput && document.activeElement !== stickySearchInput) {
-                e.preventDefault();
-                mainSearchInput.focus();
+            // / to focus search. Two guards, both learned the hard way:
+            //  - never while the visitor is typing inside a tool. 1,194 of
+            //    them take text (regexes, URLs, JSON, dates) and the old code
+            //    swallowed the keystroke and yanked focus out of the field.
+            //  - never when no search box exists. This handler used to call
+            //    .focus() on a null lookup and throw on every press.
+            else if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !isTypingTarget(document.activeElement)) {
+                const searchTarget = mainSearchInput || stickySearchInput;
+                if (searchTarget) {
+                    e.preventDefault();
+                    searchTarget.focus();
+                }
             }
             // Enter/Space on a focused card face runs that tool now
             else if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('card-face')) {
@@ -3187,7 +3229,7 @@
             if (link.park === 'off') parkMode = false;
             else if (link.park === 'full') collapsePark = false;
             if (!link.q && !link.expand && !link.cat && !link.view && !link.park) return;
-            const main = document.getElementById('mainSearchInput');
+            const main = getMainSearchInput();
             const sticky = document.getElementById('stickySearchInput');
             // ?cat= is the one page of this size that deserves a URL: 1,194
             // tools in one grid is a browse, and a category is the address for
@@ -3565,13 +3607,32 @@
             clearBtn.style.display = query.length > 0 ? 'inline-block' : 'none';
         }
 
+        // Both messages are built with DOM APIs, not innerHTML. `query` is
+        // whatever the visitor typed *or whatever a URL handed us* (`?q=`), and
+        // `suggestion` is a cards.json string — CONSTRAINTS.md's hard line 4
+        // keeps both out of innerHTML. `?q=<img src=x onerror=…>` used to land
+        // in the page as a real element; see scripts/tests/home-search.test.js.
         if (resultsCountEl) {
+            resultsCountEl.textContent = '';
             if (!isSearching) {
-                resultsCountEl.innerHTML = `Showing all <strong>${allCards.length}</strong> tools`;
+                resultsCountEl.append('Showing all ');
+                const total = document.createElement('strong');
+                total.textContent = String(allCards.length);
+                resultsCountEl.append(total, ' tools');
             } else {
-                let filterDesc = currentSelectedCategory !== 'all' ? ` in <strong>${currentSelectedCategory}</strong>` : '';
-                let searchDesc = query.length > 0 ? ` matching "<em>${query}</em>"` : '';
-                resultsCountEl.innerHTML = `Found <strong>${visibleCount}</strong> tool${visibleCount === 1 ? '' : 's'}${filterDesc}${searchDesc}`;
+                const found = document.createElement('strong');
+                found.textContent = String(visibleCount);
+                resultsCountEl.append('Found ', found, ` tool${visibleCount === 1 ? '' : 's'}`);
+                if (currentSelectedCategory !== 'all') {
+                    const cat = document.createElement('strong');
+                    cat.textContent = currentSelectedCategory;
+                    resultsCountEl.append(' in ', cat);
+                }
+                if (query.length > 0) {
+                    const em = document.createElement('em');
+                    em.textContent = query;
+                    resultsCountEl.append(' matching "', em, '"');
+                }
             }
         }
 
@@ -3581,16 +3642,23 @@
                 if (noResultsMsg) {
                     const suggestion = query.length >= 3 ? findDidYouMean(query) : '';
                     if (suggestion) {
-                        noResultsMsg.innerHTML = `No tools found in "${currentSelectedCategory}" matching "${query}". Did you mean <a href="#" id="didYouMeanLink" style="color:var(--accent);text-decoration:underline;">${suggestion}</a>?`;
-                        const link = document.getElementById('didYouMeanLink');
-                        if (link) link.addEventListener('click', (e) => {
+                        noResultsMsg.textContent = '';
+                        noResultsMsg.append(`No tools found in "${currentSelectedCategory}" matching "${query}". Did you mean `);
+                        const link = document.createElement('a');
+                        link.id = 'didYouMeanLink';
+                        link.href = '#';
+                        link.style.color = 'var(--accent)';
+                        link.style.textDecoration = 'underline';
+                        link.textContent = suggestion;
+                        link.addEventListener('click', (e) => {
                             e.preventDefault();
-                            const main = document.getElementById('mainSearchInput');
+                            const main = getMainSearchInput();
                             const sticky = document.getElementById('stickySearchInput');
                             if (main) main.value = suggestion;
                             if (sticky) sticky.value = suggestion;
                             performSearch(suggestion);
                         });
+                        noResultsMsg.append(link, '?');
                     } else {
                         noResultsMsg.textContent = `No tools found in "${currentSelectedCategory}" matching "${query}". Try a broader term or browse categories above.`;
                     }
