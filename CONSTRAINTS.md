@@ -9,6 +9,39 @@ If you want to know *what happened*, use git and GitHub — `git log`,
 
 ---
 
+## Hard safety lines
+
+The only hard rules in this repository. Everything else is a judgement call —
+which is why AGENTS.md §0.5 tells agents to be bold. These are not judgement
+calls, and no session may relax them for scope, speed or ambition:
+
+1. **Analytics stays exactly where it is.** `G-G058FVW6Z2` loads on the pages
+   that already carry it and nowhere else — never added, never removed,
+   never "temporarily" moved. Because it exists, never write "no tracking",
+   "100% private", "no cookies" or "no analytics" on a page carrying GA.
+2. **No ToS-violating growth.** No view-bots, hidden players, autoplay
+   tricks, engagement pods, fake urgency.
+3. **Never delete a tool or a protected file** without the owner saying so
+   first — the ARCHITECTURE.md §9 list, `CNAME`, `sw.js`, `guide.txt`, the
+   CV files, `opensourcenews.html`, `token.html`. Adding is free; retiring is
+   not.
+4. **Never interpolate untrusted input into `innerHTML`** — URL params,
+   `error.message` and `cards.json` strings go in via `textContent` or DOM
+   APIs.
+5. **No secrets in commits**, ever — no tokens, no agent-auth output, no keys.
+6. **Products A and B stay separate** — no music players, artist banners or
+   cross-promo on the tool catalogue or any card; no tool links on the music
+   pages.
+7. **Generated artefacts are only written by their generators** — tool counts,
+   `sitemap.xml`, `index.html`'s HOME-FAST-PATH/HOME-PRERENDER blocks and
+   `cards.json` categories are never hand-edited.
+
+Anything that looks like it needs an exception to one of these is an owner
+question: ask in the session, and record the answer here or in
+[`staff/DECISIONS.md`](staff/DECISIONS.md).
+
+---
+
 ## Owner decisions
 
 These came from the owner. Don't reverse them without a fresh instruction

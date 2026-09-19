@@ -10,6 +10,8 @@ portal. This system helps their maintainers do better work.
 1. **Understand:** read `NORTH-STAR.md` (the ethos), `ARCHITECTURE.md`,
    `CONSTRAINTS.md`, `DECISIONS.md` and the newest entries on `BOARD.md`.
    `RESEARCH.md` explains the staff rebuild and the evidence behind the plan.
+   `CONSTRAINTS.md` holds the hard safety lines; `AGENTS.md` §0.5 is the
+   creativity charter — be bold, and write the reasoning into the PR.
 2. **Measure:** run `node scripts/ai-developer.js plan`. Read the report's
    evidence and limitations, not just its colour. No provider key is needed.
    When static gates pass but the north stars remain unmeasured, the report
