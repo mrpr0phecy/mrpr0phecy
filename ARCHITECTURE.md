@@ -115,8 +115,11 @@ establish *which* site first.
 ├── robots.txt              Allows all, points at the sitemap
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
-├── icon-192.png, icon-512.png, icon-maskable-512.png
-├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
+├── icon-192.png, icon-512.png, icon-maskable-512.png   (palette-optimised)
+├── logo.png (unreferenced by any page — kept, see §9)
+├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
+├── backgroundpic.jpg + backgroundpic.webp (the one the pages use)
+├── og-ai.jpg, og-tools.png, og-mp.png, luton-og.png, sonic-og.png (social cards)
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
 ├── README.md               Short public-facing readme
 ├── guide.txt               69 KB of older notes; historical, not authoritative
@@ -1202,6 +1205,40 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 ---
 
 ## 9. Current state and known work
+
+**Changed 2026-09-19 — image weight: 2.30 MB → 0.58 MB across every heavy
+asset, with no page repainting a single pixel of layout.** The audit that
+prompted this assumed the site shipped a ~1 MB hero and needed a CDN. Both
+halves were wrong, and measuring first is what made the change safe: GitHub
+Pages already serves from a CDN, and **no product page renders a heavy root
+image at all** except `mrprophecypic.jpg` (10 pages) and
+`backgroundpic.jpg` (12 language pages) — `logo.png` is referenced by nothing.
+Every asset changed here was checked for alpha (`%[opaque]` = true), which is
+what makes a palette PNG or a JPEG valid rather than lossy guesswork.
+
+| Asset | Before | After | Where it is used |
+|---|---:|---:|---|
+| `og-ai.png` → **`og-ai.jpg`** | 447 KB | **78 KB** (−82%) | `og:image` + `twitter:image` on 4 pages (opaque 1200×630 — was never a PNG use case) |
+| `icon-512.png` | 219 KB | **87 KB** (−60%) | `manifest.tools.json` |
+| `icon-maskable-512.png` | 123 KB | **57 KB** (−53%) | `manifest.tools.json` |
+| `logo.png` | 1055 KB | **218 KB** (−79%) | nothing — kept rather than deleted (owner-gated asset) |
+| `backgroundpic.jpg` → **+`backgroundpic.webp`** | 263 KB | **165 KB** (−37%) | CSS texture on 12 language pages |
+| `mrprophecypic.jpg` → **+`mrprophecypic-600.jpg`** | 206 KB | **89 KB** (−56%) | rendered at 250–300 px on 10 pages; the 1024 file stays for `og:image` (27 pages) |
+
+Deliberate: `og-ai.png` was **deleted** (superseded in the same commit — the
+only case where a file's every reference moved to its replacement). The icons
+keep their PNG type and exact dimensions because a manifest promises that
+type, and PWA installs have been burned by format swaps before. The
+`mrprophecypic` split matters: `og:image` at 600 px would be re-upscaled by
+every platform, so the rendering size and the sharing size are now different
+files on purpose. Signal-to-noise of every conversion was measured
+(`compare -metric PSNR`): 35–43 dB, i.e. visually indistinguishable at the
+sizes actually rendered.
+
+**Honest limit:** these are shipped bytes, not a measured LCP improvement.
+Nothing here was rendered in a real browser or measured in the field — P0-M2
+(CrUX PageSpeed baselines, `staff/OPEN.md`) remains the instrument for that
+claim, and no field number is asserted here.
 
 **Added 2026-09-02** — a **Sports** category with 53 tools across four batches of
 ten. New tools cover cricket (chase + net run rate), football points-needed,
