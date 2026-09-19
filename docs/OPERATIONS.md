@@ -39,7 +39,7 @@ not permission to change the other.
 
 | Instrument | Watches | Cadence | Where the result lives |
 |---|---|---|---|
-| `scripts/verify.sh` | The repository: catalogue, links, egress, accessibility, counts, derived artefacts | Every push/PR (`.github/workflows/agent-guardrails.yml`) | CI run + local terminal |
+| `scripts/verify.sh` | The repository: catalogue, links, egress, accessibility, counts, derived artefacts | Manual only (owner decision 2026-09-19): local terminal, or Actions → *Agent guardrails* → `full: true`. Push/PR runs of that workflow are a seconds-fast pass (`.github/workflows/agent-guardrails.yml`) | CI run + local terminal |
 | **Production monitor** (`scripts/check-production.js`) | **The deployed site**: availability, byte-identity with this repo, catalogue/sitemap integrity, https upgrade, custom 404 | Every six hours **and on every push to `main`** — the push run waits 45 s for Pages and then probes (`.github/workflows/production-monitor.yml`) | `Production monitor:` alert issue + run artifact + step summary |
 | Pages build status | Whether the deploy itself succeeded | Per push | Actions → *pages build and deployment* |
 | Pages deployment history | Which commit is live right now | Per push | Actions → *pages build and deployment* → the environment URL shown on the run |

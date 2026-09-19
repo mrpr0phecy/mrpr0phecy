@@ -4,7 +4,7 @@ Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
 [README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
 Staff coordination and measured work priorities: [STAFF.md](STAFF.md).
 Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-09-12. **ARCHITECTURE.md is authoritative if anything here
+Last updated: 2026-09-19. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
 
 ---
@@ -41,7 +41,8 @@ git config user.email 5564816+mrpr0phecy@users.noreply.github.com
 
 # 3. Read the rules that matter before editing anything:
 #    ARCHITECTURE.md §3 (cards), §6 (SEO), §7 (traps), §9 (do-not-touch).
-bash scripts/verify.sh               # pre-push guardrails (works sparse)
+#    CI is a fast pass now (owner decision 2026-09-19) — the full verify.sh
+#    suite is manual only; see §6. Do not wait on automatic checks.
 ```
 
 ## 2. Workspace budget — hard limit
@@ -122,23 +123,40 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 
 ## 6. Verify and deploy
 
+**Owner decision, 2026-09-19: CI is a fast pass.** The automatic per-push and
+per-PR `verify.sh` runs (21 sections, ~3 minutes each, re-run on every push)
+were measurably slowing agent sessions, so the "Repo checks" job now completes
+in seconds and never blocks. Do not wait on it — and do not "fix" it back
+(see CONSTRAINTS.md); the slowdown was the bug, not the setup.
+
+Verification still exists; it just no longer sits in your iteration loop:
+
+- **Locally, when a change is risky:** `bash scripts/verify.sh` (full gate),
+  or only the relevant `--check` when you touched a generated artefact —
+  `python3 scripts/sync-counts.py --check`, `node generate-cards-json.js
+  --check`, `python3 scripts/build-sitemap.py --check`.
+- **In CI, on demand:** Actions → *Agent guardrails* → *Run workflow* with
+  `full: true` (or `gh workflow run "Agent guardrails" -f full=true`).
+- **Automatically, off your critical path:** the scheduled staff facility
+  (`.github/workflows/ai-developer.yml`, Mon & Thu) runs all staff checks and
+  opens a draft PR when counts drift, and the production monitor
+  (`.github/workflows/production-monitor.yml`) probes the live site after
+  every merge and every six hours, opening one `ops:production-alert` issue
+  on failure. Recovery is a revert or a deployment re-run — never an edit to
+  live state.
+
+Suspect a deploy problem specifically? The manual probe is still valid:
+
 ```bash
-bash scripts/verify.sh             # cards index, placeholders, noopener, sitemap, SEO
-sleep 50                           # Pages is NOT instant
 node scripts/check-production.js   # the LIVE site vs this repository
 curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/listen.html
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
 
-Expect `200`, a count matching `cards/`, and `check-production.js` exiting `0`.
-A green push is not proof of a live deploy. That monitor also runs by itself
-after every Pages deployment and every six hours
-(`.github/workflows/production-monitor.yml`); when it fails it opens one
-`ops:production-alert` issue, and recovery is a revert or a deployment re-run —
-never an edit to live state. Read **[docs/OPERATIONS.md](docs/OPERATIONS.md)**
-before touching a production problem; it is short, and it is the difference
-between a five-minute recovery and an hour of guessing.
+Read **[docs/OPERATIONS.md](docs/OPERATIONS.md)** before touching a production
+problem; it is short, and it is the difference between a five-minute recovery
+and an hour of guessing.
 
 ## 7. Finishing a session — land it on main
 
@@ -152,7 +170,7 @@ So finishing the job includes merging it:
 
 ```bash
 gh pr create --fill --base main          # once the work is ready
-gh pr checks <n> --watch                 # wait for green
+gh pr checks <n> --watch                 # fast pass — green in seconds (§6)
 gh pr merge <n> --merge                  # land it — do not stop at "PR opened"
 git ls-remote origin refs/heads/main     # confirm main actually moved
 ```
