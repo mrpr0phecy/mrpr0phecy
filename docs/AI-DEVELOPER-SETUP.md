@@ -111,9 +111,11 @@ GitHub Actions to create pull requests. If this is disabled, the proposal job
 reports the error; audits/artifacts remain useful. Do not solve it by embedding
 a personal token in a file or requesting credentials in chat.
 
-The ordinary **Agent guardrails** workflow runs `verify.sh`, including the
-staff's isolated Node/Python regression tests. Dependabot can update the pinned
-GitHub Action release SHAs.
+The ordinary **Agent guardrails** workflow is a fast pass on push/PR (owner
+decision 2026-09-19 — the automatic runs were slowing agent sessions). It still
+runs the full `verify.sh`, including the staff's isolated Node/Python
+regression tests, when dispatched manually with `full: true`. Dependabot can
+update the pinned GitHub Action release SHAs.
 
 ## 4. Optional, explicitly requested draft generation
 

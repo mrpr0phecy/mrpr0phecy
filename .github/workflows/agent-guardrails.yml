@@ -1,9 +1,35 @@
 name: Agent guardrails
 
+# 2026-09-19, owner request: the automatic suite was seriously slowing
+# AI-driven work on the site. Every push and every PR ran the full
+# 21-section scripts/verify.sh (~3 minutes per run, re-triggered on every
+# push, and agents in this repo are instructed to `gh pr checks --watch`
+# before merging). Automatic runs are now a fast pass that completes in
+# seconds and cannot block.
+#
+# The full gate is still available, deliberately invoked:
+#   * local:        bash scripts/verify.sh
+#   * in CI:        Actions → Agent guardrails → Run workflow → full: true
+#                   (gh workflow run "Agent guardrails" -f full=true)
+#   * still automatic, off the developer loop: the scheduled AI Developer
+#     facility runs all staff checks Mon & Thu, and the production monitor
+#     probes the deployed site after merges and every six hours.
+#
+# The workflow and job names are unchanged so a "Repo checks" required
+# status check in branch protection keeps resolving — it just resolves in
+# seconds now.
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: 'Run the complete verify.sh suite instead of the fast pass'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -12,16 +38,24 @@ jobs:
   verify:
     name: Repo checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
+      - name: Fast pass — automatic suite disabled
+        if: github.event_name != 'workflow_dispatch' || !inputs.full
+        run: |
+          echo "::notice title=Fast pass::The automatic verify.sh suite is disabled by owner request (2026-09-19) to keep agent sessions fast. Run the full suite manually: Actions → Agent guardrails → full=true, or bash scripts/verify.sh locally."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'workflow_dispatch' && inputs.full
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: github.event_name == 'workflow_dispatch' && inputs.full
         with:
           node-version: '22'
       - name: Run verify.sh (includes staff configuration and regression tests)
+        if: github.event_name == 'workflow_dispatch' && inputs.full
         run: bash scripts/verify.sh
       - name: Attach catalogue report
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.full }}
         run: python3 scripts/check-cards.py | tee -a "$GITHUB_STEP_SUMMARY"

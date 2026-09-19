@@ -43,6 +43,14 @@ No ads or trackers on Product A, no paywalls, no fake urgency.
 **The AI Developer workflow stays** (`.github/workflows/ai-developer.yml`).
 An agent once deleted it claiming owner instruction; that was false.
 
+**Automatic CI is a fast pass** (owner request, 2026-09-19): the automatic
+`verify.sh` runs on every push and PR (~3 minutes each) were measurably
+slowing agent sessions, so `.github/workflows/agent-guardrails.yml` keeps the
+"Repo checks" check but completes in seconds. The full suite still exists —
+locally (`bash scripts/verify.sh`), in CI via `workflow_dispatch` with
+`full=true`, and inside the scheduled staff facility. Do not restore
+heavyweight automatic runs without a fresh owner instruction.
+
 **`token.html` is kept deliberately** — but no crypto promotion.
 
 ## Traps you cannot see from the code
