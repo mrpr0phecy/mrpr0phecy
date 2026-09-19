@@ -24,7 +24,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 1194 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 1195 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -55,8 +55,8 @@ establish *which* site first.
 ├── home-app.js             Homepage application (external, `defer`-loaded)
 ├── cards/
 │   ├── cards-lite.json     Generated critical-path tier: name/title/category
-│   ├── cards.json          Generated full index of all 1194 tools (descriptions feed search)
-│   └── <tool-name>.html    1194 tool fragments (NOT full documents)
+│   ├── cards.json          Generated full index of all 1195 tools (descriptions feed search)
+│   └── <tool-name>.html    1195 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json + cards-lite.json from the cards/ directory
 ├── ai.html                 Lantern — standalone AI product. Chat answered on
 │                           the device from the visitor's own documents and
@@ -525,7 +525,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1194 cards.** They share one
+2. **Element IDs must be globally unique across all 1195 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -587,7 +587,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1194 tools)
+### Categories (1195 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
@@ -608,7 +608,7 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 | 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
 | 29 | MrProphecy Arcade | | | |
 
-Total: 1194 tools in 27 categories.
+Total: 1195 tools in 27 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -943,7 +943,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 1197 indexable pages (including 1194 cards). Build it
+`sitemap.xml` lists all 1197 indexable pages (including 1195 cards). Build it
 from git rather than the working tree, so a sparse checkout does not silently
 drop the card pages:
 
@@ -1059,7 +1059,7 @@ each other — `scripts/tests/home-search.test.js` pins all three:
 - **One owner for the results.** The two systems count matches over different
   fields (the grid: title + description + category + a fuzzy pass; discovery:
   title + description + category + tags), so two lists for one query disagree
-  — the shipped page said "Search Results: 7 tools" above "Showing all 1194
+  — the shipped page said "Search Results: 7 tools" above "Showing all 1195
   tools". `gridOwnsResults()` makes discovery hide the browse chrome and render
   nothing while the grid has a catalogue to filter
   (`window.__mpHome.state.allCards.length > 0`), and keep answering in full
@@ -1141,7 +1141,7 @@ and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip
 no pair, on purpose: it re-tiles a card whose error block is still the content, so
 there is no material delta, and the mount that follows is paired already.
 
-**ID collisions across cards.** All 1194 share one DOM. See §3. A parked subtree
+**ID collisions across cards.** All 1195 share one DOM. See §3. A parked subtree
 keeps its real ids — it is still in the document, which is exactly why
 `document.getElementById` inside a sleeping tool keeps working; moving content
 out of the grid is not moving it out of the page.
@@ -1181,7 +1181,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1194 cards):
+# Music work (skip images and the 1195 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
