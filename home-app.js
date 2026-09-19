@@ -842,10 +842,10 @@
         return woke;
     }
 
-    function parkOutsideWindow() {
+    function parkOutsideWindow(force) {
         if (!parkMode || explicitRunAll) return;
         const scrollY = (typeof window !== 'undefined' && window.scrollY) || 0;
-        if (Math.abs(scrollY - lastParkScrollY) < parkStep) return;
+        if (!force && Math.abs(scrollY - lastParkScrollY) < parkStep) return;
         lastParkScrollY = scrollY;
         const vh = (typeof window !== 'undefined' && window.innerHeight) || 900;
         const margin = parkMargin(vh);
@@ -2608,9 +2608,13 @@
                         resumeParked(card, cardName);
                         return;
                     }
-                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)
-                        && mountBudgetFree()) {
-                        loadCard(card, cardName);
+                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                        if (!mountBudgetFree()) parkOutsideWindow(true);
+                        if (mountBudgetFree()) {
+                            loadCard(card, cardName);
+                        } else {
+                            scheduleViewportSweep();
+                        }
                     }
                 }
             });
@@ -2657,6 +2661,11 @@
         // detached card) must not leave the flag set — that used to disable
         // this fallback loader for the rest of the page's life.
         try {
+            // Live tools the grid no longer needs to paint go to the park. Inline
+            // rather than debounced because it is bounded by the window (one rect
+            // per live tool), not by the catalogue — and parking first is what
+            // keeps `mountBudgetFree()` open on a long scroll.
+            parkOutsideWindow(true);
 
             // Measuring is only worth doing when a load slot is actually free.
             // getBoundingClientRect() forces layout, and with the one-column grid
@@ -2731,11 +2740,6 @@
 
             pendingCards = stillPending;
             retryErroredCards();
-            // Live tools the grid no longer needs to paint go to the park. Inline
-            // rather than debounced because it is bounded by the window (one rect
-            // per live tool), not by the catalogue — and parking first is what
-            // keeps `mountBudgetFree()` open on a long scroll.
-            parkOutsideWindow();
             // The sweep knows where the visitor is; tell the warm path, whose
             // cursor follows the same front. Cheap (it is coalesced) and it is
             // what keeps warming alive when a mount fails or a filter changes.
@@ -3506,7 +3510,7 @@
     // truth; category counts are computed once in updateCategoryCounts().
     function updateSiteStats() {
         const total = allCards.length;
-        const loaded = loadedCards.size;
+        const loaded = loadedCards.size + parkedCards.size;
         const heroCount = document.getElementById('heroToolCount');
         // total is 0 until the catalogue lands. Leave the markup alone instead
         // of overwriting it: the old fallback wrote a stale hardcoded '350+'
