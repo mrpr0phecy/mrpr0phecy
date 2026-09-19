@@ -130,6 +130,12 @@ try {
     return { before, after, step, name: card.dataset.name };
   });
   const { before, after, step } = probe;
+  // The rule that keeps the page and Blink from both compensating for the same
+  // collapse. If this fails, the drift below is meaningless: read the two numbers
+  // as one result.
+  const anchoring = await page.evaluate(() => getComputedStyle(document.documentElement).overflowAnchor);
+  check('scroll anchoring is off while the page compensates for itself', anchoring === 'none',
+    `root scroller says "${anchoring}"`);
   const removed = before.height - after.height;              // document the collapse took away
   const shift = (before.scrollY + step) - after.scrollY;     // what the page gave back
   check('rows above the viewport were parked, and the document shrank',

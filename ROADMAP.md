@@ -98,7 +98,13 @@ item. This historical list does not override current staff decisions.
     dimensions and `toDataURL()` length before and after, dropped frames during a
     scripted scroll at 4× CPU throttle, and the same numbers with `?park=full`.
     It is deliberately not in `verify.sh` (no CI here has a browser, and the
-    zero-dependency suite must stay zero-dependency). **Blocked in the Arena sandbox, and
+    zero-dependency suite must stay zero-dependency). Since stage 4 it also asserts
+    `overflow-anchor: none` on the root scroller: the page compensates for its own
+    parks *and* mounts, and if that rule ever goes missing the drift number in the
+    same output roughly doubles — read them together, not as two separate results.
+    What is still genuinely for eyes: whether losing the UA's help is felt when a
+    tool's own content grows late (images, fonts) — `overflow-anchor: none` is a
+    deliberate trade, not an oversight. **Blocked in the Arena sandbox, and
     the reason is recorded so nobody re-derives it:** egress there is npm-only, so
     Chromium's download CDN, jsDelivr, the Debian mirrors and
     `objects.githubusercontent.com` (release assets) are all unreachable;

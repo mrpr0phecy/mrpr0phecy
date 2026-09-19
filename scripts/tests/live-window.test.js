@@ -476,13 +476,13 @@ function parkHarness(opts) {
     // no-op, and "no correction happened" and "the code decided not to" become
     // the same test result — which is how this file once passed while proving
     // nothing.
-    grab('collapsing'),
+    grab('collapsing'), grab('canHoldScroll'),
     grab('parkMargin'), grab('aboveTheFold'), grab('noteRowHeight'), grab('beginHold'),
     grab('endHold'), grab('commitScrollHold'), grab('wakeInsideWindow'), grab('growWindowBack'),
     grab('parkCard'), grab('resumeParked'), grab('prunePark'), grab('parkOutsideWindow'),
     grab('adjustCardHeight'),
     ';({ parkCard, resumeParked, parkOutsideWindow, prunePark, parkHost, memoryPressure, adjustCardHeight,',
-    '  parkMargin, beginHold, endHold, commitScrollHold, growWindowBack,',
+    '  parkMargin, beginHold, endHold, commitScrollHold, growWindowBack, aboveTheFold, noteRowHeight,',
     '  state: { loadedCards, parkedCards, cardElsByName, pendingCards, host, seen },',
     '  get mountWindow() { return mountWindow; }, set parkMode(v) { parkMode = v; },',
     '  set collapse(v) { collapsePark = v; }, get collapse() { return collapsePark; },',
@@ -1106,9 +1106,72 @@ function parkHarness(opts) {
     'the guard needs all three: a cancelled touch that never fires touchend would strand the flag');
   assert.strictEqual((guard.match(/passive: true/g) || []).length, 3,
     'every one of them passive — a blocking touchstart listener on a 1,194-card page is its own scroll jank');
-  assert.ok(/return collapsePark && !touchActive;/.test(app),
-    'one gate, read by the collapse and by the correction, so they can never disagree');
+  assert.ok(/return collapsePark && canHoldScroll\(\);/.test(app),
+    'the collapse asks the scroll-owner question too, so a correction can never be skipped while a collapse happens');
+  assert.ok(/function canHoldScroll\(\) \{\s*return !touchActive;/.test(app),
+    'and that question is asked in exactly one place');
   console.log('  ok   no reflow under a live finger: the collapse waits for the fling to end');
+}
+
+// ---------------------------------------------------------------- suite 18
+// A row that grows above the fold is the same hazard as one that shrinks, and
+// the page must be the only thing paying for either. `overflow-anchor` off plus
+// a correction at each of the mount's two growth points: that is the whole
+// contract, and both halves are checkable from here even though the interaction
+// between them is a browser's.
+{
+  const { api, win, scrolls } = parkHarness({ innerHeight: 900, collapse: false });
+  win.scrollY = 4000;
+  const t = api.add('mounting', -600, 412, 172);
+  t.card.classList.remove('loaded');
+  t.card.classList.add('card-pending');          // the tile a mount starts from
+  const snap = api.aboveTheFold(t.card);
+  assert.strictEqual(snap, 172, 'the snapshot is the height the reader has been shown');
+  t.card.classList.remove('card-pending');
+  t.card.classList.add('loaded');                // the mount's class flip: 172 -> 412
+  api.noteRowHeight(t.card, snap);
+  assert.deepStrictEqual(scrolls, [4000 + 240],
+    'a row that grew above the fold pushes the reader down, so the offset is moved down to meet it');
+  assert.strictEqual(win.scrollY, 4240, 'and the pixels the reader was looking at are unchanged');
+
+  const idle = parkHarness({ innerHeight: 900, collapse: false, touch: true });
+  idle.win.scrollY = 4000;
+  const during = idle.api.add('flinging', -600, 412, 172);
+  during.card.classList.remove('loaded');
+  during.card.classList.add('card-pending');
+  const held = idle.api.aboveTheFold(during.card);
+  assert.strictEqual(held, null, 'under a live finger the page takes no measurement to correct with');
+  during.card.classList.remove('card-pending');
+  during.card.classList.add('loaded');
+  idle.api.noteRowHeight(during.card, held);
+  assert.deepStrictEqual(idle.scrolls, [], 'so a mount mid-fling does not move the page');
+
+  // The mount path itself, in the shipped file: both growth points, and only them.
+  const render = grab('renderCardContent');
+  assert.strictEqual((render.match(/aboveTheFold\(card\)/g) || []).length, 2,
+    'the mount has two moments that change a row above the fold — the class flip, and the height measurement 100ms later — and each needs its own snapshot');
+  assert.strictEqual((render.match(/noteRowHeight\(card, (growBefore|expandBefore)\)/g) || []).length, 2,
+    'and each is paired with the mutation it compensates for, not with a single correction at the end');
+  // Every resize listener, because the file has more than one and the one that
+  // walks 1,194 cards is not the first of them.
+  const resizeSites = [...app.matchAll(/addEventListener\('resize'/g)].map(m => app.slice(m.index, m.index + 1200));
+  assert(resizeSites.length >= 1, 'could not read the resize handlers from home-app.js');
+  assert(resizeSites.some(b => b.includes('adjustCardHeight(card)')),
+    'one of them must be the handler that re-measures every card (that is the block this pin is about)');
+  for (const block of resizeSites) {
+    assert(!block.includes('noteRowHeight'),
+      'a resize handler must not compensate: every row changes at once, so no single delta belongs to the page');
+  }
+  assert(!grab('initReaderMode').includes('noteRowHeight'),
+    'nor the reader-mode toggle, for the same reason');
+
+  // One compensator: Blink would otherwise do the arithmetic too.
+  assert(/html\s*{\s*overflow-anchor:\s*none;?\s*}/.test(css),
+    'the root scroller must opt the document out of scroll anchoring while the page is correcting for itself');
+  const anchorBlock = css.slice(Math.max(0, css.indexOf('overflow-anchor') - 900), css.indexOf('overflow-anchor'));
+  assert(/ONE COMPENSATOR/i.test(anchorBlock),
+    'and the reason has to be in the stylesheet next to the rule — `overflow-anchor: none` looks like a stray line and invites removal');
+  console.log('  ok   mounts above the fold pay the same correction, and the UA is out of the business');
 }
 
 console.log('\nlive-window tests passed');

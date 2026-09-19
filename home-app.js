@@ -2,7 +2,7 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 11;
+    const APP_VERSION = 12;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -617,18 +617,27 @@
     let scrollHold = 0;
     let holdBatch = 0;
 
-    // A finger that is still flinging the page owns the scroll position: a
-    // programmatic scroll mid-momentum is at best ignored and at worst stops the
-    // fling dead, and a correction that cannot be applied is worse than none. So
-    // while a touch is down the park does not collapse at all — the next pass, a
-    // frame after the finger lifts, will. That is `?park=full` for one pass, not a
-    // new card state, and it is the only reason `touchActive` exists.
+    // Whether the page may move the scroll position at all. A finger that is
+    // still flinging the page owns it: a programmatic scroll mid-momentum is at
+    // best ignored and at worst stops the fling dead, and a correction that cannot
+    // be applied is worse than none. So while a touch is down nothing is
+    // compensated — and since a park only collapses in order to be compensated,
+    // the park defers the collapse too (the next pass, a frame after the finger
+    // lifts, will). `touchActive` is about who owns scrollY; `collapsePark` is
+    // about whether a row is allowed to change height. They are two questions and
+    // they must not be answered by one flag: a tool *mounting* above the fold
+    // grows its row whether or not parking collapses anything, and that needs the
+    // same correction (see renderCardContent) with only the first question asked.
+    function canHoldScroll() {
+        return !touchActive;
+    }
+
     function collapsing() {
-        return collapsePark && !touchActive;
+        return collapsePark && canHoldScroll();
     }
 
     function aboveTheFold(card) {
-        if (!collapsing() || typeof card.getBoundingClientRect !== 'function') return null;
+        if (!canHoldScroll() || typeof card.getBoundingClientRect !== 'function') return null;
         const rect = card.getBoundingClientRect();
         return rect.bottom <= 0 ? rect.height : null;
     }
@@ -2277,8 +2286,14 @@
             // Update rating display
             updateCardRatingDisplay(card, cardName);
             
+            // The row stops being a tile here, and if that row is entirely above
+            // the fold it takes the reader's position with it — the same
+            // arithmetic the park pays in reverse, and the reason the page owns
+            // scroll corrections at all (see HOLDING THE READING POSITION).
+            const growBefore = aboveTheFold(card);
             card.classList.remove('card-pending');
             card.classList.add('loaded', 'visible');
+            noteRowHeight(card, growBefore);
             updateSiteStats();
             
             // Auto-adjust card height. Content can expand substantially after
@@ -2286,7 +2301,14 @@
             // immediately re-check the viewport after the measurement rather
             // than waiting for a user scroll.
             setTimeout(() => {
+                // A tool's script can double the row's height once it paints, and
+                // that second growth needs the same correction. Measuring here
+                // rather than reusing `growBefore` is deliberate: this is the
+                // delta the reader has not been compensated for yet, and the two
+                // are 100ms and one paint apart.
+                const expandBefore = aboveTheFold(card);
                 adjustCardHeight(card);
+                noteRowHeight(card, expandBefore);
                 scheduleViewportSweep();
             }, 100);
             

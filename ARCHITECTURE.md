@@ -282,7 +282,27 @@ Three changes, each of which is the *whole* of one idea:
   are re-anchored to the corrected value so a compensation is never misread as the
   reader having scrolled — the park pass would otherwise fire again for nothing and
   the warm walk would decide the page had turned around. `?park=full` skips the
-  collapse and keeps the row claimed. `touchActive`, set by `initTouchGuard()`,
+  collapse and keeps the row claimed. **Mounting pays the same tax, in the other
+  direction**: `renderCardContent()` snapshots the row before it drops
+  `card-pending` and again before `adjustCardHeight()` widens it for late-painted
+  content, so a tool arriving in the look-ahead band above the fold does not shove
+  the reader down the page. Two growth points, two corrections, one per mutation —
+  a single correction at the end would be 100 ms late and would miss whichever of
+  the two grew more.
+- **One compensator, not two.** Blink's scroll anchoring exists to do exactly this
+  arithmetic, it is on by default, and it does not coordinate with a page that has
+  already done it — a park corrected twice is a jump the same size in the other
+  direction. So `home.css` sets `overflow-anchor: none` on the root scroller: the
+  page is the only thing that moves `scrollY` for a layout change it caused. That
+  is a trade with a real cost, taken deliberately — content that grows late inside
+  a tool (an image decoding, a font landing) no longer gets the UA's help — and
+  the mitigation is the one already in the sheet: `contain-intrinsic-size` must
+  stay honest for every skipped box, because it is now the only thing standing
+  between a lazy image and a moved page. `canHoldScroll()` is the shared gate for
+  all of it (`!touchActive`, from `initTouchGuard()`): under a live finger neither
+  the collapse nor a mount correction is applied, which is why the touch guard and
+  `collapsePark` are two separate flags rather than one — one asks who owns the
+  scroll position, the other whether a row may change height at all. `touchActive`, set by `initTouchGuard()`,
   defers the collapse while a finger is still flinging the page, because a
   correction that cannot be applied safely is worse than a row that collapses a
   frame after the finger lifts.
@@ -1038,7 +1058,9 @@ Scroll anchoring is not universal and is not a guarantee to hold a position with
 so this page pays for it itself; `commitScrollHold()` is that payment, and
 `live-window.test.js` suite 13 asserts the arithmetic in both directions (a park
 that costs 728 px of document must move `scrollY` by 728, and waking it must move
-it back). The two must also stay *out* of the way where a correction would be the
+it back), and suite 18 asserts the mount's two growth points are each paired with
+their own snapshot, that no resize handler compensates, and that the anchoring rule
+is in the sheet with the reason next to it. The two must also stay *out* of the way where a correction would be the
 jump itself: below the fold, and on a row the fold cuts in half.
 And **`renderCardContent()` must not wipe `.card-sandbox`** — it hides the face
 (`face.hidden = true`) instead of `innerHTML = ''`, because the face is what a
@@ -1515,6 +1537,26 @@ support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
 `AbortSignal.timeout`, and a `rail-hidden` auto-dodge during sports/weather/
 finance segments. Validated in headless Chromium against the real RSS feeds:
 124 stories / 35 sources, zero console or page errors.
+
+**Changed 2026-09-19 (stage 4) — the page owns `scrollY`, or it owns nothing.** The
+correction added in stage 3 was right about the arithmetic and wrong about who does
+it: Blink's scroll anchoring already compensates for content removed above the
+viewport, it is on by default, and it does not coordinate with a page that has just
+done the same thing — two corrections of one collapse is a jump the same size
+backwards. `home.css` now sets `overflow-anchor: none` on the root scroller so the
+page is the only compensator, and the other half of what that commits to is done in
+the same breath: **mounting a tool grows a row too**, and a row that grows above the
+fold shoves the reader down the page just as surely as a collapse. `renderCardContent()`
+snapshots before the `card-pending` flip and again before `adjustCardHeight()` widens
+the row for late-painted content, one correction per mutation. `aboveTheFold()` moved
+onto `canHoldScroll()` (`!touchActive`) so the mount path is guarded by the touch
+owner rather than by `collapsePark` — the two flags answer different questions, which
+suite 17/18 pin — and the accepted trade (no UA help for content that grows late
+inside a tool) is written next to the rule so nobody removes either. Suites 13/14/18
+now cover the whole contract in node, including a harness `window` whose `scrollTo`
+moves it; `scripts/staff/live-window-check.mjs` gained a computed-style check for the
+rule, since the drift measurement in that script is exactly what doubles if
+anchoring is ever re-enabled.
 
 **Changed 2026-09-19 (stage 3) — the window closes properly.** Two defects the
 park left in its own design, found by re-reading it against the promise instead of
