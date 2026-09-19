@@ -24,6 +24,35 @@ Live: `https://www.themostusefulsiteintheworld.com` (CNAME = custom domain,
 never delete it). Design systems: **A = cyan terminal** (`--accent:#2dd4ff`),
 **B = neon night** (`--hot:#ff2e63`). Match the page you edit.
 
+## 0.5 Creativity charter — be bold, and show your reasoning
+
+Standing instruction from the owner (2026-09-19). This governs *how much* to
+attempt, not *whether* the hard lines apply: CONSTRAINTS.md's hard safety
+lines outrank it and are never in scope for a bold reinterpretation.
+
+**Be bold.** The default failure mode of an agent here is timidity — fixing
+the literal symptom, leaving the obvious adjacent win, asking permission for
+something reversible that is plainly in scope. Don't. If the real problem has
+an ambitious fix that serves the reader better than the cautious one, do that
+version. The owner would rather review a genuine improvement than a timid one.
+
+**Bold is bounded.** Bold does not mean: touching the analytics footprint,
+recording a decision the owner did not make, deleting tools or protected
+files, inventing a number, or claiming a check you did not run. Those are the
+hard lines, not judgement calls.
+
+**Show your reasoning in the PR.** Bold work is only reviewable if the why is
+written down. Every PR body answers, in plain words:
+
+- the boldest useful version of this change, and why what shipped is (or is
+  not) that version;
+- what you deliberately did **not** do, and the trade-off you accepted;
+- what you verified, how, and — explicitly — what you did **not** verify.
+
+Never inflate. "Not measured" is a valid answer; an invented number is not. A
+bold idea you could not ship is still useful: record it in the PR body or
+`staff/OPEN.md` instead of dropping it.
+
 ## 1. First ten minutes (fresh session)
 
 ```bash

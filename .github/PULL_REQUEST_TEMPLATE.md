@@ -17,6 +17,14 @@ Thanks for the PR! A few quick checks before review:
 
 <!-- What's the user-visible problem, the gap, or the constraint? -->
 
+## Reasoning (AGENTS.md §0.5 — be bold, show your working)
+
+<!-- Three short lines. Bold work is only reviewable if the why is written down. -->
+
+- Boldest useful version of this change, and why what shipped is / isn't that:
+- What I deliberately did not do, and the trade-off I accepted:
+- Verified (how) / **not** verified (be honest — "not measured" is a valid answer):
+
 ## Type of change
 
 <!-- Check all that apply. -->
