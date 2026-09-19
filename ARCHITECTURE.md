@@ -260,18 +260,52 @@ Three changes, each of which is the *whole* of one idea:
   number limits **layout**, not liveness. A tool mounted outside the window is
   *parked*: its content subtree moves into `#mp-park` — one
   `position: fixed; left: -100000px; visibility: hidden` container — while the
-  card shell stays exactly where it is in the grid, keeping its face and its
-  measured row height. A parked tool keeps running, keeps its DOM, keeps every
-  value the visitor typed, costs the visible page no paint and no layout, and
-  wakes up with one `appendChild` rather than a fetch, a parse, a script and a
-  lost form. `keepAlive()` refuses to park a tool under the pointer, one with
-  the caret inside it, or one carrying `data-keep`; `⚡ Run all` and `?park=off`
-  switch parking off entirely, because both of those mean "the window is the
-  page". The window's size is measured, not guessed: `initFrameGovernor()`
-  listens to `PerformanceObserver('long-animation-frame')` and narrows the
-  window when frames are long, growing it back on a later quiet pass — no
-  timers, and a browser without LoAF simply keeps the device default from
-  `deviceBudget()`. `prunePark()` is the only destructive path in the design,
+  card shell stays exactly where it is in the grid and keeps its face, while the
+  *row* goes back to being a tile: the pinned `min-height` is lifted off the box
+  and stored on the card, so the grid is as dense where the reader has been as it
+  is where they are. A parked tool keeps running, keeps its DOM, keeps every value
+  the visitor typed, costs the visible page no paint and no layout, and wakes up
+  with one `appendChild` and one restored `min-height` — not a fetch, a parse, a
+  script and a lost form.
+- **Handing a row's height back is only honest if the scroll offset pays for it**
+  (`aboveTheFold()` → `noteRowHeight()` → `commitScrollHold()`). A tool that was
+  900 px tall and is now a 172 px tile has taken 728 px of document away *above*
+  the viewport, and the pixels the reader is looking at slide down by exactly that:
+  the classic infinite-scroll jump, once per park. So the pass measures the row,
+  mutates it, measures it again, and corrects `scrollY` by the difference inside
+  the `requestAnimationFrame` the sweep already runs in — which is where a browser
+  wants a compensating scroll, so no frame is ever painted at the wrong offset.
+  Corrections are batched per pass (a dozen rows must not become a dozen scroll
+  events, each scheduling another sweep); rows below the fold get none, because
+  nothing they do is visible; a row the fold cuts in half gets none, because
+  moving the page under it *is* the jump. `lastParkScrollY` and `lastWarmScrollY`
+  are re-anchored to the corrected value so a compensation is never misread as the
+  reader having scrolled — the park pass would otherwise fire again for nothing and
+  the warm walk would decide the page had turned around. `?park=full` skips the
+  collapse and keeps the row claimed. `touchActive`, set by `initTouchGuard()`,
+  defers the collapse while a finger is still flinging the page, because a
+  correction that cannot be applied safely is worse than a row that collapses a
+  frame after the finger lifts.
+- **The pass has two halves, and the other one is a wake** (`wakeInsideWindow()`):
+  anything parked that the viewport now covers comes back, deliberately *without*
+  consulting `mountBudgetFree()`. That budget counts what the page fetches and
+  mounts, and a wake is a node move — gating it is how a tool ends up parked
+  underneath the reader's cursor while stale rows three screens behind still hold
+  every slot. The observer wakes on sight too, ahead of its own budget check, and
+  for a browser with no `IntersectionObserver` the park pass is the only wake path
+  there is. Parking in the same pass hands the budget straight back.
+  `keepAlive()` refuses to park a tool under the pointer, one with the caret inside
+  it, or one carrying `data-keep`; `⚡ Run all` and `?park=off` switch parking off
+  entirely, because both mean "the window is the page".
+- **The window is sized by measurement, twice over.** `initFrameGovernor()` listens
+  to `PerformanceObserver('long-animation-frame')` and narrows the window when
+  frames are long, growing it back on a later quiet pass — no timers. Where LoAF
+  does not exist (Safari, Firefox) `probeFrames()` asks for one frame per pass and
+  times the answer, shrinking on a gross miss (`LONG_FRAME_MS × 2`): "no signal" is
+  not the same as "no pressure", and an iPhone handed `deviceBudget()`'s ceiling
+  with no way back would have been the proof. The rate limiter starts at
+  `lastShrink = -Infinity`, because a throttle that has never fired should not
+  swallow the first dropped frame after the initial mount. `prunePark()` is the only destructive path in the design,
   and it runs only when `performance.memory` reports the heap under pressure
   (then oldest-parked first, down to 70% of `PARK_CEILING`): a parked tool is
   cheaper than a lost one. `cardCache` is capped at `CARD_CACHE_MAX = 96` and
@@ -976,6 +1010,9 @@ them with the table, so the loader cannot size a batch for a grid that is not
 there. Also keep `.card`'s `contain-intrinsic-size` honest: the base rule
 carries the size of a running tool (340px), so a pending tile overrides it to
 172px — a skipped tile measured at 340px makes the scrollbar jump as you scroll.
+A parked row wears `card-pending` as well as `card-parked`, which is how the
+collapse gets its height for free from the rules the grid already has, and
+`parkedMinHeight` is where the row's real height waits for the wake-up.
 
 **The park container must never be `display: none`.** `#mp-park` hides a parked
 tool with `position: fixed` off the left edge plus `visibility: hidden`, and that
@@ -991,10 +1028,18 @@ may add is another `contain`, never a change to how it is hidden;
 `home.css` and fails on `display: none` there.
 
 Two more things that are load-bearing in the park, both pinned by the same suite:
-**a parked card keeps its row.** Its shell never moves and `.card.card-parked`
-keeps `grid-column: 1 / -1` and its inline `min-height`, because a parked row
-collapsing to a tile shortens the document a few hundred pixels above the
-viewport and the page jumps under the scroll (scroll anchoring is not universal).
+**a parked row collapses, and the scroll position is corrected for it.** Its shell
+never moves, the tool's content lives in `#mp-park` at the width the row had (so
+nothing inside it re-wraps and a canvas keeps the numbers it measured), and the
+row goes back to being a tile — which means `aboveTheFold()`/`noteRowHeight()` has
+to hand the difference back to `scrollY` when the row sat above the viewport, in
+the same frame, or the page jumps under the scroll every time anything is parked.
+Scroll anchoring is not universal and is not a guarantee to hold a position with,
+so this page pays for it itself; `commitScrollHold()` is that payment, and
+`live-window.test.js` suite 13 asserts the arithmetic in both directions (a park
+that costs 728 px of document must move `scrollY` by 728, and waking it must move
+it back). The two must also stay *out* of the way where a correction would be the
+jump itself: below the fold, and on a row the fold cuts in half.
 And **`renderCardContent()` must not wipe `.card-sandbox`** — it hides the face
 (`face.hidden = true`) instead of `innerHTML = ''`, because the face is what a
 parked or evicted card has to show again, and re-creating it would lose the real
@@ -1470,6 +1515,42 @@ support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
 `AbortSignal.timeout`, and a `rail-hidden` auto-dodge during sports/weather/
 finance segments. Validated in headless Chromium against the real RSS feeds:
 124 stories / 35 sources, zero console or page errors.
+
+**Changed 2026-09-19 (stage 3) — the window closes properly.** Two defects the
+park left in its own design, found by re-reading it against the promise instead of
+by adding anything. **(1) A parked row kept the height of the tool that lived in
+it**, so every screen the visitor scrolled past stayed a scar of tall near-empty
+rows: the park saved paint and spent the density the page exists to have. It now
+collapses back to a tile — `min-height` lifted off the box, stored as
+`data-parked-min-height`, restored verbatim on the way back (a parked sandbox holds
+only a face to measure) — and `aboveTheFold()`/`noteRowHeight()`/`commitScrollHold()`
+pay for the height in the sweep's own frame, batched per pass, with both
+scroll-keyed cursors re-anchored so a correction is never mistaken for scrolling.
+Rows below the fold get no correction; a row the fold cuts gets none; `touchActive`
+(from `initTouchGuard()`, three passive listeners) defers the collapse while a
+finger is still flinging the page; `?park=full` opts out entirely. **(2) Waking was
+gated on the mount budget** in both automatic paths, so a tool the reader scrolled
+back to could stay parked underneath them while stale rows held every slot: the pass
+now wakes first (`wakeInsideWindow()`) and the observer wakes ahead of its budget
+check, because a node move is not a fetch. `parkMargin()` gives the two passes a
+dead band that survives a short window (never less than the observer's
+`REMOUNT_LOOKAHEAD` + 100, and the observer interpolates that constant instead of
+carrying its own `600px`), `probeFrames()` governs browsers with no
+`long-animation-frame` support, and the governor's throttle starts at `-Infinity`
+so a two-second-old page is not told it just shrank. `live-window.test.js` is 17
+suites: the scroll arithmetic of a park/wake round trip (5000 → 4272 → 5000, exactly
+reversible), the opt-out, the wake path and its detached-shell self-heal, the
+no-LoAF probe, the touch guard, and a rect in the harness that answers to the
+card's own classes so the geometry is modelled rather than asserted. The three
+claims that genuinely need a layout engine — a parked tile's height matching an
+unmounted one, the corrected offset against the document the collapse removed, and
+a parked canvas keeping its bitmap — are the subject of
+`scripts/staff/live-window-check.mjs`: an optional, manual probe that serves the repo
+over `node:http`, follows the `STAFF_PLAYWRIGHT` / `STAFF_CHROMIUM_PATH` convention of
+`scripts/staff/browser-check.mjs`, and is deliberately outside `verify.sh`, because no
+CI here has a browser and the required suite must stay zero-dependency.
+`adjustCardHeight()`'s parked guard changed meaning with this: the number it must
+not write down is now the *stored* one, since that is what the wake-up restores.
 
 **Changed 2026-09-18 (stage 2) — everything runs, a window is loaded.** Owner
 reply to the entry below: *"i do want them all running but only a few loaded at a

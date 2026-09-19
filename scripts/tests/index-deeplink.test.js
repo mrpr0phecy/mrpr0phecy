@@ -69,8 +69,12 @@ const cases = [
   ['?view=' + encodeURIComponent('<script>'), { q: '', expand: '', cat: '', view: '' }],
   // ?park=off is the mount window's escape hatch, and only that word means it:
   // parking is the default the page believes in, so a typo must not disable it.
+  // ?park=full is the half-measure (park, but leave the row alone) and is subject
+  // to the same rule: two words, everything else ignored.
   ['?park=off', { q: '', expand: '', cat: '', view: '', park: 'off' }],
   ['?park=OFF&cat=music-audio', { q: '', expand: '', cat: 'music-audio', view: '', park: 'off' }],
+  ['?park=full', { q: '', expand: '', cat: '', view: '', park: 'full' }],
+  ['?park=off+full', { q: '', expand: '', cat: '', view: '', park: '' }],
   ['?park=on', { q: '', expand: '', cat: '', view: '', park: '' }],
   ['?park=', { q: '', expand: '', cat: '', view: '', park: '' }],
 ];
@@ -141,6 +145,8 @@ assert(applier.includes('currentSelectedCategory = pill.dataset.category'),
 const parkAt = applier.indexOf("link.park === 'off'");
 assert(parkAt !== -1 && applier.includes('parkMode = false'),
   'applyIndexDeepLink must hand ?park=off to parkMode');
+assert(/link\.park === 'full'\) collapsePark = false/.test(applier),
+  'and ?park=full to collapsePark — the two opt-outs are different sizes of the same idea');
 assert(parkAt < applier.indexOf('if (!link.q && !link.expand'),
   '?park=off is applied before the "nothing to do" early return');
 // and the pills must write the same URL back, or the shared link is a lie

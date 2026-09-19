@@ -85,10 +85,20 @@ item. This historical list does not override current staff decisions.
   `agents.html` and not implemented). ARCHITECTURE.md §3 "The live window";
   pinned by `scripts/tests/live-window.test.js`.
   - [ ] Verify the mosaic and the park in a real browser before widening either:
-    tile height (172 px assumed, not measured), the mount reflow as tiles become
-    full-row tools, whether a parked tool's canvas really keeps its size across
-    a park/resume round trip, and `⚡ Run all` on a mid-range phone. None of
-    that is observable from a node harness. **Blocked in the Arena sandbox, and
+    the *look* of a collapsed parked row (its height is now the grid's own tile
+    height by construction, and the jump risk is handled by `commitScrollHold()`
+    rather than measured — but only a browser can say whether 1,194 rows of tile
+    *feel* right), the mount reflow as tiles become full-row tools, whether a
+    parked tool's canvas really keeps its bitmap across a park/resume round trip,
+    and `⚡ Run all` on a mid-range phone. `scripts/staff/live-window-check.mjs`
+    is that probe: it serves the repo over `node:http`, drives a browser through
+    the same `STAFF_PLAYWRIGHT` / `STAFF_CHROMIUM_PATH` convention as
+    `scripts/staff/browser-check.mjs`, prints tile heights, the on-screen position
+    of a row below the fold across a park (the no-jump claim, measured), canvas
+    dimensions and `toDataURL()` length before and after, dropped frames during a
+    scripted scroll at 4× CPU throttle, and the same numbers with `?park=full`.
+    It is deliberately not in `verify.sh` (no CI here has a browser, and the
+    zero-dependency suite must stay zero-dependency). **Blocked in the Arena sandbox, and
     the reason is recorded so nobody re-derives it:** egress there is npm-only, so
     Chromium's download CDN, jsDelivr, the Debian mirrors and
     `objects.githubusercontent.com` (release assets) are all unreachable;
@@ -97,8 +107,8 @@ item. This historical list does not override current staff decisions.
     `@achingbrain/nss` on `LD_LIBRARY_PATH` that becomes
     `version 'NSS_3.30' not found (required by /tmp/chromium)` — that bundled NSS
     is a decade too old and nothing reachable ships a newer one. Run the probe
-    locally (`npm i puppeteer`, `python3 -m http.server`) against the numbers in
-    the sentence above instead.
+    locally (`npm i playwright`, then `node scripts/staff/live-window-check.mjs`)
+    against the numbers in the sentence above instead.
   - [x] Window the DOM. **Landed the same day (stage 2)**, on the owner's
     *"i do want them all running but only a few loaded at a time around the
     viewport"*: the cap became a mount window (`MOUNT_WINDOW_DEFAULT = 24`,
@@ -113,6 +123,24 @@ item. This historical list does not override current staff decisions.
     `⚡ Run all` switch parking off; `prunePark()` evicts a parked tool's DOM
     only when `performance.memory` reports heap pressure, oldest-parked first.
     ARCHITECTURE.md §3 and the §7 traps; suites 8–11 of `live-window.test.js`.
+    *(The "holding its row" half of this is superseded by the next bullet.)*
+  - [x] Close the two gaps stage 2 left, both found by re-reading the design
+    against the promise rather than by adding a feature. **Landed the same day
+    (stage 3)**: a parked row now collapses back to a tile — the density the site
+    exists for no longer stops at the top of the page — and
+    `aboveTheFold()`/`noteRowHeight()`/`commitScrollHold()` pay for the height by
+    correcting `scrollY` in the sweep's own frame, batched, with the park and warm
+    cursors re-anchored, skipped below the fold and under a live finger
+    (`initTouchGuard()`), and opt-out-able with `?park=full`; and the wake half of
+    the pass (`wakeInsideWindow()`, plus the observer ahead of its budget check)
+    makes sure a tool the reader scrolled back to never stays parked under their
+    cursor because a stale row holds a mount slot. `parkMargin()`/`REMOUNT_LOOKAHEAD`
+    keep the dead band on a short window, `probeFrames()` governs browsers with no
+    `long-animation-frame`, and `lastShrink` starts at `-Infinity`. Measured rather
+    than assumed, over the shipped fragments: 134 animate in CSS (quiet while
+    parked), 168 run their own loop (they do not) — the park is a layout/paint
+    guarantee, not a CPU one. `live-window.test.js` is 17 suites, including a
+    harness rect that answers to the card's own classes; see ARCHITECTURE.md §9.
   - [ ] Measure the window and the park in the field before touching the
     defaults: which `MOUNT_WINDOW_*` / `PARK_CEILING` pair a mid-range phone
     wants, and whether the LoAF governor converges or breathes. Both are

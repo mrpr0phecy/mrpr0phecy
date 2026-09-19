@@ -2,7 +2,7 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 10;
+    const APP_VERSION = 11;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -35,6 +35,14 @@
         WARM_LOOKBEHIND: 6,     // how far above the top of the screen a reversed
                                 // warm pass starts, so scrolling back up finds its
                                 // bytes cached instead of fetching them again
+        PARK_COLLAPSE: true,    // a parked row hands its height back and becomes a
+                                // tile again; the scroll offset is corrected for it
+                                // (see HOLDING THE READING POSITION). `?park=full`
+                                // keeps the row claimed instead.
+        REMOUNT_LOOKAHEAD: 600, // the observer's look-ahead in px, and the single
+                                // source of truth for "close enough to be live":
+                                // both the observer and the park margin read it, so
+                                // the dead band between them cannot vanish.
         CARD_CACHE_MAX: 96,     // in-memory fragments (~1.5 MB). The service worker's
                                 // CARDS_CACHE is the durable tier, so pruning here is a
                                 // demotion, not a re-download.
@@ -363,14 +371,19 @@
     //   parked  mounted, content off the grid, state intact; waking it up is one
     //           appendChild, not a fetch, a parse, a script and a lost form
     //
-    // The shell stays exactly where it is, and keeps its height. That is not
-    // cosmetic: a parked row collapsing to a 172 px tile would shorten the
-    // document by a few hundred pixels somewhere above the viewport, and the
-    // page would jump under the visitor mid-scroll (scroll anchoring is not
-    // universal). Holding the slot means parking costs no reflow at all, and
-    // waking a tool back up changes no geometry either — the row is already the
-    // right size. `content-visibility: auto` then skips the layout of any of
-    // these boxes that is off screen anyway.
+    // The shell stays exactly where it is; only its height changes, and that is
+    // paid for rather than ignored. A parked row collapsing from a 900 px tool to
+    // a 172 px tile would take 700 px of document away *somewhere above the
+    // viewport*, and the pixels the visitor is reading would slide down — a jump,
+    // on every park, in the one place scroll anchoring is not guaranteed to help.
+    // So the pass measures the row, mutates it, measures it again, and hands the
+    // scroll offset back the difference in the same frame (see HOLDING THE READING
+    // POSITION). That buys the dense page and the stable one at once: a parked tool
+    // is a tile again — the grid looks the same where the reader has been as where
+    // they are — and waking it is the same arithmetic in reverse, with no
+    // re-measuring, because the row is pinned to the height it left at.
+    // `content-visibility: auto` then skips the layout of any of these boxes that
+    // is off screen anyway, and `?park=full` opts out of the collapse.
     //
     // Only three things decide who is live: the viewport, one memory signal, and
     // intent — a tool someone is pointing at or typing into is never parked out
@@ -379,10 +392,17 @@
     // and so does ⚡ Run all, which is the same thing asked for on purpose.
     //
     // PARK_MARGIN_VH is the hysteresis and must stay wider than the observer's
-    // 600px look-ahead: parked at 1.5 viewports away, remounted within 600px, so
-    // a card on the boundary cannot oscillate. On a 900px screen that is a 750px
-    // dead band.
+    // look-ahead: parked at 1.5 viewports away, remounted within
+    // CONFIG.REMOUNT_LOOKAHEAD, so a card on the boundary cannot oscillate. On a
+    // 900px screen that is a 750px dead band — and on a 400px window, where 1.5
+    // viewports falls *inside* the look-ahead, parkMargin() keeps the band open
+    // instead of letting two passes fight over one row.
     const PARK_MARGIN_VH = 1.5;
+
+    function parkMargin(viewportH) {
+        return Math.max(viewportH * PARK_MARGIN_VH,
+                        CONFIG.REMOUNT_LOOKAHEAD + 100);
+    }
     // Scrolling is the only thing that moves the window, so the pass is triggered
     // by a scroll *step* rather than by a frame: measuring a windowful of rects
     // 60 times a second is exactly the layout bill this page exists to avoid. A
@@ -393,12 +413,19 @@
     let lastParkScrollY = -Infinity;
     let parkStep = PARK_STEP;
     let parkMode = true;
+    let collapsePark = CONFIG.PARK_COLLAPSE;
+    // Whether the visitor is the one moving the page right now. Set by
+    // initTouchGuard(), and consulted by collapsing().
+    let touchActive = false;
     let mountWindow = CONFIG.MOUNT_WINDOW_DEFAULT;
     let parkCeiling = CONFIG.PARK_CEILING;
-    const parkedCards = new Map();   // name -> { card, holder }
+    const parkedCards = new Map();   // name -> { card, holder, anims }
     let parkOrder = [];              // parked longest-ago first (eviction order)
     let lastLongFrame = 0;
-    let lastShrink = 0;
+    // -Infinity, not 0: the limiter compares against performance.now(), and a
+    // page two seconds old would otherwise be told it had just shrunk. The first
+    // dropped frame after the initial mount is the one most worth answering.
+    let lastShrink = -Infinity;
 
     // Created on the first park, not in the markup: a page nobody scrolls past
     // the first window never needs it. Styled in home.css — deliberately NOT in
@@ -451,13 +478,40 @@
         mountWindow = budget.window;
         parkCeiling = budget.park;
         initFrameGovernor();
+        initTouchGuard();
+    }
+
+    // Three passive listeners, once, for one fact the park cannot infer from a
+    // scroll event: whether the page is being moved by a finger. `touchend` alone
+    // is not enough — a cancelled touch does not always fire it, and a stuck
+    // `touchActive` would disable the collapse for the rest of the visit.
+    function initTouchGuard() {
+        if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+        try {
+            document.addEventListener('touchstart', () => { touchActive = true; }, { passive: true });
+            const done = () => { touchActive = false; };
+            document.addEventListener('touchend', done, { passive: true });
+            document.addEventListener('touchcancel', done, { passive: true });
+        } catch (err) { /* no listeners: the collapse still works, unguarded */ }
     }
 
     // A frame-budget governor that reads the browser instead of guessing:
     // long-animation-frame entries are the page admitting it missed a frame. When
-    // they cluster, the window narrows; it grows back on the next quiet park
-    // pass, so there is no polling and no timer. A browser without LoAF support
-    // never shrinks anything, which is the right way for this to fail.
+    // they cluster, the window narrows; it grows back on the next quiet park pass,
+    // so there is no polling and no timer.
+    function noteLongFrame() {
+        const now = performance.now();
+        lastLongFrame = now;
+        if (now - lastShrink < 5000 || mountWindow <= CONFIG.MOUNT_WINDOW_MIN) return;
+        lastShrink = now;
+        mountWindow = Math.max(CONFIG.MOUNT_WINDOW_MIN, mountWindow - 4);
+        invalidateParkPass();
+        scheduleViewportSweep();
+    }
+
+    let governorHasLoAF = false;
+    let frameProbed = false;
+
     function initFrameGovernor() {
         if (typeof PerformanceObserver === 'undefined') return;
         try {
@@ -465,16 +519,29 @@
                 let worst = 0;
                 for (const entry of list.getEntries()) worst = Math.max(worst, entry.duration || 0);
                 if (worst < CONFIG.LONG_FRAME_MS) return;
-                const now = performance.now();
-                lastLongFrame = now;
-                if (now - lastShrink < 5000 || mountWindow <= CONFIG.MOUNT_WINDOW_MIN) return;
-                lastShrink = now;
-                mountWindow = Math.max(CONFIG.MOUNT_WINDOW_MIN, mountWindow - 4);
-                invalidateParkPass();
-                scheduleViewportSweep();
+                noteLongFrame();
             });
             po.observe({ type: 'long-animation-frame', buffered: false });
-        } catch (err) { /* no LoAF: the window stays where the device put it */ }
+            governorHasLoAF = true;
+        } catch (err) { /* no LoAF: the fallback probe below is the governor */ }
+    }
+
+    // Safari and Firefox publish no long-animation-frame entries, and "the
+    // governor is off there" is not the same as "the window is safe there" — it
+    // would mean an iPhone gets the desktop's 40 mounted tools with no way back.
+    // So where LoAF is missing, each pass asks for one frame and times how long
+    // the browser took to come back: a timestamp, which is the same fact LoAF
+    // reports, one level coarser. Being coarse is why it only shrinks on a gross
+    // miss (double the threshold) and why it never runs at all when the real
+    // signal is available.
+    function probeFrames() {
+        if (governorHasLoAF || frameProbed || typeof requestAnimationFrame !== 'function') return;
+        frameProbed = true;
+        const askedAt = performance.now();
+        requestAnimationFrame(() => {
+            frameProbed = false;
+            if (performance.now() - askedAt >= CONFIG.LONG_FRAME_MS * 2) noteLongFrame();
+        });
     }
 
     function growWindowBack() {
@@ -535,6 +602,72 @@
         return paused.length ? paused : null;
     }
 
+    // ===== HOLDING THE READING POSITION =====
+    // Parking takes a row's height away and mounting gives one back. Below the
+    // fold that is free; above it, it is the classic infinite-scroll jump, and both
+    // sides need the same treatment because a parked tool is woken from the
+    // look-ahead band *above* the reader's eyes too. So the page does the
+    // arithmetic an engine might have done: measure, mutate, measure, then move
+    // scrollY by the difference — inside the requestAnimationFrame the sweep already
+    // runs in, which is where a browser wants a compensating scroll, so no frame is
+    // ever painted at the uncorrected offset.
+    //
+    // Only rows entirely above the fold qualify: a row straddling the top edge is
+    // being looked at, and moving the page under it would be the jump itself.
+    let scrollHold = 0;
+    let holdBatch = 0;
+
+    // A finger that is still flinging the page owns the scroll position: a
+    // programmatic scroll mid-momentum is at best ignored and at worst stops the
+    // fling dead, and a correction that cannot be applied is worse than none. So
+    // while a touch is down the park does not collapse at all — the next pass, a
+    // frame after the finger lifts, will. That is `?park=full` for one pass, not a
+    // new card state, and it is the only reason `touchActive` exists.
+    function collapsing() {
+        return collapsePark && !touchActive;
+    }
+
+    function aboveTheFold(card) {
+        if (!collapsing() || typeof card.getBoundingClientRect !== 'function') return null;
+        const rect = card.getBoundingClientRect();
+        return rect.bottom <= 0 ? rect.height : null;
+    }
+
+    // `before` is null when this row could not move the page, 0 when it had no
+    // height; either way there is nothing to hand back.
+    function noteRowHeight(card, before) {
+        if (!before || typeof card.getBoundingClientRect !== 'function') return;
+        const after = card.getBoundingClientRect().height;
+        const delta = before - after;
+        if (Math.abs(delta) < 8) return;   // sub-row churn is not a jump
+        scrollHold += delta;               // > 0: the document got shorter
+        if (!holdBatch) commitScrollHold();
+    }
+
+    // A pass may change a dozen rows; batching keeps that from becoming a dozen
+    // scroll events, each of which would schedule another sweep.
+    function beginHold() { holdBatch++; }
+    function endHold() {
+        holdBatch = holdBatch > 0 ? holdBatch - 1 : 0;
+        if (!holdBatch) commitScrollHold();
+    }
+
+    function commitScrollHold() {
+        const shift = scrollHold;
+        scrollHold = 0;
+        const scrollY = (typeof window !== 'undefined' && window.scrollY) || 0;
+        if (!shift || typeof window.scrollTo !== 'function') return;
+        const target = Math.max(0, Math.round(scrollY - shift));
+        if (target === Math.round(scrollY)) return;
+        try { window.scrollTo(0, target); } catch (err) { /* nothing to correct */ }
+        // The document moved under a reader whose pixels did not, so anything that
+        // reads the raw offset has to be re-anchored or it will misread the
+        // correction as motion: the park pass would fire again for nothing, and the
+        // warm walk would decide the reader had turned around mid-page.
+        lastParkScrollY = target;
+        lastWarmScrollY = target;
+    }
+
     function parkCard(card, cardName) {
         const sandbox = card.querySelector(`#card-${cardName}`);
         if (!sandbox) return false;
@@ -545,6 +678,15 @@
         // re-wrap while it waits (a canvas-sized tool would otherwise resize to
         // the park's own width and could shrink permanently).
         const sandboxW = Math.round(sandbox.getBoundingClientRect().width);
+        // The row's height is pinned by adjustCardHeight() as an inline min-height
+        // on the content, and an inline style outranks the tile rules — so a
+        // collapse has to take it with it. It is stored, not discarded: the way
+        // back restores the exact height the tool left at, without measuring a
+        // sandbox that holds nothing but a face at that moment.
+        const content = card.querySelector('.card-content');
+        const before = aboveTheFold(card);
+        const pinned = content ? content.style.minHeight : '';
+        const collapseNow = collapsing();
         const host = parkHost();
         if (sandboxW > 0 && Math.abs((parseInt(host.style.width, 10) || 0) - sandboxW) > 2) {
             host.style.width = `${sandboxW}px`;
@@ -561,6 +703,12 @@
         card.classList.remove('loaded');
         card.classList.add('card-parked');
         card.dataset.parked = '1';
+        if (collapseNow) {
+            if (content) content.style.minHeight = '';
+            card.classList.add('card-pending');
+            if (pinned) card.dataset.parkedMinHeight = pinned;
+            noteRowHeight(card, before);
+        }
         // The face is what a parked row shows: the row keeps its size, so this
         // has to look like something, and "still here" is the honest answer.
         if (face) face.hidden = false;
@@ -594,9 +742,19 @@
         }
         const face = sandbox.querySelector('.card-face');
         if (face) face.hidden = true;
+        const growBefore = aboveTheFold(target);
         target.classList.remove('card-parked');
+        target.classList.remove('card-pending');
         target.classList.add('loaded');
         delete target.dataset.parked;
+        // The height it left at, back verbatim: no re-measure, because a parked
+        // sandbox holds only a face and would measure as one.
+        const back = target.querySelector('.card-content');
+        if (back && target.dataset.parkedMinHeight) {
+            back.style.minHeight = target.dataset.parkedMinHeight;
+        }
+        delete target.dataset.parkedMinHeight;
+        noteRowHeight(target, growBefore);
         setFaceHint(target, false);
         loadedCards.add(cardName);
         if (observer) observer.unobserve(target);
@@ -631,6 +789,7 @@
             delete parked.card.dataset.parked;
             const content = parked.card.querySelector('.card-content');
             if (content) content.style.minHeight = '';
+            delete parked.card.dataset.parkedMinHeight;
             setFaceHint(parked.card, false);
         }
     }
@@ -643,31 +802,76 @@
         parkStep = PARK_STEP;
     }
 
+    // The other half of the pass, and the half that makes this a window rather
+    // than a ratchet: whatever the viewport now wants comes back. It does *not*
+    // ask the mount budget, because a wake is a node move — no fetch, no parse, no
+    // script, no queue slot — and holding a wake hostage to a busy budget is how a
+    // tool ends up parked underneath the reader's cursor while a row they scrolled
+    // past three screens ago still holds a slot. Parking in the same pass hands the
+    // budget straight back, and the observer's look-ahead is smaller than the park
+    // margin by construction, so a row cannot be woken and re-parked forever.
+    function wakeInsideWindow(top, bottom) {
+        if (!parkedCards.size) return false;
+        let woke = false;
+        for (const name of Array.from(parkedCards.keys())) {
+            const parked = parkedCards.get(name);
+            if (!parked) continue;
+            const card = parked.card;
+            if (!card.isConnected) {
+                // A shell that left the DOM (a rebuild, an extension that rewrote
+                // the grid) would otherwise keep its content in the park forever.
+                parkedCards.delete(name);
+                parkOrder = parkOrder.filter(n => n !== name);
+                if (parked.holder) parked.holder.remove();
+                continue;
+            }
+            if (isCardHidden(card)) continue;
+            const rect = card.getBoundingClientRect();
+            if (rect.bottom < top || rect.top > bottom) continue;
+            if (resumeParked(card, name)) woke = true;
+        }
+        return woke;
+    }
+
     function parkOutsideWindow() {
         if (!parkMode || explicitRunAll) return;
         const scrollY = (typeof window !== 'undefined' && window.scrollY) || 0;
         if (Math.abs(scrollY - lastParkScrollY) < parkStep) return;
         lastParkScrollY = scrollY;
         const vh = (typeof window !== 'undefined' && window.innerHeight) || 900;
-        const top = -vh * PARK_MARGIN_VH;
-        const bottom = vh * (1 + PARK_MARGIN_VH);
+        const margin = parkMargin(vh);
+        const top = -margin;
+        const bottom = vh + margin;
         let parkedAny = false;
-        for (const name of Array.from(loadedCards)) {
-            const card = cardElsByName.get(name);
-            if (!card || !card.isConnected) continue;
-            // Hidden by a filter: it is laying out for nobody, so it should not
-            // hold a slot in the window either.
-            if (!isCardHidden(card)) {
-                const rect = card.getBoundingClientRect();
-                if (rect.bottom >= top && rect.top <= bottom) continue;
+        let wokeAny = false;
+        beginHold();
+        try {
+            wokeAny = wakeInsideWindow(top, bottom);
+            for (const name of Array.from(loadedCards)) {
+                const card = cardElsByName.get(name);
+                if (!card || !card.isConnected) continue;
+                // Hidden by a filter: it is laying out for nobody, so it should not
+                // hold a slot in the window either.
+                if (!isCardHidden(card)) {
+                    const rect = card.getBoundingClientRect();
+                    if (rect.bottom >= top && rect.top <= bottom) continue;
+                }
+                if (keepAlive(card)) continue;
+                if (parkCard(card, name)) parkedAny = true;
             }
-            if (keepAlive(card)) continue;
-            if (parkCard(card, name)) parkedAny = true;
+            parkStep = (parkedAny || wokeAny)
+                ? PARK_STEP
+                : Math.min(PARK_STEP_MAX, parkStep + PARK_STEP);
+            growWindowBack();
+            prunePark();
+        } finally {
+            endHold();
         }
-        parkStep = parkedAny ? PARK_STEP : Math.min(PARK_STEP_MAX, parkStep + PARK_STEP);
-        growWindowBack();
-        prunePark();
-        if (parkedAny) updateLiveCount();
+        if (parkedAny || wokeAny) updateLiveCount();
+        // One frame of measurement per pass, and only where the real signal is
+        // missing: this is the entire cost of governing a browser that cannot say
+        // it dropped a frame.
+        if (!governorHasLoAF) probeFrames();
     }
 
     // ===== WARM-AHEAD: "BYTES HERE" IS NOT "RUNNING HERE" =====
@@ -2325,8 +2529,10 @@
         if (!sandbox) return;
         // A parked sandbox holds only the face, on purpose: measuring it would
         // return about a face's height and write that back as the row's
-        // min-height, collapsing the space the park exists to keep open (the
-        // resize handler walks every card, parked ones included).
+        // min-height — and that number is the one the park restores on the way
+        // back, so corrupting it on a resize (the handler walks every card, parked
+        // ones included) would leave the tool coming up at face height forever.
+        // The height a parked row shows is the tile's, and it is CSS's to give.
         if (cardElement.dataset.parked === '1') return;
         
         const contentHeight = sandbox.scrollHeight;
@@ -2364,7 +2570,13 @@
                     const card = entry.target;
                     if (isCardHidden(card)) return;
                     const cardName = card.dataset.name;
-                    
+                    // A parked tool the reader walked back to is woken on sight,
+                    // ahead of the mount budget: that budget counts what the page
+                    // fetches and mounts, and a wake is neither.
+                    if (cardName && card.dataset.parked === '1') {
+                        resumeParked(card, cardName);
+                        return;
+                    }
                     if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)
                         && mountBudgetFree()) {
                         loadCard(card, cardName);
@@ -2373,7 +2585,9 @@
             });
         }, {
             root: null,
-            rootMargin: '600px 0px',
+            // One source of truth for the look-ahead, because parkMargin() has to
+            // stay bigger than it (see THE WINDOW AND THE PARK).
+            rootMargin: `${CONFIG.REMOUNT_LOOKAHEAD}px 0px`,
             threshold: 0
         });
         
@@ -2798,10 +3012,13 @@
             const rawView = (params.get('view') || '').trim().toLowerCase();
             out.view = rawView === 'cards' || rawView === 'directory' ? rawView : '';
             // `?park=off` is the escape hatch on the mount window: nothing gets
-            // put back, so every tool the page mounts stays on the grid. Only the
-            // literal `off` means anything — parking is the good default, so a
-            // typo must not be able to switch it off.
-            out.park = (params.get('park') || '').trim().toLowerCase() === 'off' ? 'off' : '';
+            // put back, so every tool the page mounts stays on the grid.
+            // `?park=full` is the half-measure, for someone who wants the density
+            // gone but the park kept: a parked tool keeps its whole row instead of
+            // collapsing to a tile. Anything else is no park directive at all —
+            // parking is the good default, so a typo must not switch it off.
+            const rawPark = (params.get('park') || '').trim().toLowerCase();
+            out.park = rawPark === 'off' || rawPark === 'full' ? rawPark : '';
         } catch (err) { /* malformed query string: plain homepage */ }
         return out;
     }
@@ -2814,6 +3031,7 @@
             // Read before the early return: a URL that only says `park=off` is
             // still a URL that changed how the page behaves.
             if (link.park === 'off') parkMode = false;
+            else if (link.park === 'full') collapsePark = false;
             if (!link.q && !link.expand && !link.cat && !link.view && !link.park) return;
             const main = document.getElementById('mainSearchInput');
             const sticky = document.getElementById('stickySearchInput');

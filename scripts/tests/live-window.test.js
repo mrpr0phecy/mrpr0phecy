@@ -344,10 +344,25 @@ function fakeAnim(name) {
 
 // One card as renderCardContent leaves it: shell + face + tool content + an
 // injected style, and a rating footer the card created for itself.
-function makeTool(name, top, height) {
+function makeTool(name, top, height, tileHeight) {
   const card = node('div', 'card loaded visible');
   card.dataset.name = name;
-  card.rect = { top, bottom: top + height, left: 0, right: 948, width: 948, height };
+  card._top = top; card._row = height; card._tile = tileHeight || 0;
+  // The rect answers to the card's own classes the way the grid does: in the
+  // mosaic a row wearing `card-pending` is a 172px tile and a row wearing
+  // `card.loaded` claims the whole line. A park is exactly that swap, so a test
+  // about jumping has to be shown a height that changes. `tileHeight` of 0 keeps
+  // a card one-stable-height, which is what every other suite here wants;
+  // assigning `.rect` (older suites do, to move a card) pins the geometry and
+  // turns the model off for that card.
+  Object.defineProperty(card, 'rect', {
+    configurable: true,
+    get() {
+      const h = card._tile && card.classList.contains('card-pending') ? card._tile : card._row;
+      return { top: card._top, bottom: card._top + h, left: 0, right: 948, width: 948, height: h };
+    },
+    set(v) { card._top = v.top; card._row = v.height; card._tile = 0; },
+  });
   const content = node('div', 'card-content');
   content.style.minHeight = height + 'px';
   const sandbox = node('div', 'card-sandbox', 'card-' + name);
@@ -387,6 +402,11 @@ const PARK_STEP = parseInt(PARK_STEP_M[1], 10);
 const PARK_STEP_MAX = parseInt(PARK_STEP_M[2], 10);
 assert(PARK_STEP > 60 && PARK_STEP_MAX > PARK_STEP,
     `the park pass must be gated on real scroll distance, not on frames (${PARK_STEP}/${PARK_STEP_MAX})`);
+// The governor's starting values, read out of the file: they are compared against
+// performance.now(), so a harness that guesses them either tests nothing or fails
+// for the wrong reason.
+const INITIAL_SHRINK = (app.match(/let lastShrink = ([^;]+);/) || [])[1];
+assert(INITIAL_SHRINK, 'could not read the governor lastShrink initialiser from home-app.js');
 const readNum = (key) => {
   const m = app.match(new RegExp(key + ':\\s*(\\d+)'));
   assert(m, `could not read ${key} from home-app.js`);
@@ -399,8 +419,10 @@ let __harnessWin = null;
 // to move the scroll position (there is no layout engine here to move it).
 function harnessScroll(y) { __harnessWin.scrollY = y; }
 function harnessHost() { return __harness ? __harness.host : null; }
+function harnessScrolls() { return __harness ? __harness.scrolls : []; }
 function parkHarness(opts) {
-  const o = Object.assign({ parkMode: true, runAll: false, innerHeight: 900, memory: null, ceiling: 64 }, opts || {});
+  const o = Object.assign({ parkMode: true, runAll: false, innerHeight: 900, memory: null, ceiling: 64,
+    collapse: true }, opts || {});
   const tools = new Map();
   const loadedCards = new Set();
   const parkedCards = new Map();
@@ -412,7 +434,14 @@ function parkHarness(opts) {
   const seen = { observes: 0, sweeps: 0, liveCountUpdates: 0 };
   const parkOrder = [];
   const findHost = () => body.children.find(c => c.id === 'mp-park') || null;
-  const win = { innerHeight: o.innerHeight, scrollY: 0 };
+  const scrolls = [];
+  const win = {
+    innerHeight: o.innerHeight,
+    scrollY: 0,
+    // Not a spy that only counts: the whole point of the park's scroll correction
+    // is *which offset* the page lands on, so the fake has to actually move.
+    scrollTo(x, y) { win.scrollY = y; scrolls.push(y); },
+  };
   const doc = {
     body,
     activeElement: null,
@@ -431,24 +460,48 @@ function parkHarness(opts) {
     'let lastParkScrollY = -Infinity;',
     'let parkStep = PARK_STEP;',
     'let lastLongFrame = 0;',
-    'let lastShrink = 0;',
+    `let lastShrink = ${INITIAL_SHRINK};`,
+    'let collapsePark = ' + o.collapse + ';',
+    'let touchActive = ' + (o.touch ? 'true' : 'false') + ';',
+    'let scrollHold = 0;',
+    'let holdBatch = 0;',
+    'let lastWarmScrollY = 0;',
+    'let governorHasLoAF = true;',
+    'let frameProbed = false;',
     'const explicitRunAll = ' + o.runAll + ';',
     grab('parkHost'), grab('memoryPressure'), grab('setFaceHint'), grab('keepAlive'),
     grab('pauseParkedAnimations'),
+    // `collapsing()` is the gate every collapse and every correction goes
+    // through. Left out of an extracting harness it resolves to the Proxy's
+    // no-op, and "no correction happened" and "the code decided not to" become
+    // the same test result — which is how this file once passed while proving
+    // nothing.
+    grab('collapsing'),
+    grab('parkMargin'), grab('aboveTheFold'), grab('noteRowHeight'), grab('beginHold'),
+    grab('endHold'), grab('commitScrollHold'), grab('wakeInsideWindow'), grab('growWindowBack'),
     grab('parkCard'), grab('resumeParked'), grab('prunePark'), grab('parkOutsideWindow'),
     grab('adjustCardHeight'),
     ';({ parkCard, resumeParked, parkOutsideWindow, prunePark, parkHost, memoryPressure, adjustCardHeight,',
+    '  parkMargin, beginHold, endHold, commitScrollHold, growWindowBack,',
     '  state: { loadedCards, parkedCards, cardElsByName, pendingCards, host, seen },',
     '  get mountWindow() { return mountWindow; }, set parkMode(v) { parkMode = v; },',
+    '  set collapse(v) { collapsePark = v; }, get collapse() { return collapsePark; },',
+    '  get lastParkScrollY() { return lastParkScrollY; },',
+    '  get lastWarmScrollY() { return lastWarmScrollY; },',
+    '  get scrollHold() { return scrollHold; },',
     '  parkOrder: () => parkOrder });',
   ].join('\n');
   const api = run(src, {
     document: doc,
     performance: { now: () => 0, memory: o.memory },
     window: win,
+    // The pass must not need a timer or a frame of its own: it runs inside the
+    // sweep's rAF. A call here is a bug, so the fake has one job — to be loud.
+    requestAnimationFrame: () => { throw new Error('the park pass must not need a frame callback'); },
     navigator: { deviceMemory: 8 },
     CONFIG: { MOUNT_WINDOW_DEFAULT: readNum('MOUNT_WINDOW_DEFAULT'), MOUNT_WINDOW_MIN: readNum('MOUNT_WINDOW_MIN'),
-      MOUNT_WINDOW_MAX: readNum('MOUNT_WINDOW_MAX'), PARK_CEILING: o.ceiling, LONG_FRAME_MS: readNum('LONG_FRAME_MS') },
+      MOUNT_WINDOW_MAX: readNum('MOUNT_WINDOW_MAX'), PARK_CEILING: o.ceiling, LONG_FRAME_MS: readNum('LONG_FRAME_MS'),
+      REMOUNT_LOOKAHEAD: readNum('REMOUNT_LOOKAHEAD') },
     isCardHidden: (card) => card.style.display === 'none',
     observer: { observe: () => { seen.observes++; }, unobserve: () => {} },
     pendingCards, parkOrder,
@@ -456,14 +509,14 @@ function parkHarness(opts) {
     scheduleViewportSweep: () => { seen.sweeps++; },
     updateLiveCount: () => { seen.liveCountUpdates++; },
   }, 'park-harness');
-  api.add = (name, top, height) => {
-    const t = makeTool(name, top, height);
+  api.add = (name, top, height, tile) => {
+    const t = makeTool(name, top, height, tile);
     tools.set(name, t);
     loadedCards.add(name);
     cardElsByName.set(name, t.card);
     return t;
   };
-  const made = { api, tools, win, loadedCards, parkedCards, cardElsByName, pendingCards, seen, doc,
+  const made = { api, tools, win, scrolls, loadedCards, parkedCards, cardElsByName, pendingCards, seen, doc,
     get host() { return findHost(); } };
   __harness = made;
   __harnessWin = win;
@@ -498,12 +551,18 @@ function parkHarness(opts) {
   // A parked tool is not loaded, is parked, and its row did not collapse.
   assert.ok(!t.card.classList.contains('loaded'), 'a parked card must not claim a grid row as live');
   assert.ok(t.card.classList.contains('card-parked'), 'a parked card must say so');
-  assert.strictEqual(t.content.style.minHeight, '412px',
-    'parking must keep the row height, or the page jumps for everything below it');
-  // …and a resize must not measure the empty parked box back into that height.
+  // The row goes back to being a tile, and the height it held is *stored*, not
+  // left on the box: an inline min-height outranks the tile rules, so a collapse
+  // that forgot to clear one would park a tool inside a 412px gap.
+  assert.ok(t.card.classList.contains('card-pending'), 'a parked row is a tile again');
+  assert.strictEqual(t.content.style.minHeight, '', 'and its pinned height comes off the box');
+  assert.strictEqual(t.card.dataset.parkedMinHeight, '412px',
+    'but is kept, verbatim, for the way back — a parked sandbox has only a face to measure');
+  // …and a resize must not measure the empty parked box into anything.
   api.adjustCardHeight(t.card);
-  assert.strictEqual(t.content.style.minHeight, '412px',
+  assert.strictEqual(t.content.style.minHeight, '',
     'adjustCardHeight must leave a parked row alone: a face-only sandbox is not a tool');
+  assert.strictEqual(t.card.dataset.parkedMinHeight, '412px', 'and must not corrupt the stored height');
   assert.strictEqual(t.face.hidden, false, 'the face is what a parked tile shows');
   assert.strictEqual(t.hint.textContent, HINT_PARKED,
     'a parked face must not claim the tool is unstarted');
@@ -532,12 +591,17 @@ function parkHarness(opts) {
   assert.strictEqual(t.face.hidden, true, 'a live tool must not show its face');
   assert.strictEqual(t.hint.textContent, HINT_RUN, 'and the hint must go back to the truth');
   assert.ok(loadedCards.has('loan') && !parkedCards.has('loan'), 'it is live again');
+  assert.strictEqual(t.content.style.minHeight, '412px', 'waking it up puts the row height back');
+  assert.ok(!t.card.classList.contains('card-pending'), 'and it stops being a tile');
+  assert.strictEqual(t.card.dataset.parkedMinHeight, undefined, 'with nothing left to restore a second time');
   assert.deepStrictEqual(anims.map(a => a.playState), ['running', 'running'],
     'waking the tool resumes the animations it parked with');
   assert.strictEqual(anims[0].plays, 1, 'and plays them once');
   assert.strictEqual(host.children.length, 0, 'the park must not leak holders');
   assert.strictEqual(harnessHost(), host, 'the second park reuses the one host (no pile of containers)');
   assert.strictEqual(seen.sweeps, 1, 'a resume re-measures once, for the content that came back');
+  assert.deepStrictEqual(harnessScrolls(), [],
+    'a row below the viewport needs no scroll correction: moving the page for a change nobody can see is the bug, not the fix');
   assert.ok(seen.liveCountUpdates > 0,
     'and the toolbar must be retold: a wake-up never passes through the render path that updates it');
   // An engine that cannot answer must not cost the park.
@@ -674,12 +738,23 @@ function parkHarness(opts) {
 // the hysteresis, the stylesheet that must not hide the park, and the render
 // path that must stop wiping the shell.
 {
-  assert.ok(MARGIN_VH * 900 > 600,
-    `the park margin (${MARGIN_VH} viewports) must be wider than the observer's 600px look-ahead or a boundary card oscillates`);
-  const rootMargin = app.match(/rootMargin:\s*'(\d+)px/);
-  assert(rootMargin, 'could not read the observer look-ahead from home-app.js');
-  assert.ok(MARGIN_VH * 700 > parseInt(rootMargin[1], 10),
-    `even a 700px-tall window must leave a dead band (margin ${Math.round(MARGIN_VH * 700)}px vs look-ahead ${rootMargin[1]}px)`);
+  // The dead band between the two passes is the one number they must agree on
+  // without talking to each other: park further out than the observer looks in,
+  // or a boundary row is parked and woken on alternate frames. This used to be a
+  // hand-check on two literals; it is a clamp in the code now, so it is checked
+  // by driving parkMargin() — including the viewport sizes that used to break it.
+  const LOOKAHEAD = readNum('REMOUNT_LOOKAHEAD');
+  const observerMargin = app.match(/rootMargin:\s*`\$\{CONFIG\.REMOUNT_LOOKAHEAD\}px 0px`/);
+  assert(observerMargin, 'the observer must interpolate CONFIG.REMOUNT_LOOKAHEAD, not carry its own copy of the number');
+  const band = parkHarness().api;
+  assert.strictEqual(band.parkMargin(900), Math.round(MARGIN_VH * 900),
+    `on a 900px window the margin is still ${MARGIN_VH} viewports (${band.parkMargin(900)}px)`);
+  for (const vh of [700, 500, 400, 300]) {
+    assert.ok(band.parkMargin(vh) > LOOKAHEAD,
+      `a ${vh}px window must still leave a dead band (got ${band.parkMargin(vh)}px vs a ${LOOKAHEAD}px look-ahead)`);
+  }
+  assert.ok(band.parkMargin(300) === LOOKAHEAD + 100,
+    'below the clamp the margin is the look-ahead plus a gutter, not a viewport fraction');
 
   const deferred = fs.readFileSync(path.join(ROOT, 'home-deferred.css'), 'utf8');
   assert.ok(css.includes('#mp-park'), 'the park container needs its styles before it can be used at all');
@@ -826,6 +901,214 @@ function parkHarness(opts) {
   assert(reset && /warmDir = 1;/.test(reset[0]),
     'a filter, sort or density change must reset the direction too, not just the cursor');
   console.log('  ok   warm-ahead follows the scroll in both directions and still stops when done');
+}
+
+// ---------------------------------------------------------------- suite 13
+// The collapse and the correction. A parked row stops reserving the space it no
+// longer needs — that is what keeps the *whole* page dense, not just the part
+// below the fold — and the height it hands back above the viewport is paid for
+// in the same frame, or the page jumps.
+{
+  const { api, tools, win, scrolls } = parkHarness({ innerHeight: 900 });
+  win.scrollY = 5000;
+  const high = api.add('high', -2600, 900, 172);   // 1,700px above the fold: parkable
+  const low = api.add('low', 5000, 400, 172);      // far below: parkable, harmless
+  api.parkOutsideWindow();
+
+  assert.ok(high.card.classList.contains('card-parked') && low.card.classList.contains('card-parked'),
+    'both rows are outside the window and go to the park');
+  assert.deepStrictEqual(scrolls, [5000 - (900 - 172)],
+    'the row above the viewport takes 728px of document with it, so the offset moves back by exactly that');
+  assert.strictEqual(win.scrollY, 4272, 'and the fake window actually moved: the reader sees the same pixels');
+  assert.strictEqual(api.lastParkScrollY, 4272,
+    'the pass re-anchors its own gate, or the correction reads as another 728px of scrolling');
+  assert.strictEqual(api.lastWarmScrollY, 4272,
+    'and so does the warm cursor — a compensating scroll is not the reader turning around');
+
+  const before = scrolls.length;
+  api.parkOutsideWindow();
+  assert.strictEqual(scrolls.length, before, 'the same pass run again corrects nothing');
+
+  // Waking it is the same arithmetic backwards, and the round trip has to land
+  // where it started — otherwise a reader who scrolls up and down drifts.
+  api.resumeParked(high.card, 'high');
+  assert.deepStrictEqual(scrolls.slice(before), [5000],
+    'the row above the fold takes its height back and the offset is corrected the other way');
+  assert.strictEqual(win.scrollY, 5000, 'exactly where the reader was, at the end of a park/wake round trip');
+
+  // A row the fold cuts in half is being looked at: moving the page under it is
+  // the jump, not the cure. A filter-hidden card is parked wherever it happens to
+  // be, so this is the case that proves the guard.
+  const cut = parkHarness({ innerHeight: 900 });
+  cut.win.scrollY = 900;
+  const straddling = cut.api.add('straddle', -80, 400, 172);
+  straddling.card.style.display = 'none';
+  cut.api.parkOutsideWindow();
+  assert.ok(straddling.card.classList.contains('card-parked'),
+    'a row hidden by a filter is parked even though it overlaps the viewport');
+  assert.deepStrictEqual(cut.scrolls, [], 'and the page is not moved for it: its top edge is on screen');
+  console.log('  ok   a parked row collapses to a tile, and the scroll offset is paid for above the fold');
+}
+
+// ---------------------------------------------------------------- suite 14
+// `?park=full` is the opt-out, so the collapse has to be switchable without
+// switching the park off — and the switch must be read before the first park,
+// because a pass that half-collapses is worse than either setting.
+{
+  const full = parkHarness({ innerHeight: 900, collapse: false });
+  full.win.scrollY = 5000;
+  const t = full.api.add('tall', -2600, 900, 172);
+  full.api.parkOutsideWindow();
+  assert.ok(t.card.classList.contains('card-parked'), 'parking itself still happens');
+  assert.ok(!t.card.classList.contains('card-pending'), 'but the row keeps its slot: no tile, no collapse');
+  assert.strictEqual(t.content.style.minHeight, '900px', 'the pinned height stays on the box');
+  assert.strictEqual(t.card.dataset.parkedMinHeight, undefined, 'and there is nothing to restore later');
+  assert.deepStrictEqual(full.scrolls, [], 'nothing to compensate for, so nothing moved');
+  assert.strictEqual(full.api.collapse, false, 'the harness is testing the flag, not the default');
+
+  const dflt = parkHarness({ innerHeight: 900 });
+  assert.strictEqual(dflt.api.collapse, true, 'the collapse is the default, not an experiment');
+  assert.ok(/PARK_COLLAPSE: true/.test(app), 'and it is stated in CONFIG, where the other knobs live');
+  console.log('  ok   ?park=full keeps the row claimed; the collapse is the default');
+}
+
+// ---------------------------------------------------------------- suite 15
+// The wake half of the pass. A parked tool inside the window has to come back no
+// matter how busy the mount budget is: the budget is about fetches, and a wake is
+// a node move.
+{
+  const { api, win, loadedCards, parkedCards } = parkHarness({ innerHeight: 900 });
+  const near = api.add('near', 120, 400, 172);
+  api.parkCard(near.card, 'near');
+  assert.ok(parkedCards.has('near') && !loadedCards.has('near'), 'parked by the window, in a tile');
+  api.parkOutsideWindow();
+  assert.ok(loadedCards.has('near') && !parkedCards.has('near'),
+    'the next pass has to put it back: the reader is looking at it');
+  assert.ok(!near.card.classList.contains('card-parked'), 'and it must not still claim to be parked');
+
+  // A parked card whose shell left the DOM (a rebuild, an extension that rewrote
+  // the grid) must not strand its content in the park forever.
+  const ghost = api.add('ghost', 5000, 400, 172);
+  api.parkCard(ghost.card, 'ghost');
+  assert.ok(parkedCards.has('ghost'), 'parked first, of course');
+  const hostNow = harnessHost();
+  assert.ok(hostNow.children.length >= 1, 'with something in the park to lose');
+  ghost.card.isConnected = false;
+  win.scrollY = 2400;   // the pass is gated on a scroll step, so move the page
+  api.parkOutsideWindow();
+  assert.ok(!parkedCards.has('ghost'), 'a detached parked shell is dropped from the park');
+  assert.strictEqual(hostNow.children.filter(c => c.dataset.name === 'ghost').length, 0,
+    'and its holder is removed, not left holding a whole tool nobody can reach');
+
+  // The other wake path: the observer. It is the one that has to react inside a
+  // frame, and it must not ask the budget first.
+  const io = app.slice(app.indexOf('new IntersectionObserver'), app.indexOf('rootMargin'));
+  assert(io.length > 0, 'could not find the IntersectionObserver callback to read it');
+  assert.ok(io.indexOf("dataset.parked === '1'") !== -1 && io.indexOf("dataset.parked === '1'") < io.indexOf('mountBudgetFree'),
+    'the observer must wake a parked tool before it consults the mount budget');
+  console.log('  ok   what the viewport wants comes back, budget or no budget');
+}
+
+// ---------------------------------------------------------------- suite 16
+// The governor for browsers with no long-animation-frame entries. Safari and
+// Firefox cannot say they dropped a frame, so the page asks for one and times
+// the answer — and that has to be able to shrink the window as well as grow it.
+{
+  const seen = { sweeps: 0 };
+  const raf = [];
+  const clock = { t: 0 };
+  const api = run([
+    'let mountWindow = ' + readNum('MOUNT_WINDOW_DEFAULT') + ';',
+    'let lastLongFrame = 0;',
+    `let lastShrink = ${INITIAL_SHRINK};`,
+    'let lastParkScrollY = 0;',
+    'let parkStep = 0;',
+    'let governorHasLoAF = false;',
+    'let frameProbed = false;',
+    grab('noteLongFrame'), grab('probeFrames'), grab('growWindowBack'), grab('invalidateParkPass'),
+    ';({ probeFrames, growWindowBack, noteLongFrame,',
+    '  get mountWindow() { return mountWindow; },',
+    '  get loafs() { return governorHasLoAF; }, set loafs(v) { governorHasLoAF = v; },',
+    '  get probed() { return frameProbed; } });',
+  ].join('\n'), {
+    performance: { now: () => clock.t },
+    requestAnimationFrame: (cb) => { raf.push(cb); return raf.length; },
+    CONFIG: {
+      LONG_FRAME_MS: readNum('LONG_FRAME_MS'), MOUNT_WINDOW_MIN: readNum('MOUNT_WINDOW_MIN'),
+      MOUNT_WINDOW_MAX: readNum('MOUNT_WINDOW_MAX'),
+    },
+    scheduleViewportSweep: () => { seen.sweeps++; },
+  }, 'governor-harness');
+
+  const flush = (ms) => { clock.t += ms; const cbs = raf.splice(0, raf.length); cbs.forEach(cb => cb()); };
+
+  api.probeFrames();
+  assert.strictEqual(raf.length, 1, 'one frame asked for per pass — that is the whole cost of the fallback');
+  assert.strictEqual(api.probed, true, 'and the probe is in flight, so two passes cannot stack them');
+  flush(5);
+  assert.strictEqual(api.mountWindow, readNum('MOUNT_WINDOW_DEFAULT'), 'a 5ms frame is not pressure');
+  assert.strictEqual(api.probed, false, 'the probe reports and clears itself');
+
+  api.probeFrames();
+  flush(250);
+  assert.strictEqual(api.mountWindow, readNum('MOUNT_WINDOW_DEFAULT') - 4,
+    'a 250ms gap is a dropped frame on a page that is mounting tools: the window narrows');
+  assert.strictEqual(seen.sweeps, 1, 'and the sweep is re-run so the narrowing takes effect');
+  api.probeFrames();
+  flush(300);
+  assert.strictEqual(api.mountWindow, readNum('MOUNT_WINDOW_DEFAULT') - 4,
+    'two shrinks in the same 5s window are one shrink — the governor must not chase a stutter');
+
+  clock.t += 1000;
+  api.growWindowBack();
+  assert.strictEqual(api.mountWindow, readNum('MOUNT_WINDOW_DEFAULT') - 4,
+    'it does not grow back on the next pass either: the quiet period is measured from the last long frame');
+  clock.t += 20000;
+  api.growWindowBack();
+  assert.strictEqual(api.mountWindow, readNum('MOUNT_WINDOW_DEFAULT') - 2,
+    'and two tools at a time once it has been quiet for 20s');
+
+  api.loafs = true;
+  const queued = raf.length;
+  api.probeFrames();
+  assert.strictEqual(raf.length, queued, 'a browser that reports long frames is not timed by hand as well');
+  assert.ok(/if \(!governorHasLoAF\) probeFrames\(\);/.test(app),
+    'the park pass is what asks for the probe — no timer, no polling');
+  console.log('  ok   no LoAF is not no governor: one frame per pass, shrinking allowed');
+}
+
+// ---------------------------------------------------------------- suite 17
+// The one thing a node harness cannot argue about: a scroll correction issued
+// while a finger is still flinging the page. The answer is not to be clever
+// about it, it is to not do it — so the guard has to be provable from here.
+{
+  const hot = parkHarness({ innerHeight: 900, touch: true });
+  hot.win.scrollY = 5000;
+  const t = hot.api.add('midfling', -2600, 900, 172);
+  hot.api.parkOutsideWindow();
+  assert.ok(t.card.classList.contains('card-parked'),
+    'a fling does not stop the park: the tool still leaves the grid and the page still stops painting it');
+  assert.ok(!t.card.classList.contains('card-pending'),
+    'but the row is not reflowed while the finger is down, because the correction it needs cannot be applied');
+  assert.strictEqual(t.content.style.minHeight, '900px', 'so nothing is taken off the box to be restored later');
+  assert.deepStrictEqual(hot.scrolls, [], 'and the page was not moved under the gesture');
+
+  const idle = parkHarness({ innerHeight: 900 });
+  idle.win.scrollY = 5000;
+  const after = idle.api.add('settled', -2600, 900, 172);
+  idle.api.parkOutsideWindow();
+  assert.ok(after.card.classList.contains('card-pending'),
+    'one frame after the finger lifts the next pass collapses it: the guard defers, it does not decline');
+  assert.deepStrictEqual(idle.scrolls, [4272], 'and by then the correction is safe to make');
+
+  const guard = grab('initTouchGuard');
+  assert.ok(/touchstart/.test(guard) && /touchend/.test(guard) && /touchcancel/.test(guard),
+    'the guard needs all three: a cancelled touch that never fires touchend would strand the flag');
+  assert.strictEqual((guard.match(/passive: true/g) || []).length, 3,
+    'every one of them passive — a blocking touchstart listener on a 1,194-card page is its own scroll jank');
+  assert.ok(/return collapsePark && !touchActive;/.test(app),
+    'one gate, read by the collapse and by the correction, so they can never disagree');
+  console.log('  ok   no reflow under a live finger: the collapse waits for the fling to end');
 }
 
 console.log('\nlive-window tests passed');
