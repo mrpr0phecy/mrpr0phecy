@@ -547,8 +547,10 @@ vim cards/my-tool.html
 node generate-cards-json.js
 
 # 3. Re-sync everything derived from the catalogue. Never hand-edit a count
-#    or the home page's generated first screen — these scripts own them and
-#    verify.sh fails on drift. Order matters: build-home-prerender.py reads
+#    or the home page's generated first screen — the tool count is the number
+#    of .html files in cards/ (`python3 scripts/sync-counts.py count` prints
+#    it) and verify.sh section 9 re-derives any drifted published number in
+#    place instead of failing. Order matters: build-home-prerender.py reads
 #    tools-index.json for the category hub links it writes into index.html.
 python3 scripts/sync-counts.py
 node scripts/build-tools-index.js

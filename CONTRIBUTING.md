@@ -75,12 +75,16 @@ you'll catch your own mistakes:
 - Commit messages: one line, imperative ("Add ...", "Fix ...", "Update
   ..."). No secrets, no private tokens, no .github_token content.
 - If your change touches the tool count (in either direction), do **not**
-  hand-edit any of the copies. Run `python3 scripts/sync-counts.py`,
+  hand-edit any of the copies. The count is the number of `.html` files in
+  `cards/` — `python3 scripts/sync-counts.py count` prints it. Run
+  `python3 scripts/sync-counts.py`,
   `python3 scripts/build-sitemap.py` and `python3
   scripts/build-home-prerender.py`: the hero badge, the footer counts, the
   README quick-facts table, the `AGENTS.md` and `INCOME.md` headline numbers,
   the ItemList JSON-LD and the home page's generated first screen are all
-  derived, and `scripts/verify.sh` fails on drift. (This bullet used to list
+  derived from that one number, and `scripts/verify.sh` re-derives any
+  drifted copy in place (self-healing), so a card number never has to be
+  changed by hand. (This bullet used to list
   the copies to update by hand — that procedure is what produced nine
   simultaneous contradictory counts.)
 

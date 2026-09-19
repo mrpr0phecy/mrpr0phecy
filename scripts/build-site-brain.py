@@ -30,6 +30,12 @@ Research implemented (2022-2025):
 Usage:
     python3 scripts/build-site-brain.py
     python3 scripts/build-site-brain.py --check
+
+--check is a fast path: the written index records a fingerprint of every
+input (cards/cards.json, the public docs, learning/approved.json and this
+script's own code). When the fingerprint matches the stored one the index is
+current by construction and the check returns in milliseconds without
+rebuilding. A mismatch triggers a rebuild and a stale report, as before.
 """
 
 from __future__ import annotations
@@ -159,6 +165,14 @@ def source_fingerprint() -> str:
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
+    # The build code itself is an input: changing a parameter or algorithm in
+    # this script must invalidate a previously written index even when every
+    # source file is byte-identical.
+    script = Path(__file__).resolve()
+    digest.update(script.name.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(script.read_bytes())
+    digest.update(b"\0")
     return digest.hexdigest()
 
 
@@ -685,34 +699,50 @@ def main() -> int:
     parser.add_argument("--pretty", action="store_true", help="write pretty JSON (larger)")
     args = parser.parse_args()
     try:
+        if args.check:
+            # Fast path: the written index records a fingerprint of every
+            # input (cards.json, the public docs, approved learning and this
+            # script's own code). If none of them changed since the index was
+            # written, it is current by construction and no rebuild is needed
+            # — this keeps a routine verify at milliseconds instead of
+            # rebuilding the whole index on every run.
+            if not OUTPUT.exists():
+                print("site brain missing — run: python3 scripts/build-site-brain.py", file=sys.stderr)
+                return 1
+            try:
+                existing = json.loads(OUTPUT.read_text(encoding="utf-8"))
+            except Exception as e:
+                print(f"site brain check failed: {e}", file=sys.stderr)
+                return 1
+            current = source_fingerprint()
+            stored = existing.get("generated_from", {}).get("source_hash")
+            if stored == current:
+                g = existing.get("generated_from", {})
+                print(f"site brain v4 OK (up to date — inputs unchanged) — {g.get('cards')} cards, "
+                      f"{len(existing.get('documents', []))} docs, vocab {g.get('vocab_size')}, "
+                      f"fingerprint {current[:12]}…")
+                return 0
+            # Fingerprint mismatch: rebuild to report the real reason
+            # (stale sources, or a code change not yet rebuilt).
+            data = build()
+            if data["generated_from"]["source_hash"] != current:
+                print("site brain fingerprint is inconsistent — rebuild: python3 scripts/build-site-brain.py", file=sys.stderr)
+                return 1
+            if existing.get("generated_from", {}).get("cards") != data["generated_from"]["cards"]:
+                print("site brain is stale — card count changed — run: python3 scripts/build-site-brain.py", file=sys.stderr)
+                return 1
+            print("site brain is stale — source hash mismatch — run: python3 scripts/build-site-brain.py", file=sys.stderr)
+            return 1
         data = build()
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"site brain: {error}", file=sys.stderr)
         return 1
 
-    if args.check:
-        if not OUTPUT.exists():
-            print("site brain missing — run: python3 scripts/build-site-brain.py", file=sys.stderr)
-            return 1
-        try:
-            existing = json.loads(OUTPUT.read_text(encoding="utf-8"))
-            if existing.get("generated_from", {}).get("source_hash") != data["generated_from"]["source_hash"]:
-                print("site brain is stale — source hash mismatch — run: python3 scripts/build-site-brain.py", file=sys.stderr)
-                return 1
-            if existing.get("generated_from", {}).get("cards") != data["generated_from"]["cards"]:
-                print("site brain is stale — card count changed", file=sys.stderr)
-                return 1
-        except Exception as e:
-            print(f"site brain check failed: {e}", file=sys.stderr)
-            return 1
-        print(f"site brain v4 OK — {data['generated_from']['cards']} cards, {len(data['documents'])} docs, vocab {data['generated_from']['vocab_size']}, avgdl {data['generated_from']['avg_doc_length']}, research stack {len(data['assistant']['research_stack']['reasoning'])} reasoning + {len(data['assistant']['research_stack']['retrieval'])} retrieval + {len(data['assistant']['research_stack']['face'])} face")
-        return 0
-
-    output = serialise(data)
-    OUTPUT.write_text(output, encoding="utf-8")
-    payload = json.loads(output)
-    size_kb = len(output) / 1024
-    print(f"site brain v4: {payload['generated_from']['cards']} cards, {len(payload['documents'])} docs, {payload['generated_from']['vocab_size']} vocab, {payload['generated_from']['avg_doc_length']} avgdl, {len(payload['graph']['related'])} graph nodes, {size_kb:.0f} KB, research stack {len(payload['assistant']['research_stack']['reasoning'])} reasoning + {len(payload['assistant']['research_stack']['retrieval'])} retrieval + {len(payload['assistant']['research_stack']['face'])} face")
+    if not args.check:
+        output = serialise(data)
+        OUTPUT.write_text(output, encoding="utf-8")
+    size_kb = len(serialise(data)) / 1024
+    print(f"site brain v4: {data['generated_from']['cards']} cards, {len(data['documents'])} docs, vocab {data['generated_from']['vocab_size']}, avgdl {data['generated_from']['avg_doc_length']}, graph {len(data['graph']['related'])} nodes, {size_kb:.0f} KB, research stack {len(data['assistant']['research_stack']['reasoning'])} reasoning + {len(data['assistant']['research_stack']['retrieval'])} retrieval + {len(data['assistant']['research_stack']['face'])} face")
     return 0
 
 

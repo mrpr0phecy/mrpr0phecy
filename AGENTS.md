@@ -122,7 +122,10 @@ cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/bo
 node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
 # Re-sync everything derived from the catalogue. Never hand-edit a count, the
-# sitemap, or index.html's generated first screen — verify.sh fails on drift.
+# sitemap, or index.html's generated first screen — the cards/ folder is the
+# single source of truth and verify.sh section 9 re-derives drifted counts in
+# place (self-healing) instead of failing. `python3 scripts/sync-counts.py
+# count` prints the canonical number at any time.
 python3 scripts/sync-counts.py            # tool counts across docs and pages
 python3 scripts/build-sitemap.py          # sitemap.xml
 python3 scripts/build-home-prerender.py   # index.html HOME-FAST-PATH/PRERENDER
@@ -173,12 +176,18 @@ in seconds and never blocks. Do not wait on it — and do not "fix" it back
 
 Verification still exists; it just no longer sits in your iteration loop:
 
-- **Locally, when a change is risky:** `bash scripts/verify.sh` (full gate),
-  or only the relevant `--check` when you touched a generated artefact —
-  `python3 scripts/sync-counts.py --check`, `node generate-cards-json.js
-  --check`, `python3 scripts/build-sitemap.py --check`.
+- **Locally, when a change is risky:** `bash scripts/verify.sh` — the fast
+  path (every check incremental or fingerprinted; ~20-30 s, section timings
+  printed slowest-first), or only the relevant `--check` when you touched a
+  generated artefact — `python3 scripts/sync-counts.py --check`,
+  `node generate-cards-json.js --check`, `python3 scripts/build-sitemap.py
+  --check`. Use `VERIFY_FULL=1 bash scripts/verify.sh` for the exhaustive
+  gate (the full card-JS sweep). `scripts/test-card.js --all` is batched
+  the same way — one shared jsdom DOM per ~40 cards, as index.html runs them.
 - **In CI, on demand:** Actions → *Agent guardrails* → *Run workflow* with
-  `full: true` (or `gh workflow run "Agent guardrails" -f full=true`).
+  `full: true` (or `gh workflow run "Agent guardrails" -f full=true`) — the
+  full run sets `VERIFY_FULL=1`, so CI stays exhaustive even though the
+  push-time run is the fast path.
 - **Automatically, off your critical path:** the scheduled staff facility
   (`.github/workflows/ai-developer.yml`, Mon & Thu) runs all staff checks and
   opens a draft PR when counts drift, and the production monitor

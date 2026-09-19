@@ -7,6 +7,12 @@ Every human-readable copy of it (49 of them across 10 files at last count) is
 
     python3 scripts/sync-counts.py --check   # CI/verify: fail on any drift
     python3 scripts/sync-counts.py           # fix every stale copy in place
+    python3 scripts/sync-counts.py count     # print the canonical tool count
+
+The count is the number of .html files in cards/ — nothing else. No card
+number is ever typed by hand: add or remove a card, run this script (or let
+verify.sh section 9 do it for you — it self-heals drift in place), and every
+published number follows the folder.
 
 Why this exists
 ---------------
@@ -277,7 +283,15 @@ def main() -> int:
                        help="report drift and exit 1; do not write")
     modes.add_argument("--plan", action="store_true",
                        help="emit a JSON edit plan with source hashes; do not write")
+    ap.add_argument("command", nargs="?", choices=["count"],
+                    help="print the canonical tool count — the number of "
+                         ".html files in cards/ — and exit (the single source "
+                         "of truth every other count is derived from)")
     args = ap.parse_args()
+
+    if args.command == "count":
+        print(true_count())
+        return 0
 
     n = true_count()
     total = 0
