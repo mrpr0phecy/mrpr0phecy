@@ -102,6 +102,105 @@
         'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
     };
     
+    // ===== INSTRUMENTATION (privacy-preserving, uses existing gtag only) =====
+    // Pointer #3 / #10: without instrumentation you cannot know which tools to
+    // build next. This adds zero-cost telemetry that respects CONSTRAINTS.md:1
+    // (no new tracker, no new cookie). Where `G-G058FVW6Z2` already loads,
+    // we emit a `gtag('event', …)` that appears in GA4; everywhere we also
+    // keep a capped `localStorage` buffer that survives without any network
+    // and can be exported by running `__mpInstrumentation.export()` in the
+    // console. Nothing is sent to a new endpoint, nothing leaves the browser
+    // except the GA4 events you already consented to by loading the page.
+    function mpGtag(name, params) {
+        try { if (typeof window.gtag === 'function') window.gtag('event', name, params); } catch {}
+    }
+    function mpIsMobile() {
+        try { return (typeof window !== 'undefined' && window.innerWidth <= 560) || ('ontouchstart' in window); } catch { return false; }
+    }
+    function mpLogZeroSearch(query, category) {
+        const q = String(query || '').trim().toLowerCase().slice(0, 60);
+        if (!q || q.length < 2) return;
+        try {
+            const key = '__mp_zero_searches';
+            const raw = localStorage.getItem(key);
+            const map = raw ? JSON.parse(raw) : {};
+            if (!map[q]) map[q] = { c: 0, last: null, cat: '' };
+            map[q].c = (map[q].c || 0) + 1;
+            map[q].last = new Date().toISOString().slice(0, 10);
+            map[q].cat = String(category || 'all').slice(0, 30);
+            // Cap at 200 distinct queries — drop the least frequent first so
+            // the goldmine (what people keep asking for and not finding) survives.
+            const entries = Object.entries(map);
+            if (entries.length > 200) {
+                entries.sort((a, b) => (a[1].c || 0) - (b[1].c || 0));
+                for (let i = 0; i < entries.length - 200; i++) delete map[entries[i][0]];
+            }
+            localStorage.setItem(key, JSON.stringify(map));
+        } catch {}
+        try { mpGtag('search_zero', { search_term: q.slice(0, 40), category: String(category || 'all').slice(0, 30), device: mpIsMobile() ? 'mobile' : 'desktop' }); } catch {}
+        // Visible in devtools and in `__mpInstrumentation.export()`:
+        console.info('[instr] zero-result search:', JSON.stringify(q), 'cat:', category);
+    }
+    function mpLogSearch(query, resultCount, category) {
+        const q = String(query || '').trim();
+        // GA4 search event (already debounced upstream to ~300 ms):
+        try { mpGtag('search', { search_term: (q || '(empty)').slice(0, 40), result_count: Number(resultCount) || 0, category: String(category || 'all').slice(0, 30), device: mpIsMobile() ? 'mobile' : 'desktop' }); } catch {}
+        if (q.length >= 2 && Number(resultCount) === 0) mpLogZeroSearch(q, category);
+    }
+    function mpLogToolView(slug, category) {
+        const s = String(slug || '').slice(0, 80);
+        if (!s) return;
+        try {
+            const key = '__mp_tool_views';
+            const raw = localStorage.getItem(key);
+            const map = raw ? JSON.parse(raw) : {};
+            map[s] = (map[s] || 0) + 1;
+            if (Object.keys(map).length > 500) {
+                const sorted = Object.entries(map).sort((a, b) => a[1] - b[1]);
+                for (let i = 0; i < 50 && sorted[i]; i++) delete map[sorted[i][0]];
+            }
+            localStorage.setItem(key, JSON.stringify(map));
+            // Also remember last view for "top exit tool" heuristic:
+            try { sessionStorage.setItem('__mp_last_tool', s); } catch {}
+        } catch {}
+        try { mpGtag('tool_view', { tool_slug: s.slice(0, 60), category: String(category || '').slice(0, 30), device: mpIsMobile() ? 'mobile' : 'desktop' }); } catch {}
+    }
+    function mpLogToolCompletion(slug) {
+        const s = String(slug || '').slice(0, 80);
+        if (!s) return;
+        try {
+            const key = '__mp_tool_completions';
+            const raw = localStorage.getItem(key);
+            const map = raw ? JSON.parse(raw) : {};
+            map[s] = (map[s] || 0) + 1;
+            localStorage.setItem(key, JSON.stringify(map));
+        } catch {}
+        try { mpGtag('tool_completion', { tool_slug: s.slice(0, 60), device: mpIsMobile() ? 'mobile' : 'desktop' }); } catch {}
+    }
+    // Console export for the weekly dashboard (pointer #10). Nothing leaves
+    // the browser until you copy it — paste into `docs/DASHBOARD.md`.
+    try {
+        window.__mpInstrumentation = {
+            export() {
+                let zero = {}, views = {}, comps = {};
+                try { zero = JSON.parse(localStorage.getItem('__mp_zero_searches') || '{}'); } catch {}
+                try { views = JSON.parse(localStorage.getItem('__mp_tool_views') || '{}'); } catch {}
+                try { comps = JSON.parse(localStorage.getItem('__mp_tool_completions') || '{}'); } catch {}
+                const top = (obj, n) => Object.entries(obj).sort((a,b) => (b[1].c||b[1]) - (a[1].c||a[1])).slice(0,n);
+                return { zero_top_20: top(zero,20), views_top_20: top(views,20), completions_top_20: top(comps,20), generated_at: new Date().toISOString(), device: mpIsMobile()?'mobile':'desktop' };
+            },
+            exportZero() { try { return JSON.parse(localStorage.getItem('__mp_zero_searches')||'{}'); } catch { return {}; } },
+            exportViews() { try { return JSON.parse(localStorage.getItem('__mp_tool_views')||'{}'); } catch { return {}; } },
+            clear() { try { localStorage.removeItem('__mp_zero_searches'); localStorage.removeItem('__mp_tool_views'); localStorage.removeItem('__mp_tool_completions'); } catch {} return 'cleared'; }
+        };
+        // Also expose the helpers for cards that want to signal completion
+        // explicitly (e.g., after a calculation writes its result). Cards opt
+        // in by calling `parent.__mpInstrumentation.completion('my-slug')` or
+        // `window.mpLogToolCompletion('my-slug')` — no change required to
+        // existing cards; the generic view signal already fires on load.
+        window.mpLogToolCompletion = mpLogToolCompletion;
+    } catch {}
+
     // ===== INITIALIZATION =====
     let isAppInitialized = false;
     function initApp() {
@@ -2295,7 +2394,27 @@
             card.classList.add('loaded', 'visible');
             noteRowHeight(card, growBefore);
             updateSiteStats();
-            
+
+            // ---- Instrumentation: per-tool view (pointer #3). ----
+            try {
+                const meta = cardsMetaMap.get(cardName);
+                mpLogToolView(cardName, (meta && meta.category) || card.dataset.category || '');
+                // Generic completion signal: most calculators do their work on
+                // form submit or a "Calculate/Convert/Generate" button. Listening
+                // for those inside the sandbox gives a completion proxy without
+                // touching any card's own code. Cards that want exact control can
+                // call `mpLogToolCompletion(slug)` directly.
+                const handler = () => { try { mpLogToolCompletion(cardName); } catch {} };
+                cardSandbox.addEventListener('submit', handler);
+                cardSandbox.addEventListener('click', (e) => {
+                    const t = e.target;
+                    if (!t || !t.matches) return;
+                    if (!t.matches('button, input[type=\"button\"], input[type=\"submit\"]')) return;
+                    const txt = ((t.textContent || t.value || '') + '').toLowerCase();
+                    if (/calculat|convert|generat|create|estimate|check|run|submit|^go$|search/.test(txt)) handler();
+                });
+            } catch {}
+
             // Auto-adjust card height. Content can expand substantially after
             // a tool's script paints (canvas, tables, result panels), so
             // immediately re-check the viewport after the measurement rather
@@ -3480,6 +3599,12 @@
                 noResultsState.style.display = 'none';
             }
         }
+
+        // ---- Instrumentation: zero-result is the goldmine (pointer #3). ----
+        // Already debounced upstream (300 ms) so this is at most one event per
+        // keystroke. The buffer lives in localStorage; run
+        // `__mpInstrumentation.export().zero_top_20` to see what to build next.
+        try { mpLogSearch(query, visibleCount, currentSelectedCategory); } catch {}
     }
 
     function applyFilters() {

@@ -175,11 +175,13 @@ self.addEventListener('fetch', (event) => {
     // Only handle same-origin GET
     if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
-    // Catalogue tiers (lite = grid, full = search). These decide which tools
-    // exist, so they must never be answered from a copy that predates the
-    // deploy: freshFast() only lets the cache answer inside the server's own
+    // Catalogue tiers (lite = grid, full = search) and the per-tool machine
+    // specs (api/tools/*.json — pointer #4). These decide which tools exist,
+    // so they must never be answered from a copy that predates the deploy:
+    // freshFast() only lets the cache answer inside the server's own
     // freshness window.
-    if (url.pathname.endsWith('cards/cards-lite.json') || url.pathname.endsWith('cards/cards.json')) {
+    if (url.pathname.endsWith('cards/cards-lite.json') || url.pathname.endsWith('cards/cards.json')
+        || url.pathname === '/api/tools.json' || url.pathname.startsWith('/api/tools/')) {
         event.respondWith(freshFast(req, STATIC_CACHE));
         return;
     }

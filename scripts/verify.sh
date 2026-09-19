@@ -153,6 +153,11 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "discovery indexes or category pages stale — run: node scripts/build-tools-index.js && node scripts/build-category-pages.js && node scripts/generate-ai-index.js"
   fi
+  if node scripts/build-tool-specs.js --check; then
+    ok "per-tool machine specs (api/tools.json + api/tools/*.json) match the catalogue"
+  else
+    fail "per-tool specs stale — run: node scripts/build-tool-specs.js"
+  fi
 else
   note "node not available — machine index check skipped"; NOTES=$((NOTES+1))
 fi

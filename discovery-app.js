@@ -13,6 +13,66 @@ let filtered = [];
 let page = 1;
 let currentLetter = 'ALL';
 
+// ---- Instrumentation (pointer #3 / #10) ----
+// Mirrors home-app.js instrumentation but scoped to the discovery surface.
+// Uses the existing GA4 (`G-G058FVW6Z2`) where it exists and a capped
+// localStorage buffer otherwise. See `docs/INSTRUMENTATION.md`.
+function mpGtag(name, params) { try { if (typeof window.gtag === 'function') window.gtag('event', name, params); } catch {} }
+function mpIsMobile() { try { return (typeof window !== 'undefined' && window.innerWidth <= 560) || ('ontouchstart' in window); } catch { return false; } }
+function mpLogZeroSearch(query, category) {
+  const q = String(query || '').trim().toLowerCase().slice(0, 60);
+  if (!q || q.length < 2) return;
+  try {
+    const key = '__mp_zero_searches';
+    const raw = localStorage.getItem(key);
+    const map = raw ? JSON.parse(raw) : {};
+    if (!map[q]) map[q] = { c: 0, last: null, cat: '' };
+    map[q].c = (map[q].c || 0) + 1;
+    map[q].last = new Date().toISOString().slice(0, 10);
+    map[q].cat = String(category || 'discovery').slice(0, 30);
+    const entries = Object.entries(map);
+    if (entries.length > 200) { entries.sort((a,b)=>(a[1].c||0)-(b[1].c||0)); for (let i=0;i<entries.length-200;i++) delete map[entries[i][0]]; }
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {}
+  try { mpGtag('search_zero', { search_term: q.slice(0,40), category: String(category||'discovery').slice(0,30), device: mpIsMobile()?'mobile':'desktop', surface: 'discovery' }); } catch {}
+  console.info('[instr:discovery] zero-result:', JSON.stringify(q));
+}
+function mpLogSearch(query, resultCount) {
+  const q = String(query || '').trim();
+  try { mpGtag('search', { search_term: (q||'(empty)').slice(0,40), result_count: Number(resultCount)||0, device: mpIsMobile()?'mobile':'desktop', surface: 'discovery' }); } catch {}
+  if (q.length >= 2 && Number(resultCount) === 0) mpLogZeroSearch(q, 'discovery');
+}
+function mpLogToolView(slug, category) {
+  const s = String(slug||'').slice(0,80);
+  if (!s) return;
+  try {
+    const key='__mp_tool_views';
+    const raw=localStorage.getItem(key);
+    const map=raw?JSON.parse(raw):{};
+    map[s]=(map[s]||0)+1;
+    if (Object.keys(map).length>500){ const sorted=Object.entries(map).sort((a,b)=>a[1]-b[1]); for(let i=0;i<50&&sorted[i];i++) delete map[sorted[i][0]]; }
+    localStorage.setItem(key, JSON.stringify(map));
+    try{ sessionStorage.setItem('__mp_last_tool', s); }catch{}
+  } catch{}
+  try{ mpGtag('tool_view', { tool_slug: s.slice(0,60), category: String(category||'').slice(0,30), device: mpIsMobile()?'mobile':'desktop', surface: 'discovery' }); }catch{}
+}
+try{
+  window.__mpDiscoveryInstrumentation = {
+    export(){ let zero={},views={}; try{zero=JSON.parse(localStorage.getItem('__mp_zero_searches')||'{}');}catch{} try{views=JSON.parse(localStorage.getItem('__mp_tool_views')||'{}');}catch{} const top=(o,n)=>Object.entries(o).sort((a,b)=>(b[1].c||b[1])-(a[1].c||a[1])).slice(0,n); return{zero_top_20:top(zero,20),views_top_20:top(views,20),generated_at:new Date().toISOString()}; }
+  };
+  // Click delegation for tool views on the discovery grid (capture before navigation):
+  document.addEventListener('click', (e) => {
+    const a = e.target && e.target.closest ? e.target.closest('a.tool-card, a.tool-row, a.cat-card') : null;
+    if (!a) return;
+    try{
+      const href = a.getAttribute('href')||'';
+      const m = href.match(/card=([^&]+)/);
+      const slug = m ? decodeURIComponent(m[1]) : (href.includes('categories/') ? href : '');
+      if (slug) mpLogToolView(slug, 'discovery');
+    }catch{}
+  });
+}catch{}
+
 function escapeHtml(str) {
   return String(str || '')
     .replace(/&/g, '&amp;')
@@ -126,6 +186,9 @@ function setupSearch() {
         (t.categoryName && t.categoryName.toLowerCase().includes(q)) ||
         (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q)))
       );
+
+      // ---- Instrumentation: log every search, zero-result is the goldmine ----
+      try { mpLogSearch(q, filtered.length); } catch {}
 
       if (resultsContainer) {
         browseSections.forEach(s => s.style.display = 'none');
