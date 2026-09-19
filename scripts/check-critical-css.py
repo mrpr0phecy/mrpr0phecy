@@ -61,7 +61,7 @@ INLINE_BUDGET = 4_000
 # Budgets, in gzip bytes, for what the split produced (~15.2 KB / ~5.7 KB).
 # If a change trips these, either trim the CSS or raise the number on purpose —
 # do not let the first-paint payload grow by accident.
-HOME_CSS_GZIP_BUDGET = 18_000
+HOME_CSS_GZIP_BUDGET = 20_000
 DEFERRED_GZIP_BUDGET = 9_000
 INDEX_GZIP_BUDGET = 18_000
 

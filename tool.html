@@ -464,7 +464,7 @@
 
     <main class="main-wrapper">
         <div class="tool-header-meta">
-            <span class="category-badge" id="categoryBadge">Tool</span>
+            <a class="category-badge" id="categoryBadge" href="index.html">Tool</a>
             <span style="font-size: 13px; color: rgba(230, 250, 255, 0.5);">Free & Private · No Sign-Up</span>
         </div>
 
@@ -640,7 +640,10 @@
             const category = currentMeta ? currentMeta.category : 'General Tool';
 
             document.title = `${title} · The Most Useful Site in the World`;
-            document.getElementById('categoryBadge').textContent = category;
+            const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            const catBadgeEl = document.getElementById('categoryBadge');
+            catBadgeEl.textContent = category;
+            catBadgeEl.href = 'categories/' + catSlug + '.html';
             if (currentMeta) {
                 toolUpdateMetadata(cardName, title, currentMeta);
             }
@@ -746,17 +749,38 @@
                 `;
             }
 
-            // Render Related Tools
+            // Render Related Tools (same category + tag/keyword overlap)
             if (allCards.length > 0 && currentMeta) {
-                const related = allCards.filter(c => c.category === category && c.name !== currentMeta.name).slice(0, 3);
+                const myWords = new Set((currentMeta.title + ' ' + (currentMeta.description || '') + ' ' + currentMeta.name).toLowerCase().split(/\W+/).filter(w => w.length > 3));
+                const candidates = allCards.filter(c => c.name !== currentMeta.name);
+                
+                // Score candidates: same category (+10), shared keywords (+2 each)
+                const scored = candidates.map(c => {
+                    let score = (c.category === category) ? 10 : 0;
+                    const cWords = (c.title + ' ' + (c.description || '') + ' ' + c.name).toLowerCase().split(/\W+/);
+                    for (const w of cWords) {
+                        if (w.length > 3 && myWords.has(w)) score += 2;
+                    }
+                    return { card: c, score };
+                });
+
+                scored.sort((a, b) => b.score - a.score);
+                const related = scored.slice(0, 4).map(s => s.card);
+
                 if (related.length > 0) {
                     const grid = document.getElementById('relatedGrid');
+                    const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                     grid.innerHTML = related.map(c => `
                         <a href="tool.html?card=${encodeURIComponent(c.name)}" class="related-card">
                             <div class="related-card-title">${c.title}</div>
                             <div class="related-card-desc">${c.description || 'Quick, free online calculator.'}</div>
                         </a>
-                    `).join('');
+                    `).join('') + `
+                        <a href="categories/${catSlug}.html" class="related-card" style="border-color:rgba(45,212,255,0.4);background:rgba(45,212,255,0.06);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+                            <div class="related-card-title" style="color:var(--accent);">📂 Explore Category</div>
+                            <div class="related-card-desc" style="color:var(--text);">All free ${category} tools →</div>
+                        </a>
+                    `;
                     document.getElementById('relatedSection').style.display = 'block';
                 }
             }

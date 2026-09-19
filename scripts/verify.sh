@@ -148,10 +148,10 @@ fi
 section "9/21 tool-count claims (sync-counts.py)"
 if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
 if command -v node >/dev/null 2>&1; then
-  if node scripts/generate-ai-index.js --check; then
-    ok "machine indexes (llms.txt, llms-full.txt, tools-index.html) match the catalogue"
+  if node scripts/build-tools-index.js --check     && node scripts/build-category-pages.js --check     && node scripts/generate-ai-index.js --check; then
+    ok "machine indexes (tools-index.json, categories, llms.txt, llms-full.txt, tools-index.html) match the catalogue"
   else
-    fail "machine indexes stale — run: node scripts/generate-ai-index.js"
+    fail "discovery indexes or category pages stale — run: node scripts/build-tools-index.js && node scripts/build-category-pages.js && node scripts/generate-ai-index.js"
   fi
 else
   note "node not available — machine index check skipped"; NOTES=$((NOTES+1))
