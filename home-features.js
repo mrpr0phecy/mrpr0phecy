@@ -902,18 +902,9 @@
             }
         }
     }
-    // ===== IDLE TRICKLE LOADER =====
-    // The card faces already display the whole catalogue with no loading
-    // screens; this pass goes further and brings every tool fully live in
-    // the background — no scroll, no click — a few cards at a time. The
-    // shared pipeline stays in charge (nearest-to-viewport first, at most
-    // MAX_CONCURRENT_LOADS fetches), so the trickle can never starve the
-    // cards a visitor is actually looking at: their loads always win the
-    // queue. Data-saver and 2G visitors keep faces + click-to-run instead
-    // of a surprise catalogue download.
-    const TRICKLE_BATCH = 30;
-    const TRICKLE_INTERVAL = 400;
-    let trickleStarted = false;
+    // (The idle trickle loader that used to be declared here is gone from the
+    // core too — see "Warm-ahead" in home-app.js. The bundle must not keep a
+    // dead copy of a policy the page has moved on from.)
     function setViewModeCore(mode) {
         S.currentViewMode = mode;
         const dashboard = document.getElementById('dashboard');

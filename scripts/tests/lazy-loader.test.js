@@ -93,6 +93,12 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
     activeLoads: 0,
     loadQueue: [],
     window: { get innerHeight() { return STUB.innerHeight; } },
+    // Whether the grid is allowed to lay out any more tools at all (the mount
+    // window — parked tools are not part of this answer,
+    // suite 6) is the other thing that can stop a sweep. Suites 1-5 hold it
+    // open; suite 6 drives the shipped function against a closed budget.
+    mountBudgetFree: () => true,
+    pumpWarmSoon: () => {},
   };
 
   const api = run(
@@ -241,6 +247,102 @@ function makeCard(name, { top, height, width = 300, hidden = false, failed = fal
   flush();
   assert.strictEqual(passes, 2, 'expected a further sweep after more scrolling');
   console.log('  ok   further scrolling schedules a fresh sweep');
+}
+
+// ---------------------------------------------------------------- suite 6
+// The mount window: the grid lays out a windowful of tools around the viewport
+// and no more. A parked tool does NOT count against the window — that is the
+// whole reason the page can say "all 1,194 running" without putting 1,194 tools
+// on screen — and ⚡ Run all or ?park=off lift it, because both are the visitor
+// asking for the window to be the page.
+{
+  const read = (key) => {
+    const m = html.match(new RegExp(key + ':\\s*(\\d+)'));
+    assert(m, `could not read ${key} from home-app.js`);
+    return parseInt(m[1], 10);
+  };
+  const WINDOW = read('MOUNT_WINDOW_DEFAULT');
+  const WMIN = read('MOUNT_WINDOW_MIN');
+  const WMAX = read('MOUNT_WINDOW_MAX');
+  assert.ok(WINDOW >= 8,
+    `MOUNT_WINDOW_DEFAULT=${WINDOW} is smaller than a mosaic screenful, so the grid would stop before the fold`);
+  assert.ok(WMIN <= WINDOW && WINDOW <= WMAX && WMAX >= 16,
+    `the window governor must have a real range to work in (${WMIN}..${WMAX}, default ${WINDOW})`);
+
+  const grabFn = (name) => {
+    const m = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}\\n`));
+    assert(m, `could not extract ${name}() from home-app.js`);
+    return m[0];
+  };
+
+  const budgetSrc = 'let explicitRunAll = false;\nlet parkMode = true;\nlet mountWindow = 0;\n'
+    + grabFn('liveMountCount') + '\n' + grabFn('mountBudgetFree')
+    + '\n;({ liveMountCount, mountBudgetFree, setRunAll: v => { explicitRunAll = v; }, '
+    + 'setPark: v => { parkMode = v; }, setWindow: v => { mountWindow = v; } });';
+
+  // The shipped budget function, fed by the shipped counters.
+  const loadedCards = new Set();
+  const loadingCards = new Set();
+  const loadQueue = [];
+  const budget = run(budgetSrc, { loadedCards, loadingCards, loadQueue }, 'mountBudgetFree');
+
+  budget.setWindow(4);
+  assert.strictEqual(budget.mountBudgetFree(), true, 'an empty grid is never at its window');
+  ['a', 'b', 'c'].forEach(n => loadedCards.add(n));
+  assert.strictEqual(budget.mountBudgetFree(), true, 'three tools against a window of four is room to mount');
+  loadedCards.add('d');
+  assert.strictEqual(budget.liveMountCount(), 4, 'liveMountCount must count rendered tools');
+  assert.strictEqual(budget.mountBudgetFree(), false, 'the grid may keep mounting past its window');
+
+  // Parked, not counted: d's content has left the grid, so a slot is free again
+  // for whatever the visitor is scrolling towards — and d is still running.
+  loadedCards.delete('d');
+  assert.strictEqual(budget.liveMountCount(), 3, 'a parked tool must leave the live count');
+  assert.strictEqual(budget.mountBudgetFree(), true,
+    'a full window must reopen as soon as one tool is parked');
+
+  // Queued and in-flight count too: a burst must not overshoot the window simply
+  // because nothing has rendered yet. 1 + 1 + 2 against a window of 4.
+  const mid = run(budgetSrc,
+    { loadedCards: new Set(['a']), loadingCards: new Set(['b']), loadQueue: [0] }, 'budget-mid');
+  mid.setWindow(4);
+  assert.strictEqual(mid.mountBudgetFree(), true, 'three tools against a window of four is not at the window');
+  const full = run(budgetSrc,
+    { loadedCards: new Set(['a', 'b']), loadingCards: new Set(['c']), loadQueue: [0, 1] }, 'budget-full');
+  full.setWindow(4);
+  assert.strictEqual(full.mountBudgetFree(), false, 'in-flight work is free to overshoot the window');
+
+  // ⚡ Run all and ?park=off both mean "the window is the whole page".
+  budget.setRunAll(true);
+  assert.strictEqual(budget.mountBudgetFree(), true, 'an explicit run-all must not be capped');
+  budget.setRunAll(false);
+  loadedCards.add('d');
+  assert.strictEqual(budget.mountBudgetFree(), false, 'run-all off again: back inside the window');
+  budget.setPark(false);
+  assert.strictEqual(budget.mountBudgetFree(), true, '?park=off must never cap what the grid keeps');
+  console.log(`  ok   the grid lays out ${WINDOW} tools at a time; parked ones do not count, ⚡ lifts it`);
+
+  // And a closed budget really does stop the sweep from queueing work.
+  const queued = [];
+  const api = run(
+    'let scrollLoadActive = false;\nlet pendingCards = [];\n'
+    + grabFn('scrollFallbackLoader')
+    + '\n;({ scrollFallbackLoader, __setPending: v => { pendingCards = v; } });',
+    {
+      loadedCards: new Set(), loadingCards: new Set(), loadQueue: [],
+      isCardHidden: () => false, retryErroredCards: () => {},
+      MAX_CONCURRENT_LOADS: SHIPPED_CAP, activeLoads: 0,
+      window: { innerHeight: 900 },
+      mountBudgetFree: () => false,
+      parkOutsideWindow: () => {},
+      noteReadingPosition: () => {},
+      pumpWarmSoon: () => {},
+      loadCard: (card, name) => queued.push(name),
+    }, 'sweep-capped');
+  api.__setPending(Array.from({ length: 6 }, (_, i) => makeCard(`k${i}`, { top: i * 100, height: 90 })));
+  api.scrollFallbackLoader();
+  assert.deepStrictEqual(queued, [], 'a grid at its window still queued mounts from the sweep');
+  console.log('  ok   at the window the sweep queues nothing new (clicks and parking still do)');
 }
 
 console.log('\nlazy-loader tests passed');

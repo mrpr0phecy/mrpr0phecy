@@ -67,6 +67,103 @@ item. This historical list does not override current staff decisions.
     changed in one go, so it is not a first-screen win any more.
   - [ ] Decide whether analytics should keep loading during the first screen.
     Owner call: CONSTRAINTS.md keeps the analytics footprint out of agent hands.
+- [x] **Make the main page hold the whole catalogue, not a screenful.** Landed
+  2026-09-18, in response to *"only nine tools are loading on my mainpage and i
+  have over 1000, this destroys the point of my site"*. The loader had one verb
+  — a card became real only when it was fetched, parsed and executed — so the
+  background trickle (6 mounts per 2.5 s, ~8 minutes for 1,194) was both the
+  throttle that kept scrolling alive and the reason the page looked like a
+  nine-tool site. It is now three: **mosaic density** (a pending tool is a tile,
+  ~30 per screen instead of 2–3; a running tool spans the row; `.density-focus`
+  keeps the old reading stack), a **mount window** (a gridful of tools at a
+  time, everything outside it parked; see the sub-bullet below) and **warm-ahead**
+  (a background pass
+  that fetches fragment *text* into `cardCache` only, follows the reading
+  position, yields to the mount pipeline, and lands in `CARDS_CACHE` for the
+  next visit). Filters no longer mount every match either, and
+  `index.html?cat=<slug>` / `?view=directory` are real (they were documented in
+  `agents.html` and not implemented). ARCHITECTURE.md §3 "The live window";
+  pinned by `scripts/tests/live-window.test.js`.
+  - [ ] Verify the mosaic and the park in a real browser before widening either:
+    the *look* of a collapsed parked row (its height is now the grid's own tile
+    height by construction, and the jump risk is handled by `commitScrollHold()`
+    rather than measured — but only a browser can say whether 1,194 rows of tile
+    *feel* right), the mount reflow as tiles become full-row tools, whether a
+    parked tool's canvas really keeps its bitmap across a park/resume round trip,
+    and `⚡ Run all` on a mid-range phone. `scripts/staff/live-window-check.mjs`
+    is that probe: it serves the repo over `node:http`, drives a browser through
+    the same `STAFF_PLAYWRIGHT` / `STAFF_CHROMIUM_PATH` convention as
+    `scripts/staff/browser-check.mjs`, prints tile heights, the on-screen position
+    of a row below the fold across a park (the no-jump claim, measured), canvas
+    dimensions and `toDataURL()` length before and after, dropped frames during a
+    scripted scroll at 4× CPU throttle, and the same numbers with `?park=full`.
+    It is deliberately not in `verify.sh` (no CI here has a browser, and the
+    zero-dependency suite must stay zero-dependency). Since stage 4 it also asserts
+    `overflow-anchor: none` on the root scroller: the page compensates for its own
+    parks *and* mounts, and if that rule ever goes missing the drift number in the
+    same output roughly doubles — read them together, not as two separate results.
+    What is still genuinely for eyes: whether losing the UA's help is felt when a
+    tool's own content grows late (images, fonts) — `overflow-anchor: none` is a
+    deliberate trade, not an oversight. **Blocked in the Arena sandbox, and
+    the reason is recorded so nobody re-derives it:** egress there is npm-only, so
+    Chromium's download CDN, jsDelivr, the Debian mirrors and
+    `objects.githubusercontent.com` (release assets) are all unreachable;
+    `@sparticuz/chromium` does install from npm and gets as far as
+    `error while loading shared libraries: libnspr4.so`, and with
+    `@achingbrain/nss` on `LD_LIBRARY_PATH` that becomes
+    `version 'NSS_3.30' not found (required by /tmp/chromium)` — that bundled NSS
+    is a decade too old and nothing reachable ships a newer one. Run the probe
+    locally (`npm i playwright`, then `node scripts/staff/live-window-check.mjs`)
+    against the numbers in the sentence above instead.
+  - [x] Window the DOM. **Landed the same day (stage 2)**, on the owner's
+    *"i do want them all running but only a few loaded at a time around the
+    viewport"*: the cap became a mount window (`MOUNT_WINDOW_DEFAULT = 24`,
+    walked 10–40 by a `long-animation-frame` governor and tuned at boot by
+    `deviceMemory`) and any tool that leaves the window is **parked** — its
+    content subtree moves into `#mp-park` (`visibility:hidden`, off-screen,
+    never `display:none`) while its shell stays in the grid holding its row, so
+    1,194 tools can be running while the page lays out ~24. Because nothing is
+    destroyed, waking one is a single `appendChild` and no state is lost — and
+    the `visibleNames`-as-filter-truth refactor turned out to be unnecessary:
+    the shells that filters and `?expand=` query never move. `?park=off` and
+    `⚡ Run all` switch parking off; `prunePark()` evicts a parked tool's DOM
+    only when `performance.memory` reports heap pressure, oldest-parked first.
+    ARCHITECTURE.md §3 and the §7 traps; suites 8–11 of `live-window.test.js`.
+    *(The "holding its row" half of this is superseded by the next bullet.)*
+  - [x] Close the two gaps stage 2 left, both found by re-reading the design
+    against the promise rather than by adding a feature. **Landed the same day
+    (stage 3)**: a parked row now collapses back to a tile — the density the site
+    exists for no longer stops at the top of the page — and
+    `aboveTheFold()`/`noteRowHeight()`/`commitScrollHold()` pay for the height by
+    correcting `scrollY` in the sweep's own frame, batched, with the park and warm
+    cursors re-anchored, skipped below the fold and under a live finger
+    (`initTouchGuard()`), and opt-out-able with `?park=full`; and the wake half of
+    the pass (`wakeInsideWindow()`, plus the observer ahead of its budget check)
+    makes sure a tool the reader scrolled back to never stays parked under their
+    cursor because a stale row holds a mount slot. `parkMargin()`/`REMOUNT_LOOKAHEAD`
+    keep the dead band on a short window, `probeFrames()` governs browsers with no
+    `long-animation-frame`, and `lastShrink` starts at `-Infinity`. Measured rather
+    than assumed, over the shipped fragments: 134 animate in CSS (quiet while
+    parked), 168 run their own loop (they do not) — the park is a layout/paint
+    guarantee, not a CPU one. `live-window.test.js` is 17 suites, including a
+    harness rect that answers to the card's own classes; see ARCHITECTURE.md §9.
+  - [ ] Measure the window and the park in the field before touching the
+    defaults: which `MOUNT_WINDOW_*` / `PARK_CEILING` pair a mid-range phone
+    wants, and whether the LoAF governor converges or breathes. Both are
+    stubbable in node; neither is *answerable* there.
+  - [x] Two things the park made necessary, landed the same day: parked subtrees
+    pause their CSS animations and replay them on resume
+    (`pauseParkedAnimations()`), and warm-ahead follows the scroll *upwards* too
+    (`warmDir` + `noteReadingPosition()` + `CONFIG.WARM_LOOKBEHIND`), so a
+    reversed scroll finds bytes cached instead of fetching them again. Suite 12 of
+    `live-window.test.js` pins the cursor in both directions, including the
+    "one empty pass at an end and stop" promise `card-faces.test.js` already
+    held.
+  - [ ] Bundle fragments per category (`cards/bundles/<slug>.json`, generated
+    and checked like the sitemap) so "run this category" is one request instead
+    of 152 — and decide whether an explicit `?install=1` should warm the whole
+    catalogue into the service worker for offline use.
+
 - [x] Build one `help.html` covering site mechanics, privacy, money and safety,
   with matching `FAQPage` JSON-LD and client-side search. Verified shipped
   2026-09-15 (the box was never ticked): `help.html` has the `FAQPage` JSON-LD

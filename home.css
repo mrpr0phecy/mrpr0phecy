@@ -2479,4 +2479,138 @@
             }
         }
 
+        /* ===== MOSAIC DENSITY (the default grid) =====
+           One tool per row made 1,194 tools a several-hundred-screen scroll, so
+           the page read like the handful of tools near the top. In mosaic a tool
+           that is not running is a TILE — title plus description, no chrome — and
+           a tool that IS running takes the whole row, because that is when the
+           width earns its keep. `min`/row height/gap mirror DENSITY in
+           home-app.js: the loader sizes its first batch from that table, and the
+           two must agree. `.density-focus` (set by JS for visitors who pick it)
+           falls through to the single-column rules above, untouched — which also
+           means no JS at all gets the dense grid, not the sparse one. */
+        body:not(.reader-mode):not(.density-focus) .dashboard {
+            grid-template-columns: repeat(auto-fill, minmax(212px, 1fr)) !important;
+            max-width: 1560px;
+            gap: 12px;
+            padding: 24px 16px 48px;
+        }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending {
+            min-height: 0;
+            border-radius: 12px;
+            /* 340px is a running tool. A skipped tile measured at 340px makes the
+               scrollbar jump every time content-visibility comes back to it. */
+            contain-intrinsic-size: auto 172px;
+        }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending:hover { transform: translateY(-2px); }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-header {
+            padding: 9px 11px 0;
+            border-bottom: 0;
+            background: none;
+        }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-cat-badge,
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-actions,
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-face-icon,
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-face-hint { display: none; }
+        /* A tile's title wraps instead of ellipsising into unreadability. */
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-header h3 {
+            font-size: 0.8rem;
+            white-space: normal;
+            text-overflow: clip;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-content { min-height: 0; flex: 1; }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-sandbox { padding: 0; overflow: hidden; }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-face {
+            padding: 6px 11px 11px;
+            min-height: 0;
+            gap: 0;
+            justify-content: flex-start;
+        }
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-face-desc {
+            font-size: 0.72rem;
+            line-height: 1.45;
+            -webkit-line-clamp: 3;
+        }
+        /* Until the full catalogue lands, a lite-tier face has no description and
+           says "tap to run this tool" instead — 1,194 times. A tile says nothing
+           until it has something to say. */
+        body:not(.reader-mode):not(.density-focus) .card.card-pending .card-face-desc[data-placeholder] { display: none; }
+        /* Running tools claim the row so the mosaic can never squeeze a live tool
+           into 212px. */
+        body:not(.reader-mode):not(.density-focus) .card.loaded { grid-column: 1 / -1; }
 
+        @media (max-width: 560px) {
+            body:not(.reader-mode):not(.density-focus) .dashboard {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+                gap: 8px;
+                padding: 16px 8px 32px;
+            }
+        }
+
+        /* What the grid is running, next to what it holds. */
+        #liveToolCount {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        #liveToolCount.full { color: var(--success); }
+        #liveToolCount.capped { color: var(--premium); }
+
+        /* ===== THE PARK (see home-app.js: THE WINDOW AND THE PARK) =====
+           A parked tool is running with its content held outside the grid, so a
+           live tool never costs a second layout while nobody is looking at it.
+           A parked row is a tile again — the grid stays as dense where the reader
+           has been as it is where they are — and the scroll offset is corrected
+           for the height it hands back (home-app.js: HOLDING THE READING
+           POSITION), because scroll anchoring is not universal and a behaviour an
+           engine offers is not a guarantee a page can hold a position with.
+           `?park=full` opts out and keeps the row claimed instead. */
+        .card-face[hidden] { display: none; }
+        /* ONE COMPENSATOR, NOT TWO. The main page owns its scroll position: every
+           height change it makes above the fold is measured and paid for by
+           `commitScrollHold()` (home-app.js). Blink's scroll anchoring does the
+           same job by heuristic and the two do not coordinate, so a row collapsed
+           by a park would be corrected twice — a jump in the other direction. The
+           root scroller therefore opts the document out and stops being
+           second-guessed. The cost is real and accepted: a late-growing image
+           inside a tool no longer gets the UA's help, which is why
+           `contain-intrinsic-size` above has to stay honest. */
+        html { overflow-anchor: none; }
+        /* Not confined to the densities: a sleeping tool hides its rating bar and
+           centres its face wherever it is, reader mode included. */
+        .card.card-parked .card-footer { display: none; }
+        .card.card-parked .card-sandbox { display: flex; }
+        .card.card-parked .card-face { flex: 1; justify-content: center; opacity: 0.78; }
+        .card.card-parked { position: relative; }
+        /* A parked tile is not an empty one: a dot says "the tool is in here, with
+           what you typed in it". Colour and 6px, never size — nothing inside may
+           re-wrap on its way back. */
+        .card.card-parked::after {
+            content: "";
+            position: absolute;
+            top: 7px;
+            right: 7px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+        /* Not display:none, and not content-visibility:hidden either: the parked
+           subtree has to stay laid out and measurable, so a tool that sizes its
+           own canvas from clientWidth keeps real numbers while it waits — a tool
+           that ever measured 0 here could stay broken forever. Being off-screen
+           and visibility:hidden is what makes it free: no paint, no hit-testing,
+           out of the tab order and the a11y tree. */
+        #mp-park {
+            position: fixed;
+            top: 0;
+            left: -100000px;
+            visibility: hidden;
+            pointer-events: none;
+            contain: layout style;
+        }
+        #mp-park .parked-tool { contain: layout style; }

@@ -145,6 +145,8 @@ function main() {
 - Search the catalogue: ${SITE}/index.html?q=<query>
 - Open the homepage with one tool already expanded inline:
   ${SITE}/index.html?expand=<tool-slug>
+- Browse one category on the homepage (<slug> is the label slugged:
+  "Music & Audio" -> music-audio): ${SITE}/index.html?cat=<category-slug>
 
 ## Picking a tool for a small calculation
 

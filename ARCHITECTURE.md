@@ -175,11 +175,13 @@ verified by `bash scripts/verify.sh`:
   twice.)
 - **`HOME-PRERENDER`** (in `#dashboard`) ships the first twelve cards as real
   markup — title, category badge, standalone link — so the first screen paints
-  with the HTML (no JSON at all) and a crawler sees real tool links. Twelve
-  covers `computeInitialBatch()`'s cap, so no first-load card waits on even
-  the lite tier. `adoptPrerenderedCards()` adopts these shells during parse
-  and starts rendering into them; `loadCardList()` keeps them and builds the
-  rest of the catalogue around them, dropping any shell whose tool has gone.
+  with the HTML (no JSON at all) and a crawler sees real tool links. Twelve is
+  the whole batch in focus density and half of it in mosaic (24); a mosaic tile
+  the extra twelve slots hold is already finished-looking without its
+  fragment, which is why the shell count can stay put.
+  `adoptPrerenderedCards()` adopts these shells during parse and starts
+  rendering into them; `loadCardList()` keeps them and builds the rest of the
+  catalogue around them, dropping any shell whose tool has gone.
 
 The same script also re-syncs the per-category count badges on the filter pills
 (`updateCategoryCounts()` overwrote them at runtime, so 21 of 27 had silently
@@ -196,10 +198,12 @@ starve the build.
 
 Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.js`:
 
-- **`MAX_CONCURRENT_LOADS = 6`** fetch/render jobs. The grid is one card per
-  row, so a 900px viewport plus the observer's 600px look-ahead wants ~5 tools
-  in flight to stay ahead of a scroll. Four kept a free slot rare enough that
-  the fallback sweep spent its time measuring cards it could not start.
+- **`MAX_CONCURRENT_LOADS = 6`** fetch/render jobs. A mosaic screen wants
+  ~24 tools and a 900px single-column screen ~5, so the point is not to match a
+  screenful exactly — it is to keep enough slots free that the nearest-first
+  pick is never waiting on a card the visitor has scrolled past. Four made a
+  free slot rare enough that the fallback sweep spent its time measuring cards
+  it could not start.
 - **The viewport sweep only measures when a slot is free.** `scrollFallbackLoader()`
   walks the pending list to prune finished cards, but every
   `getBoundingClientRect()` in that walk forces layout: with the whole
@@ -209,8 +213,165 @@ Two rules keep scrolling cheap, both pinned by `scripts/tests/lazy-loader.test.j
   `activeLoads >= MAX_CONCURRENT_LOADS`; the walk still prunes, the errored-card
   retry still runs, and `processLoadQueue()` re-sweeps the moment a slot frees.
 
+- **The park pass is gated on scroll distance, not on frames.**
+  `parkOutsideWindow()` has to measure every *live* tool to know whether the
+  window still covers it. That is a windowful of `getBoundingClientRect()` calls
+  (at most `MOUNT_WINDOW_MAX`, not the whole catalogue) — but the frames it would
+  spend them on are the frames someone is scrolling, so the pass runs once per
+  `PARK_STEP` (240 px) of movement and backs off to `PARK_STEP_MAX` for as long as
+  it keeps finding nothing to park. `invalidateParkPass()` forces one after a
+  resize or a density switch, because both move the window without moving the
+  scroll position.
+
 The IntersectionObserver stays the primary trigger — it knows what entered the
 viewport without asking the layout engine about 1,194 elements.
+
+### The live window: density, the park, warm-ahead
+
+**The problem this fixes.** The grid used to be one tool per row of about
+330 px, so a screen held two of them and the whole catalogue was over 400,000
+px of scroll, and none of it became real until its fragment had been fetched,
+parsed *and executed*, and the loader — throttled to 6 mounts per 2.5 s to keep
+scrolling usable — needed ~8 minutes of foreground time to make one page of
+tools real. The site read as "nine tools and a promise". No amount of tuning the
+throttle helped: with one verb (`loadCard`), making the tools visible meant
+making them run, and running all of them is not a thing a browser does.
+
+Three changes, each of which is the *whole* of one idea:
+
+- **Density (`DENSITY` in `home-app.js` + `MOSAIC DENSITY` in `home.css`).**
+  Mosaic is the default: a pending tool is a tile (title + description, no
+  badge, no action row) in a `repeat(auto-fill, minmax(212px, 1fr))` grid, and a
+  *running* tool spans the whole row (`.card.loaded { grid-column: 1 / -1 }`).
+  One screen now holds ~30 tools instead of 2, and the whole catalogue is ~40
+  screens instead of several hundred. `body.density-focus` is the old reading
+  stack, kept for visitors who choose it — the class only ever *adds* the wide
+  layout, so a page with no JS still gets the dense grid, which is the better
+  first visit.
+  `gridMetrics(viewportH, containerW, density)` is the single place that turns
+  that geometry into a number; `computeInitialBatch()` is just its answer, so
+  the loader's screenful and the CSS's screenful cannot disagree (and
+  `scripts/tests/live-window.test.js` reads `minmax()` out of the stylesheet to
+  prove it).
+- **The mount window and the park (`mountBudgetFree()`, `parkCard()`,
+  `resumeParked()`).** The observer and the viewport sweep mount what is on
+  screen, nearest first, and the grid lays out `mountWindow` tools at a time
+  (`MOUNT_WINDOW_DEFAULT = 24`, between `MOUNT_WINDOW_MIN` and `_MAX`). That
+  number limits **layout**, not liveness. A tool mounted outside the window is
+  *parked*: its content subtree moves into `#mp-park` — one
+  `position: fixed; left: -100000px; visibility: hidden` container — while the
+  card shell stays exactly where it is in the grid and keeps its face, while the
+  *row* goes back to being a tile: the pinned `min-height` is lifted off the box
+  and stored on the card, so the grid is as dense where the reader has been as it
+  is where they are. A parked tool keeps running, keeps its DOM, keeps every value
+  the visitor typed, costs the visible page no paint and no layout, and wakes up
+  with one `appendChild` and one restored `min-height` — not a fetch, a parse, a
+  script and a lost form.
+- **Handing a row's height back is only honest if the scroll offset pays for it**
+  (`aboveTheFold()` → `noteRowHeight()` → `commitScrollHold()`). A tool that was
+  900 px tall and is now a 172 px tile has taken 728 px of document away *above*
+  the viewport, and the pixels the reader is looking at slide down by exactly that:
+  the classic infinite-scroll jump, once per park. So the pass measures the row,
+  mutates it, measures it again, and corrects `scrollY` by the difference inside
+  the `requestAnimationFrame` the sweep already runs in — which is where a browser
+  wants a compensating scroll, so no frame is ever painted at the wrong offset.
+  Corrections are batched per pass (a dozen rows must not become a dozen scroll
+  events, each scheduling another sweep); rows below the fold get none, because
+  nothing they do is visible; a row the fold cuts in half gets none, because
+  moving the page under it *is* the jump. `lastParkScrollY` and `lastWarmScrollY`
+  are re-anchored to the corrected value so a compensation is never misread as the
+  reader having scrolled — the park pass would otherwise fire again for nothing and
+  the warm walk would decide the page had turned around. `?park=full` skips the
+  collapse and keeps the row claimed. **Mounting pays the same tax, in the other
+  direction**: `renderCardContent()` snapshots the row before it drops
+  `card-pending` and again before `adjustCardHeight()` widens it for late-painted
+  content, so a tool arriving in the look-ahead band above the fold does not shove
+  the reader down the page. Two growth points, two corrections, one per mutation —
+  a single correction at the end would be 100 ms late and would miss whichever of
+  the two grew more.
+- **One compensator, not two.** Blink's scroll anchoring exists to do exactly this
+  arithmetic, it is on by default, and it does not coordinate with a page that has
+  already done it — a park corrected twice is a jump the same size in the other
+  direction. So `home.css` sets `overflow-anchor: none` on the root scroller: the
+  page is the only thing that moves `scrollY` for a layout change it caused. That
+  is a trade with a real cost, taken deliberately — content that grows late inside
+  a tool (an image decoding, a font landing) no longer gets the UA's help — and
+  the mitigation is the one already in the sheet: `contain-intrinsic-size` must
+  stay honest for every skipped box, because it is now the only thing standing
+  between a lazy image and a moved page. `canHoldScroll()` is the shared gate for
+  all of it (`!touchActive`, from `initTouchGuard()`): under a live finger neither
+  the collapse nor a mount correction is applied, which is why the touch guard and
+  `collapsePark` are two separate flags rather than one — one asks who owns the
+  scroll position, the other whether a row may change height at all. `touchActive`, set by `initTouchGuard()`,
+  defers the collapse while a finger is still flinging the page, because a
+  correction that cannot be applied safely is worse than a row that collapses a
+  frame after the finger lifts.
+- **The pass has two halves, and the other one is a wake** (`wakeInsideWindow()`):
+  anything parked that the viewport now covers comes back, deliberately *without*
+  consulting `mountBudgetFree()`. That budget counts what the page fetches and
+  mounts, and a wake is a node move — gating it is how a tool ends up parked
+  underneath the reader's cursor while stale rows three screens behind still hold
+  every slot. The observer wakes on sight too, ahead of its own budget check, and
+  for a browser with no `IntersectionObserver` the park pass is the only wake path
+  there is. Parking in the same pass hands the budget straight back.
+  `keepAlive()` refuses to park a tool under the pointer, one with the caret inside
+  it, or one carrying `data-keep`; `⚡ Run all` and `?park=off` switch parking off
+  entirely, because both mean "the window is the page".
+- **The window is sized by measurement, twice over.** `initFrameGovernor()` listens
+  to `PerformanceObserver('long-animation-frame')` and narrows the window when
+  frames are long, growing it back on a later quiet pass — no timers. Where LoAF
+  does not exist (Safari, Firefox) `probeFrames()` asks for one frame per pass and
+  times the answer, shrinking on a gross miss (`LONG_FRAME_MS × 2`): "no signal" is
+  not the same as "no pressure", and an iPhone handed `deviceBudget()`'s ceiling
+  with no way back would have been the proof. The rate limiter starts at
+  `lastShrink = -Infinity`, because a throttle that has never fired should not
+  swallow the first dropped frame after the initial mount. `prunePark()` is the only destructive path in the design,
+  and it runs only when `performance.memory` reports the heap under pressure
+  (then oldest-parked first, down to 70% of `PARK_CEILING`): a parked tool is
+  cheaper than a lost one. `cardCache` is capped at `CARD_CACHE_MAX = 96` and
+  `pruneCardCache()` never evicts a tool that is running *or parked*.
+  `#liveToolCount` (`updateLiveCount()`, called from `updateSiteStats()` and by
+  the park itself) states both halves: how many tools are in the grid and how
+  many more are alive off it. One part of a parked tool's cost *is* clawed back:
+  `pauseParkedAnimations()` calls `getAnimations({subtree: true})` on the holder
+  and pauses each running animation, replaying exactly that set on the way back.
+  It is the only reversible pause available that needs no cooperation from the
+  card, and it is deliberately not a rAF interception — a tool that drives its
+  own frame loop keeps doing it, because stealing frames from the visitor's code
+  is how a page starts lying about being live. The split, measured over the shipped
+  fragments rather than guessed (`grep -lF '@keyframes\|animation:' cards/*.html`):
+  134 animate in CSS and are fully quieted while parked, 168 run a loop of their
+  own and are not, and 5 do both. So the park is a layout/paint guarantee, not a
+  CPU one, and that is the honest shape of it.
+- **Warm-ahead (`startCacheWarm()` / `pumpWarm()` / `warmCard()`).** The
+  background pass fetches fragment *text* into `cardCache` and does nothing
+  else — no `DOMParser`, no script, no layout, no `.innerHTML`. It walks
+  catalogue order from a cursor that follows the reading position (the sweep
+  pumps it once per pass; a filter, sort or density change resets the cursor),
+  never runs while `activeLoads >= MAX_CONCURRENT_LOADS - 1`, and stops after a
+  full pass that found nothing to do. **The walk is two-way** (`warmDir`,
+  `noteReadingPosition()`): the sweep reports which catalogue index is at the top
+  of the screen and which way the scroll is moving, and when the reader reverses
+  the cursor reverses with them, restarting `WARM_LOOKBEHIND` entries above the
+  fold. That is what the park needs — waking a tool should find its bytes cached,
+  and a tool evicted under memory pressure should cost a re-render, not a
+  download. Because every request is a `cards/*.html` GET, the service worker
+  stores the same responses in `CARDS_CACHE`, so warming on this visit is warming
+  on the next one.
+  `warmEligible()` skips anything the mount pipeline owns, including parked
+  tools — their bytes are already in the DOM.
+
+Net effect: **every tool the visitor can see is live within a frame or two of
+arriving** (usually from cache), everything they have already passed stays
+running off-grid with its state intact, everything else on the page is a
+complete, searchable, one-click tile, and the grid never carries more than a
+windowful of layout. Save-Data and 2G visitors get the tiles and click-to-run
+with no background download at all — the grid is already complete without them.
+
+The old idle trickle is gone in both files (a dead copy of its constants sat in
+`home-features.js`; it is gone too). `scripts/tests/live-window.test.js` fails
+if `TRICKLE_BATCH`/`startIdleTrickle` come back, and
+`card-faces.test.js` suite 6 now drives the warm path instead.
 
 ### The app is split: first screen in one file, on-demand UI in another
 
@@ -860,7 +1021,73 @@ and `bash scripts/verify.sh` fails until the blocks match the catalogue. The
 same script owns the per-category count badges. Everything below the first
 screen is still purely data-driven.
 
-**ID collisions across cards.** All 1194 share one DOM. See §3.
+**The grid's geometry lives in two files.** `DENSITY` in `home-app.js` (tile
+width, row height, gap, narrow breakpoint) and the `MOSAIC DENSITY` block in
+`home.css` are one fact written twice, because JS decides how many tools a
+screen holds and CSS decides what a screen looks like. `scripts/tests/live-window.test.js`
+regexes `minmax(212px` and `max-width: 560px` out of the stylesheet and compares
+them with the table, so the loader cannot size a batch for a grid that is not
+there. Also keep `.card`'s `contain-intrinsic-size` honest: the base rule
+carries the size of a running tool (340px), so a pending tile overrides it to
+172px — a skipped tile measured at 340px makes the scrollbar jump as you scroll.
+A parked row wears `card-pending` as well as `card-parked`, which is how the
+collapse gets its height for free from the rules the grid already has, and
+`parkedMinHeight` is where the row's real height waits for the wake-up.
+
+**The park container must never be `display: none`.** `#mp-park` hides a parked
+tool with `position: fixed` off the left edge plus `visibility: hidden`, and that
+specific pair is the whole trick: the subtree stays laid out and measurable, so a
+tool that sizes its canvas from `clientWidth` keeps real numbers while it waits.
+`display: none` gives every element inside it a zero `clientWidth` and a zero
+`getBoundingClientRect()` — and because a tool that measures on a resize or in a
+frame loop keeps whatever it last saw, a park that momentarily hid the content
+with `display` can leave a tool permanently blank *after* it is resumed.
+`content-visibility: hidden` and `hidden` are wrong for the same reason. What you
+may add is another `contain`, never a change to how it is hidden;
+`scripts/tests/live-window.test.js` suite 11 reads the rule back out of
+`home.css` and fails on `display: none` there.
+
+Two more things that are load-bearing in the park, both pinned by the same suite:
+**a parked row collapses, and the scroll position is corrected for it.** Its shell
+never moves, the tool's content lives in `#mp-park` at the width the row had (so
+nothing inside it re-wraps and a canvas keeps the numbers it measured), and the
+row goes back to being a tile — which means `aboveTheFold()`/`noteRowHeight()` has
+to hand the difference back to `scrollY` when the row sat above the viewport, in
+the same frame, or the page jumps under the scroll every time anything is parked.
+Scroll anchoring is not universal and is not a guarantee to hold a position with,
+so this page pays for it itself; `commitScrollHold()` is that payment, and
+`live-window.test.js` suite 13 asserts the arithmetic in both directions (a park
+that costs 728 px of document must move `scrollY` by 728, and waking it must move
+it back), and suite 18 asserts the mount's two growth points are each paired with
+their own snapshot, that no resize handler compensates, and that the anchoring rule
+is in the sheet with the reason next to it. The two must also stay *out* of the way where a correction would be the
+jump itself: below the fold, and on a row the fold cuts in half.
+And **`renderCardContent()` must not wipe `.card-sandbox`** — it hides the face
+(`face.hidden = true`) instead of `innerHTML = ''`, because the face is what a
+parked or evicted card has to show again, and re-creating it would lose the real
+description `refreshCardFaceDescriptions()` patched in. Parking is also why
+`.card-face[hidden] { display: none }` exists: the face rule sets `display: flex`
+and an author rule beats the UA sheet's `[hidden]`.
+
+**Skipped boxes report what they were last shown.** With the UA's anchoring off,
+the page has no second opinion about above-the-fold height changes — and every row
+above the viewport is a `content-visibility: auto` box whose layout height is either
+`contain-intrinsic-size` or the size it last rendered at, because the `auto` keyword
+remembers. That is why `adjustCardHeight()`'s inline `min-height` is a contract and
+not an optimisation: a row that has been rendered once carries its true height in the
+document *while skipped*, so un-skipping it on the way back into view changes nothing
+and cannot shove the reader. The one height a skipped row does not carry is a tool's,
+which is why the park stores `data-parked-min-height` instead of re-measuring a
+face, and why every host-side height change — `parkCard`, `resumeParked`, both mount
+mutations, and `showCardError` — is a snapshot taken immediately before the mutation
+and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip with
+no pair, on purpose: it re-tiles a card whose error block is still the content, so
+there is no material delta, and the mount that follows is paired already.
+
+**ID collisions across cards.** All 1194 share one DOM. See §3. A parked subtree
+keeps its real ids — it is still in the document, which is exactly why
+`document.getElementById` inside a sleeping tool keeps working; moving content
+out of the grid is not moving it out of the page.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -1325,6 +1552,142 @@ support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
 `AbortSignal.timeout`, and a `rail-hidden` auto-dodge during sports/weather/
 finance segments. Validated in headless Chromium against the real RSS feeds:
 124 stories / 35 sources, zero console or page errors.
+
+**Changed 2026-09-19 (stage 4) — the page owns `scrollY`, or it owns nothing.** The
+correction added in stage 3 was right about the arithmetic and wrong about who does
+it: Blink's scroll anchoring already compensates for content removed above the
+viewport, it is on by default, and it does not coordinate with a page that has just
+done the same thing — two corrections of one collapse is a jump the same size
+backwards. `home.css` now sets `overflow-anchor: none` on the root scroller so the
+page is the only compensator, and the other half of what that commits to is done in
+the same breath: **mounting a tool grows a row too**, and a row that grows above the
+fold shoves the reader down the page just as surely as a collapse. `renderCardContent()`
+snapshots before the `card-pending` flip and again before `adjustCardHeight()` widens
+the row for late-painted content, one correction per mutation — and a *failed* mount
+grows a row too (`showCardError`'s icon, title, detail and Retry button are much
+taller than the tile they replace), so it pays the same tax. `aboveTheFold()` moved
+onto `canHoldScroll()` (`!touchActive`) so the mount path is guarded by the touch
+owner rather than by `collapsePark` — the two flags answer different questions, which
+suite 17/18 pin — and the accepted trade (no UA help for content that grows late
+inside a tool) is written next to the rule so nobody removes either. Suites 13/14/18
+now cover the whole contract in node, including a harness `window` whose `scrollTo`
+moves it; `scripts/staff/live-window-check.mjs` gained a computed-style check for the
+rule, since the drift measurement in that script is exactly what doubles if
+anchoring is ever re-enabled.
+
+**Changed 2026-09-19 (stage 3) — the window closes properly.** Two defects the
+park left in its own design, found by re-reading it against the promise instead of
+by adding anything. **(1) A parked row kept the height of the tool that lived in
+it**, so every screen the visitor scrolled past stayed a scar of tall near-empty
+rows: the park saved paint and spent the density the page exists to have. It now
+collapses back to a tile — `min-height` lifted off the box, stored as
+`data-parked-min-height`, restored verbatim on the way back (a parked sandbox holds
+only a face to measure) — and `aboveTheFold()`/`noteRowHeight()`/`commitScrollHold()`
+pay for the height in the sweep's own frame, batched per pass, with both
+scroll-keyed cursors re-anchored so a correction is never mistaken for scrolling.
+Rows below the fold get no correction; a row the fold cuts gets none; `touchActive`
+(from `initTouchGuard()`, three passive listeners) defers the collapse while a
+finger is still flinging the page; `?park=full` opts out entirely. **(2) Waking was
+gated on the mount budget** in both automatic paths, so a tool the reader scrolled
+back to could stay parked underneath them while stale rows held every slot: the pass
+now wakes first (`wakeInsideWindow()`) and the observer wakes ahead of its budget
+check, because a node move is not a fetch. `parkMargin()` gives the two passes a
+dead band that survives a short window (never less than the observer's
+`REMOUNT_LOOKAHEAD` + 100, and the observer interpolates that constant instead of
+carrying its own `600px`), `probeFrames()` governs browsers with no
+`long-animation-frame` support, and the governor's throttle starts at `-Infinity`
+so a two-second-old page is not told it just shrank. `live-window.test.js` is 17
+suites: the scroll arithmetic of a park/wake round trip (5000 → 4272 → 5000, exactly
+reversible), the opt-out, the wake path and its detached-shell self-heal, the
+no-LoAF probe, the touch guard, and a rect in the harness that answers to the
+card's own classes so the geometry is modelled rather than asserted. The three
+claims that genuinely need a layout engine — a parked tile's height matching an
+unmounted one, the corrected offset against the document the collapse removed, and
+a parked canvas keeping its bitmap — are the subject of
+`scripts/staff/live-window-check.mjs`: an optional, manual probe that serves the repo
+over `node:http`, follows the `STAFF_PLAYWRIGHT` / `STAFF_CHROMIUM_PATH` convention of
+`scripts/staff/browser-check.mjs`, and is deliberately outside `verify.sh`, because no
+CI here has a browser and the required suite must stay zero-dependency.
+`adjustCardHeight()`'s parked guard changed meaning with this: the number it must
+not write down is now the *stored* one, since that is what the wake-up restores.
+
+**Changed 2026-09-18 (stage 2) — everything runs, a window is loaded.** Owner
+reply to the entry below: *"i do want them all running but only a few loaded at a
+time around the viewport."* So the cap became a **mount window**
+(`LIVE_AUTO_CAP` is gone; `MOUNT_WINDOW_DEFAULT = 24`, governed 10–40) and the
+grid grew a third card state. A mounted tool that leaves the window is **parked**:
+its content subtree moves into `#mp-park` — off the left edge,
+`visibility: hidden`, never `display: none` — while its shell stays in the grid,
+keeping its face and its measured row. So the visible page pays no layout and no
+paint for it, nothing about the tool is thrown away (timers keep running, forms
+keep their values, `document.getElementById` still finds its nodes), and waking
+it is one `appendChild`. `resumeParked()` sits at the top of `loadCard()` —
+before the queue, so a parked tool never costs a fetch slot — and
+`parkOutsideWindow()` runs inline in the sweep because it measures one rect per
+*live* tool rather than the whole pending list. Intent outranks geometry
+(`keepAlive()`: hover, focus inside, `data-keep`), and `⚡ Run all` /
+`?park=off` switch the whole idea off. `prunePark()` is the only path that
+destroys a tool's DOM and it runs only under `performance.memory` pressure,
+oldest-parked first — the count alone is never a reason. Window size is decided
+by `deviceBudget()` at boot and then by a `long-animation-frame` governor that
+narrows the window when frames are long and grows it back on a quiet park pass:
+no polling, and no shrinking at all where LoAF is unsupported.
+`renderCardContent()` no longer empties `.card-sandbox` — it hides `.card-face`,
+which is what lets a parked tile show its face again (see §7); the park also
+owns the width its subtree is laid out at, so nothing inside re-wraps while it
+waits. `home.css` is 17.1 KB gzip of its 18 KB budget. `live-window.test.js` grew
+from 7 suites to 12 (the park's node moves, its refusal rules, the eviction
+contract, the CSS that must not hide the park with `display`, and the two-way warm
+walk), and `lazy-loader.test.js` suite 6 now pins the window instead of the cap.
+The pass is also gated on scroll distance (`PARK_STEP`), which suite 9 asserts by
+counting rect reads — the one number that says whether a frame is free. Two
+follow-ons landed with it: parked subtrees get their CSS animations paused and
+re-played on the way back (`pauseParkedAnimations()` — deliberately *not* a
+`requestAnimationFrame` hijack, because stealing frames from the visitor's own
+code is how a page starts lying about being live; it quiets the 134 fragments that
+animate in CSS and leaves the 168 with their loops alone), and warm-ahead walks
+*backwards* when the scroll reverses (`warmDir`, `noteReadingPosition()`,
+`CONFIG.WARM_LOOKBEHIND`), since the park made reversing through the catalogue the
+normal case.
+
+**Changed 2026-09-18 — the main page is a live window, not a trickle.**
+Owner report: *"only nine tools are loading on my mainpage and i have over
+1000, this destroys the point of my site."* Diagnosis, from the shipped numbers:
+`computeInitialBatch()` returned `min(12, max(6, ceil((viewport+600)/320)))` =
+**6** on a 900 px screen; the grid was **one tool per 330 px row**, so a screen
+held 2–3 tools and the catalogue was ~400,000 px long; and the only background
+path was an idle trickle of **6 mounts per 2.5 s** — ~8 minutes of foreground
+time to make one page of 1,194 tools real, at ~15 KB and one `DOMParser` +
+script execution each. Nine live tools at the top was not a fetch bug: one verb
+(`loadCard` = fetch + parse + run) meant "show the catalogue" and "run the
+catalogue" were the same expensive act, throttled to protect scrolling.
+
+Three changes (see §3 "The live window"): mosaic density as the default grid
+(~30 tools a screen, a running tool spans the row, `.density-focus` keeps the old
+layout), a **mount budget** (`LIVE_AUTO_CAP = 64`, lifted only by a click or
+`⚡ Run all`), and **warm-ahead** — a background pass that fetches fragment text
+into `cardCache` only, follows the reading position, yields to the mount
+pipeline, and lands in the service worker's `CARDS_CACHE` for the next visit.
+`applyFiltersCore()` no longer mounts every match either: a Productivity pill
+(152 tools) used to queue 152 fetch+parse+execute jobs on one click.
+`cardCache` is capped at 96 entries (`pruneCardCache()` keeps running tools);
+`gridMetrics()` is the single source for "how many tools is a screen"; the idle
+trickle is deleted from both home-app.js and home-features.js. New
+`scripts/tests/live-window.test.js` (7 suites, wired into `verify.sh` §15)
+pins the geometry, the CSS mirror, the density preference, the cache cap and the
+absence of the trickle; `lazy-loader.test.js` gained the budget suite and
+`card-faces.test.js` suite 6 now drives warm-ahead. No `index.html` payload
+growth beyond the two toolbar controls (`home.css` is 16.2 KB gzip against its
+18 KB budget, `index.html` 14.5 KB).
+
+Landed the same day, in the same pass: **`?cat=` / `?category=` and `?view=`
+deep links** (`parseIndexDeepLink()` / `applyIndexDeepLink()`, written back by
+the pills with `replaceState`), so a category is now a URL a crawler and a phone
+can treat as a page — documented in `agents.html` and `llms.txt`. Still open, in
+order of what they would buy: **per-category bundle fetches** so "run this
+category" is one request instead of a hundred-odd; and a **real-browser pass**
+over the mosaic (a 172 px tile, the mount reflow when a tool arrives, and
+`⚡ Run all` on a phone — none of which a node harness can see).
 
 **Fixed 2026-08-31 (commits `ce0c880`, `bb32e34`)**
 

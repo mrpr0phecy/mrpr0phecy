@@ -2,11 +2,11 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 7;
+    const APP_VERSION = 13;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
-        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() caps it at 12 (viewport + look-ahead)
+        INITIAL_LOAD: 6,        // floor for the first batch; computeInitialBatch() derives the rest from the grid (see DENSITY)
         INITIAL_STAGGER: 18,    // ms between first-batch fetch starts. MAX_CONCURRENT_LOADS already
                                 // caps the work in flight, and the head bootstrap has
                                 // usually downloaded the first screen's fragments
@@ -15,10 +15,59 @@
         FETCH_TIMEOUT: 15000,   // ms before a card fetch is aborted and its slot freed
         MAX_AUTO_RETRIES: 2,    // silent retries before the card shows its error/Retry UI
         AUTO_RETRY_LIMIT: 3,    // extra scroll-driven retries per failed card before it rests for a manual Retry
+                                // The mount window: how many tools the grid carries at once. A *layout*
+                                // ceiling, not a fetch ceiling and not a liveness ceiling — a tool
+                                // mounted outside the window is parked with its state intact, and the
+                                // fetches have their own concurrency below. The frame-budget governor
+                                // walks the window between MIN and MAX when long frames cluster (and
+                                // back up once the page goes quiet).
+        MOUNT_WINDOW_DEFAULT: 24,
+        MOUNT_WINDOW_MIN: 10,
+        MOUNT_WINDOW_MAX: 40,
+        PARK_CEILING: 64,       // parked tools to tolerate before the JS heap is asked
+                                // whether it wants any back. Parking is the cheapest way to
+                                // keep 1,194 tools running, so eviction is a last resort.
+        LONG_FRAME_MS: 80,      // one long animation frame this long counts as pressure.
+        WARM_CONCURRENCY: 3,    // background fragment downloads (bytes only — no DOM, no
+                                // script). Kept under MAX_CONCURRENT_LOADS - 1 so a warm
+                                // fetch can never delay a tool the visitor is looking at.
+        WARM_TIMEOUT: 12000,    // a stalled warm fetch must free its slot, not hold one
+        WARM_LOOKBEHIND: 6,     // how far above the top of the screen a reversed
+                                // warm pass starts, so scrolling back up finds its
+                                // bytes cached instead of fetching them again
+        PARK_COLLAPSE: true,    // a parked row hands its height back and becomes a
+                                // tile again; the scroll offset is corrected for it
+                                // (see HOLDING THE READING POSITION). `?park=full`
+                                // keeps the row claimed instead.
+        REMOUNT_LOOKAHEAD: 600, // the observer's look-ahead in px, and the single
+                                // source of truth for "close enough to be live":
+                                // both the observer and the park margin read it, so
+                                // the dead band between them cannot vanish.
+        CARD_CACHE_MAX: 96,     // in-memory fragments (~1.5 MB). The service worker's
+                                // CARDS_CACHE is the durable tier, so pruning here is a
+                                // demotion, not a re-download.
         GITHUB_REPO: 'mrpr0phecy/mrpr0phecy',
         GITHUB_PATH: 'cards',
         STICKY_THRESHOLD: 200
     };
+
+    // ===== DENSITY =====
+    // A catalogue of 1,194 tools is not a list you scroll: at one tool per
+    // row, ~330 px each, the grid was over 400,000 px long — several hundred
+    // screens — and everything below the first few rows was out of reach.
+    // This table decides how many tools a screen holds, and it is the same fact
+    // the CSS is written against —
+    // `min`/`row`/`gap` mirror `repeat(auto-fill, minmax(<min>, 1fr))`, the row
+    // height and the gap in home.css. Changing one without the other makes the
+    // loader mount tools for a grid that is not there.
+    const DENSITY = {
+        // narrow* mirror the `@media (max-width: 560px)` override in home.css:
+        // a phone gets 150px tiles and an 8px gutter, so a screen there is
+        // still ~2 tools wide rather than a lone column of tiles.
+        mosaic: { min: 212, row: 176, gap: 12, cap: 24, narrowAt: 560, narrowMin: 150, narrowGap: 8 },
+        focus:  { min: 980, row: 330, gap: 24, cap: 12, narrowAt: 0, narrowMin: 980, narrowGap: 24 }
+    };
+    const DENSITY_DEFAULT = 'mosaic';
     
     // ===== STATE MANAGEMENT =====
     let allCards = [];
@@ -32,6 +81,15 @@
     let toolboxMode = 'grid'; // 'grid' or 'list'
     let expandedGridCards = new Set();
     let expandedListCards = new Set();
+    // Grid density ('mosaic' | 'focus'), and whether the visitor has asked for
+    // every tool to run. explicitRunAll is the only thing that lifts the mount
+    // window (and it turns parking off, since "run all" means *on the grid*) —
+    // an opt-in is not the same as the page guessing.
+    // Read from storage at declaration time: the first screen's batch size is
+    // derived from the density, and reading it later means answering that
+    // question for the wrong grid.
+    let currentDensity = savedDensity();
+    let explicitRunAll = false;
     
     // Background themes
     const themes = {
@@ -50,6 +108,10 @@
         if (isAppInitialized) return;
         isAppInitialized = true;
         console.log('🚀 The Most Useful Site - Loading...');
+        // Density before anything measures the grid: buildCatalogue() asks
+        // computeInitialBatch() how big a screenful is, and a reflow between
+        // the answer and the paint would make it the wrong answer.
+        applyDensity(currentDensity);
         loadRatings();
         loadCardList();
         setupEventListeners();
@@ -266,7 +328,15 @@
     // stays in charge (nearest-first, MAX_CONCURRENT_LOADS at a time), so the
     // page never blocks — cards simply go live continuously. No loading UI
     // exists any more: faces swap to live tools as each fragment arrives.
+    //
+    // This is also the only thing that lifts the mount window permanently: the
+    // grid then keeps every tool it mounts, because that is what was asked for,
+    // and parking one back would be the page second-guessing the request. The
+    // window exists because a tool on the grid costs a layout and possibly a
+    // requestAnimationFrame loop for the rest of the visit, and the page cannot
+    // know which of 1,194 tools matter to you; clicking ⚡ is you telling it.
     function loadAllToolsNow() {
+        explicitRunAll = true;
         let queued = 0;
         document.querySelectorAll('.card[data-name]:not(.loaded)').forEach(card => {
             const name = card.dataset.name;
@@ -284,44 +354,831 @@
     }
 
 
-    // Idle trickle: 6 cards per 2.5s tick, throttled to save data. Every
-    // card already displays as a readable face from the grid build, so the
-    // trickle only needs to stay ahead of a scroll — a larger batch on a
-    // short interval refetched the whole catalogue in the background and
-    // starved the tools the visitor was actually looking at. Data-saver/2G
-    // visitors keep click-to-run and never get the trickle at all.
-    const TRICKLE_BATCH = 6;
-    const TRICKLE_INTERVAL = 2500;
-    let trickleStarted = false;
-    function startIdleTrickle() {
-        if (trickleStarted) return;
+    // ===== THE WINDOW AND THE PARK =====
+    // "Every tool running" and "a browser cannot run 1,194 tools" are only a
+    // contradiction if running means *laid out with its content in the grid*. It
+    // does not have to. Mounting a tool is the expensive, irreversible part —
+    // the fragment is parsed, its script has run, its state exists. What costs
+    // the visible page anything is layout and paint of that content. So the grid
+    // carries a WINDOW, and any mounted tool outside the window is PARKED: its
+    // content subtree moves into one off-screen, `visibility:hidden` container
+    // that keeps the tool in the document — alive, laid out, measurable,
+    // queryable by its own getElementById calls, holding every value the visitor
+    // typed — while the visible page pays for nothing.
+    //
+    //   tile    no tool DOM at all (its bytes are usually warm: see warm-ahead)
+    //   live    mounted in the grid, inside the mount window
+    //   parked  mounted, content off the grid, state intact; waking it up is one
+    //           appendChild, not a fetch, a parse, a script and a lost form
+    //
+    // The shell stays exactly where it is; only its height changes, and that is
+    // paid for rather than ignored. A parked row collapsing from a 900 px tool to
+    // a 172 px tile would take 700 px of document away *somewhere above the
+    // viewport*, and the pixels the visitor is reading would slide down — a jump,
+    // on every park, in the one place scroll anchoring is not guaranteed to help.
+    // So the pass measures the row, mutates it, measures it again, and hands the
+    // scroll offset back the difference in the same frame (see HOLDING THE READING
+    // POSITION). That buys the dense page and the stable one at once: a parked tool
+    // is a tile again — the grid looks the same where the reader has been as where
+    // they are — and waking it is the same arithmetic in reverse, with no
+    // re-measuring, because the row is pinned to the height it left at.
+    // `content-visibility: auto` then skips the layout of any of these boxes that
+    // is off screen anyway, and `?park=full` opts out of the collapse.
+    //
+    // Only three things decide who is live: the viewport, one memory signal, and
+    // intent — a tool someone is pointing at or typing into is never parked out
+    // from under them. `?park=off` turns the whole idea off (everything mounted
+    // stays on the grid, which is the literal "all of them, where I left them")
+    // and so does ⚡ Run all, which is the same thing asked for on purpose.
+    //
+    // PARK_MARGIN_VH is the hysteresis and must stay wider than the observer's
+    // look-ahead: parked at 1.5 viewports away, remounted within
+    // CONFIG.REMOUNT_LOOKAHEAD, so a card on the boundary cannot oscillate. On a
+    // 900px screen that is a 750px dead band — and on a 400px window, where 1.5
+    // viewports falls *inside* the look-ahead, parkMargin() keeps the band open
+    // instead of letting two passes fight over one row.
+    const PARK_MARGIN_VH = 1.5;
+
+    function parkMargin(viewportH) {
+        return Math.max(viewportH * PARK_MARGIN_VH,
+                        CONFIG.REMOUNT_LOOKAHEAD + 100);
+    }
+    // Scrolling is the only thing that moves the window, so the pass is triggered
+    // by a scroll *step* rather than by a frame: measuring a windowful of rects
+    // 60 times a second is exactly the layout bill this page exists to avoid. A
+    // pass that found nothing pushes the next one further away (up to a screen
+    // and a half), because the answer cannot have changed much in between.
+    const PARK_STEP = 240;
+    const PARK_STEP_MAX = 900;
+    let lastParkScrollY = -Infinity;
+    let parkStep = PARK_STEP;
+    let parkMode = true;
+    let collapsePark = CONFIG.PARK_COLLAPSE;
+    // Whether the visitor is the one moving the page right now. Set by
+    // initTouchGuard(), and consulted by collapsing().
+    let touchActive = false;
+    let mountWindow = CONFIG.MOUNT_WINDOW_DEFAULT;
+    let parkCeiling = CONFIG.PARK_CEILING;
+    const parkedCards = new Map();   // name -> { card, holder, anims }
+    let parkOrder = [];              // parked longest-ago first (eviction order)
+    let lastLongFrame = 0;
+    // -Infinity, not 0: the limiter compares against performance.now(), and a
+    // page two seconds old would otherwise be told it had just shrunk. The first
+    // dropped frame after the initial mount is the one most worth answering.
+    let lastShrink = -Infinity;
+
+    // Created on the first park, not in the markup: a page nobody scrolls past
+    // the first window never needs it. Styled in home.css — deliberately NOT in
+    // the deferred sheet, because a park that briefly lacks its `visibility` rule
+    // flashes a pile of tools over the page.
+    function parkHost() {
+        let host = document.getElementById('mp-park');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'mp-park';
+            // Off the visible page but NOT `display: none`: the subtree stays
+            // laid out and measurable, so a tool that sizes its own canvas from
+            // clientWidth keeps valid numbers while it waits (and one that read 0
+            // would stay broken forever). `visibility:hidden` is what takes it out
+            // of painting, the a11y tree and the tab order.
+            host.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(host);
+        }
+        return host;
+    }
+
+    // A parked tool is nearly free to keep; destroying one is the only
+    // destructive thing this page does, so it happens only when the browser
+    // itself says the heap is under pressure.
+    function memoryPressure() {
+        try {
+            const mem = performance && performance.memory;
+            if (!mem || !mem.jsHeapSizeLimit) return false;
+            return mem.usedJSHeapSize > Math.min(mem.jsHeapSizeLimit * 0.6, 320 * 1024 * 1024);
+        } catch (err) {
+            return false;   // no signal: keep everything parked
+        }
+    }
+
+    // Low-memory devices get a smaller window and a shallower park: a parked tool
+    // is still a couple of hundred DOM nodes, and "hundreds of them" means
+    // something different on a 1 GB phone. deviceMemory is Chromium-only and
+    // coarse; no signal means the desktop default, not zero.
+    function deviceBudget() {
+        let mem = 0;
+        try { mem = Number(navigator.deviceMemory) || 0; } catch (err) { /* unsupported */ }
+        if (!mem) return { window: CONFIG.MOUNT_WINDOW_DEFAULT, park: CONFIG.PARK_CEILING };
+        if (mem <= 1) return { window: 10, park: 20 };
+        if (mem <= 2) return { window: 16, park: 32 };
+        return { window: CONFIG.MOUNT_WINDOW_DEFAULT, park: CONFIG.PARK_CEILING };
+    }
+
+    function initLiveWindow() {
+        const budget = deviceBudget();
+        mountWindow = budget.window;
+        parkCeiling = budget.park;
+        initFrameGovernor();
+        initTouchGuard();
+    }
+
+    // Three passive listeners, once, for one fact the park cannot infer from a
+    // scroll event: whether the page is being moved by a finger. `touchend` alone
+    // is not enough — a cancelled touch does not always fire it, and a stuck
+    // `touchActive` would disable the collapse for the rest of the visit.
+    function initTouchGuard() {
+        if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return;
+        try {
+            document.addEventListener('touchstart', () => { touchActive = true; }, { passive: true });
+            const done = () => { touchActive = false; };
+            document.addEventListener('touchend', done, { passive: true });
+            document.addEventListener('touchcancel', done, { passive: true });
+        } catch (err) { /* no listeners: the collapse still works, unguarded */ }
+    }
+
+    // A frame-budget governor that reads the browser instead of guessing:
+    // long-animation-frame entries are the page admitting it missed a frame. When
+    // they cluster, the window narrows; it grows back on the next quiet park pass,
+    // so there is no polling and no timer.
+    function noteLongFrame() {
+        const now = performance.now();
+        lastLongFrame = now;
+        if (now - lastShrink < 5000 || mountWindow <= CONFIG.MOUNT_WINDOW_MIN) return;
+        lastShrink = now;
+        mountWindow = Math.max(CONFIG.MOUNT_WINDOW_MIN, mountWindow - 4);
+        invalidateParkPass();
+        scheduleViewportSweep();
+    }
+
+    let governorHasLoAF = false;
+    let frameProbed = false;
+
+    function initFrameGovernor() {
+        if (typeof PerformanceObserver === 'undefined') return;
+        try {
+            const po = new PerformanceObserver(list => {
+                let worst = 0;
+                for (const entry of list.getEntries()) worst = Math.max(worst, entry.duration || 0);
+                if (worst < CONFIG.LONG_FRAME_MS) return;
+                noteLongFrame();
+            });
+            po.observe({ type: 'long-animation-frame', buffered: false });
+            governorHasLoAF = true;
+        } catch (err) { /* no LoAF: the fallback probe below is the governor */ }
+    }
+
+    // Safari and Firefox publish no long-animation-frame entries, and "the
+    // governor is off there" is not the same as "the window is safe there" — it
+    // would mean an iPhone gets the desktop's 40 mounted tools with no way back.
+    // So where LoAF is missing, each pass asks for one frame and times how long
+    // the browser took to come back: a timestamp, which is the same fact LoAF
+    // reports, one level coarser. Being coarse is why it only shrinks on a gross
+    // miss (double the threshold) and why it never runs at all when the real
+    // signal is available.
+    function probeFrames() {
+        if (governorHasLoAF || frameProbed || typeof requestAnimationFrame !== 'function') return;
+        frameProbed = true;
+        const askedAt = performance.now();
+        requestAnimationFrame(() => {
+            frameProbed = false;
+            if (performance.now() - askedAt >= CONFIG.LONG_FRAME_MS * 2) noteLongFrame();
+        });
+    }
+
+    function growWindowBack() {
+        if (mountWindow >= CONFIG.MOUNT_WINDOW_MAX) return;
+        if (performance.now() - lastLongFrame < 20000) return;
+        mountWindow += 2;
+    }
+
+    // Never park the tool someone is in the middle of using.
+    function keepAlive(card) {
+        if (!card) return true;
+        if (card.dataset.keep === '1') return true;
+        try {
+            if (card.matches(':hover')) return true;
+            if (document.activeElement && card.contains(document.activeElement)) return true;
+        } catch (err) { /* a nicety, not a gate: failure means "parkable" */ }
+        return false;
+    }
+
+    const FACE_HINT_RUN = 'Click to run';
+    const FACE_HINT_PARKED = 'Still running — click to bring it back';
+    function setFaceHint(card, parked) {
+        const hint = card.querySelector('.card-face-hint');
+        if (!hint) return;
+        const text = (hint.textContent || '').trim();
+        // The hint only, and only if this page wrote it: the description and the
+        // aria-label keep telling the truth either way, and a card that wrote its
+        // own face keeps its own words.
+        if (parked ? text === FACE_HINT_RUN : text === FACE_HINT_PARKED) {
+            hint.textContent = parked ? FACE_HINT_PARKED : FACE_HINT_RUN;
+        }
+    }
+
+    // A parked tool keeps running — that is the deal — but "keeps running" does
+    // not have to mean "keeps repainting nothing". Every animation on an invisible
+    // subtree is pure waste, and `getAnimations()` is the one pause that is fully
+    // reversible and needs no cooperation from the card. What this deliberately
+    // does *not* touch is a tool driving its own requestAnimationFrame loop: that
+    // is the visitor's code, and stealing frames from it is how a page starts
+    // lying about being live. Measured over the shipped fragments, 134 animate in
+    // CSS and go quiet here, 168 run their own loop and do not — the park is a
+    // layout and paint guarantee, not a CPU one. Returns the paused set so the wake-up can replay it,
+    // or null when there was nothing to pause (or no API to ask).
+    function pauseParkedAnimations(holder) {
+        if (!holder || typeof holder.getAnimations !== 'function') return null;
+        const paused = [];
+        try {
+            for (const anim of holder.getAnimations({ subtree: true })) {
+                if (anim.playState === 'running') {
+                    anim.pause();
+                    paused.push(anim);
+                }
+            }
+        } catch (err) {
+            // An engine that only half-supports this must not cost us the park.
+            return paused.length ? paused : null;
+        }
+        return paused.length ? paused : null;
+    }
+
+    // ===== HOLDING THE READING POSITION =====
+    // Parking takes a row's height away and mounting gives one back. Below the
+    // fold that is free; above it, it is the classic infinite-scroll jump, and both
+    // sides need the same treatment because a parked tool is woken from the
+    // look-ahead band *above* the reader's eyes too. So the page does the
+    // arithmetic an engine might have done: measure, mutate, measure, then move
+    // scrollY by the difference — inside the requestAnimationFrame the sweep already
+    // runs in, which is where a browser wants a compensating scroll, so no frame is
+    // ever painted at the uncorrected offset.
+    //
+    // Only rows entirely above the fold qualify: a row straddling the top edge is
+    // being looked at, and moving the page under it would be the jump itself.
+    let scrollHold = 0;
+    let holdBatch = 0;
+
+    // Whether the page may move the scroll position at all. A finger that is
+    // still flinging the page owns it: a programmatic scroll mid-momentum is at
+    // best ignored and at worst stops the fling dead, and a correction that cannot
+    // be applied is worse than none. So while a touch is down nothing is
+    // compensated — and since a park only collapses in order to be compensated,
+    // the park defers the collapse too (the next pass, a frame after the finger
+    // lifts, will). `touchActive` is about who owns scrollY; `collapsePark` is
+    // about whether a row is allowed to change height. They are two questions and
+    // they must not be answered by one flag: a tool *mounting* above the fold
+    // grows its row whether or not parking collapses anything, and that needs the
+    // same correction (see renderCardContent) with only the first question asked.
+    function canHoldScroll() {
+        return !touchActive;
+    }
+
+    function collapsing() {
+        return collapsePark && canHoldScroll();
+    }
+
+    function aboveTheFold(card) {
+        if (!canHoldScroll() || typeof card.getBoundingClientRect !== 'function') return null;
+        const rect = card.getBoundingClientRect();
+        return rect.bottom <= 0 ? rect.height : null;
+    }
+
+    // `before` is null when this row could not move the page, 0 when it had no
+    // height; either way there is nothing to hand back.
+    function noteRowHeight(card, before) {
+        if (!before || typeof card.getBoundingClientRect !== 'function') return;
+        const after = card.getBoundingClientRect().height;
+        const delta = before - after;
+        if (Math.abs(delta) < 8) return;   // sub-row churn is not a jump
+        scrollHold += delta;               // > 0: the document got shorter
+        if (!holdBatch) commitScrollHold();
+    }
+
+    // A pass may change a dozen rows; batching keeps that from becoming a dozen
+    // scroll events, each of which would schedule another sweep.
+    function beginHold() { holdBatch++; }
+    function endHold() {
+        holdBatch = holdBatch > 0 ? holdBatch - 1 : 0;
+        if (!holdBatch) commitScrollHold();
+    }
+
+    function commitScrollHold() {
+        const shift = scrollHold;
+        scrollHold = 0;
+        const scrollY = (typeof window !== 'undefined' && window.scrollY) || 0;
+        if (!shift || typeof window.scrollTo !== 'function') return;
+        const target = Math.max(0, Math.round(scrollY - shift));
+        if (target === Math.round(scrollY)) return;
+        try { window.scrollTo(0, target); } catch (err) { /* nothing to correct */ }
+        // The document moved under a reader whose pixels did not, so anything that
+        // reads the raw offset has to be re-anchored or it will misread the
+        // correction as motion: the park pass would fire again for nothing, and the
+        // warm walk would decide the reader had turned around mid-page.
+        lastParkScrollY = target;
+        lastWarmScrollY = target;
+    }
+
+    function parkCard(card, cardName) {
+        const sandbox = card.querySelector(`#card-${cardName}`);
+        if (!sandbox) return false;
+        const holder = document.createElement('div');
+        holder.className = 'parked-tool';
+        holder.dataset.name = cardName;
+        // Match the width the tool was laid out at, so nothing inside it has to
+        // re-wrap while it waits (a canvas-sized tool would otherwise resize to
+        // the park's own width and could shrink permanently).
+        const sandboxW = Math.round(sandbox.getBoundingClientRect().width);
+        // The row's height is pinned by adjustCardHeight() as an inline min-height
+        // on the content, and an inline style outranks the tile rules — so a
+        // collapse has to take it with it. It is stored, not discarded: the way
+        // back restores the exact height the tool left at, without measuring a
+        // sandbox that holds nothing but a face at that moment.
+        const content = card.querySelector('.card-content');
+        const before = aboveTheFold(card);
+        const pinned = content ? content.style.minHeight : '';
+        const collapseNow = collapsing();
+        const host = parkHost();
+        if (sandboxW > 0 && Math.abs((parseInt(host.style.width, 10) || 0) - sandboxW) > 2) {
+            host.style.width = `${sandboxW}px`;
+        }
+        // Everything that belongs to the tool moves — its content, the <style>s
+        // it injected, any script nodes — except the face, which is what the grid
+        // shows while the tool waits. (Styles still apply document-wide from in
+        // here; `visibility` never disabled a stylesheet.)
+        const face = sandbox.querySelector('.card-face');
+        Array.from(sandbox.children).forEach(node => {
+            if (node !== face) holder.appendChild(node);
+        });
+        host.appendChild(holder);
+        card.classList.remove('loaded');
+        card.classList.add('card-parked');
+        card.dataset.parked = '1';
+        if (collapseNow) {
+            if (content) content.style.minHeight = '';
+            card.classList.add('card-pending');
+            if (pinned) card.dataset.parkedMinHeight = pinned;
+            noteRowHeight(card, before);
+        }
+        // The face is what a parked row shows: the row keeps its size, so this
+        // has to look like something, and "still here" is the honest answer.
+        if (face) face.hidden = false;
+        setFaceHint(card, true);
+        loadedCards.delete(cardName);
+        parkedCards.set(cardName, { card, holder, anims: pauseParkedAnimations(holder) });
+        parkOrder.push(cardName);
+        // Armed for the way back: the observer wakes it as soon as it is within
+        // look-ahead, and the sweep can too (a parked card is not `.loaded`).
+        if (observer) observer.observe(card);
+        if (!pendingCards.includes(card)) pendingCards.push(card);
+        return true;
+    }
+
+    function resumeParked(card, cardName) {
+        const parked = parkedCards.get(cardName);
+        if (!parked) return false;
+        const target = card || parked.card;
+        const sandbox = target.querySelector(`#card-${cardName}`);
+        if (!sandbox) return false;
+        parkedCards.delete(cardName);
+        parkOrder = parkOrder.filter(n => n !== cardName);
+        Array.from(parked.holder.children).forEach(node => sandbox.appendChild(node));
+        parked.holder.remove();
+        // Frames back: paused *after* the nodes are home, so nothing animates in
+        // the gap between the two moves.
+        if (parked.anims) {
+            for (const anim of parked.anims) {
+                try { anim.play(); } catch (err) { /* the animation has gone away */ }
+            }
+        }
+        const face = sandbox.querySelector('.card-face');
+        if (face) face.hidden = true;
+        const growBefore = aboveTheFold(target);
+        target.classList.remove('card-parked');
+        target.classList.remove('card-pending');
+        target.classList.add('loaded');
+        delete target.dataset.parked;
+        // The height it left at, back verbatim: no re-measure, because a parked
+        // sandbox holds only a face and would measure as one.
+        const back = target.querySelector('.card-content');
+        if (back && target.dataset.parkedMinHeight) {
+            back.style.minHeight = target.dataset.parkedMinHeight;
+        }
+        delete target.dataset.parkedMinHeight;
+        noteRowHeight(target, growBefore);
+        setFaceHint(target, false);
+        loadedCards.add(cardName);
+        if (observer) observer.unobserve(target);
+        // No height work: the row kept its size the whole time, which is the
+        // point of parking. The counter needs telling, though — a wake-up never
+        // goes through renderCardContent, where updateSiteStats() would have done
+        // it — and the sweep needs one look at the geometry that came back.
+        updateLiveCount();
+        scheduleViewportSweep();
+        return true;
+    }
+
+    // Oldest-parked first, and only when the heap asks for it. This is the one
+    // path that loses a tool's state, so it is guarded by a real memory signal
+    // rather than by a count the page finds convenient.
+    function prunePark() {
+        if (parkedCards.size <= parkCeiling || !memoryPressure()) return;
+        const target = Math.floor(parkCeiling * 0.7);
+        while (parkedCards.size > target && parkOrder.length) {
+            const name = parkOrder.shift();
+            const parked = parkedCards.get(name);
+            if (!parked) continue;
+            parkedCards.delete(name);
+            // Anything this tool had animating goes with the subtree; its paused
+            // animations are not resumed, because nothing is about to look at them.
+            parked.holder.remove();
+            // The card goes back to being an ordinary tile (and its height with
+            // it — an empty tall row would haunt the layout forever). Its bytes may
+            // still be in cardCache, so a return visit re-renders in a millisecond.
+            parked.card.classList.remove('card-parked');
+            parked.card.classList.add('card-pending');
+            delete parked.card.dataset.parked;
+            const content = parked.card.querySelector('.card-content');
+            if (content) content.style.minHeight = '';
+            delete parked.card.dataset.parkedMinHeight;
+            setFaceHint(parked.card, false);
+        }
+    }
+
+    // The window pass: park what the grid no longer needs to paint. It measures
+    // one rect per *live* tool — at most a windowful, which is why this can run
+    // inline in a scroll sweep where walking 1,190 pending cards cannot.
+    function invalidateParkPass() {
+        lastParkScrollY = -Infinity;
+        parkStep = PARK_STEP;
+    }
+
+    // The other half of the pass, and the half that makes this a window rather
+    // than a ratchet: whatever the viewport now wants comes back. It does *not*
+    // ask the mount budget, because a wake is a node move — no fetch, no parse, no
+    // script, no queue slot — and holding a wake hostage to a busy budget is how a
+    // tool ends up parked underneath the reader's cursor while a row they scrolled
+    // past three screens ago still holds a slot. Parking in the same pass hands the
+    // budget straight back, and the observer's look-ahead is smaller than the park
+    // margin by construction, so a row cannot be woken and re-parked forever.
+    function wakeInsideWindow(top, bottom) {
+        if (!parkedCards.size) return false;
+        let woke = false;
+        for (const name of Array.from(parkedCards.keys())) {
+            const parked = parkedCards.get(name);
+            if (!parked) continue;
+            const card = parked.card;
+            if (!card.isConnected) {
+                // A shell that left the DOM (a rebuild, an extension that rewrote
+                // the grid) would otherwise keep its content in the park forever.
+                parkedCards.delete(name);
+                parkOrder = parkOrder.filter(n => n !== name);
+                if (parked.holder) parked.holder.remove();
+                continue;
+            }
+            if (isCardHidden(card)) continue;
+            const rect = card.getBoundingClientRect();
+            if (rect.bottom < top || rect.top > bottom) continue;
+            if (resumeParked(card, name)) woke = true;
+        }
+        return woke;
+    }
+
+    function parkOutsideWindow() {
+        if (!parkMode || explicitRunAll) return;
+        const scrollY = (typeof window !== 'undefined' && window.scrollY) || 0;
+        if (Math.abs(scrollY - lastParkScrollY) < parkStep) return;
+        lastParkScrollY = scrollY;
+        const vh = (typeof window !== 'undefined' && window.innerHeight) || 900;
+        const margin = parkMargin(vh);
+        const top = -margin;
+        const bottom = vh + margin;
+        let parkedAny = false;
+        let wokeAny = false;
+        beginHold();
+        try {
+            wokeAny = wakeInsideWindow(top, bottom);
+            for (const name of Array.from(loadedCards)) {
+                const card = cardElsByName.get(name);
+                if (!card || !card.isConnected) continue;
+                // Hidden by a filter: it is laying out for nobody, so it should not
+                // hold a slot in the window either.
+                if (!isCardHidden(card)) {
+                    const rect = card.getBoundingClientRect();
+                    if (rect.bottom >= top && rect.top <= bottom) continue;
+                }
+                if (keepAlive(card)) continue;
+                if (parkCard(card, name)) parkedAny = true;
+            }
+            parkStep = (parkedAny || wokeAny)
+                ? PARK_STEP
+                : Math.min(PARK_STEP_MAX, parkStep + PARK_STEP);
+            growWindowBack();
+            prunePark();
+        } finally {
+            endHold();
+        }
+        if (parkedAny || wokeAny) updateLiveCount();
+        // One frame of measurement per pass, and only where the real signal is
+        // missing: this is the entire cost of governing a browser that cannot say
+        // it dropped a frame.
+        if (!governorHasLoAF) probeFrames();
+    }
+
+    // ===== WARM-AHEAD: "BYTES HERE" IS NOT "RUNNING HERE" =====
+    // The old loader had one verb, so it had one problem. A card became a live
+    // tool only when it was fetched, parsed AND executed, and the one pipeline
+    // that did all three had to be throttled to protect scrolling — so the
+    // page ran a handful of tools at a time while the other 1,185 sat as faces
+    // an hour of trickling away from ever becoming real. It read like a site
+    // with nine tools and a promise of a thousand.
+    //
+    // Two jobs, two paths:
+    //
+    //   MOUNT (what runs) is driven by the viewport. The observer and the
+    //     sweep mount the tools a visitor can actually see, nearest first, at
+    //     MAX_CONCURRENT_LOADS, under the mount window.
+    //   WARM (what is downloaded) is the same window one step ahead. A warm
+    //     fetch puts the fragment text into cardCache and does nothing else: no
+    //     DOMParser, no script, no layout. It costs the main thread a string.
+    //
+    // By the time a tool reaches the screen its bytes are usually already
+    // local, so mounting it is the cache branch of executeLoadCard() — a
+    // millisecond, not a round trip. And because every one of these requests is
+    // a `cards/*.html` GET, the service worker stores the same responses in
+    // CARDS_CACHE, so what you warmed on this visit is warm on the next one.
+    //
+    // Deliberately not a timer over the whole catalogue: warming walks forward
+    // from where the visitor is, so the bandwidth goes to the part of the page
+    // they are reading. Save-Data / 2G get no warm-ahead at all — the tiles are
+    // already complete without it, and a click still costs one fetch.
+    let warmStarted = false;
+    let warmActive = 0;
+    let warmCursor = 0;
+    let warmSweeping = false;
+    let warmPending = false;
+    // Every card element the grid has built, by catalogue slug. Unlike
+    // pendingCards this is index-stable and never pruned, which is what a
+    // cursor needs; the sweep prunes pendingCards underneath it.
+    const cardElsByName = new Map();
+    // Catalogue index by name. The warm cursor works in indices and the sweep
+    // only ever has names, and 1,194 indexOf() calls per scroll frame is not how
+    // to translate between them.
+    const cardIndexByName = new Map();
+    let warmDir = 1;
+    let lastWarmScrollY = -1;
+
+    // Worth a warm fetch right now? Anything the mount pipeline owns is skipped,
+    // so a tool is never downloaded twice and never re-fetched once it runs.
+    function warmEligible(cardName) {
+        if (!cardName) return false;
+        if (loadedCards.has(cardName) || loadingCards.has(cardName)) return false;
+        // Parked tools are already mounted; warming one would download bytes that
+        // are already in the DOM and throw them away.
+        if (parkedCards.has(cardName)) return false;
+        if (cardCache.has(cardName)) return false;
+        const card = cardElsByName.get(cardName);
+        if (!card || !card.isConnected) return false;
+        if (card.dataset.errorReason || isCardHidden(card)) return false;
+        return true;
+    }
+
+    // Started once by the grid build. Idempotent, like the trickle it replaces,
+    // and gated on the same connection hints.
+    function startCacheWarm() {
+        if (warmStarted) return;
         try {
             const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
             if (conn && (conn.saveData || /(^|\b)(slow-)?2g\b/i.test(conn.effectiveType || ''))) return;
-        } catch (err) { /* connection info unavailable: trickle on */ }
-        trickleStarted = true;
-        const step = () => {
-            // A hidden tab neither loads nor entertains anyone: skip the
-            // tick and keep the timer alive for when the visitor returns.
-            if (!document.hidden) {
-                let queued = 0;
-                for (let i = 0; i < pendingCards.length && queued < TRICKLE_BATCH; i++) {
-                    const card = pendingCards[i];
-                    const name = card.dataset.name;
-                    if (!name || loadedCards.has(name) || loadingCards.has(name)) continue;
-                    if (card.dataset.errorReason || isCardHidden(card)) continue;
-                    loadCard(card, name);
+        } catch (err) { /* no connection info: warm on */ }
+        warmStarted = true;
+        pumpWarmSoon();
+    }
+
+    // Coalesced: every completed warm fetch and every viewport sweep asks for a
+    // pass, and both can fire many times in one frame.
+    function pumpWarmSoon() {
+        if (warmPending) return;
+        warmPending = true;
+        setTimeout(pumpWarm, 120);
+    }
+
+    // Which way the visitor is moving, and which catalogue entry is at the top of
+    // the screen: two facts the sweep already has and the warm path cannot infer.
+    // Warming used to walk one way only, which is right for a catalogue you read
+    // downwards and wrong for one you scroll back up through — and with a park,
+    // scrolling *up* is now the normal case: waking a parked tool wants its bytes
+    // from cache, and a tool that was evicted under memory pressure should cost a
+    // re-render, not a download. So the cursor turns around with the reader.
+    function noteReadingPosition(near) {
+        if (!warmStarted || !near || !near.length) return;
+        const y = (typeof window !== 'undefined' && window.scrollY) || 0;
+        let dir = 0;
+        if (lastWarmScrollY >= 0) {
+            if (y > lastWarmScrollY + 4) dir = 1;
+            else if (y < lastWarmScrollY - 4) dir = -1;
+        }
+        lastWarmScrollY = y;
+        if (!dir) return;
+        let front = Infinity;
+        for (const candidate of near) {
+            const i = cardIndexByName.get(candidate.cardName);
+            if (i !== undefined && i < front) front = i;
+        }
+        if (front === Infinity) return;
+        front = Math.max(0, front - CONFIG.WARM_LOOKBEHIND);
+        if (dir === warmDir) return;   // already walking with the reader
+        warmDir = dir;
+        warmCursor = Math.min(allCards.length - 1, front);
+    }
+
+    function pumpWarm() {
+        warmPending = false;
+        if (!warmStarted || warmSweeping) return;
+        // A hidden tab downloads nothing; the visibilitychange hook in
+        // buildCatalogue() sweeps on return, which pumps us again.
+        if (typeof document !== 'undefined' && document.hidden) return;
+        // Mounts own the connection. If the pipeline is at (or one below) its
+        // cap there is no spare bandwidth, and a tool on screen must not queue
+        // behind a tool the visitor has not reached yet.
+        if (activeLoads >= MAX_CONCURRENT_LOADS - 1) return;
+        const total = allCards.length;
+        if (!total) return;
+        warmSweeping = true;
+        let queued = 0;
+        try {
+            // The walk follows `warmDir`: forward down the catalogue, backward up
+            // it. `warmCursor` is the next index to take either way, so a reversal
+            // needs no second cursor and no bookkeeping about what was skipped.
+            while (warmActive < CONFIG.WARM_CONCURRENCY && warmCursor >= 0 && warmCursor < total) {
+                const cardName = allCards[warmCursor];
+                warmCursor += warmDir;
+                if (warmEligible(cardName)) {
                     queued++;
+                    warmCard(cardName);
                 }
-                // Nothing eligible left and the pipeline drained: every tool
-                // the catalogue offers is live — done. Cards resting after
-                // errors stay untouched here (bounded retries and the
-                // manual Retry button own those).
-                if (queued === 0 && activeLoads === 0 && loadQueue.length === 0) return;
             }
-            setTimeout(step, TRICKLE_INTERVAL);
-        };
-        setTimeout(step, TRICKLE_INTERVAL);
+            if (warmCursor < 0 || warmCursor >= total) {
+                // Ran off an end: turn around and give the other side a turn —
+                // tools the cursor walked past while a filter was hiding them (or
+                // that just arrived) are still owed a look. A pass that queues
+                // nothing at an end means the catalogue is warm, so walking 1,194
+                // names stops there: `resetWarmWindow()` (a filter, a sort, a
+                // density change) is what re-arms it, and the service worker's
+                // CARDS_CACHE is what makes a later miss cheap regardless.
+                warmDir = -warmDir;
+                warmCursor = warmDir > 0 ? 0 : total - 1;
+                if (queued === 0) warmStarted = false;
+            }
+        } finally {
+            warmSweeping = false;
+        }
+    }
+
+    function warmCard(cardName) {
+        warmActive++;
+        const meta = cardsMetaMap.get(cardName);
+        const url = (meta && meta.path) || `cards/${cardName}.html`;
+        fetchTextWithTimeout(url, CONFIG.WARM_TIMEOUT).then(html => {
+            if (typeof html === 'string' && html.length > 0) rememberWarmed(cardName, html);
+        }).catch(() => { /* a card that will not warm stays a readable face */ })
+          .finally(() => {
+            warmActive--;
+            // Never pump synchronously from here: the last completion of a
+            // batch would re-enter the loop that queued it.
+            pumpWarmSoon();
+        });
+    }
+
+    // The memory half of the bargain — a warm catalogue must not become 18 MB
+    // of strings. Oldest-not-running first; CARDS_CACHE is the durable tier, so
+    // a dropped entry is a hit one level down, not a new request.
+    function rememberWarmed(cardName, html) {
+        if (cardCache.size >= CONFIG.CARD_CACHE_MAX && !cardCache.has(cardName)) pruneCardCache();
+        cardCache.set(cardName, { html: html, timestamp: Date.now() });
+    }
+
+    function pruneCardCache() {
+        const target = Math.floor(CONFIG.CARD_CACHE_MAX * 0.75);
+        for (const key of Array.from(cardCache.keys())) {
+            if (cardCache.size <= target) break;
+            // A parked tool dropped from the cache would have to be re-rendered if
+            // it is ever evicted, so it is protected like a live one.
+            if (loadedCards.has(key) || loadingCards.has(key) || parkedCards.has(key)) continue;
+            cardCache.delete(key);
+        }
+    }
+
+    // A filter, a sort or a density change moves what "ahead of the visitor"
+    // means, so the cursor restarts and warms the new result from its top.
+    function resetWarmWindow() {
+        warmCursor = 0;
+        warmDir = 1;
+        if (!warmStarted) { startCacheWarm(); return; }
+        pumpWarmSoon();
+    }
+
+    // ===== MOUNT BUDGET =====
+    // Tools the page has committed to putting *on the grid*: rendered, in flight
+    // or queued. Only the automatic paths consult it — a click is not a guess —
+    // and parked tools do not count against it, which is what lets the page hold
+    // the whole catalogue without holding the whole page.
+    function liveMountCount() {
+        return loadedCards.size + loadingCards.size + loadQueue.length;
+    }
+
+    function mountBudgetFree() {
+        if (explicitRunAll || !parkMode) return true;
+        return liveMountCount() < mountWindow;
+    }
+
+    // ===== GRID DENSITY =====
+    // Mosaic is the default and is what makes "1,194 tools on one page" true on
+    // a screen: a tool that is not running is a tile, not a 330 px row. Focus
+    // is the old one-per-row reading stack, remembered per visitor. Because the
+    // dense layout is what CSS gives a page without JS, the class only ever
+    // *adds* the wide single-column mode (`.density-focus`) — no scripting and
+    // you still get the whole catalogue, densely.
+    function savedDensity() {
+        try {
+            const saved = localStorage.getItem('density');
+            return DENSITY[saved] ? saved : DENSITY_DEFAULT;
+        } catch (err) {
+            return DENSITY_DEFAULT;
+        }
+    }
+
+    // Pure: this is the geometry that decides how many tools a screen holds, and
+    // therefore how many the loader starts without being asked. Driven directly
+    // by scripts/tests/live-window.test.js.
+    function gridMetrics(viewportH, containerW, density) {
+        const m = DENSITY[density] || DENSITY[DENSITY_DEFAULT];
+        const w = Math.max(280, Number(containerW) || 1200);
+        const h = Math.max(320, Number(viewportH) || 900);
+        const narrow = m.narrowAt > 0 && w <= m.narrowAt;
+        const min = narrow ? m.narrowMin : m.min;
+        const gap = narrow ? m.narrowGap : m.gap;
+        const cols = Math.max(1, Math.floor((w + gap) / (min + gap)));
+        const rows = Math.max(1, Math.ceil((h + m.row) / (m.row + gap)));
+        const screen = cols * rows;
+        return { cols, rows, screen, batch: Math.min(m.cap, Math.max(CONFIG.INITIAL_LOAD, screen)) };
+    }
+
+    function applyDensity(mode) {
+        const next = DENSITY[mode] ? mode : DENSITY_DEFAULT;
+        currentDensity = next;
+        const body = document.body;
+        if (body) {
+            body.classList.toggle('density-focus', next === 'focus');
+            body.classList.toggle('density-mosaic', next !== 'focus');
+        }
+        document.querySelectorAll('[data-density]').forEach(btn => {
+            const on = btn.dataset.density === next;
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        updateLiveCount();
+        return next;
+    }
+
+    function setDensity(mode) {
+        const applied = applyDensity(mode);
+        try { localStorage.setItem('density', applied); } catch (err) { /* private mode */ }
+        // A denser grid means more tools per screen, so the window the loader
+        // must fill changed with it. No heights are rewritten: row geometry is
+        // CSS's job, and adjustCardHeight() only matters once a tool runs.
+        resetWarmWindow();
+        // A different density is a different window over the same scroll
+        // position, so the park has to be re-measured even though nothing moved.
+        invalidateParkPass();
+        scheduleViewportSweep();
+    }
+
+    // One line of honesty in the toolbar: how much of the catalogue is running,
+    // and how much of that the grid is laying out. O(1) — called after every
+    // render, park and resume.
+    function updateLiveCount() {
+        const liveEl = document.getElementById('liveToolCount');
+        if (!liveEl) return;
+        const total = allCards.length;
+        if (!total) return;
+        const live = loadedCards.size;      // mounted in the grid right now
+        const parked = parkedCards.size;   // mounted, off-grid, state intact
+        const running = live + parked;     // what "running" has meant on this site
+        const whole = running >= total;
+        const windowed = parkMode && !explicitRunAll;
+        liveEl.textContent = whole ? `all ${total} running`
+            : windowed ? `${live} here · ${parked} kept alive`
+            : `${running} of ${total} running`;
+        // Amber means "the page is working on it", not "you have a small grid":
+        // the windowed state is the healthy one, so it gets no colour at all.
+        liveEl.classList.toggle('full', whole);
+        liveEl.classList.toggle('capped', !whole && !windowed);
+        if (whole) {
+            liveEl.title = 'Every tool in the catalogue is live on this page, laid out in the grid.';
+        } else if (windowed) {
+            liveEl.title = `${live} tools are laid out in the grid around your viewport and ${parked} more are still running off it — parked, not closed: their state and their DOM come straight back. Everything else is a tile one fetch away. ⚡ Run all puts the whole catalogue on the grid instead, and ?park=off stops the grid ever putting one back.`;
+        } else {
+            liveEl.title = `${mountWindow} tools is what the grid keeps laid out around your viewport at a time. Click any tile to run it now, and ⚡ Run all mounts the whole catalogue.`;
+        }
     }
 
     // (The toolbox itself — its modes, its grid/list renderers, its saved
@@ -561,6 +1418,10 @@
         sandbox.appendChild(face);
         content.appendChild(sandbox);
         card.append(header, content);
+        // The warm path needs a slug -> element index for the whole catalogue;
+        // a placeholder is registered the moment it exists, so a filter that
+        // hides it later is visible to warmEligible() without a second query.
+        cardElsByName.set(cardName, card);
         return card;
     }
 
@@ -669,10 +1530,11 @@
                 // Safety net: if the observer missed anything, scroll-driven
                 // loading picks it up (replaces the old 3s polling interval).
                 scrollFallbackLoader();
-                // The whole catalogue is now in the DOM: start the idle
-                // trickle so every remaining face quietly becomes a live
-                // tool without waiting for scrolls or clicks.
-                startIdleTrickle();
+                // The whole catalogue is now in the DOM. Do not start mounting
+                // it — that is what the viewport is for. Warm it instead: the
+                // bytes come in ahead of the scroll, and every tool the visitor
+                // reaches mounts from cache.
+                startCacheWarm();
             }
         };
         step();
@@ -891,7 +1753,9 @@
 
         shells.forEach((card) => {
             const name = card.dataset.name;
-            if (!name || loadedCards.has(name) || loadingCards.has(name)) return;
+            if (!name) return;
+            cardElsByName.set(name, card);
+            if (loadedCards.has(name) || loadingCards.has(name)) return;
             pendingCards.push(card);
         });
 
@@ -988,6 +1852,8 @@
         
         console.log(`Total active cards: ${cardFiles.length}`);
         allCards = cardFiles;
+        cardIndexByName.clear();
+        for (let i = 0; i < allCards.length; i++) cardIndexByName.set(allCards[i], i);
         lastMatchedNames = [...allCards];
         updateSiteStats();
         updateCategoryCounts();
@@ -1024,7 +1890,12 @@
         initIntersectionObserver();
         // the scroll listener already exists in setupEventListeners(); it
         // calls onScrollLazyLoad(), which routes into the throttle below
-        window.addEventListener('resize', onScrollLoad, { passive: true });
+        // A resize moves the bottom edge of the window without moving the scroll
+        // position, so the park pass is told to look again.
+        window.addEventListener('resize', () => {
+            invalidateParkPass();
+            onScrollLoad();
+        }, { passive: true });
         window.addEventListener('orientationchange', onScrollLoad, { passive: true });
         window.addEventListener('load', onScrollLoad, { passive: true });
         window.addEventListener('pageshow', onScrollLoad, { passive: true });
@@ -1098,19 +1969,24 @@
         showCatalogueError(lastError);
     }
     
-    // The first batch is the viewport plus the observer's 600px look-ahead,
-    // capped at 12 (which is why HOME-PRERENDER ships exactly twelve shells:
-    // no first-load card waits on even the lite tier). Everything else loads
-    // on scroll (observer + viewport sweep), on click, or via the idle
-    // trickle. Queuing the whole catalogue here stalled the visible tools
-    // behind hundreds of alphabetical fetches and turned pickNearestQueued()
-    // into an O(n^2) getBoundingClientRect storm — every pick scanned all
-    // ~1194 queued cards, each read forcing layout.
+    // The first batch is a screenful of tools, whatever a screen means at the
+    // density the visitor is using (gridMetrics(): mosaic is 2–6 columns of
+    // tiles, focus is one tool per row). It used to be `viewport ÷ 320px,
+    // capped at 12`, which in a single-column grid is six tools — a number that
+    // looked a lot like "the site has six tools" once you scrolled one row.
+    //
+    // Twelve pre-rendered shells are still what HOME-PRERENDER ships, so the
+    // first screen's worth of *cards with content in the HTML* is covered even
+    // on focus; a mosaic's extra tiles are already finished-looking as tiles, so
+    // waiting ~200 ms for their fragments costs nothing you can see. Queuing
+    // more than a screen here would put the visible tools behind an alphabetical
+    // pile of hundreds of fetches, which is the trap this function exists to
+    // avoid.
     function computeInitialBatch() {
         try {
             const viewport = (typeof window !== 'undefined' && window.innerHeight) || 900;
-            const rows = Math.ceil((viewport + 600) / 320);
-            return Math.min(12, Math.max(CONFIG.INITIAL_LOAD, rows));
+            const width = (typeof window !== 'undefined' && window.innerWidth) || 1200;
+            return gridMetrics(viewport, width, currentDensity).batch;
         } catch (err) {
             return CONFIG.INITIAL_LOAD;
         }
@@ -1150,6 +2026,10 @@
 
     function loadCard(card, cardName) {
         if (loadedCards.has(cardName) || loadingCards.has(cardName)) return;
+        // Parked, not lost: the tool is alive off the grid, so coming back is a
+        // node move — no fetch, no parse, no script, no queue slot, and the
+        // visitor's form is still full.
+        if (resumeParked(card, cardName)) return;
         if (!loadQueue.some(item => item.cardName === cardName)) {
             loadQueue.push({ card, cardName });
         }
@@ -1219,7 +2099,7 @@
             if (prefetched) {
                 const prefetchedHtml = await withTimeout(prefetched, CONFIG.FETCH_TIMEOUT);
                 if (typeof prefetchedHtml === 'string' && prefetchedHtml.length > 0) {
-                    cardCache.set(cardName, { html: prefetchedHtml, timestamp: Date.now() });
+                    rememberWarmed(cardName, prefetchedHtml);
                     renderCardContent(card, cardName, prefetchedHtml);
                     loadedCards.add(cardName);
                     return;   // the finally below still frees the slot + unobserves
@@ -1249,11 +2129,10 @@
             
             const html = await response.text();
             
-            // Cache the content
-            cardCache.set(cardName, {
-                html: html,
-                timestamp: Date.now()
-            });
+            // Cache the content through the warm path's helper, so a mount and
+            // a warm fetch share one cap: 1,194 fragments in memory is 18 MB,
+            // and the cap is what makes warming safe to leave running.
+            rememberWarmed(cardName, html);
             
             renderCardContent(card, cardName, html);
             loadedCards.add(cardName);
@@ -1354,7 +2233,17 @@
             }
             
             // Clear and update sandbox
-            cardSandbox.innerHTML = '';
+            // Clear the skeleton and anything else stale, but NOT the face — and
+            // not by wiping innerHTML. The face is what a tile shows, and a tool
+            // that gets parked later has to flip back to it without re-creating it
+            // (which would lose the real description the catalogue patched in and
+            // every `:not(.loaded)` selector's view of the card). So it stays in
+            // place and is simply hidden while the tool is live.
+            const cardFace = cardSandbox.querySelector('.card-face');
+            Array.from(cardSandbox.children).forEach(node => {
+                if (node !== cardFace) node.remove();
+            });
+            if (cardFace) cardFace.hidden = true;
             // Shell-level risk notice (medical/financial/legal/…), one shared
             // mapping in risk-notices.js. Optional so the card still renders
             // if that file ever fails to load.
@@ -1385,7 +2274,10 @@
                 }
             });
             
-            // Add footer to card
+            // Add footer to card. Any footer from an earlier render goes first —
+            // an evicted parked tool re-renders into the same shell, and two
+            // rating bars in one card is a bug that would otherwise be invisible.
+            card.querySelectorAll('.card-footer').forEach(old => old.remove());
             const footer = document.createElement('div');
             footer.className = 'card-footer';
             footer.id = `footer-${cardName}`;
@@ -1394,8 +2286,14 @@
             // Update rating display
             updateCardRatingDisplay(card, cardName);
             
+            // The row stops being a tile here, and if that row is entirely above
+            // the fold it takes the reader's position with it — the same
+            // arithmetic the park pays in reverse, and the reason the page owns
+            // scroll corrections at all (see HOLDING THE READING POSITION).
+            const growBefore = aboveTheFold(card);
             card.classList.remove('card-pending');
             card.classList.add('loaded', 'visible');
+            noteRowHeight(card, growBefore);
             updateSiteStats();
             
             // Auto-adjust card height. Content can expand substantially after
@@ -1403,7 +2301,14 @@
             // immediately re-check the viewport after the measurement rather
             // than waiting for a user scroll.
             setTimeout(() => {
+                // A tool's script can double the row's height once it paints, and
+                // that second growth needs the same correction. Measuring here
+                // rather than reusing `growBefore` is deliberate: this is the
+                // delta the reader has not been compensated for yet, and the two
+                // are 100ms and one paint apart.
+                const expandBefore = aboveTheFold(card);
                 adjustCardHeight(card);
+                noteRowHeight(card, expandBefore);
                 scheduleViewportSweep();
             }, 100);
             
@@ -1448,6 +2353,23 @@
         });
     }
     
+    // What the toolbox saves for a card. A parked tool has to be woken first:
+    // its content is alive but sitting in the park, so snapshotting the sandbox
+    // as it stands would save an empty tile and call it the tool. (Saving is
+    // intent, which the window always honours — this resumes, it does not copy.)
+    function cardSnapshotHTML(cardElement, cardName) {
+        if (parkedCards.has(cardName)) resumeParked(cardElement, cardName);
+        const sandbox = cardElement.querySelector('.card-sandbox');
+        if (!sandbox) return '';
+        const clone = sandbox.cloneNode(true);
+        const face = clone.querySelector('.card-face');
+        // The face stands in for a tool, it is not part of one — but if it is all
+        // there is (a tile, or a mount that failed), keep the old behaviour and
+        // snapshot whatever the card actually holds.
+        if (face && clone.children.length > 1) face.remove();
+        return clone.innerHTML;
+    }
+
     function updateCardRatingDisplay(cardElement, cardName) {
         const rating = getCardRating(cardName);
         const percentage = calculateRatingPercentage(cardName);
@@ -1525,9 +2447,9 @@
             addGridBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const displayName = cardElement.dataset.displayName;
-                const cardSandbox = cardElement.querySelector('.card-sandbox');
-                if (cardSandbox) {
-                    addCardToToolbox(displayName, cardSandbox.innerHTML, 'grid', cardName);
+                const snapshot = cardSnapshotHTML(cardElement, cardName);
+                if (snapshot) {
+                    addCardToToolbox(displayName, snapshot, 'grid', cardName);
                 }
             });
         }
@@ -1536,9 +2458,9 @@
             addListBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const displayName = cardElement.dataset.displayName;
-                const cardSandbox = cardElement.querySelector('.card-sandbox');
-                if (cardSandbox) {
-                    addCardToToolbox(displayName, cardSandbox.innerHTML, 'list', cardName);
+                const snapshot = cardSnapshotHTML(cardElement, cardName);
+                if (snapshot) {
+                    addCardToToolbox(displayName, snapshot, 'list', cardName);
                 }
             });
         }
@@ -1582,8 +2504,17 @@
         wrap.appendChild(inner);
         cardSandbox.innerHTML = '';
         cardSandbox.appendChild(wrap);
+        // A failure is a row that grows: the error block is an icon, a title, a
+        // detail line and a button, which is a lot taller than the tile it
+        // replaces, so it owes the same correction a successful mount pays.
+        // `retryLoadCard()` below is deliberately *not* paired with one — it flips
+        // the classes back while the error block is still the content, so there is
+        // no material height change to pay for, and the mount that follows is
+        // paired already.
+        const growBefore = aboveTheFold(card);
         card.classList.remove('card-pending');
         card.classList.add('loaded', 'visible');
+        noteRowHeight(card, growBefore);
     }
     
     function retryLoadCard(cardName) {
@@ -1627,6 +2558,13 @@
     function adjustCardHeight(cardElement) {
         const sandbox = cardElement.querySelector('.card-sandbox');
         if (!sandbox) return;
+        // A parked sandbox holds only the face, on purpose: measuring it would
+        // return about a face's height and write that back as the row's
+        // min-height — and that number is the one the park restores on the way
+        // back, so corrupting it on a resize (the handler walks every card, parked
+        // ones included) would leave the tool coming up at face height forever.
+        // The height a parked row shows is the tile's, and it is CSS's to give.
+        if (cardElement.dataset.parked === '1') return;
         
         const contentHeight = sandbox.scrollHeight;
         const minHeight = 200;
@@ -1663,15 +2601,24 @@
                     const card = entry.target;
                     if (isCardHidden(card)) return;
                     const cardName = card.dataset.name;
-                    
-                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    // A parked tool the reader walked back to is woken on sight,
+                    // ahead of the mount budget: that budget counts what the page
+                    // fetches and mounts, and a wake is neither.
+                    if (cardName && card.dataset.parked === '1') {
+                        resumeParked(card, cardName);
+                        return;
+                    }
+                    if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)
+                        && mountBudgetFree()) {
                         loadCard(card, cardName);
                     }
                 }
             });
         }, {
             root: null,
-            rootMargin: '600px 0px',
+            // One source of truth for the look-ahead, because parkMargin() has to
+            // stay bigger than it (see THE WINDOW AND THE PARK).
+            rootMargin: `${CONFIG.REMOUNT_LOOKAHEAD}px 0px`,
             threshold: 0
         });
         
@@ -1721,7 +2668,10 @@
             //
             // Nothing is lost by skipping it: the walk below still prunes finished
             // cards, and processLoadQueue() re-sweeps the moment a slot frees up.
-            const canStart = activeLoads < MAX_CONCURRENT_LOADS;
+            // The live cap is folded in for the same reason — when the grid has
+            // as many running tools as it is allowed, measuring cannot change
+            // anything, and a click (which ignores the cap) starts the load.
+            const canStart = activeLoads < MAX_CONCURRENT_LOADS && mountBudgetFree();
 
             // The observer has a generous look-ahead for smooth scrolling, but
             // this fallback always gives cards actually on screen first priority.
@@ -1771,6 +2721,7 @@
 
             visible.sort((a, b) => a.distance - b.distance);
             lookAhead.sort((a, b) => a.distance - b.distance);
+            noteReadingPosition(visible.length ? visible : lookAhead);
             const candidates = visible.concat(lookAhead).slice(0, MAX_CONCURRENT_LOADS);
 
             candidates.forEach(({ card, cardName }) => {
@@ -1780,6 +2731,15 @@
 
             pendingCards = stillPending;
             retryErroredCards();
+            // Live tools the grid no longer needs to paint go to the park. Inline
+            // rather than debounced because it is bounded by the window (one rect
+            // per live tool), not by the catalogue — and parking first is what
+            // keeps `mountBudgetFree()` open on a long scroll.
+            parkOutsideWindow();
+            // The sweep knows where the visitor is; tell the warm path, whose
+            // cursor follows the same front. Cheap (it is coalesced) and it is
+            // what keeps warming alive when a mount fails or a filter changes.
+            pumpWarmSoon();
         } finally {
             scrollLoadActive = false;
         }
@@ -1828,12 +2788,23 @@
             stickySearchInput.addEventListener('input', (e) => debouncedSearch(e.target.value));
         }
         
-        // Category pills filter
+        // Category pills filter, and say so in the URL: `?cat=music-audio` is
+        // both the shareable form of this click and what applyIndexDeepLink()
+        // reads back. replaceState, not pushState — a filter is a view of this
+        // page, not a new page, and the back button must leave the page rather
+        // than unwind every pill someone tapped.
         document.querySelectorAll('.cat-pill').forEach(pill => {
             pill.addEventListener('click', () => {
                 document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
                 pill.classList.add('active');
                 currentSelectedCategory = pill.dataset.category;
+                const slug = slugifyLabel(currentSelectedCategory);
+                try {
+                    const url = (slug && slug !== 'all')
+                        ? `${location.pathname}?cat=${encodeURIComponent(slug)}`
+                        : location.pathname;
+                    history.replaceState(null, '', url);
+                } catch (err) { /* file:// or a sandboxed frame: filtering still works */ }
                 applyFilters();
             });
         });
@@ -1872,6 +2843,12 @@
             });
         }
 
+        // Grid density (mosaic <-> focus). Remembered by setDensity(); the
+        // markup carries aria-pressed so the state is readable without CSS.
+        document.querySelectorAll('[data-density]').forEach(btn => {
+            btn.addEventListener('click', () => setDensity(btn.dataset.density));
+        });
+
         // View mode buttons
         const btnViewCards = document.getElementById('btnViewCards');
         const btnViewDir = document.getElementById('btnViewDirectory');
@@ -1887,16 +2864,19 @@
                 if (!loadAllBtn.dataset.armed) {
                     loadAllBtn.dataset.armed = '1';
                     loadAllBtn.textContent = `⚡ Confirm: run all ${allCards.length || ''}`;
+                    loadAllBtn.title = 'Fetch and run every tool on the page now — hundreds of megabytes and every tool at once. There is no undo.';
                     setTimeout(() => {
                         if (loadAllBtn && loadAllBtn.dataset.armed) {
                             delete loadAllBtn.dataset.armed;
-                            loadAllBtn.textContent = '⚡ Load all';
+                            loadAllBtn.textContent = '⚡ Run all';
+                            loadAllBtn.title = 'Fetch and run every tool on the page now — a large download; cards go live as they arrive';
                         }
                     }, 6000);
                     return;
                 }
                 delete loadAllBtn.dataset.armed;
-                loadAllBtn.textContent = '⚡ Load all';
+                loadAllBtn.textContent = '⚡ Run all';
+                loadAllBtn.title = 'Fetch and run every tool on the page now — a large download; cards go live as they arrive';
                 loadAllToolsNow();
             });
         }
@@ -1986,6 +2966,22 @@
             return;
         }
 
+        // Mosaic tiles: the whole tile is the button, not just its lower half —
+        // at 212px there is barely a lower half. Real controls keep their own
+        // behaviour, so this claims only a click that has nowhere else to go.
+        // A click is intent: it is never turned away by the mount window, and when
+        // the tool is parked this is the path that wakes it up.
+        if (currentDensity === 'mosaic') {
+            const tile = target.closest('.card.card-pending');
+            if (tile && !target.closest('a, button, input, select, textarea, label')) {
+                const cardName = tile.dataset.name;
+                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
+                    loadCard(tile, cardName);
+                }
+                return;
+            }
+        }
+
         // Standalone / Maximise button
         const maximizeBtn = target.closest('.card-maximize-btn, .card-expand');
         if (maximizeBtn) {
@@ -2017,15 +3013,43 @@
     // index.html?q=<query> pre-fills catalogue search;
     // index.html?expand=<tool-slug> opens one tool inline.
     // Pure parser: extracted and pinned by scripts/tests/index-deeplink.test.js.
+    // Categories in a URL are slugs, the same shape the catalogue's own file
+    // names use: "Music & Audio" is `?cat=music-audio`. Pure; both directions
+    // (a label from the pills and a slug from a link) run through it, so the
+    // comparison cannot be spoofed into a filter that does not exist.
+    function slugifyLabel(label) {
+        return String(label || '').toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 60);
+    }
+
     function parseIndexDeepLink(search) {
-        const out = { q: '', expand: '' };
+        const out = { q: '', expand: '', cat: '', view: '', park: '' };
         try {
             const params = new URLSearchParams(search || '');
             out.q = (params.get('q') || '').trim();
-            const raw = (params.get('expand') || '').trim().toLowerCase();
             // Catalogue slugs are [a-z0-9-]. Anything else is ignored here —
             // the value is only ever used for map lookup, never rendered.
+            const raw = (params.get('expand') || '').trim().toLowerCase();
             out.expand = /^[a-z0-9-]{1,80}$/.test(raw) ? raw : '';
+            // `cat=` and the longer `category=` (as published in agents.html)
+            // are the same link. Slug-shaped only; the value is looked up
+            // against the catalogue's own categories in applyIndexDeepLink and
+            // never rendered.
+            out.cat = slugifyLabel((params.get('cat') || params.get('category') || '').trim());
+            // Which of the two grids to show. Anything else is no view at all,
+            // and the page keeps the density the visitor saved.
+            const rawView = (params.get('view') || '').trim().toLowerCase();
+            out.view = rawView === 'cards' || rawView === 'directory' ? rawView : '';
+            // `?park=off` is the escape hatch on the mount window: nothing gets
+            // put back, so every tool the page mounts stays on the grid.
+            // `?park=full` is the half-measure, for someone who wants the density
+            // gone but the park kept: a parked tool keeps its whole row instead of
+            // collapsing to a tile. Anything else is no park directive at all —
+            // parking is the good default, so a typo must not switch it off.
+            const rawPark = (params.get('park') || '').trim().toLowerCase();
+            out.park = rawPark === 'off' || rawPark === 'full' ? rawPark : '';
         } catch (err) { /* malformed query string: plain homepage */ }
         return out;
     }
@@ -2035,9 +3059,27 @@
     function applyIndexDeepLink() {
         try {
             const link = parseIndexDeepLink(window.location.search);
-            if (!link.q && !link.expand) return;
+            // Read before the early return: a URL that only says `park=off` is
+            // still a URL that changed how the page behaves.
+            if (link.park === 'off') parkMode = false;
+            else if (link.park === 'full') collapsePark = false;
+            if (!link.q && !link.expand && !link.cat && !link.view && !link.park) return;
             const main = document.getElementById('mainSearchInput');
             const sticky = document.getElementById('stickySearchInput');
+            // ?cat= is the one page of this size that deserves a URL: 1,194
+            // tools in one grid is a browse, and a category is the address for
+            // the part of it a visitor (or a crawler, or a link in a chat)
+            // actually meant.
+            if (link.view) setViewMode(link.view);
+            if (link.cat) {
+                const pills = Array.from(document.querySelectorAll('.cat-pill'));
+                const pill = pills.find(p => slugifyLabel(p.dataset.category) === link.cat);
+                if (pill) {
+                    pills.forEach(p => p.classList.remove('active'));
+                    pill.classList.add('active');
+                    currentSelectedCategory = pill.dataset.category;
+                }
+            }
             if (link.expand && cardsMetaMap.has(link.expand)) {
                 const meta = cardsMetaMap.get(link.expand) || {};
                 const title = String(meta.title || link.expand).replace(/^[^\w\s]+/, '').trim() || link.expand;
@@ -2063,6 +3105,8 @@
                 if (main) main.value = link.q;
                 if (sticky) sticky.value = link.q;
                 performSearch(link.q);
+            } else if (link.cat) {
+                applyFilters();
             }
         } catch (err) { /* deep link failed: plain homepage */ }
     }
@@ -2365,9 +3409,12 @@
             if (isVisible) {
                 visibleCount++;
                 matchedNames.push(name);
-                if (cardEl && !loadedCards.has(name) && !loadingCards.has(name)) {
-                    loadCard(cardEl, name);
-                }
+                // No loadCard() per match. A search that matches 400 tools used
+                // to queue 400 fetch+parse+execute jobs on the keystroke that
+                // typed them, ahead of the 24 actually on screen; and a category
+                // pill for Productivity (152 tools) was one click on a fork in
+                // the road. The sweep and the observer mount what the window
+                // holds, and the warm path takes care of the bytes for the rest.
             }
         });
 
@@ -2380,9 +3427,10 @@
         } else {
             directoryDirty = true;
         }
-        // Anything beyond the first 12 that lands in the viewport (or is
+        // Anything beyond the first screenful that lands in the viewport (or is
         // scrolled to later) is picked up by the sweep + observer, which no
         // longer ignore cards while a filter is active.
+        resetWarmWindow();
         scheduleViewportSweep();
 
         const resultsCountEl = document.getElementById('resultsCountText');
@@ -2469,7 +3517,7 @@
         const loadedEl = document.getElementById('footerLoadedCards');
         if (totalEl) totalEl.textContent = total;
         if (loadedEl) loadedEl.textContent = loaded;
-
+        updateLiveCount();
     }
 
     // Category pill counts only change when the catalogue loads, so compute
@@ -2618,4 +3666,12 @@
     // used to have: HTML -> 136 KB catalogue index -> 1128 placeholders ->
     // first fragment fetch. initApp() still runs on DOMContentLoaded and owns
     // everything else; loadCardList() keeps these shells and builds around them.
+    // Before the shells are adopted: adoptPrerenderedCards() runs
+    // loadInitialCards(), which asks computeInitialBatch() how many tools the
+    // first screen should hold, and that answer depends on the density the
+    // visitor saved.
+    applyDensity(currentDensity);
+    // The window and the park before anything can mount: the device decides both
+    // numbers, and every automatic mount path asks mountBudgetFree() about them.
+    initLiveWindow();
     adoptPrerenderedCards();
