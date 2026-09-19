@@ -135,6 +135,12 @@ function main() {
 
 - Full machine-readable manifest (JSON, one object per tool):
   ${SITE}/cards/cards.json — fields: name, title, description, category, file, path
+- Structured per-tool specs (inputs/outputs/formula/sources) — the cheapest way to call a tool like a function:
+  ${SITE}/api/tools.json (manifest) and
+  ${SITE}/api/tools/<slug>.json (one file per tool, ${total} total; e.g. api/tools/bmi.json)
+- MCP (Model Context Protocol) server descriptor for compliant clients:
+  ${SITE}/.well-known/mcp.json
+- Sitemap (all tool URLs + category pages + guides, rebuilt on each deploy): ${SITE}/sitemap.xml
 - This file: ${SITE}/llms.txt (concise index) and ${SITE}/llms-full.txt (every tool listed)
 - Static, zero-JS HTML directory of all tools: ${SITE}/tools-index.html
 - Programmatic-use guide for agents and developers: ${SITE}/agents.html
@@ -142,11 +148,15 @@ function main() {
   your own documents, memory that adapts to your ratings, real local tools, lessons, and an optional
   on-device model): ${SITE}/ai.html
 - Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
+- Deep tool pages (SEO-grade, 300+ words, methodology, worked example, disclaimer) for the most-searched tools:
+  ${SITE}/tools/<slug>.html (e.g. mortgage, bmi, compoundinterest)
 - Search the catalogue: ${SITE}/index.html?q=<query>
 - Open the homepage with one tool already expanded inline:
   ${SITE}/index.html?expand=<tool-slug>
 - Browse one category on the homepage (<slug> is the label slugged:
   "Music & Audio" -> music-audio): ${SITE}/index.html?cat=<category-slug>
+- Zero-result searches and tool popularity are instrumented (privacy-preserving, capped localStorage +
+  GA4 \`search_zero\`/\`tool_view\` events); export via \`__mpInstrumentation.export()\` in console. See docs/INSTRUMENTATION.md.
 
 ## Picking a tool for a small calculation
 
