@@ -191,6 +191,21 @@ The same script also re-syncs the per-category count badges on the filter pills
 drifted in the HTML that crawlers and no-JS visitors read). `count-all` and
 `heroToolCount` belong to `sync-counts.py` — one number, one owner.
 
+And it writes a third block, **`HOME-CATEGORIES`** (inside `#categories`): the
+27 category hubs as real `<a href="categories/…">` links, in the same order and
+the same markup `renderCategories()` produces. Before it existed the home page
+reached the crawlable catalogue **only through JavaScript** — the tiles were
+rendered from `tools-index.json` (876 KB) after it landed, so a crawler or a
+no-JS visitor at `/` saw twelve tool links and no way to reach the other 1182,
+even though 27 static hubs and a 1194-tool A–Z index were one hop away. With
+the block in place every tool is reachable from `/` in two static hops (27 hubs
+cover all 1194; `tools-index.html`, linked from the section header and the
+footer, covers all 1194 in one), and the script replaces the tiles with
+identical ones so nothing changes visually. Order, slugs and icons are read
+from `tools-index.json` — the file the runtime renderer uses — so the two can
+never disagree; counts are re-derived from `cards.json` and a mismatch fails
+the build instead of publishing a stale hub.
+
 After the first screen's placeholders exist, the build of the remaining ~1120
 yields while the loader pipeline is busy (`FIRST_SCREEN_CHUNKS` /
 `YIELD_FRAME_LIMIT`), so the catalogue tail no longer competes with the tools
@@ -533,8 +548,11 @@ node generate-cards-json.js
 
 # 3. Re-sync everything derived from the catalogue. Never hand-edit a count
 #    or the home page's generated first screen — these scripts own them and
-#    verify.sh fails on drift.
+#    verify.sh fails on drift. Order matters: build-home-prerender.py reads
+#    tools-index.json for the category hub links it writes into index.html.
 python3 scripts/sync-counts.py
+node scripts/build-tools-index.js
+node scripts/build-category-pages.js
 python3 scripts/build-sitemap.py
 python3 scripts/build-home-prerender.py
 
@@ -1023,6 +1041,42 @@ markers. Never hand-edit inside those markers — the next run overwrites you,
 and `bash scripts/verify.sh` fails until the blocks match the catalogue. The
 same script owns the per-category count badges. Everything below the first
 screen is still purely data-driven.
+
+**The homepage has two search systems, and they must agree.** `home-app.js`
+filters the interactive grid; `discovery-app.js` renders the browse chrome
+(featured, trending, category tiles, the A–Z library) from `tools-index.json`.
+Both listen to the search boxes, and three rules keep them from contradicting
+each other — `scripts/tests/home-search.test.js` pins all three:
+
+- **`home-app.js` resolves its box through `getMainSearchInput()`**, which
+  tries `#tool-search` (the hero box the discovery layout ships) and then
+  `#mainSearchInput` (the older id, still on `indexbeta.html`). It used to look
+  for the older id only, so on the real homepage every lookup returned null:
+  the hero box never filtered the grid, never synced with the command bar,
+  `?q=` could not fill it, and the `/` shortcut threw on every press. **A new
+  search box is an id in `MAIN_SEARCH_IDS`, never a fresh
+  `getElementById`.**
+- **One owner for the results.** The two systems count matches over different
+  fields (the grid: title + description + category + a fuzzy pass; discovery:
+  title + description + category + tags), so two lists for one query disagree
+  — the shipped page said "Search Results: 7 tools" above "Showing all 1194
+  tools". `gridOwnsResults()` makes discovery hide the browse chrome and render
+  nothing while the grid has a catalogue to filter
+  (`window.__mpHome.state.allCards.length > 0`), and keep answering in full
+  when it does not — a blocked app script, or one whose catalogue fetch failed,
+  must not leave search dead.
+- **Status text is built with DOM APIs.** `query` is whatever a URL handed us
+  and `suggestion` is a cards.json string; both used to land in `innerHTML`
+  (CONSTRAINTS.md hard line 4 — `?q=<img src=x onerror=…>` produced a real
+  element in `#resultsCountText`). `showCardError()` had already learned this
+  lesson; `applyFiltersCore()` had not.
+
+**`tools-index.json` is 876 KB and it is the browse chrome's data.** Discovery
+fetches it with `priority: 'low'` so it cannot outrank the first screen's card
+fragments. It duplicates the title/description/category the full catalogue tier
+already carries (~144 KB gzip of the ~188 KB); de-duplicating it means a new
+generated signals file plus a drift gate, which is recorded in `staff/OPEN.md`
+rather than done half-way.
 
 **The grid's geometry lives in two files.** `DENSITY` in `home-app.js` (tile
 width, row height, gap, narrow breakpoint) and the `MOSAIC DENSITY` block in
