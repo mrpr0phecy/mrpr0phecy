@@ -41,7 +41,13 @@
 #  16. input egress           — scripts/check-egress.py: every network-touching
 #                               card must be a reviewed, classified exception, and
 #                               the QR generator must stay fully local (functional
-#                               tests in scripts/tests/qrtool-local.test.js)
+#                               tests in scripts/tests/qrtool-local.test.js).
+#                               Also: the prerendered tools/ pages must match
+#                               scripts/build-tool-pages.py's output exactly
+#                               (scripts/build-tool-pages.py --check) and pass
+#                               scripts/tests/tool-pages.test.js — including
+#                               that their visible FAQ text and their FAQPage
+#                               structured data are the same words
 #  17. internal links         — scripts/check-links.py: every href/src in real
 #                               markup resolves to a file that exists, plus the
 #                               risk-notice mapping contract
@@ -264,8 +270,13 @@ if command -v node >/dev/null 2>&1; then
   else
     fail "index deep-link regression — see scripts/tests/index-deeplink.test.js"
   fi
+  if python3 scripts/build-tool-pages.py --check; then
+    ok "tools/ pages: rendered from scripts/tool-pages.json, no drift"
+  else
+    fail "tools/ pages drifted from scripts/tool-pages.json — run: python3 scripts/build-tool-pages.py"
+  fi
   if node scripts/tests/tool-pages.test.js; then
-    ok "tools/ pages: live embed, valid JSON-LD, copy bar, no analytics"
+    ok "tools/ pages: live embed, valid JSON-LD, FAQ matches, copy bar, no analytics"
   else
     fail "tool page regression — see scripts/tests/tool-pages.test.js"
   fi

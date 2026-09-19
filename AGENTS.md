@@ -131,6 +131,19 @@ bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
 ```
 
+### Publish a per-tool page (the crawlable surface)
+```bash
+# tools/<slug>.html is a generated page: real URL, unique crawlable content,
+# SoftwareApplication + FAQPage + BreadcrumbList JSON-LD, and the live tool
+# embedded from the same card fragment (never fork the implementation).
+# 1. Add an entry to scripts/tool-pages.json (content only — chrome is code).
+# 2. python3 scripts/build-tool-pages.py      # render tools/*.html
+#    python3 scripts/build-tool-pages.py --check   # what verify.sh runs
+# Numbers in the prose come from a `compute` block via {{placeholders}}, never
+# typed. Adding a page means sitemap.xml changes too (§4's re-sync list).
+# Keep the list small and evidence-led — staff/OPEN.md P1-R2.
+```
+
 ### Edit a Product B page
 Follow `listen.html` (reference implementation). Sitemap/SEO metadata are
 required; music pages carry `MusicGroup` JSON-LD. If you touch the hreflang

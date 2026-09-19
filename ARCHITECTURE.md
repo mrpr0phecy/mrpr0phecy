@@ -1206,6 +1206,46 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ## 9. Current state and known work
 
+**Added 2026-09-19 — the per-tool pages are generated now, and generating them
+exposed two live defects.** `staff/OPEN.md` P1-R2 has called the gap since the
+rebaseline: every tool is a fragment behind `tool.html?card=<slug>`, a
+query-param URL rendered by JavaScript, so a non-JS crawler sees a shell. The
+pilot answered it for three tools with hand-written pages. Those pages now come
+out of **`scripts/build-tool-pages.py`** (content in
+`scripts/tool-pages.json`, drift gate in `verify.sh` §16), which is what makes
+the surface scalable at all.
+
+Proof the generator is faithful: rendering the three pilot pages from the
+extracted source **reproduced them byte-for-byte** except the generated-file
+marker — and the two differences it did find were defects on live pages:
+
+- `tools/compound-interest.html` shipped a **duplicated run of footer links**
+  (Press/Index/Popular/New/Use case, twice). The chrome is code now.
+- `tools/mortgage.html`'s `FAQPage` structured data asked *"Do overpayments
+  reduce my **mortgage** payment or my term?"* while the visible FAQ said *"…my
+  payment…"*. Structured data must match what the reader sees. The FAQ is
+  rendered **once** and used for both the page and the JSON-LD, so they cannot
+  drift again — and `tool-pages.test.js` now compares them word for word.
+
+Three new pages: **`tools/loan.html`**, **`tools/bmr.html`**,
+**`tools/percentages.html`**. They were picked from `popular.html`'s own
+"most-opened" list, because that is the only demand evidence in the repo —
+Search Console is P0-M1 and still an owner task. **Deliberately not done:**
+mass-generating 1194 thin pages. P1-R2 says start with the tools the evidence
+names; the marginal cost of a page is now the content, not the markup, so the
+list grows when real query data arrives.
+
+Two consequences worth keeping: a page may declare a `compute` block, and the
+numbers in its prose come from the script's own arithmetic via
+`{{placeholders}}` — a leftover placeholder fails the build (D-001: published
+numbers are derived, never typed); and the tool count in the footer/CTA is
+read from `cards.json` instead of being typed into 6 pages by hand.
+
+**Observation, not acted on:** six pages declare `applicationCategory`
+`"UtilityApplication"`, which is not a schema.org enumeration value — the
+correct spelling is `"UtilitiesApplication"` (used by the new
+`tools/percentages.html`). Flagged rather than silently rewritten.
+
 **Changed 2026-09-19 — image weight: 2.30 MB → 0.58 MB across every heavy
 asset, with no page repainting a single pixel of layout.** The audit that
 prompted this assumed the site shipped a ~1 MB hero and needed a CDN. Both
