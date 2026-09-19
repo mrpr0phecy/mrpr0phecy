@@ -2,7 +2,7 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 12;
+    const APP_VERSION = 13;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -2504,8 +2504,17 @@
         wrap.appendChild(inner);
         cardSandbox.innerHTML = '';
         cardSandbox.appendChild(wrap);
+        // A failure is a row that grows: the error block is an icon, a title, a
+        // detail line and a button, which is a lot taller than the tile it
+        // replaces, so it owes the same correction a successful mount pays.
+        // `retryLoadCard()` below is deliberately *not* paired with one — it flips
+        // the classes back while the error block is still the content, so there is
+        // no material height change to pay for, and the mount that follows is
+        // paired already.
+        const growBefore = aboveTheFold(card);
         card.classList.remove('card-pending');
         card.classList.add('loaded', 'visible');
+        noteRowHeight(card, growBefore);
     }
     
     function retryLoadCard(cardName) {

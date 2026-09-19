@@ -1069,6 +1069,21 @@ description `refreshCardFaceDescriptions()` patched in. Parking is also why
 `.card-face[hidden] { display: none }` exists: the face rule sets `display: flex`
 and an author rule beats the UA sheet's `[hidden]`.
 
+**Skipped boxes report what they were last shown.** With the UA's anchoring off,
+the page has no second opinion about above-the-fold height changes — and every row
+above the viewport is a `content-visibility: auto` box whose layout height is either
+`contain-intrinsic-size` or the size it last rendered at, because the `auto` keyword
+remembers. That is why `adjustCardHeight()`'s inline `min-height` is a contract and
+not an optimisation: a row that has been rendered once carries its true height in the
+document *while skipped*, so un-skipping it on the way back into view changes nothing
+and cannot shove the reader. The one height a skipped row does not carry is a tool's,
+which is why the park stores `data-parked-min-height` instead of re-measuring a
+face, and why every host-side height change — `parkCard`, `resumeParked`, both mount
+mutations, and `showCardError` — is a snapshot taken immediately before the mutation
+and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip with
+no pair, on purpose: it re-tiles a card whose error block is still the content, so
+there is no material delta, and the mount that follows is paired already.
+
 **ID collisions across cards.** All 1194 share one DOM. See §3. A parked subtree
 keeps its real ids — it is still in the document, which is exactly why
 `document.getElementById` inside a sleeping tool keeps working; moving content
@@ -1548,7 +1563,9 @@ page is the only compensator, and the other half of what that commits to is done
 the same breath: **mounting a tool grows a row too**, and a row that grows above the
 fold shoves the reader down the page just as surely as a collapse. `renderCardContent()`
 snapshots before the `card-pending` flip and again before `adjustCardHeight()` widens
-the row for late-painted content, one correction per mutation. `aboveTheFold()` moved
+the row for late-painted content, one correction per mutation — and a *failed* mount
+grows a row too (`showCardError`'s icon, title, detail and Retry button are much
+taller than the tile they replace), so it pays the same tax. `aboveTheFold()` moved
 onto `canHoldScroll()` (`!touchActive`) so the mount path is guarded by the touch
 owner rather than by `collapsePark` — the two flags answer different questions, which
 suite 17/18 pin — and the accepted trade (no UA help for content that grows late

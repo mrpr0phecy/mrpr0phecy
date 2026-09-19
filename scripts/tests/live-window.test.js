@@ -1171,6 +1171,13 @@ function parkHarness(opts) {
   const anchorBlock = css.slice(Math.max(0, css.indexOf('overflow-anchor') - 900), css.indexOf('overflow-anchor'));
   assert(/ONE COMPENSATOR/i.test(anchorBlock),
     'and the reason has to be in the stylesheet next to the rule — `overflow-anchor: none` looks like a stray line and invites removal');
+  // A failed mount is a row that grows too — an icon, a title, a detail line and
+  // a button, taller than the tile it replaces.
+  const err = grab('showCardError');
+  assert.ok(/aboveTheFold\(card\)/.test(err) && /noteRowHeight\(card, growBefore\)/.test(err),
+    'showCardError must pay the same correction as a successful mount: an error block is a grown row');
+  assert.ok(!/noteRowHeight/.test(grab('retryLoadCard')),
+    'and retryLoadCard must not: it flips classes over the same content, and the mount that follows is paired');
   console.log('  ok   mounts above the fold pay the same correction, and the UA is out of the business');
 }
 
