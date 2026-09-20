@@ -633,24 +633,31 @@ section_23() {
   # transformCardScript() rewrite. Cards that do network work get a longer
   # settle, because a card can throw only after its request times out.
   #
-  # Needs jsdom. check-card-runtime.py prints a NOTE and passes when node or
-  # jsdom is missing, so this never blocks a machine that does not have them.
-  if command -v node >/dev/null 2>&1; then
-    if [ "$FULL" = "1" ]; then
-      if python3 scripts/check-card-runtime.py --all; then
-        ok "every card runs without throwing (full runtime sweep)"
-      else
-        fail "a card loads and then does nothing when clicked"
-      fi
-    else
-      if python3 scripts/check-card-runtime.py; then
-        ok "changed cards run without throwing (VERIFY_FULL=1 for a full sweep)"
-      else
-        fail "a card loads and then does nothing when clicked"
-      fi
-    fi
+  # Needs jsdom. check-card-runtime.py exits 0 with a NOTE when node or jsdom
+  # is missing, so it never blocks a machine that lacks them — but a skipped
+  # sweep proves nothing, and CI is exactly such a machine. Reporting that as
+  # OK would put a green tick next to a check that never ran, which is how 26
+  # dead cards went unnoticed in the first place. So the skip is a NOTE, and
+  # the exhaustive CI job installs jsdom so the guard genuinely runs there.
+  if ! command -v node >/dev/null 2>&1; then
+    note "node not available — card runtime sweep skipped"
+    return 0
+  fi
+  local out rc
+  if [ "$FULL" = "1" ]; then
+    out=$(python3 scripts/check-card-runtime.py --all 2>&1); rc=$?
   else
-    note "node not available — skipped"
+    out=$(python3 scripts/check-card-runtime.py 2>&1); rc=$?
+  fi
+  printf '%s\n' "$out"
+  if [ "$rc" -ne 0 ]; then
+    fail "a card loads and then does nothing when clicked"
+  elif printf '%s\n' "$out" | grep -q '^NOTE:'; then
+    note "card runtime sweep skipped — jsdom not installed (npm i jsdom)"
+  elif [ "$FULL" = "1" ]; then
+    ok "every card runs without throwing (full runtime sweep)"
+  else
+    ok "changed cards run without throwing (VERIFY_FULL=1 for a full sweep)"
   fi
 }
 
