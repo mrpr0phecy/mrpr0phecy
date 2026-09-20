@@ -3,7 +3,8 @@
  * test-card.js — smoke-test a card fragment the way index.html loads it.
  *
  *   node scripts/test-card.js cards/my-tool.html [more cards...]
- *   node scripts/test-card.js --all            # every card (slow-ish, ~1 min)
+ *   node scripts/test-card.js --all               # every card
+ *   node scripts/test-card.js --all --batch=40    # shared-DOM batch size
  *
  * What it checks (each FAIL exits 1):
  *   - the file is a fragment (no doctype/html/head/body outside <script>)
@@ -16,6 +17,15 @@
  *   - every target=_blank link carries rel=noopener
  *   - the card makes no network request (fetch/XHR/Image/src=https)
  *
+ * Mount efficiency: one jsdom window per card is ~1 s of pure boot cost, so a
+ * full --all sweep used to take half an hour. With more than one file the
+ * script now mounts cards in BATCHES (default 40) of fragments into a single
+ * shared window — which is exactly how index.html runs them in production
+ * (one document, one window, all cards coexisting). A window is still created
+ * per batch, never per card. If a card only misbehaves inside a shared DOM,
+ * it is re-run isolated before being reported: it FAILs if it also fails
+ * isolated, and is a NOTE (shared-DOM interaction) if it passes alone.
+ *
  * Needs jsdom. Install it OUTSIDE the workspace (AGENTS.md §2):
  *   mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom
  * The script looks in /tmp/tenv/node_modules first, then the normal paths.
@@ -23,7 +33,6 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 let JSDOM;
@@ -38,13 +47,16 @@ try {
 
 const args = process.argv.slice(2);
 let files;
+let batch = 40;
 if (args.includes('--all')) {
   files = fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith('.html')).map(f => path.join('cards', f));
 } else {
   files = args.filter(a => !a.startsWith('--'));
 }
+const batchArg = args.find(a => a.startsWith('--batch='));
+if (batchArg) batch = Math.max(1, parseInt(batchArg.split('=')[1], 10) || 40);
 if (files.length === 0) {
-  console.error('usage: node scripts/test-card.js cards/<name>.html [...] | --all');
+  console.error('usage: node scripts/test-card.js cards/<name>.html [...] | --all [--batch=N]');
   process.exit(2);
 }
 
@@ -67,11 +79,14 @@ const shellHtml = `<!doctype html><html><head><meta charset="utf-8">
 <style>:root{--accent:#2dd4ff;--accent-dark:#1aa3cc;--text:#e6faff;--text-secondary:rgba(230,250,255,.7);--bg-primary:#0a0f14;--bg-secondary:#141e28;--border-light:rgba(255,255,255,.08);--success:#39ff14;--error:#ff4d4d;}</style>
 </head><body><div id="toolbox-grid"></div></body></html>`;
 
+// ---------------------------------------------------------------- static checks
+const parsedCards = []; // { rel, base, html }
 for (const rel of files) {
   const abs = path.join(ROOT, rel);
   const base = path.basename(rel);
   if (!fs.existsSync(abs)) { fail(rel, 'file not found'); continue; }
   const html = fs.readFileSync(abs, 'utf8');
+  parsedCards.push({ rel, base, html });
 
   // 1. fragment
   const stripped = html.replace(/<script\b[\s\S]*?<\/script>/gi, '').replace(/<!--[\s\S]*?-->/g, '');
@@ -109,7 +124,6 @@ for (const rel of files) {
   }
 
   // 6. id collisions with other cards
-  const own = new Set();
   let m; idRe.lastIndex = 0;
   const seenHere = new Set();
   while ((m = idRe.exec(html))) {
@@ -119,18 +133,22 @@ for (const rel of files) {
     seenHere.add(id);
     const owner = idOwners.get(id);
     if (owner && owner !== base) fail(rel, `id "${id}" already used by ${owner}`);
-    own.add(id);
   }
+}
 
-  // 7. mount + execute in jsdom
-  const errors = [];
+// ---------------------------------------------------------------- jsdom mount
+// One stubbed jsdom window; `currentRel` labels errors with the card being
+// mounted/poked when they fire (uncaught events are async and can only be
+// attributed to the card in flight — batch mode re-runs in isolation before
+// reporting, so a mis-attributed error cannot fail a clean card).
+function makeWindow(sink) {
   const dom = new JSDOM(shellHtml, {
     runScripts: 'outside-only',
     pretendToBeVisual: true,
     url: 'https://www.themostusefulsiteintheworld.com/',
     beforeParse(window) {
-      window.alert = msg => note(rel, `alert(): ${String(msg).slice(0, 80)}`);
-      window.fetch = () => { errors.push('fetch() called'); return Promise.reject(new Error('network disabled')); };
+      window.alert = msg => sink.push(`alert(): ${String(msg).slice(0, 80)}`);
+      window.fetch = () => { sink.push('fetch() called'); return Promise.reject(new Error('network disabled')); };
       window.HTMLCanvasElement.prototype.getContext = function () {
         // minimal 2D context stub — enough for tools that draw on load
         const noop = () => {};
@@ -165,10 +183,16 @@ for (const rel of files) {
     },
   });
   const { window } = dom;
-  const vc = dom.virtualConsole;
-  window.addEventListener('error', e => errors.push(`uncaught: ${e.message}`));
-  window.console.error = (...a) => errors.push('console.error: ' + a.map(String).join(' ').slice(0, 160));
+  window.addEventListener('error', e => sink.push(`uncaught: ${e.message}`));
+  window.console.error = (...a) => sink.push('console.error: ' + a.map(String).join(' ').slice(0, 160));
+  return { dom, window };
+}
 
+// Mount one card into a container inside window, run its scripts, fire
+// DOMContentLoaded/load, poke the UI, settle. Returns the error list.
+function mountCard(card, window, sink) {
+  const { rel, base, html } = card;
+  const errors = [];
   const doc = window.document;
   const container = doc.createElement('div');
   container.id = `card-${base.replace(/\.html$/, '')}`;
@@ -215,11 +239,64 @@ for (const rel of files) {
   // let timers/RAF settle briefly
   const t0 = Date.now();
   while (Date.now() - t0 < 30) { /* spin: jsdom timers are real timers; a short sync wait is enough for setTimeout(…,0) */ }
+  return { errors, container };
+}
 
-  const unique = [...new Set(errors)];
-  if (unique.length) unique.slice(0, 6).forEach(e => fail(rel, e));
-  else console.log(`  ok   ${rel}`);
+// ---------------------------------------------------------------- 7. mount + execute
+if (parsedCards.length === 1) {
+  // Single card: isolated window (the original behaviour, one for one).
+  const card = parsedCards[0];
+  const perCard = [];
+  const { dom, window } = makeWindow({ push: e => perCard.push(e) });
+  mountCard(card, window, { push: e => perCard.push(e) });
   window.close();
+  const unique = [...new Set(perCard)];
+  if (unique.length) unique.slice(0, 6).forEach(e => fail(card.rel, e));
+  else console.log(`  ok   ${card.rel}`);
+} else {
+  // Multiple cards: shared-DOM batches, exactly like index.html in production.
+  for (let b = 0; b < parsedCards.length; b += batch) {
+    const group = parsedCards.slice(b, b + batch);
+    const errorsByCard = new Map(group.map(c => [c.rel, []]));
+    let current = group[0].rel;
+    const sink = { push: e => errorsByCard.get(current).push(e) };
+    const { dom, window } = makeWindow(sink);
+    for (const card of group) {
+      current = card.rel;
+      try {
+        mountCard(card, window, sink);
+      } catch (e) {
+        errorsByCard.get(card.rel).push(`mount threw: ${e && e.message ? e.message : e}`);
+      }
+    }
+    window.close();
+
+    const suspects = [];
+    for (const card of group) {
+      const unique = [...new Set(errorsByCard.get(card.rel))];
+      if (unique.length) suspects.push({ card, unique });
+      else console.log(`  ok   ${card.rel}`);
+    }
+
+    // A card that only misbehaves inside a shared DOM is re-run isolated
+    // before being reported: FAIL if it also fails alone, NOTE if it passes.
+    for (const { card, unique } of suspects) {
+      const isolated = [];
+      const solo = makeWindow({ push: e => isolated.push(e) });
+      try {
+        mountCard(card, solo.window, { push: e => isolated.push(e) });
+      } catch (e) {
+        isolated.push(`mount threw: ${e && e.message ? e.message : e}`);
+      }
+      solo.window.close();
+      const isoUnique = [...new Set(isolated)];
+      if (isoUnique.length) {
+        isoUnique.slice(0, 6).forEach(e => fail(card.rel, e));
+      } else {
+        note(card.rel, `passes isolated but not in a shared DOM (interaction, first: ${unique[0].slice(0, 100)})`);
+      }
+    }
+  }
 }
 
 console.log(fails === 0 ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})` : `\n${fails} problem(s)`);

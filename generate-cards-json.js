@@ -182,6 +182,7 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'police-legal-jargon-decoder': 'Wellbeing & Community',
   // Added 2026-09-14 — five gap-fill tools (no kitchen-conversion, world-clock,
   // event-countdown, group-expense or affordability tool existed in the catalogue).
   'countdown-date-timer': 'Productivity & Lifestyle',

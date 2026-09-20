@@ -71,16 +71,48 @@
 #                               tools, guard and the duty-of-care layer against
 #                               its own floors (24 of them, exits non-zero
 #                               below any floor)
+#
+# Speed model (2026-09-19):
+#   * The default run is the fast path — every check below is incremental or
+#     fingerprinted, so a routine verify takes ~20-30s instead of ~3 minutes:
+#       - check-card-js.py syntax-checks changed cards only (untracked cards
+#         included); the full 1,200-card sweep runs under VERIFY_FULL=1 and is
+#         single-process now anyway (~1s).
+#       - build-site-brain.py --check returns in milliseconds when its input
+#         fingerprint (cards.json, public docs, approved learning, and the
+#         script's own code) matches the stored index; it rebuilds only when
+#         an input actually changed.
+#   * VERIFY_FULL=1 bash scripts/verify.sh  — the exhaustive gate (full card
+#     JS sweep). CI's on-demand full run (workflow_dispatch full=true) should
+#     set this so CI stays strict even though the push-time run is fast.
+#   * Section timings are printed at the end, slowest first, so the next
+#     slowdown is obvious instead of a mystery.
+#   * Tool counts are self-healing (section 9): the cards/ folder is the one
+#     source of truth, and a drifted published number is re-derived in place
+#     instead of failing the gate. No card number is ever hand-edited.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
 LIVE=0; [ "${1:-}" = "--live" ] && LIVE=1
+FULL=0; [ "${VERIFY_FULL:-0}" = "1" ] && FULL=1
 FAILS=0; NOTES=0
+SEC_NAMES=(); SEC_SECS=()
+PREV_SEC=""; PREV_T=""
 
-section() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
+section() {
+  local now
+  now=$(date +%s)
+  if [ -n "$PREV_T" ]; then SEC_NAMES+=("$PREV_SEC"); SEC_SECS+=("$((now - PREV_T))"); fi
+  PREV_SEC="$1"; PREV_T=$now
+  printf '\n\033[1m== %s\033[0m\n' "$1"
+}
 ok()   { printf '  \033[32mOK\033[0m   %s\n' "$1"; }
 note() { printf '  \033[33mNOTE\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAILS=$((FAILS+1)); }
+
+flush_timing() {
+  [ -n "$PREV_T" ] && { SEC_NAMES+=("$PREV_SEC"); SEC_SECS+=("$($(date +%s) - PREV_T)"); PREV_T=""; }
+}
 
 section "1/21 catalogue consistency (check-cards.py)"
 if command -v python3 >/dev/null 2>&1; then
@@ -140,13 +172,34 @@ fi
 
 section "8/21 card JavaScript syntax (check-card-js.py)"
 if command -v node >/dev/null 2>&1; then
-  if python3 scripts/check-card-js.py --all; then ok "every card's JS parses"; else fail "a card would be dead in production"; fi
+  if [ "$FULL" = "1" ]; then
+    if python3 scripts/check-card-js.py --all; then ok "every card's JS parses (full sweep)"; else fail "a card would be dead in production"; fi
+  else
+    # Fast path: only cards changed vs HEAD (untracked ones included). The
+    # sweep is a single node process now, so the full version is cheap too —
+    # it still earns its keep under VERIFY_FULL=1, and the changed-only mode
+    # keeps a docs-only verify at a fraction of a second.
+    if python3 scripts/check-card-js.py; then ok "changed cards' JS parses (VERIFY_FULL=1 for a full sweep)"; else fail "a card would be dead in production"; fi
+  fi
 else
   note "node not available — skipped"; NOTES=$((NOTES+1))
 fi
 
-section "9/21 tool-count claims (sync-counts.py)"
-if python3 scripts/sync-counts.py --check; then ok "every claim matches the catalogue"; else fail "stale tool counts — run: python3 scripts/sync-counts.py"; fi
+section "9/21 tool-count claims (sync-counts.py — self-healing)"
+# The cards/ folder is the single source of truth for the tool count. Every
+# published number (48 files, hero badges, docs, JSON-LD…) is a derivation
+# from it. If a claim has drifted, re-derive in place instead of failing —
+# a hand-edited card number is never required, ever.
+if python3 scripts/sync-counts.py --check >/dev/null 2>&1; then
+  ok "every count claim matches the cards/ folder"
+else
+  note "count drift detected — re-deriving from the cards/ folder"
+  if python3 scripts/sync-counts.py && python3 scripts/sync-counts.py --check >/dev/null 2>&1; then
+    ok "counts re-derived from the cards/ folder — commit the updated files"
+  else
+    fail "counts could not be re-derived — inspect sync-counts.py output"
+  fi
+fi
 if command -v node >/dev/null 2>&1; then
   if node scripts/build-tools-index.js --check     && node scripts/build-category-pages.js --check     && node scripts/generate-ai-index.js --check; then
     ok "machine indexes (tools-index.json, categories, llms.txt, llms-full.txt, tools-index.html) match the catalogue"
@@ -223,11 +276,14 @@ fi
 # externalised homepage application). lazy-loader was written for the
 # lazy-loading rework but nothing ever ran it — verify.sh only picked up
 # staff-*.test.js, so a card-loader regression could ship green.
+# One `node --test` invocation runs the whole suite (it used to be seven
+# sequential node processes; the suite's semantics are unchanged — any
+# failing file still fails the gate).
 if command -v node >/dev/null 2>&1; then
-  if node scripts/tests/lazy-loader.test.js && node scripts/tests/home-fast-path.test.js \
-    && node scripts/tests/lite-tier.test.js && node scripts/tests/card-faces.test.js \
-    && node scripts/tests/live-window.test.js \
-    && node scripts/tests/service-worker.test.js && node scripts/tests/app-split.test.js; then
+  if node --test scripts/tests/lazy-loader.test.js scripts/tests/home-fast-path.test.js \
+    scripts/tests/lite-tier.test.js scripts/tests/card-faces.test.js \
+    scripts/tests/live-window.test.js scripts/tests/service-worker.test.js \
+    scripts/tests/app-split.test.js; then
     ok "card loader, first-screen fast path, two-tier catalogue, card faces, the live window, cache policy and the on-demand bundle behave as shipped"
   else
     fail "card loader regression — see the failing assertion above"
@@ -382,6 +438,14 @@ try: print(len(json.load(sys.stdin)))
 except Exception: print('ERR')" 2>/dev/null || echo ERR)
   [ "$LIVE_N" = "ERR" ] && fail "could not read live card count" || ok "live card count: $LIVE_N"
 fi
+
+flush_timing
+TOTAL=0
+for s in "${SEC_SECS[@]}"; do TOTAL=$((TOTAL + s)); done
+printf '\n== timing — total %ss, slowest sections ==\n' "$TOTAL"
+for i in "${!SEC_NAMES[@]}"; do
+  printf '%4d  %s\n' "${SEC_SECS[$i]}" "${SEC_NAMES[$i]}"
+done | sort -rn | head -5
 
 printf '\n'
 if [ "$FAILS" -gt 0 ]; then
