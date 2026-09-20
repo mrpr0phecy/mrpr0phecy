@@ -12,7 +12,7 @@
 // their face, "load", and then do nothing at all — the exact symptom of a tool
 // that appears on the home page and dies when you click it.
 //
-// Twenty-six cards shipped in that state (see check-card-runtime.py for the
+// Thirty-seven cards shipped in that state (see check-card-runtime.py for the
 // list). This is the guard.
 //
 // It runs the shipped home-app.js transformCardScript() over each block, so a

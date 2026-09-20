@@ -3,7 +3,7 @@
 
 check-card-js.py proves each <script> block *parses*. This proves it *runs*.
 
-Twenty-six cards shipped with JavaScript that compiled cleanly and still failed
+Thirty-seven cards shipped with JavaScript that compiled cleanly and still failed
 at runtime, so the tool painted its face on the home page and then did nothing
 when you clicked it:
 
@@ -33,6 +33,33 @@ when you clicked it:
     sleep, steps, soil-ph-guide, seed-germination-calculator
                             called showNotification(), defined nowhere
 
+  dead on the first interaction
+    accessible-text-prep    Print dereferenced a querySelector result that only
+                            exists once there is output
+    geology                 buttons called geoGenerate / geoReset / geoCopy;
+                            the functions are geotGenerate / geotReset /
+                            geotCopy, so every button on the card was dead
+    chord-finder            read document.currentScript.closest() with no
+    chord-progression       optional chain inside chordAddNote, chordSetNotes,
+                            addChord and loadProgression. currentScript is null
+                            once the script has run, so every call from a
+                            click handler threw
+    idealweight             declared targetWeight const, then reassigned it in
+                            the pounds branch — the lb path never worked
+    transformer-calculator  declared results const and built the whole report
+                            with results +=, so Calculate threw every run
+    fractions               nine generators were called and never written, so
+                            five of its six operations threw
+    ancient-egypt-quiz      called optsEl.children.forEach(); HTMLCollection
+    british-monarchs-quiz   has no forEach. Threw on answering, so the answer
+    common-english-         was never marked and the round never finished
+      mistakes-trainer
+    factors-multiples-trainer
+    seed-germination-calculator
+    sl-texture, sleep,      linked "Support Us" to showContributionsPanel(),
+      soil-ph-guide,        defined nowhere in the entire site; the panel is a
+      statistics, steps     popover, so the handler now opens it directly
+
   dead on the first interaction (added in the second pass)
     subscription            wrote to #sub-status, but status is picked with
                             .status-option buttons — there is no such select
@@ -54,6 +81,10 @@ when you clicked it:
                             after its own API timeouts had elapsed
 
 None of those are syntax errors. A compile check passes every one.
+
+Thirty-seven is the count of distinct cards on this branch, not a tally kept
+by hand — recount with `git diff --name-only <base>..HEAD -- cards/ | wc -l`
+before editing this list. It has drifted twice already.
 
 The last three are why the sweep has two settle windows: a card that fails
 synchronously is caught in 70ms, but one that fails after awaiting a request
