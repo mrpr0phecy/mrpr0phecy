@@ -51,9 +51,22 @@ const grabConst = name => {
   assert(m, `could not extract const ${name} from home-app.js`);
   return m[0];
 };
+// Suite 7 has to watch the stalled-bootstrap race actually time out, and the
+// shipped deadline is 5 s — which made one assertion cost five seconds of
+// every verify run. The sandbox gets the same race at 1/25th of the real
+// window: same code path, same ordering guarantee, 200 ms instead of 5 s. The
+// shipped constant is still read out of home-app.js and still range-checked,
+// so quietly shipping a 60 s deadline fails here too.
+const shippedFastpathTimeout = Number(
+  (src.match(/const FASTPATH_CATALOGUE_TIMEOUT = (\d+);/) || [])[1]);
+assert(Number.isFinite(shippedFastpathTimeout) && shippedFastpathTimeout >= 2000
+  && shippedFastpathTimeout <= 20000,
+  `FASTPATH_CATALOGUE_TIMEOUT looks wrong: ${shippedFastpathTimeout}`);
+const RACE_TIMEOUT = Math.max(40, Math.round(shippedFastpathTimeout / 25));
+const raceConst = `const FASTPATH_CATALOGUE_TIMEOUT = ${RACE_TIMEOUT};`;
 vm.runInContext(
   [
-    grabConst('FASTPATH_CATALOGUE_TIMEOUT'),
+    raceConst,
     grabConst('CATALOGUE_FETCH_TIMEOUT'),
     grab('withTimeout'),
     grab('fetchTextWithTimeout'),
@@ -164,11 +177,13 @@ const tick = ms => new Promise(r => setTimeout(r, ms));
     const elapsed = Date.now() - t0;
     assert(Array.isArray(recovered) && recovered.length > 0,
       'a stalled bootstrap fetch must fall through to the direct fetch, not hang');
-    assert(elapsed >= 4500 && elapsed < 9000,
-      `stalled bootstrap must be abandoned via the timeout race (took ${elapsed}ms)`);
+    // It must WAIT (proving the race is what released it, not an instant
+    // fallthrough) and then recover — bounds scale with the injected window.
+    assert(elapsed >= RACE_TIMEOUT * 0.8 && elapsed < RACE_TIMEOUT * 6,
+      `stalled bootstrap must be abandoned via the timeout race (took ${elapsed}ms, window ${RACE_TIMEOUT}ms)`);
     assert.strictEqual(fetchCount['cards/cards-lite.json'], 1,
       'the direct fetch fires exactly once after the race');
-    console.log(`  ok   stalled bootstrap fetch is raced (${elapsed}ms) and the grid still builds`);
+    console.log(`  ok   stalled bootstrap fetch is raced (${elapsed}ms of a ${RACE_TIMEOUT}ms test window; ships at ${shippedFastpathTimeout}ms) and the grid still builds`);
   }
 
   // ---------------------------------------------------------------- suite 8

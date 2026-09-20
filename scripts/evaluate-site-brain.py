@@ -22,15 +22,48 @@ KNOWLEDGE = ROOT / "local-ai-knowledge.json"
 CASES = ROOT / "learning" / "evaluation.json"
 
 
+# --- memoisation -----------------------------------------------------------
+# This evaluator scores every one of ~1,200 entries against every grounding
+# case, and the same three derivations were recomputed on each of those ~37,000
+# passes: the tokenisation of a query (a pure function of its string), the
+# tokenisation of an entry's own text, and the ColBERT chunking of an
+# embedding. Caching them is worth ~3 s of a ~4 s run and cannot change a
+# single score — every cache is keyed on the value it was computed from, and
+# the object-identity caches keep a reference to the object they were built
+# for so a recycled id() can never serve the wrong entry.
+_TOKEN_CACHE: dict[str, set[str]] = {}
+_ENTRY_FIELD_CACHE: dict[int, tuple[object, set[str], set[str], set[str]]] = {}
+_CHUNK_CACHE: dict[int, tuple[object, list[list[float]]]] = {}
+
+
 def tokenize(value: str) -> set[str]:
-    return {word for word in re.findall(r"[a-z0-9]+", value.lower()) if len(word) > 2 and word not in STOP}
+    hit = _TOKEN_CACHE.get(value)
+    if hit is not None:
+        return hit
+    hit = {word for word in re.findall(r"[a-z0-9]+", value.lower()) if len(word) > 2 and word not in STOP}
+    _TOKEN_CACHE[value] = hit
+    return hit
+
+
+def entry_fields(entry: dict) -> tuple[set[str], set[str], set[str]]:
+    """(title words, category words, body words) for one entry, computed once."""
+    key = id(entry)
+    hit = _ENTRY_FIELD_CACHE.get(key)
+    if hit is not None and hit[0] is entry:
+        return hit[1], hit[2], hit[3]
+    title = tokenize(str(entry.get("title", "")))
+    category = tokenize(str(entry.get("category", "")))
+    content = tokenize(
+        str(entry.get("description", "")) + " " + str(entry.get("content", "")) + " "
+        + str(entry.get("search_text", ""))
+    )
+    _ENTRY_FIELD_CACHE[key] = (entry, title, category, content)
+    return title, category, content
 STOP = {"the","and","for","with","you","your","this","that","from","have","are","was","were","been","will","can","not","but","our","has","had","its","may","all","any","per","via","using","use","into","over","under","about","more","most","some","such","than","then","when","where","what","which","who","how","why","tool","free","online","browser"}
 
 def score_simple(query: str, entry: dict) -> int:
     wanted = tokenize(query)
-    title = tokenize(str(entry.get("title", "")))
-    category = tokenize(str(entry.get("category", "")))
-    content = tokenize(str(entry.get("description", "")) + " " + str(entry.get("content", "")) + " " + str(entry.get("search_text","")))
+    title, category, content = entry_fields(entry)
     return sum((9 if word in title else 5 if word in category else 2 if word in content else 0) for word in wanted)
 
 def bm25_score(query_tokens: list[str], doc_id: int, knowledge: dict) -> float:
@@ -61,8 +94,14 @@ def bm25_score(query_tokens: list[str], doc_id: int, knowledge: dict) -> float:
 
 def cosine(a,b):
     if not a or not b: return 0
-    dot=sum(x*y for x,y in zip(a,b))
-    return dot
+    # Unrolled over the shorter vector: `sum(x*y for x, y in zip(...))` spends
+    # most of its time building and unpacking tuples, and this runs ~75,000
+    # times per evaluation (two calls per entry per case).
+    if len(b) < len(a): a, b = b, a
+    total = 0.0
+    for i, x in enumerate(a):
+        total += x * b[i]
+    return total
 
 def hash_embedding(tokens, dim=64):
     import hashlib
@@ -78,19 +117,51 @@ def hash_embedding(tokens, dim=64):
     norm=math.sqrt(sum(x*x for x in vec)) or 1
     return [x/norm for x in vec]
 
+def _chunks(vec, chunk_size: int) -> list[list[float]]:
+    """Chunk an embedding, memoised on the list object itself.
+
+    The same 64 floats were re-sliced into 8 chunks for every (query, entry)
+    pair — 21 million generator steps per run for 8 lists of 8 numbers.
+    """
+    key = id(vec)
+    hit = _CHUNK_CACHE.get(key)
+    if hit is not None and hit[0] is vec:
+        return hit[1]
+    chunks = [vec[i:i + chunk_size] for i in range(0, len(vec), chunk_size)]
+    _CHUNK_CACHE[key] = (vec, chunks)
+    return chunks
+
+
 def colbert_late_interaction(q_emb, d_emb):
     chunk_size=8
-    q_chunks=[q_emb[i:i+chunk_size] for i in range(0, len(q_emb), chunk_size)]
-    d_chunks=[d_emb[i:i+chunk_size] for i in range(0, len(d_emb), chunk_size)]
+    q_chunks=_chunks(q_emb, chunk_size)
+    d_chunks=_chunks(d_emb, chunk_size)
+    if not q_chunks:
+        return 0.0
+    # The unrolled dot product below assumes full 8-wide chunks (every shipped
+    # embedding is 64 floats). Anything else takes the generic path rather
+    # than raising an IndexError on a short last chunk.
+    if len(q_chunks[0]) != chunk_size or any(len(dc) != chunk_size for dc in d_chunks):
+        total = 0.0
+        for qc in q_chunks:
+            max_sim = -1.0
+            for dc in d_chunks:
+                dot = sum(a * b for a, b in zip(qc, dc))
+                if dot > max_sim:
+                    max_sim = dot
+            total += max_sim
+        return total / len(q_chunks)
     total=0.0
     for qc in q_chunks:
+        q0,q1,q2,q3,q4,q5,q6,q7 = qc
         max_sim=-1.0
         for dc in d_chunks:
-            dot=sum(a*b for a,b in zip(qc, dc))
+            dot=(q0*dc[0] + q1*dc[1] + q2*dc[2] + q3*dc[3]
+                 + q4*dc[4] + q5*dc[5] + q6*dc[6] + q7*dc[7])
             if dot>max_sim:
                 max_sim=dot
         total+=max_sim
-    return total/len(q_chunks) if q_chunks else 0.0
+    return total/len(q_chunks)
 
 def splade_score(q_tokens, doc_tokens):
     q_set=set(q_tokens)

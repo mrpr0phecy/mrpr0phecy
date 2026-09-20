@@ -110,6 +110,23 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   links, translated pages, honest CTAs.
 - No ads/trackers on Product A pages; no paywalls; no fake urgency.
 - Never invent YouTube IDs — use the verified table in ARCHITECTURE.md §4.
+- **Never print a generated artefact's contents.** `git diff
+  local-ai-knowledge.json`, `head cards/cards.json`, `python3 -c
+  'print(json.load(...))'` — all of these dump megabytes on **one line**, and
+  `head`/`tail` bound *lines*, not bytes, so they do not help. On 2026-09-20
+  exactly that froze an agent session mid-command and the run had to be killed.
+  `.gitattributes` marks the minified/generated paths `-diff` so plain `git
+  diff` refuses to render them; use the bounded reader instead:
+
+  ```bash
+  python3 scripts/safe-inspect.py local-ai-knowledge.json   # size, shape, JSON keys
+  python3 scripts/safe-inspect.py --diff related.json       # --stat + structural delta
+  python3 scripts/safe-inspect.py --head tools-index.json --bytes 400
+  ```
+
+  Every mode has a hard ceiling on what it prints (`--max-bytes`, default 4 KB).
+  If you need a number out of one of these files, compute it (`jq -r '.count'`,
+  `wc -c`) and print the number.
 
 ## 4. Common tasks — exact sequences
 
@@ -123,13 +140,29 @@ node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
                                 #   hardcoded list in the script first
 # Re-sync everything derived from the catalogue. Never hand-edit a count, the
 # sitemap, or index.html's generated first screen — the cards/ folder is the
-# single source of truth and verify.sh section 9 re-derives drifted counts in
-# place (self-healing) instead of failing. `python3 scripts/sync-counts.py
-# count` prints the canonical number at any time.
+# single source of truth and verify.sh re-derives drifted counts in place
+# (self-healing) instead of failing. `python3 scripts/sync-counts.py count`
+# prints the canonical number at any time.
+#
+# tools.html, sitemap.html and related.json used to be hand-maintained and were
+# left behind for months — 532, 1,061 and 533 of 1,195 tools respectively, plus
+# three phantom slugs in related.json. Every one of those is a link a visitor can
+# click, which is why they are generated from cards/ and why
+# scripts/check-tool-graph.py now resolves the full graph (static page ->
+# tool.html -> cards.json -> the card file -> the card's real <title> ->
+# tools-index.json -> the category page -> api/tools.json) as a verify gate.
 python3 scripts/sync-counts.py            # tool counts across docs and pages
 python3 scripts/build-sitemap.py          # sitemap.xml
 python3 scripts/build-home-prerender.py   # index.html HOME-FAST-PATH/PRERENDER
 python3 scripts/build-embed-catalog.py    # embed.html grid + "All N" button
+
+# The three discovery surfaces. They are wired into `npm run build` now, but
+# run them by hand whenever you touch cards/ or the catalogue:
+python3 scripts/build-tools-page.py       # tools.html  (every tool, every category)
+python3 scripts/build-html-sitemap.py     # sitemap.html (the HTML one)
+python3 scripts/build-related.py          # related.json (1195 x 5 neighbours)
+python3 scripts/check-tool-graph.py       # resolves the whole click graph
+
 bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
 sleep 50   # Pages deploy latency — then verify live (see §6)
 ```
@@ -169,21 +202,44 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 ## 6. Verify and deploy
 
 **Owner decision, 2026-09-19: CI is a fast pass.** The automatic per-push and
-per-PR `verify.sh` runs (21 sections, ~3 minutes each, re-run on every push)
+per-PR `verify.sh` runs (then 21 sections, ~3 minutes each, re-run on every
+push)
 were measurably slowing agent sessions, so the "Repo checks" job now completes
 in seconds and never blocks. Do not wait on it — and do not "fix" it back
 (see CONSTRAINTS.md); the slowdown was the bug, not the setup.
 
 Verification still exists; it just no longer sits in your iteration loop:
 
-- **Locally, when a change is risky:** `bash scripts/verify.sh` — the fast
-  path (every check incremental or fingerprinted; ~20-30 s, section timings
-  printed slowest-first), or only the relevant `--check` when you touched a
-  generated artefact — `python3 scripts/sync-counts.py --check`,
-  `node generate-cards-json.js --check`, `python3 scripts/build-sitemap.py
-  --check`. Use `VERIFY_FULL=1 bash scripts/verify.sh` for the exhaustive
-  gate (the full card-JS sweep). `scripts/test-card.js --all` is batched
-  the same way — one shared jsdom DOM per ~40 cards, as index.html runs them.
+- **Locally, when a change is risky:** `npm run verify` (`bash
+  scripts/verify.sh`) — 22 sections, **~13 s** on two cores (~34 s before
+  2026-09-20), ending with a per-section timing table, slowest first. Independent
+  sections run in parallel (`min(nproc, 6)` workers); `VERIFY_JOBS=N` pins the
+  width and `npm run verify:serial` (`VERIFY_JOBS=1`) gives ordered output when
+  you are reading it line by line. `npm run verify:full` (`VERIFY_FULL=1`) is the
+  exhaustive gate — it swaps the sampled card-JS check for the full ~1,200-card
+  sweep. Or run only the relevant `--check` when you touched a generated
+  artefact:
+
+  ```bash
+  python3 scripts/sync-counts.py --check      node scripts/build-tool-specs.js --check
+  node generate-cards-json.js --check         python3 scripts/build-tools-page.py --check
+  python3 scripts/build-sitemap.py --check    python3 scripts/build-html-sitemap.py --check
+  python3 scripts/build-tool-pages.py --check python3 scripts/build-related.py --check
+  python3 scripts/build-site-brain.py --check python3 scripts/check-tool-graph.py
+  ```
+
+  `scripts/test-card.js --all` is batched the same way — one shared jsdom DOM
+  per ~40 cards, as index.html runs them.
+
+  If the suite ever feels slow again, read its own timing table before
+  profiling: the slowest six sections are named with millisecond timings, and
+  two of the worst offenders were sleeps in tests that waited in real time
+  (`lite-tier.test.js` suite 7 stalled the bootstrap for the shipped 5 s
+  fast-path timeout; `production-monitor.test.js` deliberately timed out a slow
+  origin). Both now inject a scaled-down copy of the shipped constant and assert
+  the shipped value separately — same coverage, 4.8 s and 5.0 s saved. The
+  timing clock is stamped *inside* each child process; stamping the end time
+  after `wait` charges every section that shares a slot with a slow neighbour.
 - **In CI, on demand:** Actions → *Agent guardrails* → *Run workflow* with
   `full: true` (or `gh workflow run "Agent guardrails" -f full=true`) — the
   full run sets `VERIFY_FULL=1`, so CI stays exhaustive even though the

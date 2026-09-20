@@ -89,6 +89,24 @@ function contentTypeFor(rel) {
 // test can reproduce one production failure without touching the network.
 function startServer(root, fault) {
   const requests = new Map();
+  // The 'slow' fault holds every response behind a timer. Those timers have to
+  // be cancellable: the monitor aborts a slow request at its own deadline and
+  // moves on, but a Node server does not close while a pending setTimeout can
+  // still fire, so `server.close()` blocked until the last delay elapsed. One
+  // scenario in this suite cost 5.4 s of every verify run — the whole cost was
+  // the fixture waiting on responses nobody was going to read.
+  const pending = new Set();
+  const later = (ms, fn) => {
+    const timer = setTimeout(() => { pending.delete(timer); fn(); }, ms);
+    pending.add(timer);
+    return timer;
+  };
+  // The monitor's fetches are keep-alive, so the sockets outlive the run.
+  // `server.close()` waits for every connection to end, which left the slow
+  // scenario sitting on three idle sockets for 3.8 s after the assertions had
+  // already passed. This is a throwaway fixture server on 127.0.0.1 with no
+  // in-flight work at close time, so the sockets are destroyed outright.
+  const sockets = new Set();
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
     let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
@@ -103,7 +121,15 @@ function startServer(root, fault) {
     };
 
     if (fault === 'slow') {
-      setTimeout(() => send(200, fs.existsSync(localPath) ? fs.readFileSync(localPath) : ''), 700);
+      // Cancelled the moment the client gives up (which is the whole point of
+      // the scenario: the monitor must abort and report, not hang). 150 ms is
+      // comfortably over the 50 ms deadline the scenario passes in, and the
+      // old 700 ms delay only made the aborted requests linger.
+      const timer = later(150, () => {
+        if (res.writableEnded || res.destroyed) return;
+        send(200, fs.existsSync(localPath) ? fs.readFileSync(localPath) : '');
+      });
+      res.on('close', () => { clearTimeout(timer); pending.delete(timer); });
       return;
     }
 
@@ -144,11 +170,21 @@ function startServer(root, fault) {
     }
     send(200, body);
   });
+  server.on('connection', socket => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
   return new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => {
       resolve({
         base: `http://127.0.0.1:${server.address().port}`,
-        close: () => new Promise(done => server.close(done)),
+        close: () => new Promise(done => {
+          for (const timer of pending) clearTimeout(timer);
+          pending.clear();
+          server.close(done);
+          for (const socket of sockets) socket.destroy();
+          sockets.clear();
+        }),
       });
     });
   });
@@ -283,9 +319,9 @@ async function main() {
     await check('a slow origin is reported as a timeout failure', async () => {
       const server = await startServer(fixtureRoot, 'slow');
       try {
-        const report = await run(fixtureRoot, server.base, { timeoutMs: 200 });
+        const report = await run(fixtureRoot, server.base, { timeoutMs: 50 });
         assert.strictEqual(report.summary.status, 'fail');
-        assert.ok(report.checks.some(c => /timed out after 200ms/.test(c.detail)), details(report));
+        assert.ok(report.checks.some(c => /timed out after 50ms/.test(c.detail)), details(report));
       } finally {
         await server.close();
       }

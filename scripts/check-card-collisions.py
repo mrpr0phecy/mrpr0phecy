@@ -35,6 +35,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "cards")
 SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>", re.I)
+# The only characters that can open a masked region.
+_INTERESTING = re.compile(r"""[/\'"`]""")
 DECL_RE = re.compile(
     r"^(let|var|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)"
     r"|^(function|class)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)", re.M)
@@ -47,6 +49,15 @@ def mask_spans(code: str) -> list[list[int]]:
     spans: list[list[int]] = []
     i, n = 0, len(code)
     while i < n:
+        # Jump to the next character that can start a comment, string or
+        # template instead of walking every character in between: card
+        # fragments are mostly markup and identifiers, and the per-character
+        # Python loop over ~35 MB of them was the whole cost of this check
+        # (1.9 s). re.search skips the uninteresting runs in C.
+        m = _INTERESTING.search(code, i)
+        if m is None:
+            break
+        i = m.start()
         c = code[i]
         if c == "/" and i + 1 < n and code[i + 1] == "/":
             j = i
@@ -121,13 +132,45 @@ def mask_spans(code: str) -> list[list[int]]:
     return merged
 
 
+_BLANKS: dict[int, str] = {}
+
+
+def _blank_run(run: str) -> str:
+    """`run` with every non-newline replaced by a space.
+
+    Line positions have to survive — DECL_RE is MULTILINE and the reported
+    line numbers come from this text — so newlines are kept and the runs
+    between them are swapped for blocks of spaces (cached by length, because
+    the same widths recur thousands of times across 1,195 cards).
+    """
+    if "\n" not in run:
+        blanks = _BLANKS.get(len(run))
+        if blanks is None:
+            blanks = _BLANKS[len(run)] = " " * len(run)
+        return blanks
+    out = []
+    start = 0
+    for idx, ch in enumerate(run):
+        if ch == "\n":
+            out.append(" " * (idx - start))
+            out.append("\n")
+            start = idx + 1
+    out.append(" " * (len(run) - start))
+    return "".join(out)
+
+
 def unmasked_code(code: str) -> str:
-    res = list(code)
-    for s, e in mask_spans(code):
-        for k in range(s, e):
-            if res[k] != "\n":
-                res[k] = " "
-    return "".join(res)
+    spans = mask_spans(code)
+    if not spans:
+        return code
+    pieces = []
+    prev = 0
+    for s, e in spans:
+        pieces.append(code[prev:s])
+        pieces.append(_blank_run(code[s:e]))
+        prev = e
+    pieces.append(code[prev:])
+    return "".join(pieces)
 
 
 def hard_conflict(kinds) -> bool:

@@ -61,7 +61,7 @@ const BASE = 'https://www.themostusefulsiteintheworld.com';
 
 function readJson(p) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
 
-function inferSpec(tool, cardEntry, standaloneSlugs) {
+function inferSpec(tool, cardEntry, standalonePaths) {
   const slug = tool.slug;
   const category = tool.category;
   const categoryName = tool.categoryName;
@@ -69,7 +69,13 @@ function inferSpec(tool, cardEntry, standaloneSlugs) {
   const description = tool.description;
   const url = `${BASE}/tool.html?card=${encodeURIComponent(slug)}`;
   const embedUrl = `${BASE}/tool.html?card=${encodeURIComponent(slug)}&embed=1`;
-  const standaloneUrl = standaloneSlugs.has(slug) ? `${BASE}/tools/${slug}.html` : null;
+  // The page path comes from scripts/tool-pages.json, never from the slug:
+  // the compound-interest page is declared at `tools/compound-interest.html`
+  // while its card slug is `compoundinterest`, and guessing `tools/${slug}`
+  // published a standaloneUrl that 404s (api/tools/compoundinterest.json,
+  // llms-full.txt and every agent that trusted it).
+  const standalonePath = standalonePaths.get(slug);
+  const standaloneUrl = standalonePath ? `${BASE}/${standalonePath}` : null;
 
   // Best-effort input/output sniff from fragment HTML (if present).
   let inputs = [];
@@ -177,10 +183,12 @@ function inferSpec(tool, cardEntry, standaloneSlugs) {
 function build() {
   const index = readJson(INDEX_JSON);
   const cards = readJson(CARDS_JSON);
-  let standaloneSlugs = new Set();
+  const standalonePaths = new Map();
   try {
     const tp = readJson(TOOL_PAGES);
-    if (tp && Array.isArray(tp.pages)) standaloneSlugs = new Set(tp.pages.map(p => p.slug));
+    if (tp && Array.isArray(tp.pages)) {
+      for (const p of tp.pages) if (p && p.slug && p.path) standalonePaths.set(p.slug, p.path);
+    }
   } catch {}
 
   const cardByName = new Map();
@@ -190,7 +198,7 @@ function build() {
   }
 
   const tools = index.tools || [];
-  const specs = tools.map(t => inferSpec(t, cardByName.get(t.slug), standaloneSlugs));
+  const specs = tools.map(t => inferSpec(t, cardByName.get(t.slug), standalonePaths));
   return { index, specs };
 }
 
