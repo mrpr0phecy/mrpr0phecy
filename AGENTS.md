@@ -111,5 +111,10 @@ say so plainly in the PR instead of working around it quietly.
 
 `CONSTRAINTS.md` (the hard lines and the traps, in full) · `ARCHITECTURE.md`
 (how the site is built) · `docs/TRUST.md` (YMYL) · `docs/INSTRUMENTATION.md` (analytics) ·
-`docs/BRAND.md` (naming) · `docs/OPERATIONS.md` (deploys and incidents) ·
-`staff/` (the owner's planning notes — nothing enforces them).
+`docs/BRAND.md` (naming) · `docs/OPERATIONS.md` (deploys and incidents).
+
+Everything else that used to be here — a staff hierarchy, a task board, a
+decision ledger, a roadmap, strategy and vision documents, launch copy and
+design notes — was deleted on 2026-09-20. `git log` is the changelog and the
+owner's head is the roadmap; a document that tells an agent what to do next was
+only ever a stale guess.

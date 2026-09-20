@@ -7,7 +7,7 @@ scripts/tool-pages.json.
 
 Why these pages exist: every tool in the catalogue is a fragment behind
 `tool.html?card=<slug>` — a query-param URL rendered by JavaScript, which a
-non-JS crawler reads as an empty shell. staff/OPEN.md P1-R2 calls that the
+non-JS crawler reads as an empty shell. That is the
 single biggest GEO/discovery gap. These pages are the fix for a bounded,
 chosen set of tools: a real URL, unique crawlable content, SoftwareApplication
 + FAQPage + BreadcrumbList structured data, and the live tool embedded from the
@@ -19,7 +19,7 @@ Two rules this script exists to enforce:
    footer, embed script) lives here; everything a writer edits lives in
    scripts/tool-pages.json. Rendering the same JSON must produce the same
    bytes, or --check fails.
-2. **Published numbers are derived, never typed** (staff/DECISIONS.md D-001).
+2. **Published numbers are derived, never typed** (CONSTRAINTS.md, hard line 7).
    A page may declare a `compute` block; the numbers in its prose come from
    {{placeholders}} filled by the arithmetic here, from its own inputs. A
    leftover {{...}} is a hard error, so a page can never ship a template gap.

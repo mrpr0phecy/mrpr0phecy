@@ -71,10 +71,10 @@ function buildFixtureRepo(root) {
   write('related.json', JSON.stringify({ 'index.html': [] }));
   write('.well-known/ai.txt', 'User-agent: *\nAllow: /\n');
   write('.well-known/security.txt', 'Contact: mailto:security@example.com\nExpires: 2027-01-01T00:00:00Z\n');
-  // A filename carrying URL-meaning characters, mirroring staff/claims (the
+  // A filename carrying URL-meaning characters, the way a branch-claim file (the
   // branch slash is stored as a literal %2F). The monitor must request it
   // encoded and still match retries back to the repository path (issue #91).
-  write('staff/claims/arena%2Ffixture-branch.json', JSON.stringify({ branch: 'arena/fixture-branch' }));
+  write('claims/arena%2Ffixture-branch.json', JSON.stringify({ branch: 'arena/fixture-branch' }));
   return root;
 }
 
@@ -165,7 +165,7 @@ function startServer(root, fault) {
     }
     // The encoded-path file goes stale-then-fresh under the same fault, so
     // the retry loop has to resolve it through the percent-decoding.
-    if (rel === 'staff/claims/arena%2Ffixture-branch.json' && fault === 'catch-up' && hits < 3) {
+    if (rel === 'claims/arena%2Ffixture-branch.json' && fault === 'catch-up' && hits < 3) {
       body = Buffer.from('{"stale":true}');
     }
     send(200, body);
@@ -352,10 +352,10 @@ async function main() {
     });
 
     await check('filenames with URL-meaning characters are requested encoded (issue #91)', async () => {
-      const encoded = 'staff/claims/arena%2Ffixture-branch.json';
+      const encoded = 'claims/arena%2Ffixture-branch.json';
       // Unit level: % and spaces are escaped, slashes stay slashes, and
       // probe query strings pass through untouched.
-      assert.strictEqual(monitor.encodeRelUrl(encoded), 'staff/claims/arena%252Ffixture-branch.json');
+      assert.strictEqual(monitor.encodeRelUrl(encoded), 'claims/arena%252Ffixture-branch.json');
       assert.strictEqual(monitor.encodeRelUrl('cards/my tool.html'), 'cards/my%20tool.html');
       assert.strictEqual(monitor.encodeRelUrl('tool.html?card=x&embed=1'), 'tool.html?card=x&embed=1');
       // End to end: the fixture server decodes once, exactly like Pages, so
@@ -371,7 +371,7 @@ async function main() {
     });
 
     await check('--retry-mismatch settles encoded paths against the repository', async () => {
-      const encoded = 'staff/claims/arena%2Ffixture-branch.json';
+      const encoded = 'claims/arena%2Ffixture-branch.json';
       const settledServer = await startServer(fixtureRoot, 'catch-up');
       try {
         const settled = await run(fixtureRoot, settledServer.base,

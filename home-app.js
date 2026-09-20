@@ -178,7 +178,7 @@
         try { mpGtag('tool_completion', { tool_slug: s.slice(0, 60), device: mpIsMobile() ? 'mobile' : 'desktop' }); } catch {}
     }
     // Console export for the weekly dashboard (pointer #10). Nothing leaves
-    // the browser until you copy it — paste into `docs/DASHBOARD.md`.
+    // the browser until you copy it — paste it into your own notes.
     try {
         window.__mpInstrumentation = {
             export() {

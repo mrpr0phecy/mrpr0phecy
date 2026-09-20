@@ -63,7 +63,7 @@ CARDS = os.path.join(ROOT, "cards")
 TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
     "README.md", "AGENTS.md", "ARCHITECTURE.md", "INCOME.md", "agents.html",
-    "STRATEGY.md", "CONTRIBUTING.md",
+    "CONTRIBUTING.md",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
     # history ("+10 tools, 23 categories, 562 total") and rewriting them
@@ -75,11 +75,10 @@ TARGETS_TOP = [
 TARGETS_GLOB = [
     "guides/*.html", "blog/*.html", "launch/index.html", "tools/*.html",
 ]
-# Anything matching these globs is excluded from rewriting: board records
-# (BOARD.md, DECISIONS.md, OPEN.md) document dated events; the changelog
-# (already excluded from TARGETS) records past releases. Manual
+# Anything matching these globs is excluded from rewriting: the changelog
+# records past releases, so its numbers are history rather than claims. Manual
 # `<!-- historical-count -->` markers cover one-off cases.
-EXCLUDE_PATTERNS = ["staff/", "changelog.html"]
+EXCLUDE_PATTERNS = ["changelog.html"]
 
 
 def _collect_targets() -> list[str]:
@@ -103,9 +102,7 @@ TARGETS = _collect_targets()
 # would turn the changelog into a lie. Everything from this heading onward in
 # the given file is frozen.
 HISTORY_ANCHOR = {
-    "ARCHITECTURE.md": "## 9. Current state and known work",
     "INCOME.md": None,
-    "STRATEGY.md": "## What to do next, in order",
 }
 
 # A line carrying this marker is exempt: it is deliberately quoting a past or

@@ -37,8 +37,10 @@ calls, and no session may relax them for scope, speed or ambition:
    `cards.json` categories are never hand-edited.
 
 Anything that looks like it needs an exception to one of these is an owner
-question: ask in the session, and record the answer here or in
-[`staff/DECISIONS.md`](staff/DECISIONS.md).
+question: ask in the session, and record the answer here. This file is the only
+decision ledger left — `staff/DECISIONS.md` and the board around it were
+deleted on 2026-09-20, and everything binding in them is either below or in
+the check that enforces it.
 
 ---
 

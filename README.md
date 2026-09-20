@@ -33,8 +33,7 @@ npm test               # the product test suite
 ```
 
 [AGENTS.md](AGENTS.md) is the one-page rulebook and
-[CONTRIBUTING.md](CONTRIBUTING.md) the short guide; [staff/](staff/README.md)
-holds the owner's planning notes.
+[CONTRIBUTING.md](CONTRIBUTING.md) the short guide.
 
 The "Site Staff / AI Developer" facility that used to run from here — profiles,
 a scoreboard, a claims ledger, an audit engine and a Mon/Thu workflow — was

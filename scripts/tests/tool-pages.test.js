@@ -15,7 +15,7 @@ const slugs = new Set(cards.map(c => c.name));
 // page -> embedded card slug, read from the content source the generator
 // renders from (scripts/tool-pages.json). One list, so a page can never exist
 // in the JSON and be unguarded here, or be guarded here and absent from the
-// generator. The rollout stays deliberately small — staff/OPEN.md P1-R2 ties
+// generator. The rollout stays deliberately small — the follow-up work ties
 // the 10–25 expansion to Search Console evidence.
 const source = JSON.parse(fs.readFileSync('scripts/tool-pages.json', 'utf8'));
 const PAGES = {};

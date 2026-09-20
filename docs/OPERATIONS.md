@@ -2,7 +2,7 @@
 
 **Status: active runbook · created 2026-09-15.** This is what to do when
 production falls short of the bar. Nothing here overrides
-[CONSTRAINTS.md](../CONSTRAINTS.md), [DECISIONS.md](../staff/DECISIONS.md) or
+[CONSTRAINTS.md](../CONSTRAINTS.md) or
 [ARCHITECTURE.md](../ARCHITECTURE.md) — where they disagree, they win and this
 file gets fixed.
 
@@ -42,7 +42,7 @@ not permission to change the other.
 | **Production monitor** (`scripts/check-production.js`) | **The deployed site**: availability, byte-identity with this repo, catalogue/sitemap integrity, https upgrade, custom 404 | Every six hours **and on every push to `main`** — the push run waits 45 s for Pages and then probes (`.github/workflows/production-monitor.yml`) | `Production monitor:` alert issue + run artifact + step summary |
 | Pages build status | Whether the deploy itself succeeded | Per push | Actions → *pages build and deployment* |
 | Pages deployment history | Which commit is live right now | Per push | Actions → *pages build and deployment* → the environment URL shown on the run |
-| Search Console / CrUX / bookkeeping | Field performance, index coverage, money | Owner-side, monthly | `staff/BOARD.md` via the owner |
+| Search Console / CrUX / bookkeeping | Field performance, index coverage, money | Owner-side, monthly | The owner |
 
 **Honest limits.** The monitor is an *external* probe from one runner, four
 times a day. It is not a paging system, it cannot see inside a visitor's
@@ -64,7 +64,7 @@ gives the response and recovery times for free, which is how
 | **S1** | The whole site is unreachable, or serves the wrong bytes sitewide (a deploy that never landed, a truncation, a domain/TLS failure) | Stop other work. Triage now. Announce in the alert issue. |
 | **S2** | One surface is broken: 404/`tool.html`/`listen.html` fails, the catalogue will not parse, the sitemap disagrees with the repo | Same working day. |
 | **S3** | Degraded but usable: a warning-level finding (slow response, unexpected redirect, wrong content-type on one file) | Next working session; record it. |
-| **S4** | Cosmetic or single-card content defect with a workaround | Normal queue (`staff/OPEN.md`). |
+| **S4** | Cosmetic or single-card content defect with a workaround | Normal queue. |
 
 "No on-call" still means something: an S1 that arrives at 03:00 is handled when
 a human sees it. Say so plainly in the issue rather than implying a response
@@ -100,7 +100,7 @@ The monitor names each failure by surface. Find it here.
 | `unreachable: timed out` / `NETWORK` on **everything** | GitHub Pages or DNS outage — not your commit | Check <https://www.githubstatus.com>. If Pages is down, do **not** revert anything; comment the status link on the issue and wait. |
 | `live bytes differ from the repository` on a **file you just changed** | Deploy still propagating, or the deploy failed | The push run already waits 45 s and then retries mismatches for ~60 s. If it still differs, look at Actions → *pages build and deployment*: a failed deploy is re-run, a partial one is re-run, and a commit that should never have shipped is reverted. |
 | `live bytes differ` on files from a **recent merged PR** | The push never deployed (branch protection, failed build, wrong branch) | Re-run the deployment from `main`. Only revert if the content itself is wrong. |
-| `expected 200, received 404` on a file that **is in the repository** | Committed but never published — a build exclusion, not a deploy lag | `git ls-files <path>` to confirm it is tracked, then check that `.nojekyll` still exists at the root: paths beginning with `.` or `_` are dropped by Jekyll when it does not (2026-09-15: `.well-known/*` had been 404 since the day it was added). If the filename contains a literal `%` (staff/claims files do — the branch slash is stored as `%2F`), the file is served at the doubly-encoded URL (`%252F`); the monitor encodes this itself, so a 404 on such a path still means genuinely unpublished (2026-09-15: issue #91 was the monitor's own encoding bug, not the deploy). Re-run the deployment afterwards. |
+| `expected 200, received 404` on a file that **is in the repository** | Committed but never published — a build exclusion, not a deploy lag | `git ls-files <path>` to confirm it is tracked, then check that `.nojekyll` still exists at the root: paths beginning with `.` or `_` are dropped by Jekyll when it does not (2026-09-15: `.well-known/*` had been 404 since the day it was added). If the filename contains a literal `%` (a branch-claim file storing its slash as `%2F` did), the file is served at the doubly-encoded URL (`%252F`); the monitor encodes this itself, so a 404 on such a path still means genuinely unpublished (2026-09-15: issue #91 was the monitor's own encoding bug, not the deploy). Re-run the deployment afterwards. |
 | `live bytes differ` on **everything** | Live site is serving an older commit | Find the commit that is live (`git log` on the files that differ), compare with `main`, re-run the deployment. |
 | `catalogue integrity: live catalogue has N cards, repository has M` | A truncated or partially deployed `cards/cards.json` | Re-run the deployment; if it persists, revert the commit that touched the catalogue. Never hand-edit `cards.json` — regenerate it (`node generate-cards-json.js --check` first). |
 | `duplicate slugs on the live site` | Two card files claim one slug | Fix in the repository: `python3 scripts/check-card-collisions.py`, rename the duplicate, regenerate derived artefacts, push. |
@@ -108,7 +108,7 @@ The monitor names each failure by surface. Find it here.
 | `404 handling: ... returned 200, not 404` or `404 route served ... not this repository's 404.html` | Custom-404 setting lost, or `404.html` changed without the deploy landing | Confirm `404.html` exists in the repo, then check the Pages settings (Settings → Pages) that the custom 404 is still used. |
 | `https enforcement: plain http did not redirect to https` | The Pages "Enforce HTTPS" setting was turned off, or the certificate is not covering a hostname | Owner action: Settings → Pages → Enforce HTTPS, and check the certificate covers `www` **and** the apex. |
 | `apex host` warning | The bare apex does not reach the canonical `www` host | CNAME is authoritative (never delete it); confirm the Pages custom-domain entry lists both hostnames. |
-| `slow response: Nms` | Runner network, CDN cold start, or a genuinely heavy page | Compare with CrUX before believing it — one runner's network is not a field metric. If CrUX agrees, the work item goes in `staff/OPEN.md`, not here. |
+| `slow response: Nms` | Runner network, CDN cold start, or a genuinely heavy page | Compare with CrUX before believing it — one runner's network is not a field metric. If CrUX agrees, it is a work item, not an incident. |
 | `content-type ... does not match` | A hosting or tooling change altered how a file is served | Check the file's extension and the live `curl -sI` output; if the site still works, record it and watch for the next run. |
 
 Two rules that keep this table honest:

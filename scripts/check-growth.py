@@ -49,7 +49,7 @@ def catalogue_slugs():
 
 def main():
     failures = []   # correctness: block (missing, dark, broken)
-    warnings = []   # reachability: report, track in OPEN.md, do not block
+    warnings = []   # reachability: report, do not block
     slugs = catalogue_slugs()
 
     # 1. Money surfaces exist.
