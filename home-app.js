@@ -2,7 +2,7 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 13;
+    const APP_VERSION = 14;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -2158,13 +2158,26 @@
     }
 
     function loadCard(card, cardName) {
-        if (loadedCards.has(cardName) || loadingCards.has(cardName)) return;
+        // Explicit user intent (click) should override previous error state
+        if (card && card.dataset.errorReason) {
+            delete card.dataset.errorReason;
+            card.dataset.autoRetries = '0';
+            retryCounts.delete(cardName);
+        }
+        if (loadedCards.has(cardName) && !(card && card.dataset.parked === '1')) return;
+        if (loadingCards.has(cardName)) return;
         // Parked, not lost: the tool is alive off the grid, so coming back is a
         // node move — no fetch, no parse, no script, no queue slot, and the
         // visitor's form is still full.
         if (resumeParked(card, cardName)) return;
         if (!loadQueue.some(item => item.cardName === cardName)) {
             loadQueue.push({ card, cardName });
+        }
+        // Visual feedback: show loading state immediately on click
+        if (card) {
+            card.classList.add('card-loading');
+            const hint = card.querySelector('.card-face-hint');
+            if (hint) hint.textContent = 'Loading…';
         }
         processLoadQueue();
     }
@@ -2291,6 +2304,7 @@
         } finally {
             loadingCards.delete(cardName);
             card.classList.remove('loading-fallback');
+            card.classList.remove('card-loading');
 
             if (!transientRetry && observer) {
                 observer.unobserve(card);
@@ -3118,36 +3132,8 @@
     
     function handleCardClick(event) {
         const target = event.target;
-        
-        // Card face: clicking it runs the tool immediately (instead of
-        // waiting for the scroll-driven loader). Silent swap — no loading UI.
-        const face = target.closest('.card-face');
-        if (face) {
-            const card = face.closest('.card');
-            const cardName = card && card.dataset.name;
-            if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                loadCard(card, cardName);
-            }
-            return;
-        }
 
-        // Mosaic tiles: the whole tile is the button, not just its lower half —
-        // at 212px there is barely a lower half. Real controls keep their own
-        // behaviour, so this claims only a click that has nowhere else to go.
-        // A click is intent: it is never turned away by the mount window, and when
-        // the tool is parked this is the path that wakes it up.
-        if (currentDensity === 'mosaic') {
-            const tile = target.closest('.card.card-pending');
-            if (tile && !target.closest('a, button, input, select, textarea, label')) {
-                const cardName = tile.dataset.name;
-                if (cardName && !loadedCards.has(cardName) && !loadingCards.has(cardName)) {
-                    loadCard(tile, cardName);
-                }
-                return;
-            }
-        }
-
-        // Standalone / Maximise button
+        // Standalone / Maximise button — always handled first, opens modal
         const maximizeBtn = target.closest('.card-maximize-btn, .card-expand');
         if (maximizeBtn) {
             event.preventDefault();
@@ -3156,6 +3142,65 @@
             const cardName = card?.dataset.name || maximizeBtn.dataset.card;
             if (cardName) {
                 openStandaloneModal(cardName);
+            }
+            return;
+        }
+
+        // Controls that should NOT trigger a load: rating, embed, toolbox, retry
+        if (target.closest('.card-action-btn, .rating-btn, .embed-btn, .card-error-retry, .grid-mode-card-btn, .list-mode-item-btn, .dir-view-card-btn')) {
+            return;
+        }
+
+        // Errored cards: clicking anywhere retries them (user intent = "try again")
+        const errorCard = target.closest('.card[data-error-reason]');
+        if (errorCard) {
+            const cardName = errorCard.dataset.name;
+            if (cardName) {
+                // If the click was on the explicit Retry button, its own listener handles it;
+                // otherwise treat the whole card as a retry target
+                if (!target.closest('.card-error-retry')) {
+                    retryLoadCard(cardName);
+                }
+            }
+            return;
+        }
+
+        // Card face: clicking it runs the tool immediately (instead of
+        // waiting for the scroll-driven loader).
+        const face = target.closest('.card-face');
+        if (face) {
+            const card = face.closest('.card');
+            const cardName = card && card.dataset.name;
+            if (cardName) {
+                // Always allow click to (re)load: covers pending, parked, or previously errored
+                // loadCard internally handles parked resume and queue dedup
+                if (!loadedCards.has(cardName) || card.dataset.parked === '1') {
+                    loadCard(card, cardName);
+                }
+            }
+            return;
+        }
+
+        // Whole tile is clickable in BOTH densities — at 212px mosaic tiles there is
+        // barely a "face" vs "header" distinction, and in focus mode the header
+        // click was previously dead (user clicked header, nothing happened, reported
+        // as "cards not loading"). Real controls are excluded above.
+        const pendingTile = target.closest('.card.card-pending, .card.card-parked');
+        if (pendingTile) {
+            // Don't intercept clicks inside the header action row's links/buttons
+            if (target.closest('a, button, input, select, textarea, label')) {
+                // But if it's the card itself (not a control), still load
+                if (!target.closest('.card-header') || target.closest('.card-face')) {
+                    // fall through
+                } else {
+                    // Click on header controls already handled; if it's empty header space, load
+                    const inActions = target.closest('.card-actions');
+                    if (inActions) return;
+                }
+            }
+            const cardName = pendingTile.dataset.name;
+            if (cardName) {
+                loadCard(pendingTile, cardName);
             }
             return;
         }

@@ -194,6 +194,7 @@ function setupSearch() {
   const browseSections = document.querySelectorAll('.discovery-browse-section');
   if (!inputs.length || !INDEX) return;
 
+  const hasDashboard = !!document.getElementById('dashboard');
   const clearResults = () => {
     if (!resultsContainer) return;
     resultsContainer.style.display = 'none';
@@ -204,6 +205,8 @@ function setupSearch() {
     const value = String(raw == null ? '' : raw);
     // One query, every box. Setting .value never fires an input event, so this
     // cannot loop with the listeners below (or with home-app.js's own sync).
+    // When the interactive grid exists, we sync values but avoid aggressive
+    // hiding — home-app.js is the primary results surface for cards that run.
     inputs.forEach(el => { if (el.value !== value) el.value = value; });
     const q = value.trim().toLowerCase();
 
@@ -228,10 +231,15 @@ function setupSearch() {
     // ---- Instrumentation: log every search, zero-result is the goldmine ----
     try { mpLogSearch(q, filtered.length); } catch {}
 
-    if (gridOwnsResults()) {
-      // The grid below answers this query with tools that run. Hide the browse
-      // chrome so the answer is what meets the eye, and render no second list.
-      browseSections.forEach(s => s.style.display = 'none');
+    if (gridOwnsResults() || hasDashboard) {
+      // The grid below answers this query with tools that run. When the
+      // dashboard exists, keep browse chrome visible — the dashboard cards
+      // are the primary filtered view, and hiding featured/trending/categories
+      // on every keystroke was disorienting. Only hide when standalone
+      // (no dashboard, e.g., tools-index.html).
+      if (!hasDashboard) {
+        browseSections.forEach(s => s.style.display = 'none');
+      }
       clearResults();
     } else if (resultsContainer) {
       browseSections.forEach(s => s.style.display = 'none');
@@ -263,18 +271,51 @@ function setupSearch() {
 
   let timer;
   inputs.forEach(el => el.addEventListener('input', (e) => {
+    // When dashboard exists, let home-app own the primary search for
+    // tool-search and stickySearchInput; discovery only updates its
+    // A-Z pagination. This prevents double filtering and race.
+    const isPrimarySearch = hasDashboard && (e.target.id === 'tool-search' || e.target.id === 'stickySearchInput');
+    if (isPrimarySearch) {
+      clearTimeout(timer);
+      const value = e.target.value;
+      timer = setTimeout(() => {
+        // Still update our own filtered list for the A-Z section
+        const q = value.trim().toLowerCase();
+        if (!q) {
+          filtered = [...INDEX.tools];
+        } else {
+          filtered = INDEX.tools.filter(t =>
+            t.title.toLowerCase().includes(q) ||
+            t.description.toLowerCase().includes(q) ||
+            (t.categoryName && t.categoryName.toLowerCase().includes(q)) ||
+            (t.tags && t.tags.some(tag => tag.toLowerCase().includes(q)))
+          );
+        }
+        page = 1;
+        renderPage();
+      }, 120);
+      return;
+    }
     clearTimeout(timer);
     const value = e.target.value;
     timer = setTimeout(() => runSearch(value), 120);
   }));
 
-  // Popular chips
+  // Popular chips — trigger both surfaces
   document.querySelectorAll('.popular-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const q = chip.dataset.query || chip.textContent.trim();
       const first = inputs[0];
+      if (!first) return;
       first.value = q;
+      // Dispatch input so both home-app and discovery-app react
       first.dispatchEvent(new Event('input', { bubbles: true }));
+      // Also dispatch on sticky if it exists for home-app sync
+      const sticky = document.getElementById('stickySearchInput');
+      if (sticky && sticky !== first) {
+        sticky.value = q;
+        sticky.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       first.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   });
