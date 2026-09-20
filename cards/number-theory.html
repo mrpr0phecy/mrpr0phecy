@@ -1042,6 +1042,240 @@ function performExtendedEuclidean(a, b) {
 }
 
 // ========== UI UPDATES ==========
+// ---------------------------------------------------------------------------
+// The 'sequences' and 'properties' operations were dispatched to
+// performSequenceGeneration() and performPropertyAnalysis(), neither of which
+// existed, so both threw a ReferenceError and produced no result. The card
+// already had the underlying work: ntGenerateSequence() knows the six sequence
+// types and analyzeNumberProperties() classifies a number. These wrap them in
+// the { message, ... } shape displayResults() renders, and narrate into the
+// same steps array every other perform* function uses.
+//
+// Note that displayResults() only renders message, factors/primeFactorization
+// and gcd/lcm (result.extended is nested inside the GCD block), so the detail
+// goes into message, which is inserted as HTML.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Three toolbar buttons in the advanced cryptography panel pointed at functions
+// that were never written, so each threw a ReferenceError: ntGenerateRSA,
+// ntCalculateModExp and ntGenerateWorksheet. That whole panel was dead.
+//
+// (ntLoadExample, ntAnalyzeProperties and ntQuickProperties look missing to a
+// scan for `function name` because they are defined further down as
+// `window.name = function ...`. They were never broken.)
+//
+// These reuse what the card already had -- performExtendedEuclidean(),
+// performGcdLcm(), performFactorization() and generatePrimes() -- and render
+// through displayResults() so they look like every other result.
+// ---------------------------------------------------------------------------
+
+
+
+
+function ntCalculateModExp() {
+  const baseRaw = document.getElementById('nt-mod-exp-base').value.trim();
+  const expRaw = document.getElementById('nt-mod-exp-exp').value.trim();
+  const modRaw = document.getElementById('nt-mod-exp-mod').value.trim();
+
+  if (!baseRaw || !expRaw || !modRaw) {
+    showNotification('Enter a base, an exponent and a modulus.', 'warning');
+    return;
+  }
+
+  let b, e, m;
+  try { b = BigInt(baseRaw); e = BigInt(expRaw); m = BigInt(modRaw); }
+  catch (err) { showNotification('Base, exponent and modulus must be whole numbers.', 'warning'); return; }
+
+  if (m <= 1n) { showNotification('The modulus must be greater than 1.', 'warning'); return; }
+  if (e < 0n) { showNotification('Negative exponents are not supported here.', 'warning'); return; }
+
+  // Square-and-multiply, reducing after every step so nothing grows past the
+  // modulus. BigInt, because a^b overflows Number almost immediately.
+  const steps = [`${b}^${e} mod ${m}`];
+  let result = 1n;
+  let a = ((b % m) + m) % m;
+  let power = e;
+
+  while (power > 0n) {
+    if (power & 1n) {
+      result = (result * a) % m;
+      steps.push(`odd bit: result = (result × ${a}) mod ${m} = ${result}`);
+    }
+    a = (a * a) % m;
+    power >>= 1n;
+  }
+
+  displayResults({
+    message: `${baseRaw}<sup>${expRaw}</sup> mod ${modRaw} = ${result}`,
+    extended: { equation: `Computed by repeated squaring in ${steps.length - 1} steps.` }
+  }, steps);
+  showNotification('Modular exponentiation complete.', 'success');
+}
+
+function ntGenerateRSA() {
+  // Deliberately tiny primes: this demonstrates the construction, it is not
+  // usable for anything real, and the result says so.
+  const pool = generatePrimes(60).filter((q) => q > 20);
+  if (pool.length < 2) { showNotification('Not enough primes to build a key pair.', 'warning'); return; }
+
+  const pick = () => pool[Math.floor(Math.random() * pool.length)];
+  const p = pick();
+  let q = pick();
+  let guard = 0;
+  while (q === p && guard++ < 100) q = pick();
+  if (p === q) { showNotification('Could not pick two distinct primes; press again.', 'warning'); return; }
+
+  const n = p * q;
+  const phi = (p - 1) * (q - 1);
+
+  const e = [17, 7, 5, 3].find((c) => c < phi && performExtendedEuclidean(c, phi).gcd === 1);
+  if (!e) { showNotification('Could not find a public exponent coprime to phi; press again.', 'warning'); return; }
+
+  const inv = performExtendedEuclidean(e, phi).coefficients.x;
+  const d = ((inv % phi) + phi) % phi;
+
+  // Check the key actually works before showing it, rather than trusting the
+  // arithmetic.
+  const ok = (e * d) % phi === 1;
+  const msg = 123n % BigInt(n);
+  const cipher = modPow(BigInt(msg), BigInt(e), BigInt(n));
+  const round = modPow(cipher, BigInt(d), BigInt(n));
+  const verified = round === msg;
+
+  const row = (k, v) => `<div style="display:flex;justify-content:space-between;padding:3px 0;"><span style="color:var(--muted);">${k}</span><span style="color:var(--text);font-weight:600;">${v}</span></div>`;
+
+  displayResults({
+    message: `RSA key pair from p = ${p}, q = ${q}` +
+      `<div style="font-size:13px;font-weight:400;color:var(--text);margin-top:10px;text-align:left;">` +
+      row('n = p × q', n) + row('phi(n) = (p−1)(q−1)', phi) +
+      row('Public key (n, e)', `(${n}, ${e})`) + row('Private key (n, d)', `(${n}, ${d})`) +
+      row('e × d mod phi', `${(e * d) % phi} ${ok ? '✓' : '✗'}`) +
+      row('Round trip of ' + msg, `${cipher} → ${round} ${verified ? '✓' : '✗'}`) +
+      `</div>` +
+      `<div style="font-size:11px;font-weight:400;color:var(--muted);margin-top:8px;">` +
+      `Teaching size only — real RSA uses primes of 1024 bits or more.</div>`
+  }, [`Chose p = ${p} and q = ${q}.`, `n = ${n}, phi = ${phi}.`, `Public exponent e = ${e}, private exponent d = ${d}.`]);
+
+  showNotification(ok && verified ? 'RSA key pair generated and verified.' : 'RSA key pair generated, but it did not verify.', ok && verified ? 'success' : 'warning');
+}
+
+function modPow(base, exp, mod) {
+  let result = 1n;
+  let b = ((base % mod) + mod) % mod;
+  let e = exp;
+  while (e > 0n) {
+    if (e & 1n) result = (result * b) % mod;
+    b = (b * b) % mod;
+    e >>= 1n;
+  }
+  return result;
+}
+
+function ntGenerateWorksheet() {
+  const questions = [];
+  const answers = [];
+  const rnd = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+
+  for (let i = 1; i <= 10; i++) {
+    const a = rnd(12, 90);
+    const b = rnd(12, 90);
+    const kind = i % 3;
+    if (kind === 0) {
+      const g = performGcdLcm(a, b, []).gcd;
+      questions.push(`Find the greatest common divisor of ${a} and ${b}.`);
+      answers.push(`gcd(${a}, ${b}) = ${g}`);
+    } else if (kind === 1) {
+      const m = rnd(5, 20);
+      questions.push(`What is ${a} × ${b} mod ${m}?`);
+      answers.push(`${a} × ${b} mod ${m} = ${(a * b) % m}`);
+    } else {
+      const f = performFactorization(a, []);
+      questions.push(`Write ${a} as a product of primes.`);
+      answers.push(`${a} = ${f.primeFactorization || (f.primeFactors || []).join(' × ')}`);
+    }
+  }
+
+  const item = (label, text) => `<div style="padding:8px 0;border-bottom:1px dashed var(--border);">${label} ${text}</div>`;
+
+  displayResults({
+    message: `Practice worksheet — 10 questions` +
+      `<div style="font-size:13px;font-weight:400;color:var(--text);margin-top:10px;text-align:left;">` +
+      questions.map((text, i) => item(`${i + 1}.`, text)).join('') +
+      `</div>` +
+      `<div style="font-size:11px;font-weight:400;color:var(--muted);margin-top:12px;text-align:left;">` +
+      `Use Print Report to print it. Answers are listed below — cover them up first.` +
+      `<div style="margin-top:6px;">` +
+      answers.map((text) => `<div>${text}</div>`).join('') +
+      `</div></div>`
+  }, ['Generated 10 mixed questions on gcd, modular arithmetic and prime factorisation.']);
+
+  showNotification('Worksheet generated.', 'success');
+}
+
+function performSequenceGeneration(n, steps) {
+  const sel = document.getElementById('nt-sequence-type');
+  const type = sel ? sel.value : 'fibonacci';
+  // n is the count of terms, matching how ntGenerateSequence() treats its limit.
+  const count = Math.max(1, Math.min(200, Math.floor(n) || 10));
+  steps.push(`Generating the first ${count} terms of the ${type} sequence...`);
+
+  let sequence = [];
+  let description = type;
+
+  switch (type) {
+    case 'primes':     sequence = generatePrimes(count);     description = 'Prime Numbers'; break;
+    case 'fibonacci':  sequence = generateFibonacci(count);  description = 'Fibonacci Numbers'; break;
+    case 'triangular': sequence = generateTriangular(count); description = 'Triangular Numbers'; break;
+    case 'perfect':    sequence = (nt.sequences.perfect || []).filter((_, i) => i < count); description = 'Perfect Numbers'; break;
+    case 'armstrong':  sequence = generateArmstrong(count);  description = 'Armstrong Numbers'; break;
+    case 'catalan':    sequence = generateCatalan(count);    description = 'Catalan Numbers'; break;
+    default: return { message: `Unknown sequence type: ${type}` };
+  }
+
+  steps.push(`Produced ${sequence.length} terms.`);
+  const shown = sequence.slice(0, 40);
+  const more = sequence.length > shown.length ? ', ...' : '';
+
+  return {
+    message: `${description} — first ${sequence.length} terms` +
+      `<div style="font-size:14px;font-weight:400;color:var(--muted);margin-top:8px;word-break:break-word;">` +
+      `${shown.join(', ')}${more}</div>`
+  };
+}
+
+function performPropertyAnalysis(n, steps) {
+  steps.push(`Testing ${n} against the known number classes...`);
+  const p = analyzeNumberProperties(n);
+  steps.push(`Found ${p.divisors.length} divisor(s).`);
+
+  const flags = [
+    ['Prime', p.isPrime],
+    ['Perfect', p.isPerfect],
+    ['Square', p.isSquare],
+    ['Triangular', p.isTriangular],
+    ['Fibonacci', p.isFibonacci],
+    ['Armstrong', p.isArmstrong]
+  ];
+  const yes = flags.filter(([, v]) => v).map(([k]) => k);
+  const no = flags.filter(([, v]) => !v).map(([k]) => k);
+
+  const chips = (list, colour) => list.length
+    ? list.map((k) => `<span style="display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;border-radius:10px;border:1px solid ${colour};color:${colour};font-size:12px;font-weight:400;">${k}</span>`).join('')
+    : `<span style="font-size:12px;font-weight:400;color:var(--muted);">none</span>`;
+
+  const headline = yes.length ? `${n} is ${yes.join(', ').toLowerCase()}` : `${n} is none of the tested classes`;
+
+  return {
+    message: headline +
+      `<div style="font-size:13px;font-weight:400;color:var(--muted);margin-top:8px;">` +
+      `Divisors (${p.divisors.length}): ${p.divisors.join(', ')}<br>` +
+      `<span style="margin-top:6px;display:inline-block;">Is: ${chips(yes, '#39ff14')}</span><br>` +
+      `<span style="display:inline-block;">Is not: ${chips(no, 'rgba(255,255,255,0.25)')}</span>` +
+      `</div>`
+  };
+}
+
 function displayResults(result, steps) {
   const output = document.getElementById('nt-output');
   
@@ -1138,7 +1372,14 @@ function analyzeNumberProperties(n) {
     }
   }
   properties.divisors.sort((a, b) => a - b);
-  
+
+  // A number is perfect when its proper divisors (all of them but itself) add
+  // up to it. This was initialised to false above and never recomputed, so the
+  // 'perfect' branch below could never fire and 6, 28 and 496 were all reported
+  // as something else. The divisors are already in hand, so just sum them.
+  const properSum = properties.divisors.reduce((sum, d) => sum + d, 0) - n;
+  properties.isPerfect = n > 1 && properSum === n;
+
   // Determine number type
   if (properties.isPrime) {
     properties.type = nt.numberTypes.prime;
@@ -1797,6 +2038,13 @@ function ntExportLaTeX() {
 
 function ntPrintReport() {
   const printWindow = window.open('', '_blank');
+  // window.open returns null when a popup blocker steps in, and jsdom returns
+  // undefined because it has no window.open at all. Either way, reading
+  // .document off it throws. Tell the user instead.
+  if (!printWindow) {
+    showNotification('Could not open the print window. Please allow pop-ups for this site.', 'warning');
+    return;
+  }
   const n = document.getElementById('nt-number').value;
   const m = document.getElementById('nt-second').value;
   const operation = getOperationName(nt.currentOperation);
