@@ -255,7 +255,10 @@ const statisticsTtState = {
     currentTab: 'descriptive',
     data: [],
     stats: null,
-    
+    // Set by ttSelectTest(). The Test Types panel offered a choice but nothing
+    // stored it, so ttRunTTest() was always two-tailed.
+    tail: 'two-tailed',
+
     // Example datasets
     examples: {
         normal: [12.3, 14.1, 15.8, 16.2, 17.5, 18.1, 18.9, 19.2, 20.1, 20.5, 21.3, 22.0],
@@ -767,6 +770,20 @@ function getTestingTab() {
     `;
 }
 
+function ttSelectTest(type) {
+    // The two Test Types options called this, but it did not exist, so clicking
+    // either threw a ReferenceError and neither highlight moved. Store the
+    // choice for ttRunTTest() and light up the one that was clicked.
+    statisticsTtState.tail = type;
+
+    document.querySelectorAll('.test-type').forEach((el) => {
+        const handler = el.getAttribute('onclick') || '';
+        el.classList.toggle('active', handler.includes(`'${type}'`));
+    });
+
+    showNotification(`${type === 'one-tailed' ? 'One' : 'Two'}-tailed test selected. Run the t-test again to apply it.`, 'info');
+}
+
 function ttRunTTest() {
     const stats = statisticsTtState.stats;
     if (!stats || stats.n < 2) {
@@ -781,11 +798,14 @@ function ttRunTTest() {
     const t = (stats.mean - mu0) / (stats.stdDev / Math.sqrt(stats.n));
     const df = stats.n - 1;
     
-    // Calculate p-value (two-tailed)
-    const p = 2 * (1 - ttTCDF(Math.abs(t), df));
-    
-    // Critical t-value
-    const tCritical = ttInvT(1 - alpha/2, df);
+    // Calculate p-value. Honours the tail chosen in the Test Types panel;
+    // before ttSelectTest() existed this was unconditionally two-tailed.
+    const oneTailed = statisticsTtState.tail === 'one-tailed';
+    const tailProb = 1 - ttTCDF(Math.abs(t), df);
+    const p = oneTailed ? tailProb : 2 * tailProb;
+
+    // Critical t-value: alpha, or alpha/2 per tail when two-tailed.
+    const tCritical = ttInvT(1 - (oneTailed ? alpha : alpha / 2), df);
     
     // Decision
     const reject = p < alpha;
@@ -793,7 +813,7 @@ function ttRunTTest() {
     let results = `
         <div style="margin-bottom:var(--space-sm);">
             <strong>H₀:</strong> μ = ${mu0.toFixed(2)}<br>
-            <strong>H₁:</strong> μ ≠ ${mu0.toFixed(2)} (two-tailed)
+            <strong>H₁:</strong> ${oneTailed ? (t >= 0 ? 'μ &gt; ' : 'μ &lt; ') + mu0.toFixed(2) + ' (one-tailed)' : 'μ ≠ ' + mu0.toFixed(2) + ' (two-tailed)'}
         </div>
         <div style="margin-bottom:var(--space-sm);">
             <strong>t(${df}) =</strong> ${t.toFixed(4)}
@@ -802,7 +822,7 @@ function ttRunTTest() {
             <strong>p-value =</strong> ${p.toFixed(6)}
         </div>
         <div style="margin-bottom:var(--space-sm);">
-            <strong>α =</strong> ${alpha} (t₍${df},${1-alpha/2}₎ = ${tCritical.toFixed(4)})
+            <strong>α =</strong> ${alpha} (t₍${df},${1 - (oneTailed ? alpha : alpha / 2)}₎ = ${tCritical.toFixed(4)})
         </div>
         <div style="color:${reject ? '#4caf50' : '#f44336'};font-weight:var(--weight-semibold);">
             ${reject ? '✓ Reject H₀: Significant difference' : '✗ Fail to reject H₀: No significant difference'}
