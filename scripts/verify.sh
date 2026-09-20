@@ -96,6 +96,19 @@
 #                               hand-maintained and drifted to 532, 1,061 and
 #                               533 of 1,195 tools; that drift is what made
 #                               tools "not come up" from the main page.
+#  23. card runtime           — scripts/check-card-runtime.py injects every
+#                               card through the real renderCardContent() path
+#                               and fails on the ones whose JavaScript throws.
+#                               Section 8 only proves the block parses; a card
+#                               can parse cleanly and still die on its first
+#                               statement (a renamed element id, a variable
+#                               declared in the wrong function, a container
+#                               overwritten and then queried). Eighteen cards
+#                               shipped in that state — they painted their face
+#                               on the home page and did nothing when clicked
+#                               (the full list is in check-card-runtime.py).
+#                               Needs jsdom; without it the check prints a NOTE
+#                               and passes, like section 8 without node.
 #
 # Speed model (2026-09-19, retimed 2026-09-20):
 #   * The default run is the fast path — every check below is incremental or
@@ -611,7 +624,36 @@ section_22() {
   fi
 }
 
-ALL_SECTIONS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22)
+section_23() {
+  # Section 8 proves a card's JavaScript parses. This proves it runs: a block
+  # can be perfectly valid and still throw the instant the home page injects
+  # it, which is the "tool is on the page but does nothing when I click it"
+  # failure mode. Eighteen cards shipped that way. The sweep injects each card
+  # through the real renderCardContent() path, including home-app.js's own
+  # transformCardScript() rewrite.
+  #
+  # Needs jsdom. check-card-runtime.py prints a NOTE and passes when node or
+  # jsdom is missing, so this never blocks a machine that does not have them.
+  if command -v node >/dev/null 2>&1; then
+    if [ "$FULL" = "1" ]; then
+      if python3 scripts/check-card-runtime.py --all; then
+        ok "every card runs without throwing (full runtime sweep)"
+      else
+        fail "a card loads and then does nothing when clicked"
+      fi
+    else
+      if python3 scripts/check-card-runtime.py; then
+        ok "changed cards run without throwing (VERIFY_FULL=1 for a full sweep)"
+      else
+        fail "a card loads and then does nothing when clicked"
+      fi
+    fi
+  else
+    note "node not available — skipped"
+  fi
+}
+
+ALL_SECTIONS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23)
 
 section_title() {
   case "$1" in
@@ -637,6 +679,7 @@ section_title() {
     20) printf '%s' "production monitor and recovery tooling" ;;
     21) printf '%s' "Lantern engine and duty of care (ai.html)" ;;
     22) printf '%s' "static discovery surfaces and the tool link graph" ;;
+    23) printf '%s' "card runtime (check-card-runtime.py)" ;;
   esac
 }
 

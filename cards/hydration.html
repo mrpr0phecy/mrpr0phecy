@@ -509,10 +509,15 @@ function hydrationUpdateProgress() {
     }
   }
   
-  // Update text
-  card.querySelector('#hydration-current').textContent = hydrationTodayIntake.toFixed(1);
-  card.querySelector('#hydration-target').textContent = hydrationDailyTarget.toFixed(1);
-  card.querySelector('#hydration-progress-percent').textContent = Math.round(percentage) + '%';
+  // Update text. Each lookup is guarded: these are the elements the block
+  // below rebuilds, so a render that runs before they exist must not abort
+  // the rest of the function.
+  const currentEl = card.querySelector('#hydration-current');
+  if (currentEl) currentEl.textContent = hydrationTodayIntake.toFixed(1);
+  const targetEl = card.querySelector('#hydration-target');
+  if (targetEl) targetEl.textContent = hydrationDailyTarget.toFixed(1);
+  const percentEl = card.querySelector('#hydration-progress-percent');
+  if (percentEl) percentEl.textContent = Math.round(percentage) + '%';
   
   // Update progress text with emoji
   const progressText = card.querySelector('#hydration-progress-text');
@@ -523,7 +528,13 @@ function hydrationUpdateProgress() {
     if (percentage >= 80 && percentage < 100) emoji = '🚰';
     if (percentage >= 100) emoji = '🎉';
     
-    progressText.innerHTML = `${emoji} You've had <span style="color:var(--accent);font-weight:600;">${hydrationTodayIntake.toFixed(1)}</span> of <span style="color:#39ff14;font-weight:600;">${hydrationDailyTarget.toFixed(1)}</span> liters today`;
+    // `#hydration-progress-text` is the PARENT of #hydration-current and
+    // #hydration-target, so rewriting its innerHTML used to delete the two
+    // spans this same function reads at the top. The first call worked, the
+    // second (hydrationInit calls this twice via hydrationCalc) threw on a
+    // null and the tool never finished initialising. Keeping the ids in the
+    // regenerated markup makes every call idempotent.
+    progressText.innerHTML = `${emoji} You've had <span id="hydration-current" style="color:var(--accent);font-weight:600;">${hydrationTodayIntake.toFixed(1)}</span> of <span id="hydration-target" style="color:#39ff14;font-weight:600;">${hydrationDailyTarget.toFixed(1)}</span> liters today`;
   }
 }
 

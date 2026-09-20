@@ -861,18 +861,78 @@ function msCalculateProtectionDevices(runningCurrent, startingCurrent, method) {
   }
 }
 
+// Display label -> key in msStartingMultipliers. Deriving the key by
+// lowercasing the label silently missed two rows: "Soft Starter" became
+// "soft-starter" (the table key is "soft") and "VFD" became "vfd" only by
+// luck, so both fell back to a multiplier of 1.
+const msMethodKeys = { 'DOL': 'dol', 'Star-Delta': 'star-delta', 'Soft Starter': 'soft', 'VFD': 'vfd' };
+function msMethodKey(label) {
+  return msMethodKeys[label] || String(label).toLowerCase();
+}
+
+// Chart-free comparison panel. Draws the same four starting methods as plain
+// 2D bars so the section still says something when Chart.js is not present.
+// Everything is local — no library, no network.
+function msDrawFallbackComparison(canvas, ctx, methods, inrush, torque, highlightIndex) {
+  if (!ctx) return;
+  const W = canvas.width || canvas.clientWidth || 480;
+  const H = canvas.height || 200;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  ctx.fillRect(0, 0, W, H);
+
+  const padLeft = 96, padRight = 14, padTop = 24, padBottom = 14;
+  const plotW = Math.max(40, W - padLeft - padRight);
+  const rowH = Math.max(18, (H - padTop - padBottom) / methods.length);
+  const peak = Math.max.apply(null, inrush.concat([1]));
+
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(230,250,255,0.85)';
+  ctx.textAlign = 'left';
+  ctx.fillText('Inrush current (× full-load)', padLeft, padTop / 2 + 2);
+
+  methods.forEach((label, i) => {
+    const y = padTop + i * rowH;
+    const barH = Math.max(8, rowH * 0.52);
+    const barW = Math.max(2, (inrush[i] / peak) * plotW);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(230,250,255,0.8)';
+    ctx.fillText(label, padLeft - 10, y + rowH / 2);
+
+    ctx.fillStyle = i === highlightIndex ? 'rgba(255,45,85,0.75)' : 'rgba(45,212,255,0.6)';
+    ctx.fillRect(padLeft, y + (rowH - barH) / 2, barW, barH);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(230,250,255,0.9)';
+    ctx.fillText(`${inrush[i].toFixed(1)}×  ·  torque ${torque[i].toFixed(2)}×`,
+      padLeft + barW + 8, y + rowH / 2);
+  });
+}
+
 // Generate comparison chart
 function msGenerateComparisonChart() {
   const canvas = document.getElementById('ms-comparison-chart');
   if (!canvas) return;
-  
+
   const ctx = canvas.getContext('2d');
-  
+
   // Sample data for comparison
   const methods = ['DOL', 'Star-Delta', 'Soft Starter', 'VFD'];
   const inrushMultipliers = [6.0, 2.0, 2.5, 1.2];
   const torqueMultipliers = [1.5, 0.33, 0.5, 1.0];
-  
+
+  // Chart.js is not bundled with this card and no host page provides it, so
+  // `new Chart(...)` threw a ReferenceError and took the whole tool down with
+  // it. budget/inflation/roi/salary all guard the same global; this card now
+  // does too, and paints the comparison itself so the panel is not blank.
+  if (typeof Chart === 'undefined') {
+    msState.comparisonChart = null;
+    msDrawFallbackComparison(canvas, ctx, methods, inrushMultipliers, torqueMultipliers);
+    return;
+  }
+
   msState.comparisonChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -954,22 +1014,31 @@ function msGenerateComparisonChart() {
 
 // Update comparison chart with current data
 function msUpdateComparisonChart(runningCurrent, method) {
-  if (!msState.comparisonChart || !runningCurrent) return;
-  
+  if (!runningCurrent) return;
+
   const methods = ['DOL', 'Star-Delta', 'Soft Starter', 'VFD'];
   const inrushCurrents = methods.map(m => {
-    const key = m.toLowerCase().replace(' ', '-').replace('star-delta', 'star-delta');
-    const multiplier = msStartingMultipliers[key]?.current || 1;
+    const multiplier = (msStartingMultipliers[msMethodKey(m)] || {}).current || 1;
     return runningCurrent * multiplier;
   });
-  
-  msState.comparisonChart.data.datasets[0].data = inrushCurrents;
-  
+
   // Highlight current method
-  const methodIndex = methods.findIndex(m => 
-    m.toLowerCase().replace(' ', '-').replace('star-delta', 'star-delta') === method
-  );
-  
+  const methodIndex = methods.findIndex(m => msMethodKey(m) === method);
+
+  // No Chart.js on this page: repaint the fallback panel with the real numbers.
+  if (!msState.comparisonChart) {
+    const canvas = document.getElementById('ms-comparison-chart');
+    if (canvas) {
+      msDrawFallbackComparison(canvas, canvas.getContext('2d'), methods,
+        inrushCurrents,
+        methods.map(m => (msStartingMultipliers[msMethodKey(m)] || {}).torque || 1),
+        methodIndex);
+    }
+    return;
+  }
+
+  msState.comparisonChart.data.datasets[0].data = inrushCurrents;
+
   if (methodIndex !== -1) {
     msState.comparisonChart.data.datasets[0].backgroundColor = methods.map((_, i) => 
       i === methodIndex ? 'rgba(255,45,85,0.7)' : 'rgba(45,212,255,0.7)'
