@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # verify.sh — would this change break the site?
 #
-#   bash scripts/verify.sh          # the gate: 8 checks, all of them, ~4 s
+#   bash scripts/verify.sh          # the gate: 7 checks, all of them, ~3 s
 #   bash scripts/verify.sh --deep   # + the slow audits (~25 s) — before a push
 #                                   #   that touches cards/ or a generator
 #   bash scripts/verify.sh --live   # + ask the deployed site what it serves
 #
 # The design is one sentence: the suite is short enough to always run
 # completely, so there is nothing to schedule, scope, parallelise or skip.
+#
+# The site brain (a 4.5 MB generated retrieval index, its 857-line builder, its
+# evaluator, and the rule that any edit to a public doc forced a
+# rebuild-and-commit) was deleted on 2026-09-20: nothing on the site read it,
+# and agents.html now points outside agents at llms.txt, cards.json and
+# related.json instead.
 #
 # It used to be 22 sections and ~3 minutes, which grew a scoping engine
 # (~400 lines: a path→section map, widening rules, a plan printer, a
@@ -22,8 +28,7 @@
 #   4. links      every internal href/src resolves to a shipped file
 #   5. counts     every published tool count is re-derived, never hand-edited
 #   6. SEO        no top-level page is missing a <title>
-#   7. brain      local-ai-knowledge.json matches its inputs
-#   8. Lantern    the on-site AI engine's structural contracts hold
+#   7. Lantern    the on-site AI engine's structural contracts hold
 #
 # --deep adds the audits that only matter once, before a push: egress
 # classification, accessibility, cross-card name collisions, CSS leaks, every
@@ -153,12 +158,6 @@ seo() {
          python3 scripts/scan-seo.py
 }
 
-brain() {
-  expect "local-ai-knowledge.json matches its inputs" \
-         "site brain stale — run: python3 scripts/build-site-brain.py, then commit it" \
-         python3 scripts/build-site-brain.py --check
-}
-
 lantern() {
   # Runs the shipped engine, not a copy of it: the chunker cannot hang or lose
   # text, safeEval is not a code-execution hole, dates clamp, and every
@@ -240,9 +239,6 @@ deep_floors() {
   expect "Lantern quality: every measured floor met (retrieval, tools, guard, duty)" \
          "Lantern quality floor breached — see scripts/evaluate-lantern.js" \
          node scripts/evaluate-lantern.js
-  expect "site-brain retrieval cases still ground in the repository" \
-         "brain grounding regression — inspect learning/evaluation.json" \
-         python3 scripts/evaluate-site-brain.py
   expect "YMYL checks: BMI WHO bands, deposit cap rule, caveats" \
          "YMYL regression — see scripts/check-ymyl.js" \
          node scripts/check-ymyl.js
@@ -271,7 +267,7 @@ live() {
 # ---------------------------------------------------------------------------
 
 T_START=$(now_ms)
-printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 8-check gate")"
+printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 7-check gate")"
 
 check "hygiene: secrets, placeholders, rel=noopener" hygiene
 check "catalogue consistency"                      catalogue
@@ -279,7 +275,6 @@ check "card JavaScript syntax"                     card_js
 check "internal links"                             links
 check "published tool counts"                      counts
 check "top-level SEO"                              seo
-check "site brain freshness"                       brain
 check "Lantern engine contracts"                   lantern
 
 if [ "$DEEP" = "1" ]; then

@@ -68,9 +68,13 @@ chat. Nothing is uploaded, no account or API key exists, and private memory
 stays in the visitor's browser; the live page cannot write back to the
 repository.
 
-The checked-in `local-ai-knowledge.json` grounds the *catalogue* brain used by
-the machine guide; `learning/approved.json` is the reviewed shared-learning
-channel. The former Byte companion pages (`local-ai.html`,
+The machine guide for outside agents is [`agents.html`](agents.html): the
+manifests, URL patterns and embed codes. The catalogue-side retrieval brain it
+used to advertise (`local-ai-knowledge.json`, 4.5 MB, plus `learning/` and the
+scripts that generated them) was removed on 2026-09-20 — nothing on the site
+read it, and `llms.txt`, `cards/cards.json`, `tools-index.json`,
+`api/tools*.json` and `related.json` do the same job in a fraction of the
+bytes. The former Byte companion pages (`local-ai.html`,
 `byte-realistic.html`, `byte-realistic-v4.html`) are `noindex` redirect stubs
 to `ai.html`, and the old agent/developer machine guide now lives at
 [`agents.html`](agents.html).

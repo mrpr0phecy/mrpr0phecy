@@ -73,6 +73,15 @@ engagement pods — they violate platform ToS and risk the channel. Legitimate
 growth only: metadata, speed, internal links, translated pages, honest CTAs.
 No ads or trackers on Product A, no paywalls, no fake urgency.
 
+**The site brain is gone** (owner instruction, 2026-09-20).
+`local-ai-knowledge.json`, `scripts/build-site-brain.py`,
+`scripts/evaluate-site-brain.py` and `learning/` were deleted: `ai.html` never
+read the artefact, no page fetched it, and the rule that any edit to a public
+doc forced a rebuild-and-commit of 4.5 MB was the largest single source of
+friction in the repository. `agents.html` now points outside agents at
+`llms.txt`, `cards/cards.json`, `tools-index.json`, `api/tools*.json` and
+`related.json`. Do not regenerate it without a fresh owner instruction.
+
 **The staff facility is gone** (owner instruction, 2026-09-20). The AI
 Developer workflow, the profiles in `scripts/ai-staff.json`, the scoreboard,
 the claims ledger, the audit engine and their tests were deleted at the owner's
@@ -83,8 +92,8 @@ is the owner's own. Do not rebuild the facility without a fresh instruction.
 
 **Automatic CI runs the whole gate** (owner instruction, 2026-09-20, reversing
 the 2026-09-19 fast pass). The fast pass existed because the suite took about
-three minutes. It is now eight checks in ~4 s, with the slow audits behind
-`--deep` in ~15 s, so `.github/workflows/agent-guardrails.yml` runs
+three minutes. It is now seven checks in ~3 s, with the slow audits behind
+`--deep` in ~13 s, so `.github/workflows/agent-guardrails.yml` runs
 `verify.sh --deep` on every push and PR and still finishes in seconds — the
 "Repo checks" status name is unchanged. Do not add heavyweight CI without a
 fresh owner instruction, and do not let the local gate grow slow enough to need
@@ -141,8 +150,6 @@ line the moment it is answered.
 - **Ship or delete:** `indexbeta.html`, `hokidea.html`, the four unlinked CV
   files, `substitutions/`, `system/`, `digitaldetoxcardshtml/`.
 - **LICENSE** — none chosen yet.
-- **`AI_API_KEY`** secret — unset, so the workflow's `generate` mode is
-  skipped (audit and fix still run). Add one if drafts are wanted.
 - **126 top-level JS name collisions** — fixing means IIFE-wrapping many
   cards: a large mechanical diff. Worth it?
 - **`token.html` says 644 tools** — if the token perks were scoped to a

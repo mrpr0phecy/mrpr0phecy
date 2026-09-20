@@ -16,12 +16,12 @@ No tool links. If a change touches both, the task was probably misread.
 
 ```bash
 npm run build          # regenerate every derived file (~8 s)
-npm run verify         # the gate: 8 checks, ~4 s — run it after every edit
-npm run verify:deep    # + the slow audits (~15 s) — before pushing
+npm run verify         # the gate: 7 checks, ~3 s — run it after every edit
+npm run verify:deep    # + the slow audits (~13 s) — before pushing
 npm test               # the product test suite
 ```
 
-CI runs `verify.sh --deep` on every push and PR (~15 s). A green run is not
+CI runs `verify.sh --deep` on every push and PR. A green run is not
 proof of a live deploy: GitHub Pages takes 30–60 s, so check the URL.
 
 ```bash

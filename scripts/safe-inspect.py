@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """safe-inspect.py — look at a big generated artefact without flooding anything.
 
-    python3 scripts/safe-inspect.py local-ai-knowledge.json
+    python3 scripts/safe-inspect.py cards/cards.json
     python3 scripts/safe-inspect.py --diff related.json      # vs. HEAD
     python3 scripts/safe-inspect.py --diff cards/cards.json --ref main
     python3 scripts/safe-inspect.py --head tools-index.json --bytes 400

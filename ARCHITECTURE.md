@@ -104,9 +104,6 @@ establish *which* site first.
 │                           `supaviewer.html` is SupaViewer, a standalone
 │                           in-browser virtual-world viewer (docs in
 │                           supaviewer/).
-├── local-ai-knowledge.json  Generated public catalogue/docs context, consumed
-│                           by agents.html and scripts/evaluate-site-brain.py
-├── learning/                Reviewed shared-learning entries
 │   approved.json, README.md
 │
 ├── manifest.json           PWA manifest
@@ -1633,12 +1630,12 @@ the one that failed. It now tries the obvious singularisations and the
 in `UNIT_TABLE`, so a typo still fails loudly instead of being converted as
 something else.
 
-**Gotcha worth remembering:** `ai.html` is one of the seven documents the site
-brain indexes (`source_fingerprint()` in `scripts/build-site-brain.py`), so
-**any edit to `ai.html` invalidates `local-ai-knowledge.json`** and the brain
-check in `verify.sh` will fail until you rebuild it. Run `python3
-scripts/build-site-brain.py`. The rebuild is deterministic and touches only the
-source hash and the category tokens derived from the page's visible text.
+**History, because it used to be a gotcha:** `ai.html` was one of seven
+documents indexed by a generated "site brain" (`local-ai-knowledge.json`,
+4.5 MB, built by `scripts/build-site-brain.py`), so any edit to the page
+invalidated the artefact and `verify.sh` failed until it had been rebuilt and
+committed. The brain and its builder were deleted on 2026-09-20 — nothing on
+the site read them — so editing `ai.html` now carries no such consequence.
 
 **Recently fixed** (2026-08-30): every YouTube embed on the site was a
 placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —

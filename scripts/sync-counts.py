@@ -62,7 +62,7 @@ CARDS = os.path.join(ROOT, "cards")
 # and launch/ whose sub-pages each have their own count claim in the footer.
 TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
-    "README.md", "AGENTS.md", "ARCHITECTURE.md", "INCOME.md",
+    "README.md", "AGENTS.md", "ARCHITECTURE.md", "INCOME.md", "agents.html",
     "STRATEGY.md", "CONTRIBUTING.md",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
