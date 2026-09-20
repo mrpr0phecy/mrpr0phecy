@@ -22,9 +22,9 @@ calls, and no session may relax them for scope, speed or ambition:
 2. **No ToS-violating growth.** No view-bots, hidden players, autoplay
    tricks, engagement pods, fake urgency.
 3. **Never delete a tool or a protected file** without the owner saying so
-   first — the ARCHITECTURE.md §9 list, `CNAME`, `sw.js`, `guide.txt`, the
-   CV files, `opensourcenews.html`, `token.html`. Adding is free; retiring is
-   not.
+   first — `CNAME`, `sw.js`, the CV files, `opensourcenews.html`,
+   `token.html`, anything in `cards/` (the full list is ARCHITECTURE.md §9).
+   Adding is free; retiring is not.
 4. **Never interpolate untrusted input into `innerHTML`** — URL params,
    `error.message` and `cards.json` strings go in via `textContent` or DOM
    APIs.
@@ -108,7 +108,8 @@ a fast pass again: that is what made this repo hard to work in.
 **Never hand-edit a tool count, `sitemap.xml`, or `index.html`'s generated
 first screen.** All of them are produced (`scripts/sync-counts.py`,
 `scripts/build-sitemap.py`, `scripts/build-home-prerender.py`); `verify.sh`
-fails on drift. The count appears 49 times across 10 files — editing by hand
+fails on drift. The count appears dozens of times across the published pages
+and docs — editing by hand
 has failed every single time it has been attempted. The home page's
 `HOME-FAST-PATH` and `HOME-PRERENDER` blocks — the head bootstrap that
 prefetches the first tools, the eight pre-rendered card shells and the
@@ -119,8 +120,8 @@ hand-written markup and are not.
 lists inside the script. Add your slug to the right list *before* running it,
 or your category is silently lost.
 
-**All 644 cards share one DOM.** Element ids must be globally unique — prefix
-everything. Top-level JS names collide too (126 of them: `showError`,
+**All 1195 cards share one DOM.** Element ids must be globally unique — prefix
+everything. Top-level JS names collide too (135 soft collisions: `showError`,
 `updateStats`, `STORAGE_KEY`…); IIFE-wrap anything you touch.
 
 **Never interpolate untrusted input into `innerHTML`.** URL params,
@@ -137,8 +138,9 @@ SoundCloud and Instagram with a zero. Not a typo.
 **Never invent YouTube IDs.** Use the verified table in ARCHITECTURE.md §4.
 A Rickroll (`dQw4w9WgXcQ`) once shipped as a placeholder on a live page.
 
-**`sw.js` is not registered** by any page, on purpose. `guide.txt` is stale.
-`CNAME` deletion breaks the custom domain.
+**`sw.js` is not registered** by any page, on purpose — but `index.html` does
+`modulepreload` it, which is a wasted low-priority fetch until the "enable it or
+delete it" question above is answered. `CNAME` deletion breaks the custom domain.
 
 ## Open questions only the owner can answer
 
@@ -149,10 +151,12 @@ line the moment it is answered.
   real localisation, or consolidate?
 - **`sw.js`** — enable it (a real win for an offline-first tool site) or
   delete it? Currently dead code.
-- **Ship or delete:** `indexbeta.html`, `hokidea.html`, the four unlinked CV
-  files, `substitutions/`, `system/`, `digitaldetoxcardshtml/`.
+- **Ship or delete:** the four unlinked CV files (`CV.docx`, `CV.pdf`,
+  `cv.pdf`, `latestcv.docx`). The rest of that list — `indexbeta.html`,
+  `hokidea.html`, `guide.txt`, `substitutions/`, `system/`,
+  `digitaldetoxcardshtml/` — was deleted on 2026-09-20 with the owner's
+  approval; the CVs are personal documents, so they stay until the owner says
+  otherwise.
 - **LICENSE** — none chosen yet.
-- **126 top-level JS name collisions** — fixing means IIFE-wrapping many
+- **135 soft top-level JS name collisions** — fixing means IIFE-wrapping many
   cards: a large mechanical diff. Worth it?
-- **`token.html` says 644 tools** — if the token perks were scoped to a
-  subset, that number should be scoped instead of synced.

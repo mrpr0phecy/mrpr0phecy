@@ -95,7 +95,7 @@ establish *which* site first.
 │   aiwalker.html, animation.html, birdapp.html, clock.html,
 │   eternalbeffudlementmachine.html, local-ai.html, byte-realistic.html,
 │   byte-realistic-v4.html, slideshowtest.html,
-│   token.html, tool.html, indexbeta.html, hokidea.html, supaviewer.html
+│   token.html, tool.html, supaviewer.html
 │                           Experiments and one-offs. Not linked from the
 │                           catalogue. Safe to ignore; ask before deleting.
 │                           `local-ai.html`, `byte-realistic.html` and
@@ -112,15 +112,13 @@ establish *which* site first.
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
 ├── icon-192.png, icon-512.png, icon-maskable-512.png   (palette-optimised)
-├── logo.png (unreferenced by any page — kept, see §9)
+├── logo.png (unreferenced by any page — kept deliberately)
 ├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
 ├── backgroundpic.jpg + backgroundpic.webp (the one the pages use)
 ├── og-ai.jpg, og-tools.png, og-mp.png, luton-og.png, sonic-og.png (social cards)
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
 ├── README.md               Short public-facing readme
-├── guide.txt               69 KB of older notes; historical, not authoritative
 ├── CV.docx / CV.pdf / cv.pdf / latestcv.docx    Owner's CV files
-└── substitutions/, system/, digitaldetoxcardshtml/    Legacy, unused
 ```
 
 ---
@@ -942,12 +940,12 @@ drop the card pages:
 import subprocess, datetime
 base  = "https://www.themostusefulsiteintheworld.com"
 today = datetime.date.today().isoformat()
-# Never list an error page, the 145-byte scratch file with no <title>, or the
-# unlinked beta catalogue (see §7). Re-running without this set silently
-# re-adds all three.
-EXCLUDE = {"404.html", "hokidea.html", "indexbeta.html"}
-files = subprocess.run(['git','ls-files'], capture_output=True, text=True).stdout.split()
-html  = [f for f in files if f.endswith('.html') and f not in EXCLUDE]
+# scan-seo.py scans every *.html in the repository root; cards/ are fragments
+# by design and are skipped. 404.html is an error page, so its missing OG tags
+# are a warning rather than a failure. There is no exclude set — the two files
+# that used to need one (hokidea.html, a 145-byte scratch page with no <title>,
+# and indexbeta.html, an unlinked beta catalogue) were deleted on 2026-09-20,
+# which is also why the scan stopped printing their warnings.
 prio  = {"listen.html":("1.0","weekly"), "music.html":("0.9","weekly"),
          "index.html":("0.9","daily"),   "youtubepromo2.html":("0.7","monthly")}
 urls  = [(p,*prio[p]) for p in prio if p in html]
@@ -1041,7 +1039,8 @@ each other — `scripts/tests/home-search.test.js` pins all three:
 
 - **`home-app.js` resolves its box through `getMainSearchInput()`**, which
   tries `#tool-search` (the hero box the discovery layout ships) and then
-  `#mainSearchInput` (the older id, still on `indexbeta.html`). It used to look
+  `#mainSearchInput` (the older id, which the deleted `indexbeta.html` carried).
+  It used to look
   for the older id only, so on the real homepage every lookup returned null:
   the hero box never filtered the grid, never synced with the command bar,
   `?q=` could not fill it, and the `/` shortcut threw on every press. **A new
@@ -1152,11 +1151,6 @@ slash before routing and 404s on a file that exists (issue #91). Any tooling
 that turns repo paths into URLs must encode each path segment; see
 `encodeRelUrl()` in `scripts/check-production.js`.
 
-**`guide.txt` is stale.** 69 KB of historical notes. This document supersedes it.
-
-**`hokidea.html`** is a 145-byte scratch file with no `<title>` and no `lang`.
-Harmless, not linked, left deliberately.
-
 ---
 
 ## 8. Working on this repo
@@ -1257,9 +1251,14 @@ checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
 which is also what CI runs on every push and PR.
 
 **Do not delete or rename:** `CNAME` (the custom domain), `sw.js` (unregistered
-on purpose), `guide.txt`, `system/`, `substitutions/`, `digitaldetoxcardshtml/`,
-the CV files, `opensourcenews.html`, `token.html`, or any tool in `cards/`.
-Adding is free; retiring is an owner decision.
+on purpose), the CV files, `opensourcenews.html`, `token.html`, or any tool in
+`cards/`. Adding is free; retiring is an owner decision.
+
+Deleted on 2026-09-20 with the owner's approval, after confirming that no page,
+no sitemap entry and no robots rule referenced them: `indexbeta.html`,
+`hokidea.html`, `guide.txt` (69 KB of notes this document superseded),
+`substitutions/`, `system/` and `digitaldetoxcardshtml/`. They are in git
+history if anybody ever wants them back.
 
 This section used to be a 725-line dated changelog — "Added 2026-09-02, ten new
 Home & DIY tools…", "Changed 2026-09-18, the main page is a live window…" — and
