@@ -72,10 +72,14 @@ skip loudly when it is missing.
 
 ## 4. Common tasks
 
-**Add a tool.** Write `cards/<slug>.html` as a fragment: no `<html>`, every
-element ID prefixed with the slug, the JS in an IIFE, no network calls. Add
-the slug to its category list in `generate-cards-json.js`, then `npm run
-build` and `npm run verify:deep`. Check `tool.html?card=<slug>` and
+**Add a tool.** Write the fragment first, then
+`bash scripts/add-tool.sh <slug> "<Category>" "<commit message>" [--no-push]`
+registers it, regenerates every derived surface, smoke-tests the card in a
+shared DOM, runs the gate, commits and pushes. By hand: write
+`cards/<slug>.html` as a fragment — no `<html>`, every element ID prefixed with
+the slug, the JS in an IIFE, no network calls — add the slug to its category
+list in `generate-cards-json.js`, then `npm run build` and
+`npm run verify:deep`. Check `tool.html?card=<slug>` and
 `...&embed=1` at 1195 px. A YMYL tool (Health & Fitness, Finance & Money) also
 needs the `docs/TRUST.md` checklist — methodology, primary source, worked
 example, edge cases, disclaimer, last-reviewed date — in the fragment or,

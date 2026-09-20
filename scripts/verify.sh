@@ -225,6 +225,13 @@ deep_generated() {
   expect "no dead ends and no orphans: every tool link lands, every tool is linked" \
          "tool graph broken — a click from a static page would land nowhere" \
          python3 scripts/check-tool-graph.py
+  # The homepage's CSS is split into a render-blocking half and a deferred half.
+  # That is only safe while the deferred half styles nothing the first paint can
+  # show; ARCHITECTURE.md has always promised this guard runs, and until now
+  # nothing called it.
+  expect "the homepage CSS split is still safe (deferred half styles nothing above the fold)" \
+         "critical-CSS regression — see scripts/check-critical-css.py" \
+         python3 scripts/check-critical-css.py
 }
 
 deep_tests() {
