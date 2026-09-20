@@ -63,6 +63,10 @@ function element(tag = 'div') {
     },
     setAttribute() {}, removeAttribute() {}, getAttribute() { return null; },
     appendChild(child) { el.children.push(child); return child; },
+    // Real elements take strings and nodes; the modal's shell and its error
+    // state are built with DOM APIs now (no innerHTML), so the stub accepts
+    // both.
+    append(...nodes) { nodes.forEach((n) => el.children.push(n)); },
     removeChild() {}, insertBefore(c) { el.children.push(c); return c; },
     remove() {}, closest() { return null; }, contains() { return false; },
     querySelector() { return null; }, querySelectorAll() { return []; },
@@ -163,7 +167,8 @@ function runCore(overrides = {}) {
     // silently double the app in the document (and shadow the delegate). The
     // four self-init features are the ones that had led with a core definition.
     const MOVED_ONLY = [...SELF_INIT, 'renderToolbox', 'saveToolboxCards', 'toggleToolbox',
-      'closeToolbox', 'togglePanel', 'closePanel', 'openStandaloneModalCore',
+      'closeToolbox', 'togglePanel', 'closePanel', 'openStandaloneModalShell',
+      'openStandaloneModalContent',
       'loadSavedToolboxCards', 'switchToolboxMode', 'updateToolboxMode'];
     for (const name of MOVED_ONLY) {
       assert.ok(!new RegExp(`^ {4}(?:async )?function ${name}\\b`, 'm').test(CORE),
@@ -222,6 +227,17 @@ function runCore(overrides = {}) {
       'the idle schedule needs a deadline, or a permanently busy page never gets the bundle');
     assert.strictEqual(sandbox.__mpHome.loaded, false,
       'initApp() must not fetch the bundle synchronously — that is the whole point of the split');
+    // Run the idle callback initApp() scheduled for the bundle (identified by
+    // its deadline, not by its position: the service worker is scheduled the
+    // same way a few lines later in initApp()). The prefetch is the one
+    // download here that must stay out of the way of the card fragments.
+    const bundleIdle = sandbox.__idle.filter((c) => c.opts && c.opts.timeout === 2500);
+    assert.strictEqual(bundleIdle.length, 1, 'initApp() must schedule exactly one bundle prefetch');
+    bundleIdle[0].fn({ didTimeout: false, timeRemaining: () => 5 });
+    const idleScripts = sandbox.__dom.created.filter((el) => el.tagName === 'SCRIPT');
+    assert.strictEqual(idleScripts.length, 1, 'the idle callback must fetch the bundle');
+    assert.strictEqual(idleScripts[0].fetchPriority, 'low',
+      'the idle prefetch must not compete with the card fragments');
     console.log('  ok   the first screen runs, and schedules the bundle, without it');
   }
 
@@ -238,8 +254,11 @@ function runCore(overrides = {}) {
     const version = CORE.match(/const APP_VERSION = (\d+);/)[1];
     assert.strictEqual(scripts[0].src, `home-features.js?v=${version}`,
       'the bundle must be requested with the version of record');
-    assert.strictEqual(scripts[0].fetchPriority, 'low',
-      'the bundle must not compete with the card fragments');
+    // A click asked for this: the visitor is waiting on the bundle now, so it
+    // is fetched ahead of the fragments. (The idle prefetch in initApp() is the
+    // one that must stay out of the way — see the suite above.)
+    assert.strictEqual(scripts[0].fetchPriority, 'high',
+      'a click-driven bundle fetch must not queue behind the card fragments');
     assert.ok(sandbox.__dom.head.children.includes(scripts[0]), 'the bundle script must be appended to <head>');
 
     // A repeated coalescing call replaces the earlier one instead of piling up.
@@ -248,7 +267,7 @@ function runCore(overrides = {}) {
     assert.strictEqual(sandbox.__mpHome.queued.length, 1, 'coalescing calls must not queue twice');
     assert.strictEqual([...sandbox.__mpHome.queued[0][1][0]].join(','), 'a,b',
       'the last argument must win');
-    console.log('  ok   early calls queue (and coalesce), and the bundle is fetched once, at low priority');
+    console.log('  ok   early calls queue (and coalesce), and the bundle is fetched once');
   }
 
   // ------------------------------- the bundle lands, registers and replays
@@ -267,7 +286,7 @@ function runCore(overrides = {}) {
     }
     assert.strictEqual(sandbox.__mpHome.queued.length, 0, 'the queue must be drained on arrival');
     // The replayed call really ran the bundle's implementation.
-    assert.ok(vm.runInContext('typeof openStandaloneModalCore', sandbox) === 'function' ||
+    assert.ok(vm.runInContext('typeof openStandaloneModalShell', sandbox) === 'function' ||
       sandbox.__mpHome.features.openStandaloneModal.length === 1,
       'openStandaloneModal was not registered by the bundle');
 

@@ -94,6 +94,13 @@
     }
     
     function toggleToolbox(event) {
+        // The button carries `popovertarget`, and the browser's own toggle runs
+        // *after* this listener as the click's activation behaviour. This
+        // handler opened the popover, the browser then toggled it straight back,
+        // and the button did nothing at all — from the moment this file landed,
+        // so it read as "the toolbox button works sometimes". preventDefault()
+        // cancels the activation behaviour, leaving one owner of the state.
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
         event.stopPropagation();
         const toolbox = document.getElementById('toolbox');
         // Modern: Try Popover API
@@ -147,6 +154,10 @@
     }
     
     function togglePanel(panelId, event) {
+        // Same trap as toggleToolbox(): the button's `popovertarget` activation
+        // behaviour runs after this listener, so without preventDefault() the
+        // palette and contributions panels opened and closed in one click.
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
         event.stopPropagation();
         const panel = document.getElementById(panelId);
         // Modern: Try Popover API first
@@ -617,13 +628,17 @@
         }
     }
 
-    async function openStandaloneModalCore(cardName) {
+    // Split in two on purpose: the shell (title, loader, open) is synchronous
+    // and is the only thing a view transition needs to capture; the content is
+    // a network round trip and must not happen inside a transition callback
+    // (see openStandaloneModal() below).
+    function openStandaloneModalShell(cardName) {
         const modal = document.getElementById('standaloneModal');
         const titleEl = document.getElementById('standaloneModalTitle');
         const badgeEl = document.getElementById('standaloneModalCategory');
         const bodyEl = document.getElementById('standaloneModalBody');
         const newTabBtn = document.getElementById('standaloneModalNewTabBtn');
-        if (!modal || !bodyEl) return;
+        if (!modal || !bodyEl) return false;
 
         const meta = S.cardsMetaMap.get(cardName);
         const title = meta && meta.title ? meta.title : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -634,16 +649,39 @@
         if (badgeEl) badgeEl.textContent = category;
         if (newTabBtn) newTabBtn.href = toolUrl;
 
-        bodyEl.innerHTML = `
-            <div class="cool-loader" role="status">
-                <div class="cool-loader-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-                <div class="cool-loader-text">Loading <strong>${title}</strong><span class="cool-dots"></span></div>
-            </div>
-        `;
+        // Built with DOM APIs: `title` is a cards.json string and must never
+        // reach innerHTML (CONSTRAINTS.md, hard line 4).
+        bodyEl.textContent = '';
+        const loader = document.createElement('div');
+        loader.className = 'cool-loader';
+        loader.setAttribute('role', 'status');
+        const bars = document.createElement('div');
+        bars.className = 'cool-loader-bars';
+        bars.setAttribute('aria-hidden', 'true');
+        for (let i = 0; i < 7; i++) bars.appendChild(document.createElement('i'));
+        const text = document.createElement('div');
+        text.className = 'cool-loader-text';
+        text.append('Loading ');
+        const strong = document.createElement('strong');
+        strong.textContent = title;
+        const dots = document.createElement('span');
+        dots.className = 'cool-dots';
+        text.append(strong, dots);
+        loader.append(bars, text);
+        bodyEl.appendChild(loader);
 
         modal.classList.add('open');
         modal.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
+        return true;
+    }
+
+    async function openStandaloneModalContent(cardName) {
+        const bodyEl = document.getElementById('standaloneModalBody');
+        if (!bodyEl) return;
+        const meta = S.cardsMetaMap.get(cardName);
+        const title = meta && meta.title ? meta.title : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const toolUrl = `tool.html?card=${encodeURIComponent(cardName)}`;
 
         try {
             let html = '';
@@ -696,27 +734,57 @@
             });
 
         } catch (err) {
-            bodyEl.innerHTML = `
-                <div style="text-align:center;padding:40px;color:#ff4d4d;">
-                    <h3>Failed to load ${title}</h3>
-                    <p style="color:rgba(230,250,255,0.7);">${err.message}</p>
-                    <a href="${toolUrl}" target="_blank" rel="noopener" class="standalone-modal-btn new-tab-btn" style="margin-top:16px;">Open in Separate Page ↗</a>
-                </div>
-            `;
+            // DOM APIs, not innerHTML: `err.message` is network text and
+            // `title` is a cards.json string (CONSTRAINTS.md, hard line 4).
+            bodyEl.textContent = '';
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'text-align:center;padding:40px;color:#ff4d4d;';
+            const h = document.createElement('h3');
+            h.textContent = 'Failed to load ' + title;
+            const p = document.createElement('p');
+            p.style.cssText = 'color:rgba(230,250,255,0.7);';
+            p.textContent = (err && err.message) || 'Unknown error';
+            const a = document.createElement('a');
+            a.href = toolUrl;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.className = 'standalone-modal-btn new-tab-btn';
+            a.style.marginTop = '16px';
+            a.textContent = 'Open in Separate Page ↗';
+            wrap.append(h, p, a);
+            bodyEl.appendChild(wrap);
         }
     }
 
+    function prefersReducedMotion() {
+        try {
+            return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        } catch (err) { return false; }
+    }
 
     async function openStandaloneModal(cardName) {
-        if (document.startViewTransition) {
+        // A view transition holds the page until its callback's promise
+        // settles, and the ::view-transition overlay covers the viewport while
+        // it runs. Awaiting a fetch inside that callback therefore froze the
+        // whole page — every click ignored — for as long as the network took.
+        // The transition now covers the shell only; the bytes load after it.
+        if (document.startViewTransition && !prefersReducedMotion()) {
             try {
-                document.startViewTransition(async () => {
-                    await openStandaloneModalCore(cardName);
+                const vt = document.startViewTransition(() => {
+                    openStandaloneModalShell(cardName);
                 });
+                // Wait for the DOM half (never for the animation) so the fetch
+                // cannot race the shell that is about to host it.
+                if (vt && vt.updateCallbackDone) {
+                    try { await vt.updateCallbackDone; } catch (err) { /* the shell still opened */ }
+                }
+                await openStandaloneModalContent(cardName);
                 return;
-            } catch {}
+            } catch (err) { /* fall through to the plain path */ }
         }
-        await openStandaloneModalCore(cardName);
+        if (openStandaloneModalShell(cardName)) {
+            await openStandaloneModalContent(cardName);
+        }
     }
 
     function closeStandaloneModal() {

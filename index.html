@@ -27,7 +27,7 @@
     <!-- Deferred, not preloaded: fetch() here is same-origin, and a preload
          with mismatched credentials downloads the file twice on a miss. -->
     <link rel="modulepreload" href="sw.js" fetchpriority="low">
-    <script defer src="home-app.js?v=14"></script>
+    <script defer src="home-app.js?v=15"></script>
     <!-- Inter is self-hosted (fonts/, SIL OFL 1.1) and preloaded; the old
          Google-Fonts chain cost ~700 ms of font-swap time (see ARCHITECTURE.md). -->
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -74,6 +74,40 @@
     })();
     </script>
     <!--HOME-FAST-PATH:END-->
+    <!--EARLY-CLICKS:BEGIN — the first screen's cards are real markup
+         (HOME-PRERENDER) and read "Click to run" from the first paint, while
+         home-app.js (192 KB, deferred) is still downloading. A click in that
+         window had no listener to answer it and gave no feedback, so it simply
+         vanished — the single clearest cause of "the page ignores my clicks".
+         This records the intent and says "Starting…" on the spot; the loader
+         replays it in drainEarlyClicks(). Capture phase, and it cancels
+         nothing: real controls keep their own behaviour. -->
+    <script>
+    (() => {
+        const queue = window.__mpEarlyClicks = [];
+        const onClick = (e) => {
+            const t = e.target;
+            if (!t || typeof t.closest !== 'function') return;
+            // A real control (⛶ standalone, 🔲/📋 add to toolbox, a link) keeps
+            // its own behaviour: before the app exists the link is the honest
+            // answer, and this handler must not pretend otherwise.
+            if (t.closest('a, button, input, select, textarea, label')) return;
+            const card = t.closest('.card[data-name]');
+            if (!card || card.classList.contains('loaded')) return;
+            const name = card.dataset.name;
+            if (!name || queue.indexOf(name) !== -1) return;
+            queue.push(name);
+            card.classList.add('card-loading');
+            const hint = card.querySelector('.card-face-hint');
+            if (hint) hint.textContent = 'Starting…';
+        };
+        document.addEventListener('click', onClick, true);
+        // The app retires this listener the moment it can answer clicks itself
+        // (drainEarlyClicks()), so the bootstrapping bookkeeping stops there.
+        window.__mpEarlyClicksStop = () => document.removeEventListener('click', onClick, true);
+    })();
+    </script>
+    <!--EARLY-CLICKS:END-->
     <!-- MODERN: Import Map for future ES modules (no 404 if unused) -->
     <script type="importmap">
     {
@@ -110,9 +144,9 @@
          and scripts/check-critical-css.py enforces it). home.css is
          render-blocking on purpose and discovered this early so its fetch
          overlaps the HTML; ?v= tracks APP_VERSION and CACHE_VERSION. -->
-    <link rel="stylesheet" href="home.css?v=14">
-    <link rel="stylesheet" href="home-deferred.css?v=14" media="print" onload="this.media='all';this.onload=null">
-    <noscript><link rel="stylesheet" href="home-deferred.css?v=14"></noscript>
+    <link rel="stylesheet" href="home.css?v=15">
+    <link rel="stylesheet" href="home-deferred.css?v=15" media="print" onload="this.media='all';this.onload=null">
+    <noscript><link rel="stylesheet" href="home-deferred.css?v=15"></noscript>
 
 <!-- gtag at idle: the shim queues every call immediately, the ~28 KB script
      no longer competes with the first cards (see ARCHITECTURE.md). -->
@@ -138,7 +172,7 @@
     }
 })();
 </script>
-    <script src="risk-notices.js?v=14" defer></script>
+    <script src="risk-notices.js?v=15" defer></script>
 </head>
 <body>
     <!-- ===== MINIMALIST STICKY COMMAND BAR ===== -->

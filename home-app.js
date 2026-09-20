@@ -2,7 +2,7 @@
     // requested with ?v=<this>; sw.js's CACHE_VERSION must match, because a page
     // from one deploy must never run against another deploy's CSS or JS
     // (scripts/check-critical-css.py compares all three).
-    const APP_VERSION = 14;
+    const APP_VERSION = 15;
 
     // ===== CONFIGURATION =====
     const CONFIG = {
@@ -224,7 +224,6 @@
         // the first screen needs. Fetched at idle (or by the first click that
         // wants one of them) instead of compiling before the first tools.
         scheduleFeatureBundle();
-        assignVTNames();
         postTask(() => updateSpeculationRules());
         // Observe popover close to sync active states
         document.querySelectorAll('[popover]').forEach(pop => {
@@ -370,16 +369,47 @@
     // while the bundle is still downloading.
     const FEATURE_COALESCE = new Set(['renderDirectoryList', 'updateGridLayout', 'setViewMode']);
 
-    function loadFeatures() {
-        if (mpHome.loaded) return;
+    // Three attempts, not one. `loaded` used to be set for good on the first
+    // call, so a bundle that 404'd, was blocked or dropped off a flaky
+    // connection left `failed` true and `loaded` true for the rest of the
+    // visit: every panel, the toolbox, the maximise modal, ratings and the
+    // directory view silently ignored clicks for hours, which is exactly what
+    // "the page does not answer some of my clicks" looks like from outside.
+    const FEATURE_MAX_ATTEMPTS = 3;
+    let featureAttempts = 0;
+    let featureFailNotified = false;
+
+    function bundleExhausted() {
+        return mpHome.failed === true && featureAttempts >= FEATURE_MAX_ATTEMPTS;
+    }
+
+    // `urgent` is the difference between the page deciding to fetch the bundle
+    // at idle (it must not compete with the fragments the visitor is waiting
+    // for) and the visitor asking for a feature with a click (the bundle is now
+    // the thing they are waiting for, and a low-priority download behind a
+    // queue of card fetches is how a click comes to feel ignored).
+    function loadFeatures(urgent) {
+        if (mpHome.loaded && !mpHome.failed) return;   // in flight, or landed
+        if (featureAttempts >= FEATURE_MAX_ATTEMPTS) return;
+        featureAttempts++;
         mpHome.loaded = true;
+        mpHome.failed = false;
         const script = document.createElement('script');
-        script.src = `home-features.js?v=${APP_VERSION}`;
+        // A retry must not be answered from the entry that just failed, so
+        // attempts after the first carry their own revision.
+        script.src = `home-features.js?v=${APP_VERSION}${featureAttempts > 1 ? '-r' + featureAttempts : ''}`;
         script.async = true;
-        // Low priority: this is never urgent, and on a slow connection it must
-        // not compete with the card fragments the visitor is waiting for.
-        script.fetchPriority = 'low';
-        script.onerror = () => { mpHome.failed = true; };
+        script.fetchPriority = urgent ? 'high' : 'low';
+        script.onerror = () => {
+            mpHome.failed = true;
+            // Clear the flag so the next click that needs a feature can try
+            // again; the attempt counter is what stops that becoming a loop.
+            mpHome.loaded = false;
+            if (bundleExhausted() && !featureFailNotified) {
+                featureFailNotified = true;
+                showNotification('Some controls could not load — reload the page to retry.', 'error');
+            }
+        };
         document.head.appendChild(script);
     }
 
@@ -387,9 +417,11 @@
     // once the browser is idle (with a deadline, so a busy page still gets it).
     function scheduleFeatureBundle() {
         if ('requestIdleCallback' in window) {
-            requestIdleCallback(loadFeatures, { timeout: 2500 });
+            // Wrapped, not passed straight through: requestIdleCallback hands
+            // its callback a deadline object, which would arrive as `urgent`.
+            requestIdleCallback(() => loadFeatures(false), { timeout: 2500 });
         } else {
-            setTimeout(loadFeatures, 1500);
+            setTimeout(() => loadFeatures(false), 1500);
         }
     }
 
@@ -399,19 +431,29 @@
             fn.apply(null, args);
             return;
         }
+        // Every attempt has failed. Say so once, instead of letting the click
+        // disappear: a control that answers with nothing is worse than one
+        // that admits it is broken.
+        if (bundleExhausted()) {
+            if (!featureFailNotified) {
+                featureFailNotified = true;
+                showNotification('That control needs a script that failed to load — reload the page to retry.', 'error');
+            }
+            return;
+        }
         // The visitor reached a feature before the bundle landed (or it failed):
         // fetch it now and remember the call, replayed in order on arrival.
         if (FEATURE_COALESCE.has(name)) {
             for (const entry of mpHome.queued) {
                 if (entry[0] === name) {
                     entry[1] = args;
-                    loadFeatures();
+                    loadFeatures(true);
                     return;
                 }
             }
         }
         mpHome.queued.push([name, args]);
-        loadFeatures();
+        loadFeatures(true);
     }
 
     // ===== DELEGATES INTO home-features.js =====
@@ -447,6 +489,11 @@
     function renderDirectoryList(names) { callFeature('renderDirectoryList', arguments); }
     function handleDirectoryGridClick(event) { callFeature('handleDirectoryGridClick', arguments); }
     function openStandaloneModal(cardName) { callFeature('openStandaloneModal', arguments); }
+    // Can ⛶ still produce a modal? Used by handleCardClick() to decide whether
+    // it is allowed to cancel the anchor's navigation (see there).
+    function modalCanOpen() {
+        return !!mpHome.features.openStandaloneModal || !bundleExhausted();
+    }
     function rateCard(cardName, action) { callFeature('rateCard', arguments); }
     function copyEmbedCode(cardName) { callFeature('copyEmbedCode', arguments); }
     function addCardToToolbox(name, contentHTML, mode, slug) {
@@ -2092,6 +2139,9 @@
             try {
                 if (attempt > 1) invalidateFastPathCatalogue();
                 await buildCatalogue(attempt === 1);
+                // The grid is built: any click the bootstrap recorded for a
+                // card that did not exist yet can be answered now.
+                drainEarlyClicks();
                 return;
             } catch (error) {
                 lastError = error;
@@ -2432,6 +2482,8 @@
             
             // Update rating display
             updateCardRatingDisplay(card, cardName);
+            // A 🔲/📋 click on the face, waiting for this render to finish.
+            flushPendingToolboxAdd(card, cardName);
             
             // The row stops being a tile here, and if that row is entirely above
             // the fold it takes the reader's position with it — the same
@@ -2520,6 +2572,43 @@
         });
     }
     
+    // ===== ADD-TO-TOOLBOX FROM A CARD THAT HAS NOT RUN YET =====
+    // The toolbox stores a snapshot of the live tool, so 🔲/📋 on a pending
+    // card cannot add it there and then — the content does not exist yet. The
+    // click runs the tool and remembers the request; renderCardContent()
+    // completes it (and showCardError() abandons it), so a click always ends
+    // in one of two visible outcomes instead of in silence.
+    const pendingToolboxAdds = new Map();
+
+    function requestToolboxAdd(card, cardName, mode) {
+        if (!card) return;
+        const displayName = card.dataset.displayName || cardName;
+        if (loadedCards.has(cardName) || card.dataset.parked === '1') {
+            // Already live (or parked, which cardSnapshotHTML() wakes first):
+            // snapshot now, no round trip.
+            const snapshot = cardSnapshotHTML(card, cardName);
+            if (snapshot) addCardToToolbox(displayName, snapshot, mode, cardName);
+            return;
+        }
+        pendingToolboxAdds.set(cardName, { mode, displayName });
+        loadCard(card, cardName);
+    }
+
+    // Called from renderCardContent() once a tool is really on the grid.
+    function flushPendingToolboxAdd(card, cardName) {
+        const req = pendingToolboxAdds.get(cardName);
+        if (!req) return;
+        pendingToolboxAdds.delete(cardName);
+        const snapshot = cardSnapshotHTML(card, cardName);
+        if (snapshot) addCardToToolbox(req.displayName, snapshot, req.mode, cardName);
+    }
+
+    // A card that failed is never going to produce a snapshot: drop the
+    // request rather than leave it waiting for a render that cannot happen.
+    function dropPendingToolboxAdd(cardName) {
+        pendingToolboxAdds.delete(cardName);
+    }
+
     // What the toolbox saves for a card. A parked tool has to be woken first:
     // its content is alive but sitting in the park, so snapshotting the sandbox
     // as it stands would save an empty tile and call it the tool. (Saving is
@@ -2610,25 +2699,20 @@
         const addGridBtn = cardElement.querySelector('.card-action-btn.add-grid');
         const addListBtn = cardElement.querySelector('.card-action-btn.add-list');
         
+        // One path for both: the per-card listener (a card that has already
+        // run) and the delegated handler in handleCardClick() (a card that has
+        // not) call the same function, so 🔲 behaves the same either way.
         if (addGridBtn) {
             addGridBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const displayName = cardElement.dataset.displayName;
-                const snapshot = cardSnapshotHTML(cardElement, cardName);
-                if (snapshot) {
-                    addCardToToolbox(displayName, snapshot, 'grid', cardName);
-                }
+                requestToolboxAdd(cardElement, cardName, 'grid');
             });
         }
         
         if (addListBtn) {
             addListBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const displayName = cardElement.dataset.displayName;
-                const snapshot = cardSnapshotHTML(cardElement, cardName);
-                if (snapshot) {
-                    addCardToToolbox(displayName, snapshot, 'list', cardName);
-                }
+                requestToolboxAdd(cardElement, cardName, 'list');
             });
         }
     }
@@ -2643,6 +2727,7 @@
         card.dataset.errorReason = reason;
         // Built with DOM APIs: displayName comes from cards.json and
         // error.message from the network — neither may touch innerHTML.
+        dropPendingToolboxAdd(cardName);
         const displayName = card.dataset.displayName || cardName;
         const wrap = document.createElement('div');
         wrap.className = 'card-sandbox-error';
@@ -3059,6 +3144,9 @@
 
         // Event delegation for card interactions
         document.addEventListener('click', handleCardClick);
+        // From here on, clicks are answered by the app itself; anything the
+        // inline bootstrap recorded before that is handed to the loader now.
+        drainEarlyClicks();
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -3130,24 +3218,75 @@
         });
     }
     
+    // ===== CLICKS THAT LANDED BEFORE THIS FILE EXISTED =====
+    // The first twelve cards are real markup (HOME-PRERENDER) and read
+    // "Click to run" from the first paint — while this 192 KB deferred script
+    // is still downloading. Every click in that window used to vanish: no
+    // listener was attached yet, and the card gave no answer at all, which is
+    // the clearest way to make a page feel broken. The inline bootstrap in
+    // index.html records those clicks and writes "Starting…" on the spot; this
+    // replays them once the loader is live. loadCard() deduplicates, so a
+    // click that the delegate also saw is still mounted exactly once.
+    function drainEarlyClicks() {
+        const queued = window.__mpEarlyClicks;
+        if (!Array.isArray(queued) || queued.length === 0) return;
+        window.__mpEarlyClicks = [];
+        // From here the delegate owns clicks, so the bootstrap retires.
+        if (typeof window.__mpEarlyClicksStop === 'function') {
+            try { window.__mpEarlyClicksStop(); } catch (err) { /* already gone */ }
+        }
+        queued.forEach((name) => {
+            if (typeof name !== 'string' || !name) return;
+            const card = cardElsByName.get(name) ||
+                Array.from(document.querySelectorAll('.card[data-name]'))
+                    .find((el) => el.dataset.name === name);
+            if (card && !loadedCards.has(name)) loadCard(card, name);
+        });
+    }
+
     function handleCardClick(event) {
         const target = event.target;
 
         // Standalone / Maximise button — always handled first, opens modal
         const maximizeBtn = target.closest('.card-maximize-btn, .card-expand');
         if (maximizeBtn) {
-            event.preventDefault();
-            event.stopPropagation();
             const card = maximizeBtn.closest('.card');
             const cardName = card?.dataset.name || maximizeBtn.dataset.card;
             if (cardName) {
-                openStandaloneModal(cardName);
+                // Only take the click away from the link when the modal can
+                // actually answer it. Hijacking it unconditionally meant that
+                // if home-features.js had failed, ⛶ was a link with its
+                // default action cancelled and nothing put in its place: the
+                // visitor clicked and the page ignored them. When the modal is
+                // unavailable, the anchor does what an anchor does.
+                if (modalCanOpen()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openStandaloneModal(cardName);
+                }
             }
             return;
         }
 
-        // Controls that should NOT trigger a load: rating, embed, toolbox, retry
-        if (target.closest('.card-action-btn, .rating-btn, .embed-btn, .card-error-retry, .grid-mode-card-btn, .list-mode-item-btn, .dir-view-card-btn')) {
+        // 🔲 / 📋 — add to toolbox. These were wired per card only after a tool
+        // had rendered (updateCardRatingDisplay()), and this handler skipped
+        // `.card-action-btn` outright, so on every one of the ~1,180 cards that
+        // is still a face the two buttons in the header did nothing at all.
+        // They now run the tool first and add it the moment it is live.
+        const addBtn = target.closest('.card-action-btn.add-grid, .card-action-btn.add-list');
+        if (addBtn) {
+            const card = addBtn.closest('.card');
+            const cardName = card && card.dataset.name;
+            if (cardName) {
+                event.preventDefault();
+                event.stopPropagation();
+                requestToolboxAdd(card, cardName, addBtn.classList.contains('add-grid') ? 'grid' : 'list');
+            }
+            return;
+        }
+
+        // Controls that should NOT trigger a load: rating, embed, retry
+        if (target.closest('.rating-btn, .embed-btn, .card-error-retry, .grid-mode-card-btn, .list-mode-item-btn, .dir-view-card-btn')) {
             return;
         }
 
@@ -3397,17 +3536,12 @@
         updateFn();
     }
 
-    // Assign view-transition-name to cards dynamically for shared transitions
-    function assignVTNames() {
-        document.querySelectorAll('.card').forEach(card => {
-            const name = card.dataset.name;
-            if (name) {
-                // Sanitize for CSS ident: replace invalid chars
-                const safe = 'card-' + name.replace(/[^a-z0-9_-]/gi, '-');
-                card.style.setProperty('--vt-name', safe);
-            }
-        });
-    }
+    // (Per-card view-transition names used to be assigned here. 1,195 named
+    // elements are 1,195 elements the spec takes out of hit-testing for the
+    // length of every transition — every card on the page stopped answering
+    // clicks while a filter or a view switch animated. There is no
+    // shared-element card transition to justify it: the only named morphs are
+    // the dashboard/directory swap and the standalone modal, both in home.css.)
 
     // Modern: Update speculation rules based on visible cards (eagerness)
     // Rewriting the <script type="speculationrules"> element re-evaluates the
@@ -3728,7 +3862,6 @@
                 document.__vtRunning = true;
                 document.startViewTransition(() => {
                     applyFiltersCore();
-                    assignVTNames();
                     document.__vtRunning = false;
                 });
                 // Update speculation rules after VT (debounced: see above)
@@ -3739,7 +3872,7 @@
             }
         }
         applyFiltersCore();
-        postTask(() => { assignVTNames(); scheduleSpeculationRulesUpdate(); });
+        postTask(() => { scheduleSpeculationRulesUpdate(); });
     }
     
     // ===== SITE STATS (footer + hero counters) =====
