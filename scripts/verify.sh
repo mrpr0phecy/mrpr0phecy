@@ -103,7 +103,7 @@
 #                               can parse cleanly and still die on its first
 #                               statement (a renamed element id, a variable
 #                               declared in the wrong function, a container
-#                               overwritten and then queried). Forty-three cards
+#                               overwritten and then queried). Forty-six cards
 #                               shipped in that state — they painted their face
 #                               on the home page and did nothing when clicked
 #                               (the full list is in check-card-runtime.py).
@@ -628,7 +628,7 @@ section_23() {
   # Section 8 proves a card's JavaScript parses. This proves it runs: a block
   # can be perfectly valid and still throw the instant the home page injects
   # it, which is the "tool is on the page but does nothing when I click it"
-  # failure mode. Forty-three cards shipped that way. The sweep injects each
+  # failure mode. Forty-six cards shipped that way. The sweep injects each
   # card through the real renderCardContent() path, including home-app.js's own
   # transformCardScript() rewrite. Cards that do network work get a longer
   # settle, because a card can throw only after its request times out.
