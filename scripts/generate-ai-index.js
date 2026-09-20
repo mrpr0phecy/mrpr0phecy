@@ -21,6 +21,23 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const SITE = 'https://www.themostusefulsiteintheworld.com';
 const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
+// The deep tool pages are a curated, hand-written list with their own paths;
+// llms.txt must name the URLs that actually exist (one of them,
+// tools/compound-interest.html, does not match its card slug).
+const TOOL_PAGES_JSON = path.join(ROOT, 'scripts', 'tool-pages.json');
+
+function deepToolPages() {
+  try {
+    const tp = JSON.parse(fs.readFileSync(TOOL_PAGES_JSON, 'utf8'));
+    const pages = (tp && Array.isArray(tp.pages) ? tp.pages : [])
+      .filter(p => p && p.path && p.slug)
+      .map(p => ({ slug: p.slug, url: p.path }));
+    pages.sort((a, b) => a.slug.localeCompare(b.slug));
+    return pages;
+  } catch {
+    return [];
+  }
+}
 
 // Canonical category order + emoji, mirroring the pill bar in index.html.
 // Unknown categories (new ones not yet on the pill bar) are appended A–Z.
@@ -124,6 +141,10 @@ function main() {
   );
 
   // ---------- 1. llms.txt ----------
+  const deepPages = deepToolPages();
+  const deepPagesLines = deepPages.length
+    ? deepPages.map(p => `  ${SITE}/${p.url} (card slug: ${p.slug})`).join('\n')
+    : `  (none declared in scripts/tool-pages.json)`;
   const llms = `# The Most Useful Site in the World
 
 > ${total} free, self-contained browser tools — calculators, converters,
@@ -148,8 +169,9 @@ function main() {
   your own documents, memory that adapts to your ratings, real local tools, lessons, and an optional
   on-device model): ${SITE}/ai.html
 - Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
-- Deep tool pages (SEO-grade, 300+ words, methodology, worked example, disclaimer) for the most-searched tools:
-  ${SITE}/tools/<slug>.html (e.g. mortgage, bmi, compoundinterest)
+- Deep tool pages (SEO-grade, 300+ words, methodology, worked example, disclaimer) for the most-searched
+  tools — an explicit list, because the path is not always \`tools/<card-slug>.html\`:
+${deepPagesLines}
 - Search the catalogue: ${SITE}/index.html?q=<query>
 - Open the homepage with one tool already expanded inline:
   ${SITE}/index.html?expand=<tool-slug>
