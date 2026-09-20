@@ -3,7 +3,7 @@
 
 check-card-js.py proves each <script> block *parses*. This proves it *runs*.
 
-Thirty-seven cards shipped with JavaScript that compiled cleanly and still failed
+Forty-three cards shipped with JavaScript that compiled cleanly and still failed
 at runtime, so the tool painted its face on the home page and then did nothing
 when you clicked it:
 
@@ -80,11 +80,30 @@ when you clicked it:
                             finally block — so every path threw, ~1.4s in,
                             after its own API timeouts had elapsed
 
+  dead controls (found by clicking every button, not by loading the page)
+    plant-encyclopedia      Save called peSavePlant(); the function is
+                            peSaveCurrentPlant()
+    summary-generator       four mode buttons called a bare selectMode(), but
+                            it is a method on the SummaryGenerator class, so
+                            every mode button was dead
+    math-universe-explorer  loadConcepts() was never written, and there are
+                            five portals but only three .reality panels, so
+                            opening Discovery or Quantum cleared the active
+                            class and then threw, leaving every realm blank
+    history                 Show Relationships called htGenerateRelationships(),
+                            which was never written
+    graphing-calculator     only plotExplicit() existed: Implicit, Parametric
+                            and Polar modes, the Derivative, Integral and Roots
+                            analyses and four toolbar buttons all threw
+    number-theory           the sequences and properties operations dispatched
+                            to functions that were never written, as did the
+                            whole advanced cryptography panel
+
 None of those are syntax errors. A compile check passes every one.
 
-Thirty-seven is the count of distinct cards on this branch, not a tally kept
+Forty-three is the count of distinct cards on this branch, not a tally kept
 by hand — recount with `git diff --name-only <base>..HEAD -- cards/ | wc -l`
-before editing this list. It has drifted twice already.
+before editing this list. It has drifted four times now.
 
 The last three are why the sweep has two settle windows: a card that fails
 synchronously is caught in 70ms, but one that fails after awaiting a request
