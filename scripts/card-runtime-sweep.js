@@ -12,7 +12,7 @@
 // their face, "load", and then do nothing at all — the exact symptom of a tool
 // that appears on the home page and dies when you click it.
 //
-// Eighteen cards shipped in that state (see check-card-runtime.py for the
+// Twenty-six cards shipped in that state (see check-card-runtime.py for the
 // list). This is the guard.
 //
 // It runs the shipped home-app.js transformCardScript() over each block, so a
@@ -129,9 +129,36 @@ function instrument(window, errors) {
 }
 
 // ---- one card, one window ---------------------------------------------------
+/*
+ * Some cards fail inside an async function whose rejection escapes jsdom's
+ * script sandbox and lands on the Node process instead of a window 'error'
+ * event.  Uncaught, that kills the sweep mid-run and the card is never
+ * reported at all — which reads as "clean".  Capture it and attribute it to
+ * whichever card is in flight.  sl-events.html failed exactly this way.
+ */
+let inFlight = null;
+const processLevel = new Map();
+function noteProcessLevel(kind, e) {
+  const who = inFlight || '(unknown)';
+  if (!processLevel.has(who)) processLevel.set(who, kind + ': ' + ((e && e.message) || String(e)));
+}
+process.on('uncaughtException', (e) => noteProcessLevel('uncaughtException', e));
+process.on('unhandledRejection', (e) => noteProcessLevel('unhandledRejection', e));
+
+/*
+ * A card that does network work can fail long after it looks healthy: its
+ * request times out, the catch/finally runs, and only then does it touch a
+ * DOM node.  sl-events.html failed ~1.4s in, well past the normal settle, so
+ * the sweep scored it clean.  Give those cards a longer window.  Only ten of
+ * the 1,195 cards match, so this costs seconds rather than the half hour a
+ * blanket long settle would cost.
+ */
+const ASYNC_NET = /fetch\s*\(|XMLHttpRequest|AbortController/;
+
 function runCard(file) {
   const name = file.replace(/\.html$/, '');
   const html = fs.readFileSync(path.join(CARDS, file), 'utf8');
+  const deep = ASYNC_NET.test(html);
 
   const vc = new VirtualConsole();
   const vcErrors = [];
@@ -199,7 +226,7 @@ function runCard(file) {
   } catch (e) {
     syncErr = e;
   }
-  return { dom, cardSandbox, errors, vcErrors, syncErr, scriptCount };
+  return { dom, cardSandbox, errors, vcErrors, syncErr, scriptCount, deep };
 }
 
 // ---- driver -----------------------------------------------------------------
@@ -207,14 +234,18 @@ const args = process.argv.slice(2);
 const all = fs.readdirSync(CARDS).filter((f) => f.endsWith('.html')).sort();
 const target = args.length ? all.filter((c) => args.some((a) => c.includes(a))) : all;
 const SETTLE_MS = parseInt(process.env.SWEEP_SETTLE_MS || '70', 10);
+// Settle for cards that fetch: long enough for their own request timeouts to
+// fire, so a failure on the catch path is still attributed to the card.
+const DEEP_SETTLE_MS = parseInt(process.env.SWEEP_DEEP_SETTLE_MS || '1600', 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   const results = [];
   for (const file of target) {
-    let r = null;
-    try { r = runCard(file); } catch (e) { r = null; }
     const name = file.replace(/\.html$/, '');
+    let r = null;
+    inFlight = name;
+    try { r = runCard(file); } catch (e) { r = null; }
     if (!r) {
       results.push({ name, scripts: 0, errors: ['harness: could not inject the card'], domNodes: 0 });
       continue;
@@ -222,11 +253,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     // The loader rewrites `document.addEventListener('DOMContentLoaded', h)`
     // into a setTimeout, so give that tick its turn — a card that initialises
     // there is exactly the card that fails after it looks fine.
-    await sleep(SETTLE_MS);
+    await sleep(r.deep ? DEEP_SETTLE_MS : SETTLE_MS);
+    const escaped = processLevel.get(name);
+    if (escaped) processLevel.delete(name);
+    inFlight = null;
     const messages = [
       ...(r.syncErr ? [String((r.syncErr && r.syncErr.message) || r.syncErr)] : []),
       ...r.errors,
       ...r.vcErrors,
+      ...(escaped ? [escaped] : []),
     ].filter(Boolean);
     results.push({
       name,

@@ -3,7 +3,7 @@
 
 check-card-js.py proves each <script> block *parses*. This proves it *runs*.
 
-Eighteen cards shipped with JavaScript that compiled cleanly and still failed
+Twenty-six cards shipped with JavaScript that compiled cleanly and still failed
 at runtime, so the tool painted its face on the home page and then did nothing
 when you clicked it:
 
@@ -33,10 +33,32 @@ when you clicked it:
     sleep, steps, soil-ph-guide, seed-germination-calculator
                             called showNotification(), defined nowhere
 
-  latent
-    xmas-santa-tracker      appended a <style> to the Document itself
+  dead on the first interaction (added in the second pass)
+    subscription            wrote to #sub-status, but status is picked with
+                            .status-option buttons — there is no such select
+    christmas-card-maker, ohms-law, onerepmax, social-preview
+                            each revealed an affiliate block whose element is
+                            absent from the markup, throwing away the rest of
+                            the handler the user had just triggered
+
+  dead part-way through
+    oscilloscope            read #osc-affiliate, absent from the markup, on
+                            every animation frame via oscDrawWaveform() — the
+                            rAF loop died on frame eight and the trace froze
+    lighting-design         read #light-lux, an input never present in the
+                            markup; both the room-type preset and Calculate
+                            threw, so the tool returned no results at all
+    sl-events               rebuilt #sl-events-status, the parent of the
+                            #last-update span it wrote to next, inside a
+                            finally block — so every path threw, ~1.4s in,
+                            after its own API timeouts had elapsed
 
 None of those are syntax errors. A compile check passes every one.
+
+The last three are why the sweep has two settle windows: a card that fails
+synchronously is caught in 70ms, but one that fails after awaiting a request
+needs its timeouts to elapse first. Cards that touch fetch/XHR/AbortController
+get a longer window (only ten of the 1,195 do).
 
 Usage:
     python3 scripts/check-card-runtime.py           # only cards changed vs HEAD
