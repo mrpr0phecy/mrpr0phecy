@@ -154,9 +154,26 @@ document.querySelectorAll('.portal').forEach(portal => {
     const dimension = this.dataset.dimension;
     MathUniverse.currentDimension = dimension;
     
-    // Show correct reality
+    // Show correct reality. There are five portals but only three panels:
+    // 'discovery' and 'quantum' have no .reality in this card's markup, so the
+    // unguarded querySelector returned null and the click threw -- leaving
+    // every realm blank, because the active class had already been cleared.
+    const previousRealm = document.querySelector('.reality.active');
+    const previousDimension = previousRealm
+      ? Array.from(previousRealm.classList).find(c => c !== 'reality' && c !== 'active')
+      : null;
     document.querySelectorAll('.reality').forEach(r => r.classList.remove('active'));
-    document.querySelector(`.reality.${dimension}`).classList.add('active');
+    const realm = document.querySelector(`.reality.${dimension}`);
+    if (!realm) {
+      if (previousRealm) previousRealm.classList.add('active');
+      document.querySelectorAll('.portal').forEach(p => p.classList.remove('active'));
+      const prevPortal = previousDimension
+        ? document.querySelector(`.portal[data-dimension="${previousDimension}"]`)
+        : null;
+      if (prevPortal) prevPortal.classList.add('active');
+      return;
+    }
+    realm.classList.add('active');
     
     // Special effects per dimension
     switch(dimension) {
@@ -164,7 +181,11 @@ document.querySelectorAll('.portal').forEach(portal => {
         initVisualization();
         break;
       case 'conceptual':
-        loadConcepts();
+        // The concept cards are static markup already wired to
+        // exploreConcept(), so there is nothing to load. loadConcepts() was
+        // never written, and calling it threw every time the Concept Realm
+        // was opened -- after the realm had already been shown.
+        if (typeof loadConcepts === 'function') loadConcepts();
         break;
       case 'quantum':
         quantumMode();

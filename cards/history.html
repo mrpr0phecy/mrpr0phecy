@@ -1242,6 +1242,95 @@ function htGenerateSummary() {
   document.body.appendChild(modal);
 }
 
+function htGenerateRelationships() {
+  if (htEvents.length === 0) {
+    htShowMessage('No events to relate', 'error');
+    return;
+  }
+
+  const yearText = (y) => y < 0 ? `${Math.abs(y)} BCE` : `${y} CE`;
+  const sorted = [...htEvents].sort((a, b) => a.year - b.year);
+
+  // Group on the fields the card already stores. A group only counts as a
+  // relationship when two or more events share it.
+  const groupBy = (key) => {
+    const map = {};
+    htEvents.forEach((ev) => {
+      const k = ev[key];
+      if (!k) return;
+      (map[k] = map[k] || []).push(ev);
+    });
+    return Object.entries(map)
+      .filter(([, list]) => list.length >= 2)
+      .sort((a, b) => b[1].length - a[1].length);
+  };
+
+  const byCategory = groupBy('category');
+  const byRegion = groupBy('region');
+
+  // Events that sit close together in time. The window scales with the span of
+  // the timeline so a century-long and a millennia-long set both say something.
+  const span = sorted.length > 1 ? Math.abs(sorted[sorted.length - 1].year - sorted[0].year) : 0;
+  const window_ = Math.max(5, Math.round(span / 10));
+  const nearPairs = [];
+  for (let i = 1; i < sorted.length; i++) {
+    if (Math.abs(sorted[i].year - sorted[i - 1].year) <= window_) nearPairs.push([sorted[i - 1], sorted[i]]);
+  }
+
+  const section = (title, blurb, rows) => {
+    let html = `<div style="margin-bottom:24px;">
+      <div style="font-size:14px;color:var(--accent);margin-bottom:4px;">${title}</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${blurb}</div>`;
+    if (!rows.length) {
+      html += `<div style="font-size:13px;color:var(--muted);padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;">Nothing shares this yet — add more events.</div>`;
+    }
+    rows.forEach((row) => { html += row; });
+    return html + `</div>`;
+  };
+
+  let body = '';
+
+  body += section('Shared theme', 'Events in the same category.', byCategory.map(([cat, list]) => `
+    <div style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:4px solid ${htGetCategoryColor(cat)};">
+      <div style="font-weight:600;color:white;margin-bottom:6px;">${htGetCategoryIcon(cat)} ${htGetCategoryName(cat)} <span style="color:var(--muted);font-weight:400;">· ${list.length} events</span></div>
+      ${[...list].sort((a, b) => a.year - b.year).map((ev) => `<div style="font-size:12px;color:var(--muted);">${yearText(ev.year)} — ${ev.event}</div>`).join('')}
+    </div>`));
+
+  body += section('Shared place', 'Events recorded in the same region.', byRegion.map(([region, list]) => `
+    <div style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:4px solid rgba(45,212,255,0.5);">
+      <div style="font-weight:600;color:white;margin-bottom:6px;">${htGetRegionName(region)} <span style="color:var(--muted);font-weight:400;">· ${list.length} events</span></div>
+      ${[...list].sort((a, b) => a.year - b.year).map((ev) => `<div style="font-size:12px;color:var(--muted);">${yearText(ev.year)} — ${ev.event}</div>`).join('')}
+    </div>`));
+
+  body += section('Close in time', `Events within ${window_} year${window_ === 1 ? '' : 's'} of each other — the pairs most likely to be cause and effect.`,
+    nearPairs.slice(0, 12).map(([a, b]) => `
+    <div style="margin-bottom:10px;padding:10px 12px;background:rgba(255,255,255,0.02);border-radius:8px;">
+      <div style="font-size:12px;color:white;">${yearText(a.year)} — ${a.event}</div>
+      <div style="font-size:12px;color:var(--accent);padding:2px 0 2px 10px;">↳ ${Math.abs(b.year - a.year)} year${Math.abs(b.year - a.year) === 1 ? '' : 's'} later</div>
+      <div style="font-size:12px;color:white;padding-left:10px;">${yearText(b.year)} — ${b.event}</div>
+    </div>`));
+
+  const html = `
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+      <div style="background:var(--panel);border-radius:12px;padding:24px;max-width:640px;width:90%;max-height:80vh;overflow-y:auto;border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div style="font-weight:600;color:var(--accent);font-size:18px;">🔗 Relationship Map</div>
+          <button onclick="document.querySelector('.ht-relationship-modal').remove()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:20px;">×</button>
+        </div>
+        <div style="margin-bottom:20px;color:var(--muted);">Connections across your ${htEvents.length} events, grouped by what they share.</div>
+        ${body}
+        <div style="margin-top:20px;text-align:right;">
+          <button onclick="document.querySelector('.ht-relationship-modal').remove()" style="padding:8px 16px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;">Close</button>
+        </div>
+      </div>
+    </div>`;
+
+  const modal = document.createElement('div');
+  modal.className = 'ht-relationship-modal';
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+
 function htExportSummary() {
   if (htEvents.length === 0) {
     htShowMessage('No events to export', 'error');
