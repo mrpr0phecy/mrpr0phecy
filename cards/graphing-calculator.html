@@ -653,6 +653,293 @@ function plotExplicit(expr, samples) {
   return { points, type: 'explicit' };
 }
 
+// ---------------------------------------------------------------------------
+// Plot modes and analyses that gcPlot() dispatched but that were never written.
+//
+// The mode selector offers Explicit / Implicit / Parametric / Polar and the
+// panel offers Derivative / Integral / Roots, but only plotExplicit() existed.
+// Choosing any of the other three modes, or ticking any of the three analyses,
+// threw a ReferenceError and left the canvas showing only the grid. The four
+// toolbar buttons had the same problem. gc.colors already carried derivative
+// and integral entries, so the intent was always there.
+//
+// Everything below uses the card's own helpers: makeEvaluator, linspace,
+// worldToScreen, gc.ctx and gc.bounds.
+// ---------------------------------------------------------------------------
+
+function plotDerivative(expr) {
+  const f = makeEvaluator(expr, ['x']);
+  if (!f) { updateOutput('Cannot differentiate: the expression is not valid.', 'warning'); return null; }
+
+  const [xmin, xmax] = gc.bounds;
+  const samples = 400;
+  const h = (xmax - xmin) / samples / 4;
+  const points = [];
+
+  gc.ctx.save();
+  gc.ctx.beginPath();
+  gc.ctx.setLineDash([6, 4]);
+  let started = false;
+
+  for (const x of linspace(xmin, xmax, samples)) {
+    let y;
+    try {
+      y = (f(x + h) - f(x - h)) / (2 * h);   // central difference
+      if (!isFinite(y)) throw new Error('non-finite');
+    } catch (e) { started = false; continue; }
+    const [sx, sy] = worldToScreen(x, y);
+    if (started) gc.ctx.lineTo(sx, sy); else { gc.ctx.moveTo(sx, sy); started = true; }
+    points.push([x, y]);
+  }
+
+  gc.ctx.strokeStyle = gc.colors.derivative;
+  gc.ctx.lineWidth = 1.5;
+  gc.ctx.stroke();
+  gc.ctx.restore();
+
+  updateOutput(`Derivative plotted as a dashed ${gc.colors.derivative} line (central difference, ${points.length} samples).`, 'success');
+  return { points, type: 'derivative' };
+}
+
+function plotIntegral(expr, a, b) {
+  const f = makeEvaluator(expr, ['x']);
+  if (!f) { updateOutput('Cannot integrate: the expression is not valid.', 'warning'); return null; }
+  if (a > b) { const t = a; a = b; b = t; }
+
+  // Composite Simpson's rule; needs an even number of intervals.
+  const n = 1000;
+  const h = (b - a) / n;
+  let sum = 0;
+  for (let i = 0; i <= n; i++) {
+    const y = f(a + i * h);
+    if (!isFinite(y)) { updateOutput('Cannot integrate: the function is not finite across this range.', 'warning'); return null; }
+    sum += (i === 0 || i === n) ? y : (i % 2 === 0 ? 2 * y : 4 * y);
+  }
+  const area = (h / 3) * sum;
+
+  // Shade between the curve and the x-axis across [a, b].
+  const points = [];
+  gc.ctx.save();
+  gc.ctx.beginPath();
+  const [sx0, sy0] = worldToScreen(a, 0);
+  gc.ctx.moveTo(sx0, sy0);
+  for (const x of linspace(a, b, 200)) {
+    let y;
+    try { y = f(x); if (!isFinite(y)) y = 0; } catch (e) { y = 0; }
+    const [sx, sy] = worldToScreen(x, y);
+    gc.ctx.lineTo(sx, sy);
+    points.push([x, y]);
+  }
+  const [sx1, sy1] = worldToScreen(b, 0);
+  gc.ctx.lineTo(sx1, sy1);
+  gc.ctx.closePath();
+  gc.ctx.fillStyle = gc.colors.integral + '33';
+  gc.ctx.fill();
+  gc.ctx.strokeStyle = gc.colors.integral;
+  gc.ctx.lineWidth = 1;
+  gc.ctx.stroke();
+  gc.ctx.restore();
+
+  updateOutput(`Integral from ${a} to ${b} = ${area.toFixed(6)} (Simpson's rule, ${n} intervals).`, 'success');
+  return { points, type: 'integral', value: area };
+}
+
+function plotPolar(expr, samples) {
+  const f = makeEvaluator(expr, ['theta']);
+  const fAlt = f || makeEvaluator(expr.replace(/theta/g, 't'), ['t']);
+  if (!fAlt) { updateOutput('Polar mode needs r(theta), for example 1 + cos(theta).', 'warning'); return null; }
+
+  const points = [];
+  gc.ctx.save();
+  gc.ctx.beginPath();
+  let started = false;
+
+  for (const theta of linspace(0, 2 * Math.PI, samples || 720)) {
+    let r;
+    try {
+      r = fAlt(theta);
+      if (!isFinite(r)) throw new Error('non-finite');
+    } catch (e) { started = false; continue; }
+    const [sx, sy] = worldToScreen(r * Math.cos(theta), r * Math.sin(theta));
+    if (started) gc.ctx.lineTo(sx, sy); else { gc.ctx.moveTo(sx, sy); started = true; }
+    points.push([r * Math.cos(theta), r * Math.sin(theta)]);
+  }
+
+  gc.ctx.strokeStyle = gc.colors.graph;
+  gc.ctx.lineWidth = 2;
+  gc.ctx.stroke();
+  gc.ctx.restore();
+
+  updateOutput(`Polar curve r(theta) plotted over 0 to 2pi (${points.length} points).`, 'success');
+  return { points, type: 'polar' };
+}
+
+function plotParametric(expr, samples) {
+  // Accepted as "x(t), y(t)" or "x(t); y(t)".
+  const parts = String(expr || '').split(/[,;]/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length !== 2) {
+    updateOutput('Parametric mode needs both components, for example cos(t), sin(t).', 'warning');
+    return null;
+  }
+  const fx = makeEvaluator(parts[0], ['t']);
+  const fy = makeEvaluator(parts[1], ['t']);
+  if (!fx || !fy) { updateOutput('Parametric mode could not read one of the two components.', 'warning'); return null; }
+
+  const points = [];
+  gc.ctx.save();
+  gc.ctx.beginPath();
+  let started = false;
+
+  for (const t of linspace(0, 2 * Math.PI, samples || 720)) {
+    let x, y;
+    try {
+      x = fx(t); y = fy(t);
+      if (!isFinite(x) || !isFinite(y)) throw new Error('non-finite');
+    } catch (e) { started = false; continue; }
+    const [sx, sy] = worldToScreen(x, y);
+    if (started) gc.ctx.lineTo(sx, sy); else { gc.ctx.moveTo(sx, sy); started = true; }
+    points.push([x, y]);
+  }
+
+  gc.ctx.strokeStyle = gc.colors.graph;
+  gc.ctx.lineWidth = 2;
+  gc.ctx.stroke();
+  gc.ctx.restore();
+
+  updateOutput(`Parametric curve plotted for t from 0 to 2pi (${points.length} points).`, 'success');
+  return { points, type: 'parametric' };
+}
+
+function plotImplicit(expr, samples) {
+  const f = makeEvaluator(expr, ['x', 'y']);
+  if (!f) { updateOutput('Implicit mode needs F(x,y) = 0, for example x^2 + y^2 - 1.', 'warning'); return null; }
+
+  const [xmin, xmax, ymin, ymax] = gc.bounds;
+  const n = Math.max(40, Math.min(200, samples || 120));
+  const dx = (xmax - xmin) / n;
+  const dy = (ymax - ymin) / n;
+
+  // Marching squares: evaluate the sign on a grid and, wherever a cell's
+  // corners disagree, join the two edge crossings. That traces F(x,y) = 0.
+  const val = (i, j) => {
+    try {
+      const v = f(xmin + i * dx, ymin + j * dy);
+      return isFinite(v) ? v : NaN;
+    } catch (e) { return NaN; }
+  };
+
+  const points = [];
+  gc.ctx.save();
+  gc.ctx.strokeStyle = gc.colors.graph;
+  gc.ctx.lineWidth = 2;
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const v00 = val(i, j), v10 = val(i + 1, j), v01 = val(i, j + 1), v11 = val(i + 1, j + 1);
+      if ([v00, v10, v01, v11].some((v) => isNaN(v))) continue;
+
+      const crossings = [];
+      const lerp = (va, vb, pa, pb) => {
+        const t = va / (va - vb);
+        return [pa[0] + t * (pb[0] - pa[0]), pa[1] + t * (pb[1] - pa[1])];
+      };
+      const c00 = [xmin + i * dx, ymin + j * dy];
+      const c10 = [xmin + (i + 1) * dx, ymin + j * dy];
+      const c01 = [xmin + i * dx, ymin + (j + 1) * dy];
+      const c11 = [xmin + (i + 1) * dx, ymin + (j + 1) * dy];
+
+      if (v00 * v10 < 0) crossings.push(lerp(v00, v10, c00, c10));
+      if (v10 * v11 < 0) crossings.push(lerp(v10, v11, c10, c11));
+      if (v01 * v11 < 0) crossings.push(lerp(v01, v11, c01, c11));
+      if (v00 * v01 < 0) crossings.push(lerp(v00, v01, c00, c01));
+
+      if (crossings.length >= 2) {
+        const [ax, ay] = worldToScreen(crossings[0][0], crossings[0][1]);
+        const [bx, by] = worldToScreen(crossings[1][0], crossings[1][1]);
+        gc.ctx.beginPath();
+        gc.ctx.moveTo(ax, ay);
+        gc.ctx.lineTo(bx, by);
+        gc.ctx.stroke();
+        points.push(crossings[0]);
+      }
+    }
+  }
+
+  gc.ctx.restore();
+  updateOutput(`Implicit curve F(x,y) = 0 traced by marching squares on a ${n} x ${n} grid (${points.length} segments).`, 'success');
+  return { points, type: 'implicit' };
+}
+
+function findRoots(expr) {
+  // gcFindRoot() already does this: it reads the expression and the starting x
+  // from the panel. The dispatch called it by a name that never existed.
+  gcFindRoot();
+  return null;
+}
+
+function gcExportData() {
+  const expr = document.getElementById('gc-expression').value.trim();
+  if (!expr) { updateOutput('Nothing to export — enter an expression first.', 'warning'); return; }
+  const f = makeEvaluator(expr, ['x']);
+  if (!f) { updateOutput('Cannot export: the expression is not valid.', 'warning'); return; }
+
+  const [xmin, xmax] = gc.bounds;
+  const rows = ['x,y'];
+  for (const x of linspace(xmin, xmax, 500)) {
+    let y;
+    try { y = f(x); } catch (e) { y = ''; }
+    rows.push(`${x},${isFinite(y) ? y : ''}`);
+  }
+
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'graph-data.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  updateOutput(`Exported 500 sampled points of ${expr} as CSV.`, 'success');
+}
+
+function gcExportLaTeX() {
+  const expr = document.getElementById('gc-expression').value.trim();
+  if (!expr) { updateOutput('Nothing to export — enter an expression first.', 'warning'); return; }
+
+  // Wrap for LaTeX rather than pretend to parse the expression: a faithful
+  // infix-to-LaTeX translation would need the parser this card does not have.
+  const latex = `\\[ y = ${expr} \\]`;
+  const done = () => updateOutput('LaTeX copied to the clipboard.', 'success');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(latex).then(done).catch(() => updateOutput(`Could not reach the clipboard. LaTeX: ${latex}`, 'warning'));
+  } else {
+    updateOutput(`Clipboard unavailable here. LaTeX: ${latex}`, 'warning');
+  }
+}
+
+function gcShareLink() {
+  const expr = document.getElementById('gc-expression').value.trim();
+  if (!expr) { updateOutput('Nothing to share — enter an expression first.', 'warning'); return; }
+
+  const url = `${window.location.origin}${window.location.pathname}?expr=${encodeURIComponent(expr)}`;
+  const done = () => updateOutput('Share link copied to the clipboard.', 'success');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(() => updateOutput(`Could not reach the clipboard. Link: ${url}`, 'warning'));
+  } else {
+    updateOutput(`Clipboard unavailable here. Link: ${url}`, 'warning');
+  }
+}
+
+function gcAnimateParameter() {
+  // Genuinely unspecified: nothing in the card defines which symbol is the
+  // animatable parameter or over what range, and there is no UI for either.
+  // Say so instead of throwing a ReferenceError at the user.
+  updateOutput('Parameter animation is not implemented — no parameter or range is defined for this graph yet.', 'warning');
+}
+
 // ========== UTILITY FUNCTIONS ==========
 function makeEvaluator(expr, params = ['x']) {
   // Safe expression evaluator
