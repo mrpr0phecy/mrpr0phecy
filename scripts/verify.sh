@@ -2,26 +2,40 @@
 # verify.sh — pre-push guardrails for mrpr0phecy/mrpr0phecy.
 #
 # Usage:
-#   bash scripts/verify.sh           # local checks (sparse-checkout safe)
+#   bash scripts/verify.sh           # scoped: the sections your changes can affect
+#   bash scripts/verify.sh --all     # every section (the pre-push gate)
 #   bash scripts/verify.sh --live    # also curl the production site
 #
 # Environment:
-#   VERIFY_FULL=1   exhaustive mode — section 8 runs the full ~1,200-card JS
-#                   sweep instead of the sampled fast path.
+#   VERIFY_ALL=1    same as --all.
+#   VERIFY_FULL=1   exhaustive mode — implies --all, and section 8 runs the
+#                   full ~1,200-card JS sweep instead of the sampled fast path.
 #   VERIFY_JOBS=N   how many independent sections may run at once (default
 #                   min(nproc, 6); the section that self-heals counts stays
 #                   serial because it writes files other sections read).
 #                   VERIFY_JOBS=1 reproduces the old serial, ordered output.
 #
+# Scoping (2026-09-20). Running every section after every edit was the last
+# big source of friction in the loop: an ai.html change paid for the staff
+# facility, the production monitor and the discovery surfaces, none of which
+# can see ai.html. The default run now maps the changed paths (working tree +
+# this branch vs main) onto the sections that read them, and says out loud
+# which sections it skipped and how to run them. Four cheap global scans
+# (placeholders, rel=noopener, secrets, git state — ~0.3 s together) always run,
+# a deleted or renamed file forces the full suite, and any path the map does
+# not recognise also forces it: an unknown change is never assumed harmless.
+# `--all` is the gate before a push; a scoped pass says so in its verdict line
+# so it can never be mistaken for a full one.
+#
 # The run ends with a timing table (wall, total check time, slowest sections)
 # so "what is making the suite slow" is answered by reading the output.
-# ~13 s on two cores as of 2026-09-20; it was ~34 s serial.
+# A scoped run is typically 1-5 s; --all is ~12 s on two cores (it was ~34 s
+# serial, and ~3 minutes before the sections were parallelised).
 #
 # Checks (each FAIL sets exit code 1):
 #   1. catalogue consistency  — scripts/check-cards.py
 #   2. placeholder IDs        — no VIDEO_ID/PLAYLIST_ID/dQw4w9WgXcQ/YOUR_ in *.html
 #   3. target=_blank links    — must carry rel="noopener ..."
-#   4. sitemap.xml             — parses and is non-empty
 #   5. top-level SEO scan     — scripts/scan-seo.py
 #   6. secret scan            — no obvious GitHub tokens in tracked files
 #   7. git state              — uncommitted changes reported (not failed)
@@ -32,10 +46,15 @@
 #                               scripts/generate-ai-index.js --check so the
 #                               llms.txt / llms-full.txt / tools-index.html
 #                               machine indexes cannot drift from cards.json
-#  10. sitemap freshness      — scripts/build-sitemap.py --check
+#  10. sitemap freshness      — scripts/build-sitemap.py --check (it also proves
+#                               sitemap.xml parses and is non-empty, which is
+#                               all the old section 4 did — one check, not two)
 #  11. card accessibility     — scripts/check-a11y.py
 #  12. site brain              — repo-grounded index and grounding regressions
-#  13. staff facility          — configuration and isolated regression tests
+#  13. staff facility          — configuration and isolated regression tests,
+#                               including the measurement contract
+#                               (scripts/check-scoreboard.py, which the old
+#                               section 19 ran a second time)
 #  14. card name collisions   — scripts/check-card-collisions.py (no cross-card top-level SyntaxError)
 #                               + scripts/check-card-css-leaks.py (no fragment CSS restyles the host grid)
 #  15. home first screen      — scripts/build-home-prerender.py --check, the
@@ -69,9 +88,6 @@
 #                               cards.json with live descriptions and the true
 #                               "All N" count (it is a derived artifact, like
 #                               the sitemap)
-#   19. measurement contract   — staff/scoreboard.json has separate product
-#                               outcomes, named instruments, guardrails and no
-#                               invented baselines
 #   20. production monitor     — scripts/tests/production-monitor.test.js drives
 #                               the real monitor functions against a local
 #                               fixture server (offline: the live probe runs in
@@ -98,19 +114,27 @@
 #                               tools "not come up" from the main page.
 #
 # Speed model (2026-09-19, retimed 2026-09-20):
-#   * The default run is the fast path — every check below is incremental or
-#     fingerprinted, and independent sections run in parallel, so a routine
-#     verify takes ~13s on two cores (~34s serial; it was ~3 minutes):
+#   * Three levers, in the order they were pulled:
+#       1. each check is incremental or fingerprinted (below),
+#       2. independent sections run in parallel (~34s serial -> ~12s),
+#       3. a scoped run skips the sections a change cannot reach (~12s -> 1-5s).
+#     A card edit still touches most of the suite honestly — cards/ feeds the
+#     sitemap, the counts, the indexes, the home page, the embed grid and the
+#     discovery surfaces. An ai.html, staff/, docs/ or homepage-only edit does
+#     not, and no longer pays for the sections that cannot see it.
 #       - check-card-js.py syntax-checks changed cards only (untracked cards
 #         included); the full 1,200-card sweep runs under VERIFY_FULL=1 and is
 #         single-process now anyway (~1s).
 #       - build-site-brain.py --check returns in milliseconds when its input
 #         fingerprint (cards.json, public docs, approved learning, and the
 #         script's own code) matches the stored index; it rebuilds only when
-#         an input actually changed.
-#   * VERIFY_FULL=1 bash scripts/verify.sh  — the exhaustive gate (full card
-#     JS sweep). CI's on-demand full run (workflow_dispatch full=true) should
-#     set this so CI stays strict even though the push-time run is fast.
+#         an input actually changed. The rebuild itself is now byte-stable
+#         across runs (its category keywords used to be drawn from a set, so
+#         PYTHONHASHSEED alone rewrote 4.6 MB of tracked index).
+#   * VERIFY_FULL=1 bash scripts/verify.sh  — the exhaustive gate (every
+#     section plus the full card JS sweep). CI's on-demand full run
+#     (workflow_dispatch full=true) sets it, so CI stays strict even though the
+#     push-time run is a fast pass.
 #   * Section timings are printed at the end, slowest first, so the next
 #     slowdown is obvious instead of a mystery. Both stamps are taken inside the
 #     child process: `wait` returns in launch order, so an end-time stamped in
@@ -126,8 +150,24 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
-LIVE=0; [ "${1:-}" = "--live" ] && LIVE=1
-FULL=0; [ "${VERIFY_FULL:-0}" = "1" ] && FULL=1
+LIVE=0; SCOPE_ALL=0; PLAN_ONLY=0
+for arg in "$@"; do
+  case "$arg" in
+    --live) LIVE=1 ;;
+    --all|-a) SCOPE_ALL=1 ;;
+    --plan) PLAN_ONLY=1 ;;
+    -h|--help)
+      sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *)
+      printf 'verify.sh: unknown option "%s" (use --all, --plan, --live)\n' "$arg" >&2
+      exit 2 ;;
+  esac
+done
+# VERIFY_FULL implies every section: the exhaustive gate must never be scoped.
+FULL=0
+if [ "${VERIFY_FULL:-0}" = "1" ]; then FULL=1; SCOPE_ALL=1; fi
+[ "${VERIFY_ALL:-0}" = "1" ] && SCOPE_ALL=1
 FAILS=0; NOTES=0
 # ---------------------------------------------------------------------------
 # Sections run as functions, not as top-level code, so independent ones can run
@@ -277,20 +317,6 @@ section_3() {
   if [ -n "$BAD" ]; then fail "$(echo "$BAD" | head -5)"; else ok "all covered"; fi
 }
 
-section_4() {
-  # A one-liner, not a here-doc: every section body now lives inside a
-  # function and is indented, and bash only accepts a here-doc terminator at
-  # column 0 (the indented `PY` silently swallowed the rest of the script).
-  # It also parsed the file twice before — once to test, once to count.
-  local entries
-  entries=$(python3 -c "import xml.etree.ElementTree as E; print(len(list(E.parse('sitemap.xml').getroot())))" 2>/dev/null) || entries=""
-  if [ -n "$entries" ] && [ "$entries" -gt 0 ] 2>/dev/null; then
-    ok "parses, entries: $entries"
-  else
-    fail "missing or empty"
-  fi
-}
-
 section_5() {
   if python3 scripts/scan-seo.py; then ok "no missing <title>"; else fail "see warnings above"; fi
 }
@@ -361,7 +387,15 @@ section_9() {
 }
 
 section_10() {
-  if python3 scripts/build-sitemap.py --check; then ok "sitemap matches tracked indexable pages"; else fail "sitemap stale — run: python3 scripts/build-sitemap.py"; fi
+  # Absorbed the old section 4 ("sitemap.xml parses and is non-empty"): --check
+  # parses the file, prints its URL count and compares it with the tracked
+  # indexable page set, so a missing, empty or unparseable sitemap already
+  # fails here. One python process instead of two, one verdict instead of two.
+  if python3 scripts/build-sitemap.py --check; then
+    ok "sitemap.xml parses and matches the tracked indexable page set"
+  else
+    fail "sitemap missing, unparseable or stale — run: python3 scripts/build-sitemap.py"
+  fi
 }
 
 section_11() {
@@ -382,11 +416,19 @@ section_13() {
     if node scripts/ai-developer.js check \
       && node --test scripts/tests/staff-*.test.js \
       && python3 -m unittest discover -s staff/tests -p 'test_*.py' \
-      && python3 scripts/check-growth.py \
-      && python3 scripts/check-scoreboard.py; then
-      ok "staff gates, measurement contract, safe fixes, draft quarantine, reports, coordination and growth surfaces tested"
+      && python3 scripts/check-growth.py; then
+      ok "staff gates, safe fixes, draft quarantine, reports, coordination and growth surfaces tested"
     else
       fail "staff facility regression — inspect the failing test"
+    fi
+    # The measurement contract was section 19, which ran this same script a
+    # second time in every suite. It lives here now — one process, and still
+    # its own verdict, so a breach names staff/scoreboard.json rather than
+    # hiding inside a generic staff failure.
+    if python3 scripts/check-scoreboard.py; then
+      ok "measurement contract: scoreboard names instruments, guardrails and honest unknowns"
+    else
+      fail "measurement contract is incomplete — inspect staff/scoreboard.json"
     fi
   else
     fail "Node 22+ and Python 3 are required to verify the staff facility"
@@ -452,6 +494,14 @@ section_15() {
 }
 
 section_16() {
+  # These stay as separate `node <file>` processes with one verdict each, on
+  # purpose. Section 15 batches its seven suites into a single `node --test`
+  # and that was a win there; measured on 2026-09-20 the same batching *here*
+  # cost 1696 ms against 1551 ms for the six sequential runs, because these are
+  # plain assert scripts rather than node:test suites, so the runner pays a TAP
+  # harness and a child process per file and two cores cannot hide it. It also
+  # collapses six named verdicts into one. Do not "optimise" it without timing
+  # it first.
   if command -v python3 >/dev/null 2>&1; then
     if python3 scripts/check-egress.py; then
       ok "every network-touching card is a classified, reviewed exception"
@@ -531,18 +581,6 @@ section_18() {
   fi
 }
 
-section_19() {
-  if command -v python3 >/dev/null 2>&1; then
-    if python3 scripts/check-scoreboard.py; then
-      ok "scoreboard names instruments, guardrails and honest unknowns"
-    else
-      fail "measurement contract is incomplete — inspect staff/scoreboard.json"
-    fi
-  else
-    note "python3 not available — skipped"
-  fi
-}
-
 section_20() {
   if command -v node >/dev/null 2>&1; then
     # Offline by design: the suite serves a miniature repository from 127.0.0.1
@@ -611,14 +649,40 @@ section_22() {
   fi
 }
 
-ALL_SECTIONS=(1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22)
+section_23() {
+  if command -v node >/dev/null 2>&1; then
+    # The gate's own contract. A scoped run is only honest if the map sends a
+    # change to every section that can see it, never narrows on a path it does
+    # not recognise, and widens on a deletion. A gate that quietly skips the one
+    # check that would have failed is worse than a slow gate, so the map is
+    # tested rather than trusted.
+    if node scripts/tests/verify-scope.test.js; then
+      ok "scope map: changes reach the sections that read them; unknown paths run everything"
+    else
+      fail "verify.sh scope map regression — a change could skip a section that reads it"
+    fi
+  else
+    note "node not available — scope map test skipped"
+  fi
+}
+
+# Section numbers are stable identities, not a sequence: ARCHITECTURE.md,
+# docs/OPERATIONS.md and the comments in this file cite them by number, so a
+# removed section leaves a hole rather than renumbering its neighbours.
+#   4  -> folded into 10 (build-sitemap.py --check parses and counts the sitemap)
+#   19 -> folded into 13 (check-scoreboard.py ran twice per suite)
+ALL_SECTIONS=(1 2 3 5 6 7 8 9 10 11 12 13 14 15 16 17 18 20 21 22 23)
+# Sections that always run, however narrow the scope: the three cheapest global
+# scans (~0.3 s together) and the git-state note. A secret, a placeholder ID or
+# an unsafe target=_blank can be introduced by any file, and no scope map is
+# worth the risk of skipping them.
+ALWAYS_SECTIONS=(2 3 6 7)
 
 section_title() {
   case "$1" in
     1) printf '%s' "catalogue consistency (check-cards.py)" ;;
     2) printf '%s' "placeholder IDs in *.html" ;;
     3) printf '%s' "target=_blank links without rel=noopener" ;;
-    4) printf '%s' "sitemap.xml" ;;
     5) printf '%s' "top-level SEO scan (scan-seo.py)" ;;
     6) printf '%s' "sensitive strings in tracked files" ;;
     7) printf '%s' "git state" ;;
@@ -633,12 +697,237 @@ section_title() {
     16) printf '%s' "input egress and the local QR generator" ;;
     17) printf '%s' "internal links (check-links.py)" ;;
     18) printf '%s' "embed catalogue (build-embed-catalog.py)" ;;
-    19) printf '%s' "measurement contract" ;;
     20) printf '%s' "production monitor and recovery tooling" ;;
     21) printf '%s' "Lantern engine and duty of care (ai.html)" ;;
     22) printf '%s' "static discovery surfaces and the tool link graph" ;;
+    23) printf '%s' "verify.sh scope map (the gate's own contract)" ;;
   esac
 }
+
+# ---------------------------------------------------------------------------
+# Scope: which sections can this change actually reach?
+#
+# The map is deliberately conservative. Skipping has to be *earned* by a path
+# we recognise: anything unmapped runs the whole suite, a deleted or renamed
+# file runs the whole suite, and an empty change set ("is the repo healthy?")
+# runs the whole suite. A scoped run prints what it skipped, so a narrow pass
+# can never masquerade as a full one.
+# ---------------------------------------------------------------------------
+_SCOPE_WANT=" "        # " 5 12 21 " — sections requested by the changed paths
+SELECTED=()            # sections to run, in ALL_SECTIONS order
+SCOPE_SKIP=()          # sections not run, for the summary
+CHANGED=()             # the paths this run is scoped to
+SCOPE_NOTE=""          # why the scope widened to everything ("" when scoped)
+
+scope_want() {
+  local s
+  for s in $1; do
+    case "$_SCOPE_WANT" in *" $s "*) ;; *) _SCOPE_WANT="$_SCOPE_WANT$s " ;; esac
+  done
+}
+scope_want_all() { scope_want "${ALL_SECTIONS[*]}"; }
+
+# Paths no check in this suite reads. Listed explicitly so a docs-only or
+# asset-only change does not fall through to the catch-all and pay for
+# everything — the fall-through is for paths we do not recognise, not for
+# paths we recognise as unchecked.
+scope_inert() {
+  case "$1" in
+    *.pdf|*.docx|*.png|*.jpg|*.jpeg|*.webp|*.gif|*.ico|*.svg|*.mp3|*.wav|*.ogg) return 0 ;;
+    .gitignore|.gitattributes|.nojekyll|LICENSE|CNAME|robots.txt|feed.xml) return 0 ;;
+    manifest*.json|.well-known/*|CV.*|latestcv.docx|guide.txt) return 0 ;;
+    .github/CODEOWNERS|.github/dependabot.yml|.github/ISSUE_TEMPLATE/*) return 0 ;;
+    .github/pull_request_template.md|.github/PULL_REQUEST_TEMPLATE.md) return 0 ;;
+    system/*|substitutions/*|digitaldetoxcardshtml/*|notes/*) return 0 ;;
+    DIAGNOSTIC-*.md|ROADMAP.md|LEGAL.md|FINANCE.md|STAFF.md) return 0 ;;
+    docs/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# sync-counts.py rewrites count claims in these, so a change to one of them can
+# move a published number: section 9 has to see it.
+scope_count_target() {
+  case "$1" in
+    index.html|404.html|tool.html|donate.html|sponsor.html|about.html|ai.html) return 0 ;;
+    case-studies.html|embed.html|guides.html|help.html|legal.html|new.html) return 0 ;;
+    popular.html|press.html|sitemap.html|tools.html|tools-index.html|use-case.html) return 0 ;;
+    guides/*.html|blog/*.html|launch/index.html|tools/*.html) return 0 ;;
+    README.md|AGENTS.md|ARCHITECTURE.md|AGENT_ACCESS.md|INCOME.md|STRATEGY.md|CONTRIBUTING.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sections_for_path() {
+  local p="$1" hit=0
+
+  # The gate itself, the entry points that call it, and the CI that runs it:
+  # a change here can alter what every other section does, so scope nothing.
+  case "$p" in
+    scripts/verify.sh|package.json|.github/workflows/*) scope_want_all; return 0 ;;
+  esac
+
+  # Catalogue. cards/ is the single source of truth: it feeds cards.json, the
+  # counts, the sitemap, the machine indexes, the home page's prerendered first
+  # screen, the embed grid, the discovery surfaces and the site brain.
+  case "$p" in
+    cards/*|generate-cards-json.js|scripts/check-cards.py|scripts/check-a11y.py|scripts/check-card-js.py|scripts/check-card-collisions.py|scripts/check-card-css-leaks.py|scripts/scope-card-css.py|scripts/test-card.js)
+      scope_want "1 8 9 10 11 12 14 15 16 17 18 22"; hit=1 ;;
+  esac
+
+  # Generated artefacts and their generators.
+  case "$p" in
+    scripts/sync-counts.py|scripts/build-tools-index.js|scripts/build-category-pages.js|scripts/generate-ai-index.js|scripts/build-tool-specs.js|scripts/build-tools-page.py|scripts/build-html-sitemap.py|scripts/build-related.py|scripts/check-tool-graph.py|scripts/build-sitemap.py|scripts/build-embed-catalog.py)
+      scope_want "9 10 17 18 22"; hit=1 ;;
+    tools-index.json|tools-index.html|categories/*|api/*|llms.txt|llms-full.txt|related.json|sitemap.xml|tools.html|sitemap.html|embed.html)
+      scope_want "9 10 17 18 22"; hit=1 ;;
+  esac
+
+  # Home page first screen and the loader it ships with.
+  case "$p" in
+    index.html|home-app.js|home-features.js|home.css|home-deferred.css|discovery-app.js|sw.js|scripts/build-home-prerender.py|scripts/check-critical-css.py)
+      scope_want "15 16 17"; hit=1 ;;
+  esac
+
+  # Tool shell, deep pages and the egress/privacy classification.
+  case "$p" in
+    tool.html|tools/*|scripts/tool-pages.json|scripts/build-tool-pages.py|risk-notices.js|scripts/check-egress.py|scripts/check-ymyl.js)
+      scope_want "16 17"; hit=1 ;;
+  esac
+
+  # Site brain: its inputs are cards.json, seven public documents, the approved
+  # learning entries and the generator's own code.
+  case "$p" in
+    scripts/build-site-brain.py|scripts/evaluate-site-brain.py|local-ai-knowledge.json|learning/*)
+      scope_want "12"; hit=1 ;;
+    README.md|CONSTRAINTS.md|ARCHITECTURE.md|STRATEGY.md|INCOME.md|agents.html|ai.html)
+      scope_want "12"; hit=1 ;;
+  esac
+
+  # Staff facility and the AI Developer contract.
+  case "$p" in
+    scripts/ai-developer.js|scripts/ai-staff.json|scripts/ai-audits.json|scripts/ai-config.json|scripts/staff/*|scripts/tests/staff-*.test.js|scripts/check-growth.py|scripts/check-scoreboard.py|staff/*|docs/AI-DEVELOPER-SETUP.md)
+      scope_want "13"; hit=1 ;;
+  esac
+
+  # Production monitor (the live probe itself runs in its own workflow).
+  case "$p" in
+    scripts/check-production.js|scripts/tests/production-monitor.test.js|scripts/rollback.sh)
+      scope_want "20"; hit=1 ;;
+  esac
+
+  # Lantern: the engine ships inside ai.html and is driven by these harnesses.
+  case "$p" in
+    ai.html|scripts/lantern-core.js|scripts/evaluate-lantern.js|scripts/tests/lantern-core.test.js|scripts/tests/fixtures/lantern-*)
+      scope_want "21"; hit=1 ;;
+  esac
+
+  # Any other test file belongs to the sections that run tests.
+  case "$p" in
+    scripts/tests/verify-scope.test.js) scope_want "23"; hit=1 ;;
+    scripts/tests/*) scope_want "15 16"; hit=1 ;;
+  esac
+
+  # Markup: placeholders, unsafe links, titles, the sitemap and the link graph.
+  case "$p" in
+    *.html)
+      scope_want "2 3 10 17"; hit=1
+      case "$p" in */*) ;; *) scope_want "5" ;; esac
+      scope_count_target "$p" && scope_want "9"
+      ;;
+  esac
+
+  # Count claims live in prose too.
+  if scope_count_target "$p"; then scope_want "9"; hit=1; fi
+
+  # Assets and documents nothing reads.
+  if scope_inert "$p"; then return 0; fi
+
+  # Anything else — an unmapped script, a new top-level file, something this
+  # map has never seen — runs everything. Unknown is not harmless.
+  [ "$hit" = "1" ] || scope_want_all
+}
+
+changed_paths() {
+  # Working tree (staged, unstaged and untracked) plus what this branch added
+  # on top of main. `git status --porcelain -uall` puts the path at column 4;
+  # a rename prints "old -> new" and only the new path matters here.
+  {
+    git status --porcelain -uall 2>/dev/null | cut -c4- | sed 's/.* -> //'
+    local base
+    for base in origin/main main; do
+      git rev-parse --verify -q "$base" >/dev/null 2>&1 || continue
+      git diff --name-only "$base"...HEAD 2>/dev/null
+      break
+    done
+  } | sed '/^$/d' | sort -u
+}
+
+# A deletion or a rename can break a link, a sitemap entry or a count anywhere
+# in the repo, and no path map can see where. Those always widen to the suite.
+risky_change_note() {
+  local base n
+  n=$(git status --porcelain -uall 2>/dev/null | grep -cE '^(D|.D|R|.R)' || true)
+  if [ "${n:-0}" -gt 0 ] 2>/dev/null; then
+    printf '%s' "a file is deleted or renamed in the working tree"
+    return
+  fi
+  for base in origin/main main; do
+    git rev-parse --verify -q "$base" >/dev/null 2>&1 || continue
+    n=$(git diff --name-status "$base"...HEAD 2>/dev/null | grep -cE '^(D|R)' || true)
+    [ "${n:-0}" -gt 0 ] 2>/dev/null && printf '%s' "this branch deletes or renames a tracked file"
+    return
+  done
+}
+
+select_sections() {
+  local s raw note
+  if [ "$SCOPE_ALL" = "1" ]; then
+    SELECTED=("${ALL_SECTIONS[@]}")
+    return
+  fi
+  if [ -n "${VERIFY_PATHS:-}" ]; then
+    # Explicit path list — the hook scripts/tests/verify-scope.test.js drives
+    # the map with, and the way to ask "what would this change have run?"
+    # without making it. Git detection and the delete/rename widening are both
+    # bypassed, because the caller is asserting the change set.
+    for s in $VERIFY_PATHS; do CHANGED+=("$s"); sections_for_path "$s"; done
+  else
+    note=$(risky_change_note)
+    raw=$(command -v git >/dev/null 2>&1 && changed_paths || true)
+    if [ -n "$note" ]; then
+      SCOPE_NOTE="$note"
+      scope_want_all
+    elif [ -z "$raw" ]; then
+      SCOPE_NOTE="nothing has changed against main, so there is nothing to scope to"
+      scope_want_all
+    else
+      while IFS= read -r line; do [ -n "$line" ] && CHANGED+=("$line"); done <<EOF
+$raw
+EOF
+      for s in "${CHANGED[@]}"; do sections_for_path "$s"; done
+    fi
+  fi
+  SELECTED=(); SCOPE_SKIP=()
+  for s in "${ALL_SECTIONS[@]}"; do
+    case "$_SCOPE_WANT" in *" $s "*) SELECTED+=("$s"); continue ;; esac
+    case " ${ALWAYS_SECTIONS[*]} " in *" $s "*) SELECTED+=("$s"); continue ;; esac
+    SCOPE_SKIP+=("$s")
+  done
+}
+
+select_sections
+
+if [ "$PLAN_ONLY" = "1" ]; then
+  # The scope, and nothing else: no check runs, so this is safe to call in a
+  # loop, from a test, or to find out why a run was wider than expected.
+  printf 'scope: %s\n' "$( [ "$SCOPE_ALL" = "1" ] && echo "all (--all/VERIFY_FULL)" || echo "${#SELECTED[@]} of ${#ALL_SECTIONS[@]} sections" )"
+  [ -n "$SCOPE_NOTE" ] && printf 'widened: %s\n' "$SCOPE_NOTE"
+  [ "${#CHANGED[@]}" -gt 0 ] && printf 'paths: %s\n' "${CHANGED[*]}"
+  printf 'run: %s\n' "${SELECTED[*]}"
+  [ "${#SCOPE_SKIP[@]}" -gt 0 ] && printf 'skip: %s\n' "${SCOPE_SKIP[*]}"
+  exit 0
+fi
 
 # Print finished background sections in the order they were started. With
 # wait_any=1, block until the oldest one has finished (that is what bounds the
@@ -676,11 +965,44 @@ RUN_START=$(now_ms)
 # 1234 -> "1.234"
 fmt_s() { printf '%s.%03d' "$(( $1 / 1000 ))" "$(( $1 % 1000 ))"; }
 
-printf '\n\033[1m== running %d checks (%s parallel, %s serial)\033[0m\n' \
-  "${#ALL_SECTIONS[@]}" "$( [ "$JOBS" -gt 1 ] && echo "up to $JOBS" || echo "none" )" \
+# Coverage, not intent, is what the verdict is allowed to claim: a scoped run
+# that widened (a deletion, an unmapped path, the gate itself) covered every
+# section and is as good a pre-push gate as --all, so it says so.
+FULL_COVERAGE=0
+if [ "$SCOPE_ALL" = "1" ] || [ "${#SELECTED[@]}" -eq "${#ALL_SECTIONS[@]}" ]; then
+  FULL_COVERAGE=1
+fi
+run_label() {
+  if [ "$SCOPE_ALL" = "1" ]; then printf 'full suite'
+  elif [ "$FULL_COVERAGE" = "1" ]; then printf 'full suite, widened from scope'
+  else printf 'scoped run'; fi
+}
+
+printf '\n\033[1m== %s — %d check%s (%s parallel, %s serial)\033[0m\n' \
+  "$(run_label)" \
+  "${#SELECTED[@]}" "$( [ "${#SELECTED[@]}" = "1" ] && echo "" || echo "s" )" \
+  "$( [ "$JOBS" -gt 1 ] && echo "up to $JOBS" || echo "none" )" \
   "$( [ "$JOBS" -gt 1 ] && echo "section $SERIAL_SECTIONS" || echo "none" )"
 
-for key in "${ALL_SECTIONS[@]}"; do
+if [ "$SCOPE_ALL" != "1" ]; then
+  # Say exactly what was looked at and what was not. A scoped pass that hides
+  # its scope is how a green run turns into a broken deploy.
+  if [ "${#CHANGED[@]}" -gt 0 ]; then
+    shown=("${CHANGED[@]}")
+    if [ "${#shown[@]}" -gt 8 ]; then
+      printf '   changed: %s + %d more path(s)\n' "${shown[*]:0:8}" "$(( ${#shown[@]} - 8 ))"
+    else
+      printf '   changed: %s\n' "${shown[*]}"
+    fi
+  fi
+  [ -n "$SCOPE_NOTE" ] && printf '   widened to every section: %s\n' "$SCOPE_NOTE"
+  if [ "${#SCOPE_SKIP[@]}" -gt 0 ]; then
+    printf '   skipped (these paths cannot reach them): %s\n' "${SCOPE_SKIP[*]}"
+    printf '   everything: bash scripts/verify.sh --all\n'
+  fi
+fi
+
+for key in "${SELECTED[@]}"; do
   is_serial=0
   case " $SERIAL_SECTIONS " in *" $key "*) is_serial=1 ;; esac
   if [ "$is_serial" = "1" ] || [ "$JOBS" -le 1 ]; then
@@ -729,9 +1051,22 @@ done | sort -rn | head -6 | while IFS="$(printf '\t')" read -r ms name; do
 done
 
 printf '\n'
+# A scoped pass must not read like a pre-push gate: it names its own scope and
+# points at the full run.
+scope_label() {
+  if [ "$SCOPE_ALL" = "1" ]; then printf 'all %d sections' "${#ALL_SECTIONS[@]}"
+  elif [ "$FULL_COVERAGE" = "1" ]; then printf 'all %d sections, widened from scope' "${#ALL_SECTIONS[@]}"
+  else printf '%d of %d sections' "${#SELECTED[@]}" "${#ALL_SECTIONS[@]}"; fi
+}
 if [ "$FAILS" -gt 0 ]; then
-  printf '\033[31mVERIFY FAILED — %d problem(s). Do not push until fixed.\033[0m\n' "$FAILS"
+  printf '\033[31mVERIFY FAILED (%s) — %d problem(s). Do not push until fixed.\033[0m\n' \
+    "$(scope_label)" "$FAILS"
   exit 1
 fi
-printf '\033[32mVERIFY PASSED\033[0m (%d note(s)). Safe to push.\n' "$NOTES"
+if [ "$FULL_COVERAGE" = "1" ]; then
+  printf '\033[32mVERIFY PASSED\033[0m — %s, %d note(s). Safe to push.\n' "$(scope_label)" "$NOTES"
+else
+  printf '\033[32mVERIFY PASSED\033[0m — scoped to %s, %d note(s).\n' "$(scope_label)" "$NOTES"
+  printf 'Iteration gate only. Before pushing: \033[1mbash scripts/verify.sh --all\033[0m\n'
+fi
 exit 0

@@ -1,11 +1,21 @@
 # AGENTS.md — operating instructions for AI agents
 
 Agent-facing entry point for `mrpr0phecy/mrpr0phecy`. Humans: start with
-[README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md).
-Staff coordination and measured work priorities: [STAFF.md](STAFF.md).
-Need GitHub access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
-Last updated: 2026-09-19. **ARCHITECTURE.md is authoritative if anything here
+[README.md](README.md), then [ARCHITECTURE.md](ARCHITECTURE.md). Staff
+coordination and measured work priorities: [STAFF.md](STAFF.md). Need GitHub
+access in a fresh session? See [AGENT_ACCESS.md](AGENT_ACCESS.md).
+Last updated: 2026-09-20. **ARCHITECTURE.md is authoritative if anything here
 disagrees with it.**
+
+Two files carry the rules, and they do not repeat each other:
+
+- **[CONSTRAINTS.md](CONSTRAINTS.md)** — the seven hard safety lines, the owner
+  decisions and the traps whose reasons are invisible from the code. Not
+  judgement calls, not summarised here, and never relaxed for scope or speed.
+- **This file** — the loop: what to run, in what order, and how to land it.
+
+Section numbers are stable identities (other files cite `§0.5`, `§4`, `§5`), so
+a section that is trimmed keeps its number.
 
 ---
 
@@ -27,31 +37,26 @@ never delete it). Design systems: **A = cyan terminal** (`--accent:#2dd4ff`),
 ## 0.5 Creativity charter — be bold, and show your reasoning
 
 Standing instruction from the owner (2026-09-19). This governs *how much* to
-attempt, not *whether* the hard lines apply: CONSTRAINTS.md's hard safety
-lines outrank it and are never in scope for a bold reinterpretation.
+attempt, not *whether* the hard lines apply: CONSTRAINTS.md outranks it and is
+never in scope for a bold reinterpretation.
 
-**Be bold.** The default failure mode of an agent here is timidity — fixing
-the literal symptom, leaving the obvious adjacent win, asking permission for
-something reversible that is plainly in scope. Don't. If the real problem has
-an ambitious fix that serves the reader better than the cautious one, do that
-version. The owner would rather review a genuine improvement than a timid one.
+**Be bold.** The default failure mode of an agent here is timidity — fixing the
+literal symptom, leaving the obvious adjacent win, asking permission for
+something reversible that is plainly in scope. If the real problem has an
+ambitious fix that serves the reader better than the cautious one, do that
+version.
 
 **Bold is bounded.** Bold does not mean: touching the analytics footprint,
-recording a decision the owner did not make, deleting tools or protected
-files, inventing a number, or claiming a check you did not run. Those are the
-hard lines, not judgement calls.
+recording a decision the owner did not make, deleting tools or protected files,
+inventing a number, or claiming a check you did not run.
 
-**Show your reasoning in the PR.** Bold work is only reviewable if the why is
-written down. Every PR body answers, in plain words:
-
-- the boldest useful version of this change, and why what shipped is (or is
-  not) that version;
-- what you deliberately did **not** do, and the trade-off you accepted;
-- what you verified, how, and — explicitly — what you did **not** verify.
-
-Never inflate. "Not measured" is a valid answer; an invented number is not. A
-bold idea you could not ship is still useful: record it in the PR body or
-`staff/OPEN.md` instead of dropping it.
+**Show your reasoning in the PR.** Every PR body answers, in plain words: the
+boldest useful version of this change and why what shipped is (or is not) that
+version; what you deliberately did **not** do and the trade-off you accepted;
+what you verified, how, and explicitly what you did **not** verify. "Not
+measured" is a valid answer; an invented number is not. A bold idea you could
+not ship is still useful — record it in the PR body or `staff/OPEN.md` instead
+of dropping it.
 
 ## 1. First ten minutes (fresh session)
 
@@ -68,55 +73,42 @@ git sparse-checkout set --no-cone '/*' '!/images/'
 git config user.name  mrpr0phecy
 git config user.email 5564816+mrpr0phecy@users.noreply.github.com
 
-# 3. Read the rules that matter before editing anything:
-#    ARCHITECTURE.md §3 (cards), §6 (SEO), §7 (traps), §9 (do-not-touch).
-#    CI is a fast pass now (owner decision 2026-09-19) — the full verify.sh
-#    suite is manual only; see §6. Do not wait on automatic checks.
+# 3. Read CONSTRAINTS.md (short, and the only place the hard lines live), then
+#    go straight to work. Pull ARCHITECTURE.md §3 (cards), §6 (SEO) or §7
+#    (traps) when the task actually touches one — it is a reference, not a
+#    prerequisite, and reading all 3,000 lines first is how a session runs out
+#    of budget before it edits anything.
 ```
+
+CI does not gate you: automatic runs are a seconds-fast pass (owner decision
+2026-09-19, see §6). Do not wait on them and do not "fix" them back.
 
 ## 2. Workspace budget — hard limit
 
-Keep the agent's workspace **under 100 MB, always**. Practical rules:
+Keep the agent's workspace **under 100 MB, always**.
 
 - Use the sparse clone above. `images/` (~50 MB) must stay off disk.
 - Never `git checkout` the images just to look — verify against the live site
   (`curl -sI https://www.themostusefulsiteintheworld.com/images/...`) instead.
 - No `node_modules/`, no caches, no stray downloads in the workspace.
 - **Never install toolchains/browsers into the workspace.** A single headless
-  browser cache is ~600 MB — it will blow the 100 MB limit. Install into
-  `/tmp` (e.g. `/tmp/pwenv`, `PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers`).
-- Purge before you grow: `bash scripts/workspace-size.sh --purge` (caches +
-  `git gc`). Dropping `.git` blobs you don't need (`git reflog expire
-  --expire=now --all`) is not usually necessary at depth 1.
-- `bash scripts/workspace-size.sh` reports current usage any time.
-- If the workspace exceeds the budget, **stop and shrink it**; report the
-  size in your summary.
+  browser cache is ~600 MB. Install into `/tmp` (e.g. `/tmp/pwenv`,
+  `PLAYWRIGHT_BROWSERS_PATH=/tmp/pw-browsers`).
+- `bash scripts/workspace-size.sh` reports usage; `--purge` shrinks it (caches +
+  `git gc`). If the workspace exceeds the budget, **stop and shrink it**, and
+  report the size in your summary.
 
 ## 3. Never-do list (check before every change)
 
-- **`opensourcenews.html`** — the live news broadcast. Was owner's WIP;
-  upgraded with the 2026-08-30 build (headlines rail, viewers' controls,
-  captions). Touch with care: keep the facade pattern, never add hidden
-  players/autoplay tricks (INCOME.md growth policy), and re-run
-  `bash scripts/verify.sh` before pushing.
-- **`token.html`** — kept deliberately (see INCOME.md). No crypto promotion.
-- **`CNAME`**, `sw.js` (unregistered by design), `guide.txt` (stale),
-  `system/`, `substitutions/`, `digitaldetoxcardshtml/`, CV files — leave alone.
-- **Deleting anything** in ARCHITECTURE.md §9 list → ask the owner first.
-- Do not "fix" the `o`/`0` handle mismatch (YouTube `@MrProphecy`, SoundCloud
-  & Instagram with a zero). Not a typo.
-- No view-bots, hidden players, autoplay tricks, engagement pods — ToS
-  violations (INCOME.md). Legitimate growth only: metadata, speed, internal
-  links, translated pages, honest CTAs.
-- No ads/trackers on Product A pages; no paywalls; no fake urgency.
-- Never invent YouTube IDs — use the verified table in ARCHITECTURE.md §4.
+CONSTRAINTS.md's hard lines apply unchanged. These are the repo-specific ones
+that bite agents:
+
 - **Never print a generated artefact's contents.** `git diff
   local-ai-knowledge.json`, `head cards/cards.json`, `python3 -c
-  'print(json.load(...))'` — all of these dump megabytes on **one line**, and
-  `head`/`tail` bound *lines*, not bytes, so they do not help. On 2026-09-20
-  exactly that froze an agent session mid-command and the run had to be killed.
-  `.gitattributes` marks the minified/generated paths `-diff` so plain `git
-  diff` refuses to render them; use the bounded reader instead:
+  'print(json.load(...))'` all dump megabytes on **one line**, and `head`/`tail`
+  bound *lines*, not bytes. On 2026-09-20 that froze a session mid-command.
+  `.gitattributes` marks those paths `-diff` so plain `git diff` refuses to
+  render them; use the bounded reader:
 
   ```bash
   python3 scripts/safe-inspect.py local-ai-knowledge.json   # size, shape, JSON keys
@@ -124,68 +116,115 @@ Keep the agent's workspace **under 100 MB, always**. Practical rules:
   python3 scripts/safe-inspect.py --head tools-index.json --bytes 400
   ```
 
-  Every mode has a hard ceiling on what it prints (`--max-bytes`, default 4 KB).
-  If you need a number out of one of these files, compute it (`jq -r '.count'`,
-  `wc -c`) and print the number.
+  Need a number out of one of them? Compute it (`jq -r '.count'`, `wc -c`) and
+  print the number.
+- **Never hand-edit a generated artefact or a published count.** `npm run build`
+  rewrites all of them from `cards/` (§4); `scripts/verify.sh` re-derives a
+  drifted count in place rather than failing, and fails on everything else.
+- **`opensourcenews.html`** — the live news broadcast. Touch with care: keep the
+  facade pattern, never add hidden players/autoplay tricks (INCOME.md growth
+  policy), re-run the full verify before pushing.
+- **`token.html`** — kept deliberately (INCOME.md). No crypto promotion.
+- **`CNAME`**, `sw.js` (unregistered by design), `guide.txt` (stale), `system/`,
+  `substitutions/`, `digitaldetoxcardshtml/`, the CV files — leave alone.
+  Deleting anything in ARCHITECTURE.md §9's list needs the owner first.
+- Do not "fix" the `o`/`0` handle mismatch (YouTube `@MrProphecy`, SoundCloud &
+  Instagram with a zero). Not a typo.
+- Never invent YouTube IDs — use the verified table in ARCHITECTURE.md §4.
+- No view-bots, hidden players, autoplay tricks or engagement pods; no
+  ads/trackers on Product A pages; no paywalls; no fake urgency.
 
 ## 4. Common tasks — exact sequences
 
+### The whole loop, start to finish
+
+```bash
+# 1. Edit. Cards are fragments; pages are pages; match the design system.
+
+# 2. Iterate against a gate that only runs what your change can reach.
+bash scripts/verify.sh              # scoped: prints what it ran and what it skipped
+bash scripts/verify.sh --plan       # just the selection, nothing runs
+
+# 3. If you touched cards/ or any generated artefact, re-sync everything
+#    derived from the catalogue in one command (~8 s, idempotent):
+npm run build
+
+# 4. Before the push, the whole gate:
+bash scripts/verify.sh --all
+
+# 5. Commit, push, open the PR, merge it (§7), then check the deploy (§6).
+```
+
 ### Add a tool (Product A)
+
 ```bash
 cp cards/<similar-tool>.html cards/<slug>.html    # fragment, no doctype/html/body
 #  - IDs: global per-tool prefix `xyz-` on EVERY element (all cards share one DOM)
 #  - IIFE-wrapped JS, inline styles + index.html CSS vars only, zero network calls
 #  - forms: onsubmit="event.preventDefault();"
-node generate-cards-json.js     # ⚠ OVERWRITES categories: add the slug to the
-                                #   hardcoded list in the script first
-# Re-sync everything derived from the catalogue. Never hand-edit a count, the
-# sitemap, or index.html's generated first screen — the cards/ folder is the
-# single source of truth and verify.sh re-derives drifted counts in place
-# (self-healing) instead of failing. `python3 scripts/sync-counts.py count`
-# prints the canonical number at any time.
-#
-# tools.html, sitemap.html and related.json used to be hand-maintained and were
-# left behind for months — 532, 1,061 and 533 of 1,195 tools respectively, plus
-# three phantom slugs in related.json. Every one of those is a link a visitor can
-# click, which is why they are generated from cards/ and why
-# scripts/check-tool-graph.py now resolves the full graph (static page ->
-# tool.html -> cards.json -> the card file -> the card's real <title> ->
-# tools-index.json -> the category page -> api/tools.json) as a verify gate.
-python3 scripts/sync-counts.py            # tool counts across docs and pages
-python3 scripts/build-sitemap.py          # sitemap.xml
-python3 scripts/build-home-prerender.py   # index.html HOME-FAST-PATH/PRERENDER
-python3 scripts/build-embed-catalog.py    # embed.html grid + "All N" button
-
-# The three discovery surfaces. They are wired into `npm run build` now, but
-# run them by hand whenever you touch cards/ or the catalogue:
-python3 scripts/build-tools-page.py       # tools.html  (every tool, every category)
-python3 scripts/build-html-sitemap.py     # sitemap.html (the HTML one)
-python3 scripts/build-related.py          # related.json (1195 x 5 neighbours)
-python3 scripts/check-tool-graph.py       # resolves the whole click graph
-
-bash scripts/verify.sh && git add -A && git commit -m "Add ..." && git push
-sleep 50   # Pages deploy latency — then verify live (see §6)
 ```
+
+Then add the slug to the right category list **inside `generate-cards-json.js`**
+(it overwrites `category` from those hardcoded lists, so a slug added afterwards
+silently loses its category), and run `npm run build`. That one command
+regenerates, in dependency order: `cards/cards*.json` → every published tool
+count → `tools-index.json` → `categories/` → `sitemap.xml` → `index.html`'s
+HOME-FAST-PATH/HOME-PRERENDER blocks → `embed.html` → `tools.html` →
+`sitemap.html` → `related.json` → `tools/*.html` → `api/tools*.json` →
+`llms.txt`/`llms-full.txt`/`tools-index.html` → `local-ai-knowledge.json`.
+
+Those surfaces used to be re-synced by hand and drifted to 532, 1,061 and 533
+of 1195 tools — every one of those a link a visitor could click. `npm run
+build:sync` is the same chain without the site brain (5 s of the 8 s); `npm run
+build:brain` is the brain alone.
+
+To run one generator instead of the chain — after editing
+`scripts/tool-pages.json`, say — this is which one owns which file, and which
+verify section fails if it drifts:
+
+| generated artefact | generator | verify § |
+|---|---|---|
+| `cards/cards.json`, `cards/cards-lite.json` | `node generate-cards-json.js` | 1 |
+| every published tool count | `python3 scripts/sync-counts.py` | 9 |
+| `tools-index.json` | `node scripts/build-tools-index.js` | 9 |
+| `categories/*.html` | `node scripts/build-category-pages.js` | 9 |
+| `llms.txt`, `llms-full.txt`, `tools-index.html` | `node scripts/generate-ai-index.js` | 9 |
+| `api/tools.json`, `api/tools/*.json` | `node scripts/build-tool-specs.js` | 9 |
+| `sitemap.xml` | `python3 scripts/build-sitemap.py` | 10 |
+| `local-ai-knowledge.json` (the site brain) | `python3 scripts/build-site-brain.py` | 12 |
+| `index.html` HOME-FAST-PATH / HOME-PRERENDER | `python3 scripts/build-home-prerender.py` | 15 |
+| `tools/*.html` deep pages | `python3 scripts/build-tool-pages.py` | 16 |
+| `embed.html` grid and its "All N" button | `python3 scripts/build-embed-catalog.py` | 18 |
+| `tools.html` (the footer's Index) | `python3 scripts/build-tools-page.py` | 22 |
+| `sitemap.html` | `python3 scripts/build-html-sitemap.py` | 22 |
+| `related.json` | `python3 scripts/build-related.py` | 22 |
+
+`scripts/check-tool-graph.py` (§22) then resolves the whole click graph —
+static page → `tool.html` → `cards.json` → the card file → the card's real
+`<title>` → `tools-index.json` → the category page → `api/tools.json` — so a
+drifted surface is a broken link a visitor can click, not a tidy-up item.
 
 ### Publish a per-tool page (the crawlable surface)
-```bash
-# tools/<slug>.html is a generated page: real URL, unique crawlable content,
-# SoftwareApplication + FAQPage + BreadcrumbList JSON-LD, and the live tool
-# embedded from the same card fragment (never fork the implementation).
-# 1. Add an entry to scripts/tool-pages.json (content only — chrome is code).
-# 2. python3 scripts/build-tool-pages.py      # render tools/*.html
-#    python3 scripts/build-tool-pages.py --check   # what verify.sh runs
-# Numbers in the prose come from a `compute` block via {{placeholders}}, never
-# typed. Adding a page means sitemap.xml changes too (§4's re-sync list).
-# Keep the list small and evidence-led — staff/OPEN.md P1-R2.
-```
+
+`tools/<slug>.html` is generated: real URL, unique crawlable content,
+`SoftwareApplication` + `FAQPage` + `BreadcrumbList` JSON-LD, and the live tool
+embedded from the same card fragment (never fork the implementation).
+
+1. Add an entry to `scripts/tool-pages.json` (content only — chrome is code).
+   Numbers in the prose come from a `compute` block via `{{placeholders}}`,
+   never typed.
+2. `npm run build` (or `python3 scripts/build-tool-pages.py`).
+   `--check` is what verify §16 runs. Keep the list small and evidence-led —
+   `staff/OPEN.md` P1-R2.
 
 ### Edit a Product B page
+
 Follow `listen.html` (reference implementation). Sitemap/SEO metadata are
 required; music pages carry `MusicGroup` JSON-LD. If you touch the hreflang
 cluster, edit **all 13 pages** or Google treats them as duplicates.
 
 ### "Image is broken"
+
 Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 `curl -sI` against the live site before "fixing" anything.
 
@@ -201,58 +240,51 @@ Sparse clone 404s are expected — `images/` isn't on disk. Confirm with
 
 ## 6. Verify and deploy
 
-**Owner decision, 2026-09-19: CI is a fast pass.** The automatic per-push and
-per-PR `verify.sh` runs (then 21 sections, ~3 minutes each, re-run on every
-push)
-were measurably slowing agent sessions, so the "Repo checks" job now completes
-in seconds and never blocks. Do not wait on it — and do not "fix" it back
-(see CONSTRAINTS.md); the slowdown was the bug, not the setup.
+**The gate is scoped by default** (2026-09-20). `bash scripts/verify.sh` maps
+your changed paths onto the sections that can read them and says out loud which
+sections it skipped, so an edit to `ai.html` no longer pays for the staff
+facility, the production monitor and the discovery surfaces:
 
-Verification still exists; it just no longer sits in your iteration loop:
+| change | sections | measured |
+|---|---|---|
+| a doc or asset nothing reads | 4 | 0.3 s |
+| `staff/`, `scripts/ai-developer.js` | 5 | 3.6 s |
+| `ai.html` (Lantern) | 10 | 4.4 s |
+| a card in `cards/` | 16 | 10.2 s |
+| `--all` (everything) | 21 | ~13 s |
 
-- **Locally, when a change is risky:** `npm run verify` (`bash
-  scripts/verify.sh`) — 22 sections, **~13 s** on two cores (~34 s before
-  2026-09-20), ending with a per-section timing table, slowest first. Independent
-  sections run in parallel (`min(nproc, 6)` workers); `VERIFY_JOBS=N` pins the
-  width and `npm run verify:serial` (`VERIFY_JOBS=1`) gives ordered output when
-  you are reading it line by line. `npm run verify:full` (`VERIFY_FULL=1`) is the
-  exhaustive gate — it swaps the sampled card-JS check for the full ~1,200-card
-  sweep. Or run only the relevant `--check` when you touched a generated
-  artefact:
+Skipping has to be earned: four cheap global scans (placeholders,
+`rel=noopener`, secrets, git state) always run; a deleted or renamed file, an
+unrecognised path, a change to `verify.sh`/`package.json`/a workflow, or a
+clean tree all widen the run to every section. `bash scripts/verify.sh --plan`
+prints the selection without running anything, and
+`scripts/tests/verify-scope.test.js` (verify §23) pins the map, because a gate
+that quietly skips the one check that would have failed is worse than a slow
+gate.
 
-  ```bash
-  python3 scripts/sync-counts.py --check      node scripts/build-tool-specs.js --check
-  node generate-cards-json.js --check         python3 scripts/build-tools-page.py --check
-  python3 scripts/build-sitemap.py --check    python3 scripts/build-html-sitemap.py --check
-  python3 scripts/build-tool-pages.py --check python3 scripts/build-related.py --check
-  python3 scripts/build-site-brain.py --check python3 scripts/check-tool-graph.py
-  ```
-
-  `scripts/test-card.js --all` is batched the same way — one shared jsdom DOM
-  per ~40 cards, as index.html runs them.
-
-  If the suite ever feels slow again, read its own timing table before
-  profiling: the slowest six sections are named with millisecond timings, and
-  two of the worst offenders were sleeps in tests that waited in real time
-  (`lite-tier.test.js` suite 7 stalled the bootstrap for the shipped 5 s
-  fast-path timeout; `production-monitor.test.js` deliberately timed out a slow
-  origin). Both now inject a scaled-down copy of the shipped constant and assert
-  the shipped value separately — same coverage, 4.8 s and 5.0 s saved. The
-  timing clock is stamped *inside* each child process; stamping the end time
-  after `wait` charges every section that shares a slot with a slow neighbour.
+- **Before pushing:** `bash scripts/verify.sh --all`. A scoped pass prints
+  `scoped to N of 21 sections` and is an iteration gate, not a pre-push gate.
+- `npm run verify:full` (`VERIFY_FULL=1`) adds the exhaustive ~1,200-card JS
+  sweep; `npm run verify:serial` (`VERIFY_JOBS=1`) gives ordered output when you
+  are reading it line by line. Section timings are printed slowest-first, so
+  the next slowdown is named rather than mysterious.
 - **In CI, on demand:** Actions → *Agent guardrails* → *Run workflow* with
-  `full: true` (or `gh workflow run "Agent guardrails" -f full=true`) — the
-  full run sets `VERIFY_FULL=1`, so CI stays exhaustive even though the
-  push-time run is the fast path.
-- **Automatically, off your critical path:** the scheduled staff facility
-  (`.github/workflows/ai-developer.yml`, Mon & Thu) runs all staff checks and
-  opens a draft PR when counts drift, and the production monitor
-  (`.github/workflows/production-monitor.yml`) probes the live site after
-  every merge and every six hours, opening one `ops:production-alert` issue
-  on failure. Recovery is a revert or a deployment re-run — never an edit to
-  live state.
+  `full: true` (or `gh workflow run "Agent guardrails" -f full=true`), which
+  sets `VERIFY_FULL=1`.
+- **Automatic CI is a fast pass** (owner decision 2026-09-19): push and PR runs
+  of `agent-guardrails.yml` complete in seconds and never block. Do not wait on
+  them and do not restore heavyweight automatic runs without a fresh owner
+  instruction.
+- **Off your critical path:** the scheduled staff facility
+  (`.github/workflows/ai-developer.yml`, Mon & Thu 06:00 UTC) runs all staff
+  checks and can open a draft PR when counts drift; the production monitor
+  probes the deployed site after merges and every six hours, opening one
+  `ops:production-alert` issue on failure. Recovery is a revert or a deployment
+  re-run — never an edit to live state.
 
-Suspect a deploy problem specifically? The manual probe is still valid:
+Deploy check, 30–60 s after a merge (see [docs/OPERATIONS.md](docs/OPERATIONS.md)
+before touching a production problem — it is short, and it is the difference
+between a five-minute recovery and an hour of guessing):
 
 ```bash
 node scripts/check-production.js   # the LIVE site vs this repository
@@ -261,19 +293,13 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
 
-Read **[docs/OPERATIONS.md](docs/OPERATIONS.md)** before touching a production
-problem; it is short, and it is the difference between a five-minute recovery
-and an hour of guessing.
-
 ## 7. Finishing a session — land it on main
 
-**A pushed branch is not finished work.** Sessions here run on a per-session
-branch (`arena/…`) and cannot push to `main` directly; `main` only moves
-through a *merged* PR. That gap is how work goes missing: an agent does the
-work, opens a PR, the session ends, nobody merges it. Ten branches' worth sat
-like that until PR #27 drained them on 2026-09-07.
-
-So finishing the job includes merging it:
+**A pushed branch is not finished work.** Sessions run on a per-session branch
+(`arena/…`) and cannot push to `main` directly; `main` only moves through a
+*merged* PR. That gap is how work goes missing: an agent does the work, opens a
+PR, the session ends, nobody merges it. Ten branches' worth sat like that until
+PR #27 drained them on 2026-09-07.
 
 ```bash
 gh pr create --fill --base main          # once the work is ready
@@ -282,82 +308,64 @@ gh pr merge <n> --merge                  # land it — do not stop at "PR opened
 git ls-remote origin refs/heads/main     # confirm main actually moved
 ```
 
-Deleting the branch afterwards is **optional** — a merged branch is harmless,
-and if this is your *own* session branch do not delete it while the session may
-still continue (the harness tracks work by that branch name). Only delete
-stranded `arena/…` branches from *finished* sessions, and only after their
-content is confirmed merged into `main`.
-
-Rules:
-
 - **Never end a session with an open PR you could have merged.** If checks are
   still running, use `gh pr merge --auto` and say so in your summary.
-- If you genuinely cannot merge (no permission, a check you cannot fix), say so
+- If you genuinely cannot merge (no permission, a check you cannot fix, or the
+  change is one the owner should read before it lands on `main`), say so
   **explicitly**: PR number, link, and the blocker. Do not leave it implied.
 - **Never claim "nothing is lost" or "content landed in X" without verifying
-  it.** Compare trees by blob SHA first — `git ls-tree -r <branch>` against
-  `git ls-tree -r origin/main` — and count what actually differs. Vague
-  reassurance about salvaged work is worse than an honest gap, because the
-  owner has to be able to trust the status report.
-- If you deliberately skip part of a branch (PR #27 took `01a07c1d`'s `cards/`
-  but not its parallel `tools/` + `categories/` architecture), name the
-  excluded paths in the PR body so the next agent does not have to re-derive it.
+  it.** Compare trees by blob SHA (`git ls-tree -r <branch>` against
+  `git ls-tree -r origin/main`) and count what actually differs.
+- If you deliberately skip part of a branch, name the excluded paths in the PR
+  body so the next agent does not have to re-derive it.
+- Deleting the branch afterwards is **optional** — never delete your own session
+  branch while the session may continue (the harness tracks work by that name).
 - Dependabot PRs count too. Merge them when checks are green, or say why not.
 
 ## 8. If unsure
 
-Read ARCHITECTURE.md (authoritative). Money questions → INCOME.md. Owner:
-**mrpr0phecy** — ask before deleting, restructuring, or anything touching
-opensourcenews.html, monetisation or YouTube channel behaviour.
+Read ARCHITECTURE.md (authoritative) for the section you are actually in. Money
+questions → INCOME.md. Owner: **mrpr0phecy** — ask before deleting,
+restructuring, or anything touching opensourcenews.html, monetisation or
+YouTube channel behaviour.
 
 ## 9. Site Staff / AI Developer facility
 
-Start with **[STAFF.md](STAFF.md)** and **[staff/README.md](staff/README.md)**.
-Research and the rationale are in `staff/RESEARCH.md`; owner rulings remain
-in `staff/DECISIONS.md`. This is the one staff area, not a second product.
+Start with **[STAFF.md](STAFF.md)** and **[staff/README.md](staff/README.md)**;
+research and rationale in `staff/RESEARCH.md`, owner rulings in
+`staff/DECISIONS.md`. This is the one staff area, not a second product.
 
 ```bash
 node scripts/ai-developer.js staff   # mission, profiles, scopes and review limits
 node scripts/ai-developer.js check   # validate config and workflow contracts
 node scripts/ai-developer.js plan    # read-only checks + owned priorities
-python3 staff/scan.py --mine         # cached refs + staged/unstaged/untracked paths
-# Use --fetch explicitly when a current remote snapshot is needed.
+python3 staff/scan.py --mine         # cached branch and working-tree overlaps
 ```
 
-The ten entries in `scripts/ai-staff.json` are **responsibility profiles,
-not independently running agents**. They cover delivery, catalogue/discovery,
-reliability, privacy, visual design/accessibility, SEO/content,
-research/measurement, music, financial correctness and growth.
-`scripts/ai-audits.json` owns executable check definitions;
-`scripts/ai-config.json` owns validated limits. No duplicate prose roster.
-The measurement profile maintains `staff/scoreboard.json` and the operating
-plan; it may record `not-measured` but may not invent a baseline. The Visual
-Design Expert still protects ARCHITECTURE.md §5's two design languages; static
-checks never substitute for browser geometry/contrast tests.
+The ten entries in `scripts/ai-staff.json` are **responsibility profiles, not
+independently running agents**; `scripts/ai-audits.json` owns the executable
+check definitions and `scripts/ai-config.json` the validated limits. There is
+no duplicate prose roster. The measurement profile maintains
+`staff/scoreboard.json` and may record `not-measured` but may not invent a
+baseline.
 
-Operational runs write `ai-developer/reports/latest.html` (offline dashboard),
-`latest.json` (structured evidence) and `latest.md` (handoff). Reports/drafts
-are gitignored and uploaded by Actions even when checks fail. **Do not claim
-the facility is healthy because ordinary verify.sh passes**: inherited finance
-and loader-test failures are deliberately surfaced as separate staff blockers.
+Operational runs write `ai-developer/reports/latest.{html,json,md}` (gitignored,
+uploaded by Actions even when checks fail). **Do not claim the facility is
+healthy because an ordinary verify passes**: inherited finance and loader-test
+failures are deliberately surfaced as separate staff blockers.
 
-The permanent `.github/workflows/ai-developer.yml` still runs **Mon & Thu
-06:00 UTC**, plus manual dispatch. Modes: `audit | plan | auto | fix | generate`.
+Modes are `audit | plan | auto | fix | generate`. `audit`/`plan` are read-only.
+`auto`/`fix` run all staff checks and then only eligible canonical numeric
+count fixes, with clean-tree and source-hash protection, rollback on a failed
+post-fix check, and concurrent human edits preserved. **`auto` never calls an
+AI provider**, even when a key exists; only an explicit `generate` with a
+useful brief, `AI_API_KEY`, `AI_MODEL` and passing gates can request drafts (at
+most three, no silent retries). Drafts land in `.html.txt` quarantine — never
+executed, auto-promoted or auto-merged.
 
-- `audit`/`plan` are read-only. `--focus` narrows a report, never a mutation gate.
-- `auto`/`fix` run all staff checks, then only eligible canonical numeric count
-  fixes. Clean-tree/index + source-hash checks protect existing work. Failed
-  post-fix checks roll back; concurrent human edits are preserved for recovery.
-- **`auto` never calls an AI provider**, even when a key exists. Only explicit
-  `generate`, with a useful brief, `AI_API_KEY`, `AI_MODEL`, and passing gates,
-  can request drafts. At most three requests; no silent retries/free-tier claims.
-- Drafts are **`.html.txt` quarantine**, never executed, auto-promoted or
-  auto-merged. A successful run can propose only verified count maintenance
-  through a single human-reviewed draft PR. Owner-only policy stays owner-only.
-
-Claim a scope with `python3 staff/coordinate.py claim ...`, then release/block
-with a summary, validation evidence and explicit next steps. Claims expire,
-are branch-scoped and are **not distributed locks or owner approval**. Never
-rewrite another session's board entry. Unknown shallow ancestry is reported
-as tree-only evidence, not a safe-to-push guarantee. See
-[the setup guide](docs/AI-DEVELOPER-SETUP.md) for commands, gates and recovery.
+Claim a scope with `python3 staff/coordinate.py claim ...`, then release or
+block it with a summary, validation evidence and explicit next steps. Claims
+expire, are branch-scoped, and are **not distributed locks or owner approval**.
+Never rewrite another session's board entry. See
+[docs/AI-DEVELOPER-SETUP.md](docs/AI-DEVELOPER-SETUP.md) for commands, gates
+and recovery.

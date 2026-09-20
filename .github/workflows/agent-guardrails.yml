@@ -7,10 +7,14 @@ name: Agent guardrails
 # before merging). Automatic runs are now a fast pass that completes in
 # seconds and cannot block.
 #
-# 2026-09-20 update: the suite itself is ~2.6x faster (22 sections, ~13 s on
+# 2026-09-20 update: the suite itself is ~2.6x faster (21 sections, ~13 s on
 # two cores, ~34 s serial — the per-section timing table at the end of a run
-# names the slowest ones). The fast pass stays as the owner decided; this note
-# is only so nobody reads "~3 minutes" above as the current cost.
+# names the slowest ones), and the *local* default is now scoped: `bash
+# scripts/verify.sh` runs only the sections the changed paths can reach (0.3 s
+# for a doc, ~4 s for ai.html, ~10 s for a card) and prints what it skipped.
+# `--all` is the pre-push gate and what `full: true` below runs. The fast pass
+# stays exactly as the owner decided; this note is only so nobody reads
+# "~3 minutes" above as the current cost.
 #
 # The full gate is still available, deliberately invoked:
 #   * local:        bash scripts/verify.sh
@@ -61,11 +65,13 @@ jobs:
       - name: Run verify.sh (exhaustive — includes staff configuration and regression tests)
         if: github.event_name == 'workflow_dispatch' && inputs.full
         env:
-          # VERIFY_FULL=1 opts into the exhaustive checks (the full
-          # ~1,200-card JS sweep) so the on-demand CI gate stays strict
-          # even though local/push-time runs use the fast path.
+          # VERIFY_FULL=1 opts into the exhaustive checks (every section, plus
+          # the full ~1,200-card JS sweep instead of the changed-cards sample),
+          # so the on-demand CI gate stays strict even though the push-time run
+          # is a fast pass. It implies --all: the exhaustive gate is never
+          # scoped to a change set.
           VERIFY_FULL: "1"
-        run: bash scripts/verify.sh
+        run: bash scripts/verify.sh --all
       - name: Attach catalogue report
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.full }}
         run: python3 scripts/check-cards.py | tee -a "$GITHUB_STEP_SUMMARY"

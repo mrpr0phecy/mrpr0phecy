@@ -41,6 +41,7 @@ rebuilding. A mismatch triggers a rebuild and a stale report, as before.
 from __future__ import annotations
 
 import argparse
+import bisect
 import hashlib
 import html
 import json
@@ -49,6 +50,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from html.parser import HTMLParser
+from operator import mul as _mul
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -301,21 +303,51 @@ def hash_embedding(tokens: list[str], dim: int = 64) -> list[float]:
     return [round(x / norm, 4) for x in vec]
 
 
-def colbert_late_interaction(q_emb: list[float], d_emb: list[float]) -> float:
-    """Simulate ColBERT late interaction: max sim per query token approximated via embedding chunks."""
-    # Split 64-dim into 8 chunks of 8 dims, max-sim
-    chunk_size = 8
-    q_chunks = [q_emb[i:i+chunk_size] for i in range(0, len(q_emb), chunk_size)]
-    d_chunks = [d_emb[i:i+chunk_size] for i in range(0, len(d_emb), chunk_size)]
+def colbert_chunk_score(q_chunks: list[list[float]], d_chunks: list[list[float]]) -> float:
+    """ColBERT-style late interaction over already-split chunks.
+
+    Split 64-dim into 8 chunks of 8 dims; per query chunk take the max dot
+    product against any document chunk, then average.
+
+    This is the hot path of the whole build: the related graph scores every
+    ordered pair of cards (1195 x 1194 = 1,426,830 calls), so everything here
+    is multiplied by 1.43 M. Two changes, neither of which can move a score:
+
+      * the chunks are passed in, already split. Re-slicing both embeddings on
+        every call was 22.8 M throwaway list allocations.
+      * `sum(map(_mul, qc, dc))` replaces `sum(a*b for a, b in zip(qc, dc))`.
+        `map` multiplies in C instead of in a Python generator frame — 821 M
+        interpreted iterations were ~89% of the build's runtime — and `sum`
+        still adds the eight products in the same left-to-right order, so the
+        float is bit-identical. `max_sim` keeps the first strictly-greater dot
+        exactly as `max()` would, and the eight maxima are added in the same
+        order.
+
+    Verified, not assumed: the rebuilt index was compared leaf by leaf against
+    the pre-change build and the only difference in 4.6 MB was the stored
+    source fingerprint of this file.
+    """
+    if not q_chunks:
+        return 0.0
     total = 0.0
     for qc in q_chunks:
         max_sim = -1.0
         for dc in d_chunks:
-            dot = sum(a*b for a,b in zip(qc, dc))
+            dot = sum(map(_mul, qc, dc))
             if dot > max_sim:
                 max_sim = dot
         total += max_sim
-    return total / len(q_chunks) if q_chunks else 0.0
+    return total / len(q_chunks)
+
+
+def colbert_late_interaction(q_emb: list[float], d_emb: list[float]) -> float:
+    """Simulate ColBERT late interaction: max sim per query token approximated via embedding chunks."""
+    # Split 64-dim into 8 chunks of 8 dims, max-sim
+    chunk_size = 8
+    return colbert_chunk_score(
+        [q_emb[i:i+chunk_size] for i in range(0, len(q_emb), chunk_size)],
+        [d_emb[i:i+chunk_size] for i in range(0, len(d_emb), chunk_size)],
+    )
 
 
 def splade_sparse_score(tokens: list[str], doc_tokens: list[str]) -> float:
@@ -333,8 +365,10 @@ def splade_sparse_score(tokens: list[str], doc_tokens: list[str]) -> float:
 
 
 def cosine_sim(a: list[float], b: list[float]) -> float:
-    dot = sum(x*y for x,y in zip(a,b))
-    return dot
+    # Same product order as the generator it replaces, so the float is
+    # bit-identical; `map` just does the multiplying in C. Called once per
+    # ordered card pair.
+    return sum(map(_mul, a, b))
 
 
 def build_inverted_index(docs_tokens: list[list[str]]):
@@ -457,21 +491,76 @@ def build() -> dict[str, object]:
     
     related_graph = {}
     embeddings = [c["embedding"] for c in card_records]
+    # Everything the pair loop needs about a single card, hoisted out of it. The
+    # loop body ran 1,426,830 times, so a per-card value recomputed there was
+    # recomputed 1,194 times more often than necessary — `intents` worst of
+    # all, building two fresh sets per pair (2.85 M allocations) just to
+    # intersect them.
+    colbert_chunks = [c["colbert_chunks"] for c in card_records]
+    card_categories = [c["category"] for c in card_records]
+    card_intents = [frozenset(c["intents"]) for c in card_records]
+    card_importance = [c["importance"] for c in card_records]
+    card_names = [c["name"] for c in card_records]
+    card_titles = [c["title"] for c in card_records]
+
+    # The ColBERT term has a bound, and the bound is what makes this loop
+    # prunable. For one query chunk, max_b dot(qc, dc) <= |qc| * max_b |dc|
+    # (Cauchy-Schwarz), so the averaged score cannot exceed
+    # (sum_a |qc_a|) * M / 8, where M is the largest chunk norm in the
+    # catalogue. Times the 0.05 weight, that is the most the term can add to
+    # any pair's score. A float bound is only a bound if rounding cannot make
+    # it tight, so it is widened by a hair: a cap that is slightly too generous
+    # costs a few dot products, one that is slightly too small would drop a
+    # real candidate.
+    COLBERT_WEIGHT = 0.05
+    max_chunk_norm = max(
+        (math.sqrt(sum(x * x for x in dc)) for chunks in colbert_chunks for dc in chunks),
+        default=0.0,
+    )
+    colbert_caps = [
+        COLBERT_WEIGHT * sum(math.sqrt(sum(x * x for x in qc)) for qc in chunks) * max_chunk_norm / 8 * (1 + 1e-9) + 1e-12
+        for chunks in colbert_chunks
+    ]
+
     for i, emb_i in enumerate(embeddings):
         sims = []
+        cat_i = card_categories[i]
+        intents_i = card_intents[i]
+        chunks_i = colbert_chunks[i]
+        cap_i = colbert_caps[i]
+        # Negated scores of the best ten so far, ascending: -best[-1] is the
+        # tenth best. A pair whose score cannot reach it — cheap part plus the
+        # ColBERT cap — is skipped without paying for the 64 dot products that
+        # would only confirm what the bound already says. The output is
+        # unchanged, and provably so: a skipped pair scores at or below the
+        # tenth best real score, and the sort below is stable over j ascending,
+        # so even an exact tie would have lost its place to the ten kept
+        # earlier. 0.08 is the floor the output applies anyway, so it is the
+        # threshold until ten candidates exist.
+        best: list[float] = []
         for j, emb_j in enumerate(embeddings):
             if i == j:
                 continue
-            cat_boost = 0.15 if card_records[i]["category"] == card_records[j]["category"] else 0
-            intent_overlap = len(set(card_records[i]["intents"]) & set(card_records[j]["intents"])) * 0.06
-            imp_boost = (card_records[j]["importance"] - 5) * 0.01
+            cat_boost = 0.15 if cat_i == card_categories[j] else 0
+            intent_overlap = len(intents_i & card_intents[j]) * 0.06
+            imp_boost = (card_importance[j] - 5) * 0.01
+            # Term order matters: this is the same left-to-right sum as before,
+            # split so the ColBERT term can be the part that gets skipped.
+            cheap = cosine_sim(emb_i, emb_j) + cat_boost + intent_overlap + imp_boost
+            if cheap + cap_i <= (-best[-1] if len(best) == 10 else 0.08):
+                continue
             # ColBERT late interaction boost
-            colbert_boost = colbert_late_interaction(emb_i, emb_j) * 0.05
-            sim = cosine_sim(emb_i, emb_j) + cat_boost + intent_overlap + imp_boost + colbert_boost
+            colbert_boost = colbert_chunk_score(chunks_i, colbert_chunks[j]) * COLBERT_WEIGHT
+            sim = cheap + colbert_boost
             sims.append((j, sim))
+            if len(best) < 10:
+                bisect.insort(best, -sim)
+            elif sim > -best[-1]:
+                bisect.insort(best, -sim)
+                best.pop()
         sims.sort(key=lambda x: -x[1])
-        top = [{"name": card_records[j]["name"], "title": card_records[j]["title"], "score": round(s, 3)} for j,s in sims[:10] if s > 0.08]
-        related_graph[card_records[i]["name"]] = top
+        top = [{"name": card_names[j], "title": card_titles[j], "score": round(s, 3)} for j,s in sims[:10] if s > 0.08]
+        related_graph[card_names[i]] = top
 
     category_index = {}
     for cat, count in category_counter.items():
@@ -488,7 +577,25 @@ def build() -> dict[str, object]:
             "count": count,
             "embedding": [round(x,4) for x in avg_emb],
             "avg_importance": round(avg_imp,2),
-            "keywords": list(set(sum([tokenize(c["title"]) for c in card_records if c["category"]==cat], [])))[:15],
+            # Ranked, not arbitrary. This used to be `list(set(...))[:15]`, which
+            # made the whole index non-deterministic: set iteration order follows
+            # PYTHONHASHSEED, so two rebuilds of identical inputs wrote different
+            # bytes into a 4.6 MB tracked artefact. `--check` compares a
+            # fingerprint rather than the file, so the drift stayed invisible
+            # until somebody regenerated and got a spurious megabyte diff. The
+            # 15 words were also random draws from the category's titles rather
+            # than the words that characterise it. Frequency first, then
+            # alphabetical, is stable and more useful.
+            "keywords": [
+                word for word, _ in sorted(
+                    Counter(
+                        word
+                        for card in card_records if card["category"] == cat
+                        for word in tokenize(card["title"])
+                    ).items(),
+                    key=lambda kv: (-kv[1], kv[0]),
+                )[:15]
+            ],
         }
     
     intent_index = defaultdict(list)

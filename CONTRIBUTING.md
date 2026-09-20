@@ -91,24 +91,26 @@ you'll catch your own mistakes:
 ## Pre-push checklist (use this every time)
 
 ```bash
-# 1. The verify script
+# 1. While iterating: the gate scopes itself to the sections your changed
+#    paths can reach, and prints what it skipped (0.3 s for a doc, ~4 s for
+#    ai.html, ~10 s for a card). --plan shows the selection without running it.
 bash scripts/verify.sh
 
 # 2. If you added a tool, changed a slug or added/removed a top-level page:
-#    regenerate cards.json and everything derived from it. None of these are
-#    hand-edited any more — verify.sh fails on drift.
-node generate-cards-json.js
-python3 scripts/sync-counts.py            # every tool-count claim, all files
-python3 scripts/build-sitemap.py          # sitemap.xml
-python3 scripts/build-home-prerender.py   # index.html's generated first screen
+#    one command regenerates cards.json and everything derived from it — every
+#    tool-count claim, the machine indexes, sitemap.xml, index.html's generated
+#    first screen, the embed grid, the discovery surfaces, the per-tool specs,
+#    llms.txt and the site brain. None of these are hand-edited any more;
+#    verify.sh fails on drift.
+npm run build
 
 # 3. If you touched a translated cluster: edit all of them or Google
 #    treats them as duplicates
 #    (no automated check for this — be careful)
 
-# 4. Re-run verify: it now checks the artefacts you just regenerated,
-#    including the stale-count grep this list used to do by hand
-bash scripts/verify.sh
+# 4. Before pushing, the whole gate: every section, and the timing table that
+#    names the slowest ones.
+bash scripts/verify.sh --all
 ```
 
 ## After merge

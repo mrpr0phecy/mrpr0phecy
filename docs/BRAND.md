@@ -53,7 +53,7 @@ MrProphecy (the maker)
   They are stable; renaming a category is a URL change and requires a
   redirect.
 * AI Developer (the contributor persona) ships under the product, not under
-  a personal handle, per `.github/pull_request_template.md`.
+  a personal handle, per `.github/PULL_REQUEST_TEMPLATE.md`.
 
 ## What to avoid
 
