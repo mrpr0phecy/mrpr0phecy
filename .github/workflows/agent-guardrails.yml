@@ -1,40 +1,24 @@
 name: Agent guardrails
 
-# 2026-09-19, owner request: the automatic suite was seriously slowing
-# AI-driven work on the site. Every push and every PR ran the full
-# 21-section scripts/verify.sh (~3 minutes per run, re-triggered on every
-# push, and agents in this repo are instructed to `gh pr checks --watch`
-# before merging). Automatic runs are now a fast pass that completes in
-# seconds and cannot block.
+# Runs the whole gate on every push and PR: `bash scripts/verify.sh --deep`
+# is ~15 s, so there is no longer a reason for a fast pass that checks nothing.
 #
-# 2026-09-20 update: the suite itself is ~2.6x faster (22 sections, ~13 s on
-# two cores, ~34 s serial — the per-section timing table at the end of a run
-# names the slowest ones). The fast pass stays as the owner decided; this note
-# is only so nobody reads "~3 minutes" above as the current cost.
+# History, because the old comment here said "~3 minutes" and disabled itself:
+# the suite used to be 22 sections and took about three minutes, so on
+# 2026-09-19 the owner had the automatic run reduced to a notice that ran no
+# checks at all. On 2026-09-20 the suite was cut to eight checks (~4 s) with
+# the slow audits behind --deep (~14 s), the staff/AI-developer machinery and
+# deleted, and the automatic run was switched back on. CI is now stricter than
+# it has ever been and still finishes in seconds.
 #
-# The full gate is still available, deliberately invoked:
-#   * local:        bash scripts/verify.sh
-#   * in CI:        Actions → Agent guardrails → Run workflow → full: true
-#                   (gh workflow run "Agent guardrails" -f full=true)
-#   * still automatic, off the developer loop: the scheduled AI Developer
-#     facility runs all staff checks Mon & Thu, and the production monitor
-#     probes the deployed site after merges and every six hours.
-#
-# The workflow and job names are unchanged so a "Repo checks" required
-# status check in branch protection keeps resolving — it just resolves in
-# seconds now.
+# The workflow and job names are unchanged so a "Repo checks" required status
+# check in branch protection keeps resolving.
 
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      full:
-        description: 'Run the complete verify.sh suite instead of the fast pass'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -43,29 +27,16 @@ jobs:
   verify:
     name: Repo checks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Fast pass — automatic suite disabled
-        if: github.event_name != 'workflow_dispatch' || !inputs.full
-        run: |
-          echo "::notice title=Fast pass::The automatic verify.sh suite is disabled by owner request (2026-09-19) to keep agent sessions fast. Run the full suite manually: Actions → Agent guardrails → full=true, or bash scripts/verify.sh locally."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name == 'workflow_dispatch' && inputs.full
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: github.event_name == 'workflow_dispatch' && inputs.full
         with:
           node-version: '22'
-      - name: Run verify.sh (exhaustive — includes staff configuration and regression tests)
-        if: github.event_name == 'workflow_dispatch' && inputs.full
-        env:
-          # VERIFY_FULL=1 opts into the exhaustive checks (the full
-          # ~1,200-card JS sweep) so the on-demand CI gate stays strict
-          # even though local/push-time runs use the fast path.
-          VERIFY_FULL: "1"
-        run: bash scripts/verify.sh
+      - name: Verify (gate + deep audits)
+        run: bash scripts/verify.sh --deep
       - name: Attach catalogue report
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.full }}
+        if: always()
         run: python3 scripts/check-cards.py | tee -a "$GITHUB_STEP_SUMMARY"

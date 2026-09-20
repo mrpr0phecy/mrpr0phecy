@@ -68,7 +68,7 @@ __mpDiscoveryInstrumentation.export() // same shape on /discovery.html etc.
 
 Weekly routine (pointer #3):
 1. Open `index.html` and `discovery.html` in the browser, paste the export
-   above, and append to `docs/USAGE-SNAPSHOT.md` (or a private sheet).
+   above, and keep the numbers somewhere private.
 2. Sort `zero_top_20` by `c`; each entry with `c ≥ 5` is a candidate for
    (a) a new tool, (b) a synonym in the search index, or (c) a promoted deep
    page (`tools/<slug>.html` via `scripts/tool-pages.json`).

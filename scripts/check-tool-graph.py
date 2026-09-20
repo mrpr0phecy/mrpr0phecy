@@ -23,7 +23,7 @@ Two directions, because both have broken in this repo:
    tools.html and 134 from sitemap.html — reachable only through JavaScript
    on the home page, invisible to every crawler and every no-JS visitor.
 
-Narrative files (staff/, docs/, *.md, the changelog) are *not* held to the
+Narrative files (docs/, *.md, the changelog) are *not* held to the
 first rule: they describe plans and post-mortems and legitimately mention
 slugs that do not exist. They are reported as notes, never failures. The
 frozen-in-time pages (changelog.html) are skipped entirely, matching

@@ -62,8 +62,8 @@ CARDS = os.path.join(ROOT, "cards")
 # and launch/ whose sub-pages each have their own count claim in the footer.
 TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
-    "README.md", "AGENTS.md", "ARCHITECTURE.md", "AGENT_ACCESS.md", "INCOME.md",
-    "STRATEGY.md", "CONTRIBUTING.md",
+    "README.md", "AGENTS.md", "ARCHITECTURE.md", "INCOME.md", "agents.html",
+    "CONTRIBUTING.md",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
     # history ("+10 tools, 23 categories, 562 total") and rewriting them
@@ -75,11 +75,10 @@ TARGETS_TOP = [
 TARGETS_GLOB = [
     "guides/*.html", "blog/*.html", "launch/index.html", "tools/*.html",
 ]
-# Anything matching these globs is excluded from rewriting: board records
-# (BRANCHES.md, BOARD.md, DECISIONS.md) document dated events; the changelog
-# (already excluded from TARGETS) records past releases. Manual
+# Anything matching these globs is excluded from rewriting: the changelog
+# records past releases, so its numbers are history rather than claims. Manual
 # `<!-- historical-count -->` markers cover one-off cases.
-EXCLUDE_PATTERNS = ["staff/", "changelog.html"]
+EXCLUDE_PATTERNS = ["changelog.html"]
 
 
 def _collect_targets() -> list[str]:
@@ -103,9 +102,7 @@ TARGETS = _collect_targets()
 # would turn the changelog into a lie. Everything from this heading onward in
 # the given file is frozen.
 HISTORY_ANCHOR = {
-    "ARCHITECTURE.md": "## 9. Current state and known work",
     "INCOME.md": None,
-    "STRATEGY.md": "## What to do next, in order",
 }
 
 # A line carrying this marker is exempt: it is deliberately quoting a past or
@@ -140,8 +137,18 @@ FILLER = r"(?:[a-z][a-z-]{0,15}[.,]?\s+){0,4}"
 TAG_OR_MARK = r"(?:<\/?[a-z][^>]*>|\*\*|__)"
 BRIDGE = rf"(?:{TAG_OR_MARK})*"
 GAP = rf"{BRIDGE}\s*{FILLER}"
+# A number that is the tail of a thousands-separated group ("194" inside
+# "1,194 tools") is not a count claim, and rewriting it corrupts the sentence:
+# "1,194 tools" would become "1,1195 tools". The lookbehind therefore excludes
+# a comma as well as a digit and a period. This never fired only by luck — the
+# tail of every "1,NNN tools" in the repo (194, 195, 190, 149) sits below the
+# 200 plausibility floor, and the catalogue passing 1,200 tools would have put
+# every "1,2xx tools" in ARCHITECTURE.md and the docs in range of a rewrite.
+# Comma-formatted claims are deliberately left alone rather than reformatted:
+# the canonical claim form in these files is unseparated, and the frozen
+# narrative sections are not ours to renumber.
 CLAIM = re.compile(
-    rf"(?<![\d.])({KNOWN_STALE})(\+?)({GAP}){NOUN}\b",
+    rf"(?<![\d.,])({KNOWN_STALE})(\+?)({GAP}){NOUN}\b",
     re.IGNORECASE,
 )
 
@@ -159,9 +166,9 @@ CHROME_COUNT = re.compile(
 
 # "708 of them" and "alongside the other 1164" — count claims where the
 # noun is replaced by an anaphor. Both appear in the live site copy.
-OF_THEM = re.compile(r"(?<![\d.])(\d{3,4})(?=\s+of\s+them\b)", re.IGNORECASE)
+OF_THEM = re.compile(r"(?<![\d.,])(\d{3,4})(?=\s+of\s+them\b)", re.IGNORECASE)
 ALONGSIDE_OTHER = re.compile(
-    r"(?<![\d.])(alongside\s+the\s+other\s+)(\d{3,4})\b", re.IGNORECASE
+    r"(?<![\d.,])(alongside\s+the\s+other\s+)(\d{3,4})\b", re.IGNORECASE
 )
 # "All 708 share one DOM" — a count claim with no recognisable noun. The
 # number still describes the catalogue (every card shares the catalogue's
@@ -169,7 +176,7 @@ ALONGSIDE_OTHER = re.compile(
 # size changes. The pattern is narrow on purpose — "share" and "DOM" are
 # not otherwise a count-trigger.
 SHARE_ONE_DOM = re.compile(
-    r"(?<![\d.])(all\s+|every\s+card\s+|every\s+tool\s+)?(\d{3,4})(?=\s+(?:share|shares|sharing)\s+one\s+DOM\b)",
+    r"(?<![\d.,])(all\s+|every\s+card\s+|every\s+tool\s+)?(\d{3,4})(?=\s+(?:share|shares|sharing)\s+one\s+DOM\b)",
     re.IGNORECASE,
 )
 

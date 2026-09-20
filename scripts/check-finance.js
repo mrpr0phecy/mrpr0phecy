@@ -407,7 +407,7 @@ section('money tools — stale statutory figures');
 
 section('truthfulness — privacy claims (staffroom D-002)');
 {
-  /* BINDING: staff/DECISIONS.md D-002 as amended by D-007 — "no page may
+  /* BINDING owner ruling (CONSTRAINTS.md, hard line 1) — "no page may
      make a privacy claim that is false where it stands". GA stays on the
      pages that carry it (it is NOT sitewide), so each page is judged
      against what it itself loads:

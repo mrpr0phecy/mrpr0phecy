@@ -23,30 +23,22 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
-## Site Staff / AI Developer
-
-**[STAFF.md](STAFF.md)** is the operations entry point: the site's purpose,
-accountable specialist profiles, work claims, handovers and binding decisions.
-The permanent **AI Developer** workflow runs Mon & Thu 06:00 UTC or on demand.
-It gathers evidence, prioritises useful work and can propose verified numeric
-count maintenance — not unreviewed generated tools.
+## Working on the site
 
 ```bash
-node scripts/ai-developer.js staff    # missions, responsibilities, review limits
-node scripts/ai-developer.js plan     # read-only audits + actionable priorities
-python3 staff/scan.py --mine          # cached branch and working-tree overlaps
+npm run build          # regenerate every derived file (~8 s)
+npm run verify         # the gate: 8 checks, ~4 s — run it after every edit
+npm run verify:deep    # + the slow audits (~15 s) — CI runs this on every push
+npm test               # the product test suite
 ```
 
-Open `ai-developer/reports/latest.html` for the searchable offline dashboard;
-JSON/Markdown evidence is saved alongside it and uploaded as Actions artifacts
-even on failed checks. No API key is needed. Profiles are **not** separate live
-agents; inherited failing tests are reported honestly rather than hidden.
-Scheduled auto mode never calls a provider; optional drafts require an explicit
-brief, model, key, passing gates and human review.
+[AGENTS.md](AGENTS.md) is the one-page rulebook and
+[CONTRIBUTING.md](CONTRIBUTING.md) the short guide.
 
-[Staff operating guide](staff/README.md) ·
-[Automation setup](docs/AI-DEVELOPER-SETUP.md) ·
-[Research and rationale](staff/RESEARCH.md)
+The "Site Staff / AI Developer" facility that used to run from here — profiles,
+a scoreboard, a claims ledger, an audit engine and a Mon/Thu workflow — was
+removed on 2026-09-20 at the owner's instruction. It was governance about
+governance, and no visitor ever saw any of it.
 
 ## Lantern — the standalone AI
 
@@ -75,9 +67,13 @@ chat. Nothing is uploaded, no account or API key exists, and private memory
 stays in the visitor's browser; the live page cannot write back to the
 repository.
 
-The checked-in `local-ai-knowledge.json` grounds the *catalogue* brain used by
-the machine guide; `learning/approved.json` is the reviewed shared-learning
-channel. The former Byte companion pages (`local-ai.html`,
+The machine guide for outside agents is [`agents.html`](agents.html): the
+manifests, URL patterns and embed codes. The catalogue-side retrieval brain it
+used to advertise (`local-ai-knowledge.json`, 4.5 MB, plus `learning/` and the
+scripts that generated them) was removed on 2026-09-20 — nothing on the site
+read it, and `llms.txt`, `cards/cards.json`, `tools-index.json`,
+`api/tools*.json` and `related.json` do the same job in a fraction of the
+bytes. The former Byte companion pages (`local-ai.html`,
 `byte-realistic.html`, `byte-realistic-v4.html`) are `noindex` redirect stubs
 to `ai.html`, and the old agent/developer machine guide now lives at
 [`agents.html`](agents.html).

@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 'use strict';
 // Run: node scripts/tests/producer-tools.test.js (jsdom installed in /tmp/tenv).
-const {JSDOM}=require('/tmp/tenv/node_modules/jsdom');
+// jsdom is deliberately not a repository dependency (the site is zero-dep), so
+// it lives outside the workspace. Without it this suite SKIPs loudly and exits
+// 0: it runs in `node --test scripts/tests/*.test.js`, and a hard require made
+// the whole product suite fail in any clean checkout and in CI. Install it with:
+//   mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom
+let JSDOM;
+try { ({JSDOM}=require('/tmp/tenv/node_modules/jsdom')); } catch (_) {
+  try { ({JSDOM}=require('jsdom')); } catch (e) {
+    console.log('SKIP producer-tools: jsdom not installed (mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom)');
+    process.exit(0);
+  }
+}
 const fs=require('node:fs');
 const path=require('node:path');
 const assert=require('node:assert/strict');

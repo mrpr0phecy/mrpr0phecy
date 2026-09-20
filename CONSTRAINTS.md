@@ -22,9 +22,9 @@ calls, and no session may relax them for scope, speed or ambition:
 2. **No ToS-violating growth.** No view-bots, hidden players, autoplay
    tricks, engagement pods, fake urgency.
 3. **Never delete a tool or a protected file** without the owner saying so
-   first — the ARCHITECTURE.md §9 list, `CNAME`, `sw.js`, `guide.txt`, the
-   CV files, `opensourcenews.html`, `token.html`. Adding is free; retiring is
-   not.
+   first — `CNAME`, `sw.js`, the CV files, `opensourcenews.html`,
+   `token.html`, anything in `cards/` (the full list is ARCHITECTURE.md §9).
+   Adding is free; retiring is not.
 4. **Never interpolate untrusted input into `innerHTML`** — URL params,
    `error.message` and `cards.json` strings go in via `textContent` or DOM
    APIs.
@@ -37,8 +37,10 @@ calls, and no session may relax them for scope, speed or ambition:
    `cards.json` categories are never hand-edited.
 
 Anything that looks like it needs an exception to one of these is an owner
-question: ask in the session, and record the answer here or in
-[`staff/DECISIONS.md`](staff/DECISIONS.md).
+question: ask in the session, and record the answer here. This file is the only
+decision ledger left — `staff/DECISIONS.md` and the board around it were
+deleted on 2026-09-20, and everything binding in them is either below or in
+the check that enforces it.
 
 ---
 
@@ -73,16 +75,31 @@ engagement pods — they violate platform ToS and risk the channel. Legitimate
 growth only: metadata, speed, internal links, translated pages, honest CTAs.
 No ads or trackers on Product A, no paywalls, no fake urgency.
 
-**The AI Developer workflow stays** (`.github/workflows/ai-developer.yml`).
-An agent once deleted it claiming owner instruction; that was false.
+**The site brain is gone** (owner instruction, 2026-09-20).
+`local-ai-knowledge.json`, `scripts/build-site-brain.py`,
+`scripts/evaluate-site-brain.py` and `learning/` were deleted: `ai.html` never
+read the artefact, no page fetched it, and the rule that any edit to a public
+doc forced a rebuild-and-commit of 4.5 MB was the largest single source of
+friction in the repository. `agents.html` now points outside agents at
+`llms.txt`, `cards/cards.json`, `tools-index.json`, `api/tools*.json` and
+`related.json`. Do not regenerate it without a fresh owner instruction.
 
-**Automatic CI is a fast pass** (owner request, 2026-09-19): the automatic
-`verify.sh` runs on every push and PR (~3 minutes each) were measurably
-slowing agent sessions, so `.github/workflows/agent-guardrails.yml` keeps the
-"Repo checks" check but completes in seconds. The full suite still exists —
-locally (`bash scripts/verify.sh`), in CI via `workflow_dispatch` with
-`full=true`, and inside the scheduled staff facility. Do not restore
-heavyweight automatic runs without a fresh owner instruction.
+**The staff facility is gone** (owner instruction, 2026-09-20). The AI
+Developer workflow, the profiles in `scripts/ai-staff.json`, the scoreboard,
+the claims ledger, the audit engine and their tests were deleted at the owner's
+explicit request: governance about governance, invisible to every visitor. An
+earlier version of this rule said the workflow must stay because an agent once
+deleted it while claiming owner instruction — that was true then; this deletion
+is the owner's own. Do not rebuild the facility without a fresh instruction.
+
+**Automatic CI runs the whole gate** (owner instruction, 2026-09-20, reversing
+the 2026-09-19 fast pass). The fast pass existed because the suite took about
+three minutes. It is now seven checks in ~3 s, with the slow audits behind
+`--deep` in ~13 s, so `.github/workflows/agent-guardrails.yml` runs
+`verify.sh --deep` on every push and PR and still finishes in seconds — the
+"Repo checks" status name is unchanged. Do not add heavyweight CI without a
+fresh owner instruction, and do not let the local gate grow slow enough to need
+a fast pass again: that is what made this repo hard to work in.
 
 **`token.html` is kept deliberately** — but no crypto promotion.
 
@@ -91,7 +108,8 @@ heavyweight automatic runs without a fresh owner instruction.
 **Never hand-edit a tool count, `sitemap.xml`, or `index.html`'s generated
 first screen.** All of them are produced (`scripts/sync-counts.py`,
 `scripts/build-sitemap.py`, `scripts/build-home-prerender.py`); `verify.sh`
-fails on drift. The count appears 49 times across 10 files — editing by hand
+fails on drift. The count appears dozens of times across the published pages
+and docs — editing by hand
 has failed every single time it has been attempted. The home page's
 `HOME-FAST-PATH` and `HOME-PRERENDER` blocks — the head bootstrap that
 prefetches the first tools, the eight pre-rendered card shells and the
@@ -102,8 +120,8 @@ hand-written markup and are not.
 lists inside the script. Add your slug to the right list *before* running it,
 or your category is silently lost.
 
-**All 644 cards share one DOM.** Element ids must be globally unique — prefix
-everything. Top-level JS names collide too (126 of them: `showError`,
+**All 1195 cards share one DOM.** Element ids must be globally unique — prefix
+everything. Top-level JS names collide too (135 soft collisions: `showError`,
 `updateStats`, `STORAGE_KEY`…); IIFE-wrap anything you touch.
 
 **Never interpolate untrusted input into `innerHTML`.** URL params,
@@ -120,8 +138,9 @@ SoundCloud and Instagram with a zero. Not a typo.
 **Never invent YouTube IDs.** Use the verified table in ARCHITECTURE.md §4.
 A Rickroll (`dQw4w9WgXcQ`) once shipped as a placeholder on a live page.
 
-**`sw.js` is not registered** by any page, on purpose. `guide.txt` is stale.
-`CNAME` deletion breaks the custom domain.
+**`sw.js` is not registered** by any page, on purpose — but `index.html` does
+`modulepreload` it, which is a wasted low-priority fetch until the "enable it or
+delete it" question above is answered. `CNAME` deletion breaks the custom domain.
 
 ## Open questions only the owner can answer
 
@@ -132,12 +151,12 @@ line the moment it is answered.
   real localisation, or consolidate?
 - **`sw.js`** — enable it (a real win for an offline-first tool site) or
   delete it? Currently dead code.
-- **Ship or delete:** `indexbeta.html`, `hokidea.html`, the four unlinked CV
-  files, `substitutions/`, `system/`, `digitaldetoxcardshtml/`.
+- **Ship or delete:** the four unlinked CV files (`CV.docx`, `CV.pdf`,
+  `cv.pdf`, `latestcv.docx`). The rest of that list — `indexbeta.html`,
+  `hokidea.html`, `guide.txt`, `substitutions/`, `system/`,
+  `digitaldetoxcardshtml/` — was deleted on 2026-09-20 with the owner's
+  approval; the CVs are personal documents, so they stay until the owner says
+  otherwise.
 - **LICENSE** — none chosen yet.
-- **`AI_API_KEY`** secret — unset, so the workflow's `generate` mode is
-  skipped (audit and fix still run). Add one if drafts are wanted.
-- **126 top-level JS name collisions** — fixing means IIFE-wrapping many
+- **135 soft top-level JS name collisions** — fixing means IIFE-wrapping many
   cards: a large mechanical diff. Worth it?
-- **`token.html` says 644 tools** — if the token perks were scoped to a
-  subset, that number should be scoped instead of synced.
