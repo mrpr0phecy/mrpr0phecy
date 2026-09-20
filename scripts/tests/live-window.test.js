@@ -218,7 +218,8 @@ const DENSITY = new Function(`return {${DENSITY_SRC[1]}};`)();
   assert.ok(/resetWarmWindow\(\)/.test(filters), 'a filter change must move the warm window with it');
   // Click-to-run still bypasses everything, and in mosaic the whole tile is the
   // click target (a 212px tile has no spare corner for a "run" button).
-  assert.ok(/closest\('\.card\.card-pending'\)/.test(app), 'mosaic tiles must be runnable by clicking anywhere on them');
+  // Now includes both pending and parked tiles (whole-tile clickable in both densities).
+  assert.ok(/closest\('[^']*\.card\.card-pending/.test(app), 'mosaic tiles must be runnable by clicking anywhere on them');
   console.log('  ok   trickle gone, warm-ahead in, filters do not mount, tiles are clickable anywhere');
 }
 

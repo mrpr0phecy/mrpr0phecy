@@ -536,17 +536,35 @@
             box.style.color = '#ff4d4d';
             const h = document.createElement('h3');
             h.textContent = `Failed to load tool (${cardName})`;
+            h.style.marginBottom = '12px';
             const p = document.createElement('p');
             p.style.color = 'rgba(230, 250, 255, 0.7)';
-            p.textContent = message;
-            const a = document.createElement('a');
-            a.href = 'index.html';
-            a.className = 'nav-btn';
-            a.style.marginTop = '16px';
-            a.textContent = 'Return to Dashboard';
+            p.style.marginBottom = '20px';
+            p.textContent = message || 'The tool could not be loaded. It may have been moved or is temporarily unavailable.';
+            const actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '12px';
+            actions.style.justifyContent = 'center';
+            actions.style.flexWrap = 'wrap';
+            actions.style.marginTop = '16px';
+            const retry = document.createElement('button');
+            retry.className = 'nav-btn';
+            retry.textContent = '🔄 Retry';
+            retry.onclick = () => location.reload();
+            const home = document.createElement('a');
+            home.href = 'index.html';
+            home.className = 'nav-btn';
+            home.textContent = '🏠 Dashboard';
+            const search = document.createElement('a');
+            search.href = `index.html?q=${encodeURIComponent(cardName)}`;
+            search.className = 'nav-btn';
+            search.textContent = '🔍 Search similar';
+            actions.appendChild(retry);
+            actions.appendChild(home);
+            actions.appendChild(search);
             box.appendChild(h);
             box.appendChild(p);
-            box.appendChild(a);
+            box.appendChild(actions);
             return box;
         }
 
@@ -619,25 +637,52 @@
 
         async function init() {
             const params = new URLSearchParams(window.location.search);
-            const cardName = params.get('card') || params.get('t') || 'bmi';
+            const rawCard = params.get('card') || params.get('t') || 'bmi';
+            const cardName = /^[a-z0-9-]{1,80}$/.test(String(rawCard).toLowerCase()) ? String(rawCard).toLowerCase() : 'bmi';
             const embedMode = toolApplyEmbedMode(params.get('embed') === '1');
 
             let allCards = [];
             let currentMeta = null;
 
-            try {
-                const jsonRes = await fetch('cards/cards.json');
-                if (jsonRes.ok) {
-                    allCards = await jsonRes.json();
-                    currentMeta = allCards.find(c => c.name === cardName || c.id === cardName || c.file === `${cardName}.html`);
+            // Fetch with timeout helper — prevents hanging forever
+            async function fetchWithTimeout(url, ms = 10000) {
+                const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+                try {
+                    const res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+                    return res;
+                } catch (e) {
+                    return null;
+                } finally {
+                    if (timer) clearTimeout(timer);
                 }
-            } catch (e) {
-                console.warn('Could not load cards.json:', e);
             }
 
-            const toolUrl = currentMeta ? currentMeta.path : `cards/${cardName}.html`;
-            const title = currentMeta ? currentMeta.title : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const category = currentMeta ? currentMeta.category : 'General Tool';
+            // Try lite catalogue (110KB) then full (548KB) — faster, works offline
+            const catalogueSources = ['cards/cards-lite.json', 'cards/cards.json'];
+            for (const src of catalogueSources) {
+                try {
+                    const jsonRes = await fetchWithTimeout(src, 10000);
+                    if (jsonRes && jsonRes.ok) {
+                        const data = await jsonRes.json();
+                        if (Array.isArray(data) && data.length > 0) {
+                            if (data[0].n) {
+                                allCards = data.map(d => ({ name: d.n, title: d.t, category: d.c, path: `cards/${d.n}.html`, description: '' }));
+                            } else {
+                                allCards = data;
+                            }
+                            currentMeta = allCards.find(c => c.name === cardName || c.id === cardName || (c.file && c.file === `${cardName}.html`));
+                            if (currentMeta) break;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Could not load ${src}:`, e);
+                }
+            }
+
+            const toolUrl = currentMeta && currentMeta.path ? currentMeta.path : `cards/${cardName}.html`;
+            const title = currentMeta ? (currentMeta.title || cardName) : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const category = currentMeta ? (currentMeta.category || 'General Tool') : 'General Tool';
 
             document.title = `${title} · The Most Useful Site in the World`;
             const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -649,9 +694,10 @@
             }
 
             try {
-                const res = await fetch(toolUrl);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const res = await fetchWithTimeout(toolUrl, 15000);
+                if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'network error'}`);
                 const html = await res.text();
+                if (!html || html.trim().length === 0) throw new Error('Empty response');
 
                 const container = document.getElementById('toolContainer');
                 container.innerHTML = '';
