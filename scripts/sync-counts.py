@@ -62,7 +62,7 @@ CARDS = os.path.join(ROOT, "cards")
 # and launch/ whose sub-pages each have their own count claim in the footer.
 TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
-    "README.md", "AGENTS.md", "ARCHITECTURE.md", "AGENT_ACCESS.md", "INCOME.md",
+    "README.md", "AGENTS.md", "ARCHITECTURE.md", "INCOME.md",
     "STRATEGY.md", "CONTRIBUTING.md",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
@@ -76,7 +76,7 @@ TARGETS_GLOB = [
     "guides/*.html", "blog/*.html", "launch/index.html", "tools/*.html",
 ]
 # Anything matching these globs is excluded from rewriting: board records
-# (BRANCHES.md, BOARD.md, DECISIONS.md) document dated events; the changelog
+# (BOARD.md, DECISIONS.md, OPEN.md) document dated events; the changelog
 # (already excluded from TARGETS) records past releases. Manual
 # `<!-- historical-count -->` markers cover one-off cases.
 EXCLUDE_PATTERNS = ["staff/", "changelog.html"]

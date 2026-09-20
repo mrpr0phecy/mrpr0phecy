@@ -73,16 +73,22 @@ engagement pods — they violate platform ToS and risk the channel. Legitimate
 growth only: metadata, speed, internal links, translated pages, honest CTAs.
 No ads or trackers on Product A, no paywalls, no fake urgency.
 
-**The AI Developer workflow stays** (`.github/workflows/ai-developer.yml`).
-An agent once deleted it claiming owner instruction; that was false.
+**The staff facility is gone** (owner instruction, 2026-09-20). The AI
+Developer workflow, the profiles in `scripts/ai-staff.json`, the scoreboard,
+the claims ledger, the audit engine and their tests were deleted at the owner's
+explicit request: governance about governance, invisible to every visitor. An
+earlier version of this rule said the workflow must stay because an agent once
+deleted it while claiming owner instruction — that was true then; this deletion
+is the owner's own. Do not rebuild the facility without a fresh instruction.
 
-**Automatic CI is a fast pass** (owner request, 2026-09-19): the automatic
-`verify.sh` runs on every push and PR (~3 minutes each) were measurably
-slowing agent sessions, so `.github/workflows/agent-guardrails.yml` keeps the
-"Repo checks" check but completes in seconds. The full suite still exists —
-locally (`bash scripts/verify.sh`), in CI via `workflow_dispatch` with
-`full=true`, and inside the scheduled staff facility. Do not restore
-heavyweight automatic runs without a fresh owner instruction.
+**Automatic CI runs the whole gate** (owner instruction, 2026-09-20, reversing
+the 2026-09-19 fast pass). The fast pass existed because the suite took about
+three minutes. It is now eight checks in ~4 s, with the slow audits behind
+`--deep` in ~15 s, so `.github/workflows/agent-guardrails.yml` runs
+`verify.sh --deep` on every push and PR and still finishes in seconds — the
+"Repo checks" status name is unchanged. Do not add heavyweight CI without a
+fresh owner instruction, and do not let the local gate grow slow enough to need
+a fast pass again: that is what made this repo hard to work in.
 
 **`token.html` is kept deliberately** — but no crypto promotion.
 

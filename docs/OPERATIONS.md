@@ -1,8 +1,7 @@
 # OPERATIONS.md — running the live site like it matters
 
-**Status: active runbook · created 2026-09-15.** The companion to
-[EXCELLENCE.md](../staff/EXCELLENCE.md): that file is the bar, this one is what
-to do when production falls short of it. Nothing here overrides
+**Status: active runbook · created 2026-09-15.** This is what to do when
+production falls short of the bar. Nothing here overrides
 [CONSTRAINTS.md](../CONSTRAINTS.md), [DECISIONS.md](../staff/DECISIONS.md) or
 [ARCHITECTURE.md](../ARCHITECTURE.md) — where they disagree, they win and this
 file gets fixed.
@@ -39,12 +38,11 @@ not permission to change the other.
 
 | Instrument | Watches | Cadence | Where the result lives |
 |---|---|---|---|
-| `scripts/verify.sh` | The repository: catalogue, links, egress, accessibility, counts, derived artefacts | Manual only (owner decision 2026-09-19). The local default is **scoped** to the sections the changed paths can reach and prints what it skipped; `--all` is the pre-push gate, and Actions → *Agent guardrails* → `full: true` runs `--all` with `VERIFY_FULL=1`. Push/PR runs of that workflow are a seconds-fast pass (`.github/workflows/agent-guardrails.yml`) | CI run + local terminal |
+| `scripts/verify.sh` | The repository: hygiene, catalogue, card JS, links, counts, SEO, the site brain, Lantern — and with `--deep` the egress, accessibility, collision, drift, test-suite and quality-floor audits | Every push and PR in CI (`bash scripts/verify.sh --deep`, ~15 s). Locally: `npm run verify` (~4 s) after each edit, `npm run verify:deep` before pushing | CI run + local terminal |
 | **Production monitor** (`scripts/check-production.js`) | **The deployed site**: availability, byte-identity with this repo, catalogue/sitemap integrity, https upgrade, custom 404 | Every six hours **and on every push to `main`** — the push run waits 45 s for Pages and then probes (`.github/workflows/production-monitor.yml`) | `Production monitor:` alert issue + run artifact + step summary |
 | Pages build status | Whether the deploy itself succeeded | Per push | Actions → *pages build and deployment* |
 | Pages deployment history | Which commit is live right now | Per push | Actions → *pages build and deployment* → the environment URL shown on the run |
-| AI Developer facility | Catalogue audits, counts, drift between docs and reality | Mon & Thu 06:00 UTC | `ai-developer/reports/` artifact |
-| Search Console / CrUX / bookkeeping | Field performance, index coverage, money | Owner-side, monthly | `staff/BOARD.md` via the owner (P0-M1) |
+| Search Console / CrUX / bookkeeping | Field performance, index coverage, money | Owner-side, monthly | `staff/BOARD.md` via the owner |
 
 **Honest limits.** The monitor is an *external* probe from one runner, four
 times a day. It is not a paging system, it cannot see inside a visitor's
@@ -110,7 +108,7 @@ The monitor names each failure by surface. Find it here.
 | `404 handling: ... returned 200, not 404` or `404 route served ... not this repository's 404.html` | Custom-404 setting lost, or `404.html` changed without the deploy landing | Confirm `404.html` exists in the repo, then check the Pages settings (Settings → Pages) that the custom 404 is still used. |
 | `https enforcement: plain http did not redirect to https` | The Pages "Enforce HTTPS" setting was turned off, or the certificate is not covering a hostname | Owner action: Settings → Pages → Enforce HTTPS, and check the certificate covers `www` **and** the apex. |
 | `apex host` warning | The bare apex does not reach the canonical `www` host | CNAME is authoritative (never delete it); confirm the Pages custom-domain entry lists both hostnames. |
-| `slow response: Nms` | Runner network, CDN cold start, or a genuinely heavy page | Compare with CrUX before believing it (EXCELLENCE.md §1d). If CrUX agrees, the work item goes in `staff/OPEN.md`, not here. |
+| `slow response: Nms` | Runner network, CDN cold start, or a genuinely heavy page | Compare with CrUX before believing it — one runner's network is not a field metric. If CrUX agrees, the work item goes in `staff/OPEN.md`, not here. |
 | `content-type ... does not match` | A hosting or tooling change altered how a file is served | Check the file's extension and the live `curl -sI` output; if the site still works, record it and watch for the next run. |
 
 Two rules that keep this table honest:

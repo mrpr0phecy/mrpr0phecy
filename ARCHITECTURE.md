@@ -4,12 +4,11 @@
 written so that a human or an AI agent handed a GitHub token can be productive
 within about ten minutes and without breaking anything.
 
-**For AI agents:** start with **[AGENTS.md](AGENTS.md)**, the agent-facing
-operating manual (what to never touch, task sequences, workspace budget).
-If you need GitHub access in a fresh session, see
-**[AGENT_ACCESS.md](AGENT_ACCESS.md)** — the self-service device-flow auth
-(`bash scripts/agent-auth.sh`) plus the sparse-clone recipe. Use it instead of
-asking the owner to paste a token.
+**For AI agents:** start with **[AGENTS.md](AGENTS.md)** — one page: what to
+never touch, the four commands, and the task sequences. If you need GitHub
+access in a fresh session, run `bash scripts/agent-auth.sh` (self-service
+device flow, sparse-clone recipe inside) instead of asking the owner to paste a
+token.
 
 Last substantive update: 2026-09-07.
 
@@ -549,17 +548,13 @@ node generate-cards-json.js
 # 3. Re-sync everything derived from the catalogue. Never hand-edit a count
 #    or the home page's generated first screen — the tool count is the number
 #    of .html files in cards/ (`python3 scripts/sync-counts.py count` prints
-#    it) and verify.sh section 9 re-derives any drifted published number in
+#    it) and verify.sh re-derives any drifted published number in
 #    place instead of failing. Order matters: build-home-prerender.py reads
 #    tools-index.json for the category hub links it writes into index.html.
-python3 scripts/sync-counts.py
-node scripts/build-tools-index.js
-node scripts/build-category-pages.js
-python3 scripts/build-sitemap.py
-python3 scripts/build-home-prerender.py
+npm run build          # every generator, in dependency order (~8 s)
 
 # 4. Verify, commit, push, wait ~50s, then verify live:
-bash scripts/verify.sh
+bash scripts/verify.sh --deep   # ~15 s; plain verify.sh (~4 s) while iterating
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
@@ -825,14 +820,11 @@ asked indirectly.
 
 Two distinct aesthetics. Match the one belonging to the page you are editing.
 
-> **Visual Design Expert on duty.** This repo runs an AI Developer staff
-> (`AGENTS.md` §9; roster `scripts/ai-staff.json`). The **Visual Design
-> Expert** owns this section and the hub pages it documents. If you are
-> another agent or a human taking on design work: read this section, run
-> `node scripts/ai-developer.js staff`, then `node scripts/design-audit.js`
-> before changing anything visual. Design edits must respect these rules and
-> the audit, and stay reviewable (hub pages get human-reviewed PRs — the
-> expert's own rule, not an afterthought).
+> **These rules are the design contract.** A "Visual Design Expert" staff role
+> and a 54-check static audit (`scripts/design-audit.js`) used to enforce them;
+> both were deleted with the staff machinery on 2026-09-20. The rules stay.
+> Read this section before changing anything visual, and look at the hub pages
+> in a browser at 360 px and 1440 px — no static check substitutes for that.
 
 ### Product A — tool catalogue: "cyan terminal"
 
@@ -1643,8 +1635,8 @@ something else.
 
 **Gotcha worth remembering:** `ai.html` is one of the seven documents the site
 brain indexes (`source_fingerprint()` in `scripts/build-site-brain.py`), so
-**any edit to `ai.html` invalidates `local-ai-knowledge.json`** and section 12
-of `verify.sh` will fail until you rebuild it. Run `python3
+**any edit to `ai.html` invalidates `local-ai-knowledge.json`** and the brain
+check in `verify.sh` will fail until you rebuild it. Run `python3
 scripts/build-site-brain.py`. The rebuild is deterministic and touches only the
 source hash and the category tokens derived from the page's visible text.
 
@@ -1704,7 +1696,8 @@ owner rather than by `collapsePark` — the two flags answer different questions
 suite 17/18 pin — and the accepted trade (no UA help for content that grows late
 inside a tool) is written next to the rule so nobody removes either. Suites 13/14/18
 now cover the whole contract in node, including a harness `window` whose `scrollTo`
-moves it; `scripts/staff/live-window-check.mjs` gained a computed-style check for the
+moves it; the live-window probe (`scripts/staff/live-window-check.mjs`, deleted
+2026-09-20 with the staff machinery) gained a computed-style check for the
 rule, since the drift measurement in that script is exactly what doubles if
 anchoring is ever re-enabled.
 
@@ -1737,9 +1730,10 @@ card's own classes so the geometry is modelled rather than asserted. The three
 claims that genuinely need a layout engine — a parked tile's height matching an
 unmounted one, the corrected offset against the document the collapse removed, and
 a parked canvas keeping its bitmap — are the subject of
-`scripts/staff/live-window-check.mjs`: an optional, manual probe that serves the repo
-over `node:http`, follows the `STAFF_PLAYWRIGHT` / `STAFF_CHROMIUM_PATH` convention of
-`scripts/staff/browser-check.mjs`, and is deliberately outside `verify.sh`, because no
+the live-window probe (deleted 2026-09-20 with the staff machinery): an optional, manual
+probe that served the repo over `node:http`, followed the `STAFF_PLAYWRIGHT` /
+`STAFF_CHROMIUM_PATH` convention of `scripts/staff/browser-check.mjs`, and sat outside
+`verify.sh` because no
 CI here has a browser and the required suite must stay zero-dependency.
 `adjustCardHeight()`'s parked guard changed meaning with this: the number it must
 not write down is now the *stored* one, since that is what the wake-up restores.

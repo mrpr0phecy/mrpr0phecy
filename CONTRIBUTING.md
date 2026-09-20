@@ -1,131 +1,67 @@
 # Contributing
 
-Thanks for being here. The site is one GitHub Pages repo, one person, and a
-steady stream of AI agents — so the contribution bar is "make it easier for
-the next person, not harder". A few notes that will save everyone time.
+One GitHub Pages repo, one owner, and a stream of AI agents. The bar is
+"make it easier for the next person, not harder". This page is the short
+version; [AGENTS.md](AGENTS.md) is the one-page rulebook and
+[ARCHITECTURE.md](ARCHITECTURE.md) is how the site actually works.
 
-## Who's here
+## The two products never mix
 
-- **Owner** — `mrpr0phecy` (Russell Head, Luton UK). Final call on
-  anything that touches the two products, monetisation, or `opensourcenews.html`.
-- **AI agents** — see [AGENTS.md](AGENTS.md) for the handoff log and the
-  fresh-session checklist. Each visiting agent should append a short
-  handoff entry on session close.
+**A** — The Most Useful Site in the World: 1195 free browser tools, entry
+`index.html`. No music, no players, no banners.
+**B** — MrProphecy music: entry `listen.html` and its 12 translated siblings.
+No tool links. If a change touches both, the task was probably misread.
 
-## The two-product rule (please read)
-
-This repo serves **two deliberately separate products** from the same
-domain:
-
-| | Product | Entry | Don't mix |
-|---|---|---|---|
-| **A** | The Most Useful Site in the World — 1195 free browser tools | `index.html` | Never add music players/banners here |
-| **B** | MrProphecy — UK hip-hop and animated soundscapes | `listen.html` | Never add tool links here |
-
-If your change touches both, you have probably misread the task. The
-"don't mix" column is enforced by the verify script and by review.
-
-## The no-fly list (from [AGENTS.md](AGENTS.md) §3)
-
-- `CNAME`, `sw.js` (unregistered by design), `guide.txt` (stale),
-  `system/`, `substitutions/`, `digitaldetoxcardshtml/`, the CV files
-  (`CV.docx`, `CV.pdf`, `cv.pdf`) — leave alone.
-- `opensourcenews.html` — touch with care. It is the live news broadcast;
-  the facade pattern is load-bearing. No hidden players, no autoplay, no
-  engagement pods (INCOME.md growth policy).
-- `token.html` — kept deliberately. No crypto promotion.
-- Don't "fix" the YouTube `o` vs SoundCloud/Instagram `0` handle mismatch.
-  It is not a typo. See ARCHITECTURE.md §4.
-- Don't invent YouTube IDs. Use the verified table in ARCHITECTURE.md §4.
-- No view-bots, hidden autoplay, engagement pods, or other ToS violations.
-- No ads/trackers on Product A pages. No paywalls. No fake urgency. No fake
-  supporter counts.
-
-## Where to start
-
-Depending on what you want to do:
-
-| You want to | Read | Edit |
-|---|---|---|
-| Add a new tool | ARCHITECTURE.md §3, §6 | `cards/<slug>.html`, then `node generate-cards-json.js` and the three `scripts/` re-sync commands |
-| Edit a tool | ARCHITECTURE.md §3 (cards) | `cards/<slug>.html` |
-| Improve the catalogue home | ARCHITECTURE.md §6 (SEO) | `index.html` |
-| Edit a music page | ARCHITECTURE.md (hreflang cluster) | `listen.html` and all 12 translated siblings together |
-| Add a top-level page | ARCHITECTURE.md §6 (SEO) | new `*.html` at repo root, then add to `sitemap.xml` and the footers |
-| Add a blog post | nothing — just match the pattern | `blog/<slug>.html`, then add to `blog/index.html` and `feed.xml` |
-| Add a translation | AGENTS.md §4 "Edit a Product B page" | the matching translated page in its full set |
-| File a bug / request a tool | none — pick an issue template | `.github/ISSUE_TEMPLATE/` |
-| Open a PR | none — the template will ask | `.github/PULL_REQUEST_TEMPLATE.md` will pre-fill |
-
-## The quality bar (from [AGENTS.md](AGENTS.md) §5)
-
-These are the things that have bitten this repo before — read them once and
-you'll catch your own mistakes:
-
-- Unique element IDs across *all* cards. One shared DOM, lots of fragments
-  — your IDs collide with every other card on the page. Use a short
-  per-tool prefix (`xyz-input`, `xyz-output`, etc.).
-- `target="_blank"` ⇒ `rel="noopener noreferrer"`. `loading="lazy"` below
-  the fold. `prefers-reduced-motion` respected. Mobile-first at 360 px.
-  Keyboard-reachable.
-- Canonical + OG URLs use `https://` **and** `www.`. Never plain `http://`.
-- No placeholders ship. `grep -rn "dQw4w9WgXcQ\|VIDEO_ID\|PLAYLIST_ID\|YOUR_"`
-  before pushing.
-- Filenames have spaces and en-dashes. Quote paths, URL-encode in markup.
-- Commit messages: one line, imperative ("Add ...", "Fix ...", "Update
-  ..."). No secrets, no private tokens, no .github_token content.
-- If your change touches the tool count (in either direction), do **not**
-  hand-edit any of the copies. The count is the number of `.html` files in
-  `cards/` — `python3 scripts/sync-counts.py count` prints it. Run
-  `python3 scripts/sync-counts.py`,
-  `python3 scripts/build-sitemap.py` and `python3
-  scripts/build-home-prerender.py`: the hero badge, the footer counts, the
-  README quick-facts table, the `AGENTS.md` and `INCOME.md` headline numbers,
-  the ItemList JSON-LD and the home page's generated first screen are all
-  derived from that one number, and `scripts/verify.sh` re-derives any
-  drifted copy in place (self-healing), so a card number never has to be
-  changed by hand. (This bullet used to list
-  the copies to update by hand — that procedure is what produced nine
-  simultaneous contradictory counts.)
-
-## Pre-push checklist (use this every time)
+## Run it
 
 ```bash
-# 1. While iterating: the gate scopes itself to the sections your changed
-#    paths can reach, and prints what it skipped (0.3 s for a doc, ~4 s for
-#    ai.html, ~10 s for a card). --plan shows the selection without running it.
-bash scripts/verify.sh
-
-# 2. If you added a tool, changed a slug or added/removed a top-level page:
-#    one command regenerates cards.json and everything derived from it — every
-#    tool-count claim, the machine indexes, sitemap.xml, index.html's generated
-#    first screen, the embed grid, the discovery surfaces, the per-tool specs,
-#    llms.txt and the site brain. None of these are hand-edited any more;
-#    verify.sh fails on drift.
-npm run build
-
-# 3. If you touched a translated cluster: edit all of them or Google
-#    treats them as duplicates
-#    (no automated check for this — be careful)
-
-# 4. Before pushing, the whole gate: every section, and the timing table that
-#    names the slowest ones.
-bash scripts/verify.sh --all
+npm run build          # regenerate every derived file (~8 s)
+npm run verify         # the gate: 8 checks, ~4 s — run it after every edit
+npm run verify:deep    # + the slow audits (~15 s) — before pushing
+npm test               # the product test suite
 ```
 
-## After merge
-
-A green GitHub Actions run is not proof of a live deploy. GitHub Pages takes
-30–60 seconds. Verify on the live URL:
+CI runs `verify.sh --deep` on every push and PR (~15 s). A green run is not
+proof of a live deploy: GitHub Pages takes 30–60 s, so check the URL.
 
 ```bash
-sleep 50
-curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/<your-page>.html
+curl -s -o /dev/null -w '%{http_code}\n' https://www.themostusefulsiteintheworld.com/<page>.html
 ```
+
+## Leave these alone
+
+`CNAME` · `sw.js` (unregistered by design) · `guide.txt` (stale) · `system/` ·
+`substitutions/` · `digitaldetoxcardshtml/` · the CV files · `token.html`
+(kept deliberately, no crypto promotion).
+
+`opensourcenews.html` is the live news broadcast and its facade pattern is
+load-bearing — touch with care. Don't "fix" the YouTube `o` vs
+SoundCloud/Instagram `0` handle mismatch; it is not a typo
+(ARCHITECTURE.md §4), and don't invent YouTube IDs — use the verified table
+there.
+
+## Things that have bitten this repo
+
+- **Element IDs must be unique across all cards.** One shared DOM, 1195
+  fragments: prefix every ID with the slug (`xyz-input`, `xyz-output`).
+- `target="_blank"` ⇒ `rel="noopener noreferrer"`. `loading="lazy"` below the
+  fold. Respect `prefers-reduced-motion`. Mobile-first at 360 px. Keyboard
+  reachable.
+- Canonical and OG URLs use `https://` **and** `www.` — never plain `http://`.
+- No placeholders ship: `verify.sh` greps for `VIDEO_ID`, `PLAYLIST_ID`,
+  `dQw4w9WgXcQ` and `YOUR_` in URLs.
+- Filenames contain spaces and en-dashes. Quote paths; URL-encode in markup.
+- **Never hand-edit a tool count.** The count is the number of `.html` files
+  in `cards/`, and every published copy is derived from it: `npm run build`
+  re-derives them all, and `verify.sh` self-heals drift in place. (The old
+  procedure here listed nine copies to update by hand; that is exactly what
+  produced nine contradictory counts.)
+- Translated clusters are edited as a whole (13 pages) or not at all — there
+  is no automated check for a half-translated cluster.
 
 ## If unsure
 
-Read [ARCHITECTURE.md](ARCHITECTURE.md) (authoritative). Money questions →
-[INCOME.md](INCOME.md). Anything about deleting, restructuring, or touching
-`opensourcenews.html`, monetisation, or YouTube-channel behaviour → ask the
-owner (`mrpr0phecy`) first.
+Read [ARCHITECTURE.md](ARCHITECTURE.md). Money questions →
+[INCOME.md](INCOME.md). Anything about deleting a tool or page,
+restructuring, `opensourcenews.html`, monetisation or YouTube-channel
+behaviour → ask the owner (`mrpr0phecy`) first.

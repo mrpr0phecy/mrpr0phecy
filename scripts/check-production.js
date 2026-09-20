@@ -19,8 +19,8 @@
 //      of cards, and the sitemap still lists the same URL set as the repo.
 //
 // It deliberately does NOT measure Core Web Vitals. Those are field metrics
-// (CrUX, 28-day p75) and belong to `staff/scoreboard.json` (`lcp-p75`,
-// `inp-p75`, `cls-p75`); the response times recorded here are server TTFB from
+// (CrUX, 28-day p75) and no script here can produce them; the response times
+// recorded here are server TTFB from
 // one runner, which is diagnostic evidence, never a field pass.
 //
 // It makes no change to the site and adds no client-side tracking: it is an
@@ -257,8 +257,8 @@ function sampleCards(cards, count, seed) {
 // --------------------------------------------------------------------- http
 
 // Repo paths become request URLs segment by segment. A raw join breaks the
-// moment a filename contains a character with URL meaning: staff/claims files
-// carry a literal %2F (the branch slash, escaped for the filesystem), and the
+// moment a filename contains a character with URL meaning: a branch claim file
+// can carry a literal %2F (the branch slash, escaped for the filesystem), and the
 // serving stack decodes an unencoded %2F into a real slash before routing —
 // so the monitor asked for a nested path that never existed and reported 404
 // on a file that was published all along (2026-09-15, issue #91). Encoding

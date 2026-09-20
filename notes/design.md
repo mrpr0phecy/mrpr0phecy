@@ -11,8 +11,10 @@ collection; any contributor may append evidence-based notes.
 - Shared expectations include visible keyboard focus, reduced-motion support,
   dark `color-scheme`, at least 40px page-chrome targets and no narrow-screen
   horizontal overflow.
-- `node scripts/design-audit.js --strict` checks the static baseline and runs
-  inside `bash scripts/verify.sh`.
+- The static baseline used to be checked by `scripts/design-audit.js` (54
+  deterministic checks) inside `verify.sh`; it was deleted with the staff
+  machinery on 2026-09-20. The standards it encoded are the shared rules in
+  `ARCHITECTURE.md` §5 and are checked by looking at the page.
 - Full design rules remain in `ARCHITECTURE.md` §5.
 
 ## Field notes
@@ -24,7 +26,7 @@ collection; any contributor may append evidence-based notes.
 **Finding:** Its measurable design standards remain useful without a named
 expert or persistent AI identity.
 
-**Evidence:** `scripts/design-audit.js` performs 54 deterministic checks across
+**Evidence (2026-09-04):** the then-`scripts/design-audit.js` performed 54 deterministic checks across
 `index.html`, `tool.html`, `404.html`, `donate.html`, `cards/card.css` and
 `listen.html`; all currently pass.
 

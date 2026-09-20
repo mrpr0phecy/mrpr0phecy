@@ -52,8 +52,8 @@ MrProphecy (the maker)
 * Category slugs are derived from labels (`Home & DIY` → `home-and-diy`).
   They are stable; renaming a category is a URL change and requires a
   redirect.
-* AI Developer (the contributor persona) ships under the product, not under
-  a personal handle, per `.github/PULL_REQUEST_TEMPLATE.md`.
+* Agent-contributed work ships under the product, not under a personal
+  handle.
 
 ## What to avoid
 

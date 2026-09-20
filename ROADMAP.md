@@ -1,11 +1,11 @@
 # Roadmap
 
 Owner-led product ideas, not the current operational work queue. Coordinate
-implementation through [STAFF.md](STAFF.md); current measured blockers and
+implementation through [staff/README.md](staff/README.md); current measured blockers and
 owner dependencies are in [staff/OPEN.md](staff/OPEN.md) (rebaselined
 2026-09-15 with the P0/P1/P2/P3 queue, the explicit owner asks and the
-stage-gated [staff/OPERATING-PLAN.md](staff/OPERATING-PLAN.md)) and the
-generated staff report, judged against [staff/EXCELLENCE.md](staff/EXCELLENCE.md). Prefer one small, reviewable change at a time.
+stage-gated [staff/OPERATING-PLAN.md](staff/OPERATING-PLAN.md)). Prefer one
+small, reviewable change at a time.
 
 The ideas below were last reviewed on 2026-09-04; some implementations have
 since landed. Recheck the actual code and GitHub evidence before claiming an
@@ -90,10 +90,10 @@ item. This historical list does not override current staff decisions.
     rather than measured — but only a browser can say whether 1,194 rows of tile
     *feel* right), the mount reflow as tiles become full-row tools, whether a
     parked tool's canvas really keeps its bitmap across a park/resume round trip,
-    and `⚡ Run all` on a mid-range phone. `scripts/staff/live-window-check.mjs`
-    is that probe: it serves the repo over `node:http`, drives a browser through
-    the same `STAFF_PLAYWRIGHT` / `STAFF_CHROMIUM_PATH` convention as
-    `scripts/staff/browser-check.mjs`, prints tile heights, the on-screen position
+    and `⚡ Run all` on a mid-range phone. The probe that measured this
+    (`scripts/staff/live-window-check.mjs`) was deleted with the staff machinery
+    on 2026-09-20: it served the repo over `node:http`, drove a browser through
+    playwright, and printed tile heights, the on-screen position
     of a row below the fold across a park (the no-jump claim, measured), canvas
     dimensions and `toDataURL()` length before and after, dropped frames during a
     scripted scroll at 4× CPU throttle, and the same numbers with `?park=full`.
@@ -113,8 +113,8 @@ item. This historical list does not override current staff decisions.
     `@achingbrain/nss` on `LD_LIBRARY_PATH` that becomes
     `version 'NSS_3.30' not found (required by /tmp/chromium)` — that bundled NSS
     is a decade too old and nothing reachable ships a newer one. Run the probe
-    locally (`npm i playwright`, then `node scripts/staff/live-window-check.mjs`)
-    against the numbers in the sentence above instead.
+    locally instead — the numbers in the sentence above are what was measured
+    when the probe still existed.
   - [x] Window the DOM. **Landed the same day (stage 2)**, on the owner's
     *"i do want them all running but only a few loaded at a time around the
     viewport"*: the cap became a mount window (`MOUNT_WINDOW_DEFAULT = 24`,

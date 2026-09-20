@@ -8,7 +8,7 @@ licensing edge (listen -> sync) stays connected.
 
 This proves structure, not performance: no static check can show that a
 page converts. Revenue and funnel evidence come from GA (within D-007),
-the inbox and Search Console — see staff/EXCELLENCE.md section 6.
+the inbox and Search Console.
 """
 import os
 import re
@@ -21,8 +21,8 @@ HUBS = ["index.html", "tools-index.html", "listen.html", "music.html",
         "donate.html", "sponsor.html", "embed.html", "sync.html"]
 
 # Pressure language that must never appear on a money page. Plainspoken
-# trust is the conversion strategy (EXCELLENCE.md section 3); urgency that
-# is real (e.g. the YPP deadline) lives in dated staff notes, not on pages.
+# trust is the conversion strategy; urgency that is real (e.g. the YPP
+# deadline) lives in dated staff notes, not on pages.
 BANNED = [
     r"act\s+now", r"limited\s+time", r"last\s+chance", r"miss\s+out",
     r"\bhurry\b", r"only\s+\d*\s*left", r"risk-free",

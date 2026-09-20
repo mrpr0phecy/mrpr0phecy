@@ -192,8 +192,8 @@ These need a human decision — they are outside what a code change can settle.
   UK/EU becomes the dominant audience or sponsorship contracts start depending
   on the numbers. Tracked as staff DISCUSSION #4.
 - **Six of seven agent branches still ship the old contradiction** (analytics
-  plus "no tracking" claims). Run `python3 staff/scan.py` to see the current
-  state; each branch must strip the claims before merging.
+  plus "no tracking" claims). Each branch must strip the claims before
+  merging.
 - **Music rights.** If any recording contains an uncleared sample or a
   collaborator with an unwritten split, resolve it before pushing the catalogue
   commercially.
