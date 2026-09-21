@@ -368,6 +368,87 @@
     });
   }
 
+  var LANE_DIRECTION_BITS = [
+    { bit: 1, name: 'none' },
+    { bit: 2, name: 'through' },
+    { bit: 4, name: 'sharp-left' },
+    { bit: 8, name: 'left' },
+    { bit: 16, name: 'slight-left' },
+    { bit: 32, name: 'slight-right' },
+    { bit: 64, name: 'right' },
+    { bit: 128, name: 'sharp-right' },
+    { bit: 256, name: 'reverse' },
+    { bit: 512, name: 'merge-left' },
+    { bit: 1024, name: 'merge-right' },
+  ];
+
+  function canonicalLaneDirection(value) {
+    var raw = String(value == null ? '' : value).trim().toLowerCase().replace(/[_ ]+/g, '-');
+    var names = {
+      straight: 'through', 'straight-ahead': 'through', through: 'through',
+      'hard-left': 'sharp-left', 'sharp-left': 'sharp-left', left: 'left', 'slight-left': 'slight-left',
+      'hard-right': 'sharp-right', 'sharp-right': 'sharp-right', right: 'right', 'slight-right': 'slight-right',
+      uturn: 'reverse', 'u-turn': 'reverse', reverse: 'reverse',
+      'merge-left': 'merge-left', 'merge-right': 'merge-right', none: 'none',
+    };
+    return names[raw] || null;
+  }
+
+  function laneDirections(value) {
+    if (typeof value === 'number' && isFinite(value)) {
+      return LANE_DIRECTION_BITS.filter(function (entry) { return (value & entry.bit) === entry.bit; }).map(function (entry) { return entry.name; });
+    }
+    if (Array.isArray(value)) {
+      return value.map(canonicalLaneDirection).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value.split(/[;,|]/).map(canonicalLaneDirection).filter(Boolean);
+    }
+    return [];
+  }
+
+  function uniqueDirections(directions) {
+    return directions.filter(function (direction, index) { return directions.indexOf(direction) === index; });
+  }
+
+  /** Normalize Valhalla bitmasks and OSRM-style indication arrays to one UI shape. */
+  function normaliseLaneInfo(lanes) {
+    if (!Array.isArray(lanes)) return [];
+    return lanes.map(function (lane) {
+      var raw = lane || {};
+      var directions = uniqueDirections(laneDirections(raw.indications != null ? raw.indications : raw.directions));
+      var activeRaw = raw.active != null ? raw.active : raw.is_active;
+      var validRaw = raw.valid != null ? raw.valid : raw.is_possible;
+      var activeIndication = canonicalLaneDirection(raw.active_indication || raw.activeIndication || raw.valid_indication || raw.validIndication);
+      if (activeIndication && directions.indexOf(activeIndication) < 0) directions.push(activeIndication);
+      var activeMask = typeof activeRaw === 'number' ? activeRaw : 0;
+      var validMask = typeof validRaw === 'number' ? validRaw : 0;
+      var active = activeRaw === true || activeMask > 0 || !!activeIndication;
+      var valid = active || validRaw === true || validMask > 0;
+      var hasState = activeRaw != null || validRaw != null || !!activeIndication;
+      if (activeRaw === false && activeMask === 0 && !activeIndication) active = false;
+      if (validRaw === false && validMask === 0 && !active) valid = false;
+      return {
+        indications: directions,
+        active: active,
+        valid: valid,
+        state: active ? 'active' : valid ? 'valid' : hasState ? 'closed' : 'unknown',
+        activeIndication: activeIndication,
+        directionsMask: typeof raw.directions === 'number' ? raw.directions : null,
+        validMask: validMask || null,
+        activeMask: activeMask || null,
+      };
+    });
+  }
+
+  function osrmStepLanes(step) {
+    var intersections = step && Array.isArray(step.intersections) ? step.intersections : [];
+    for (var i = 0; i < intersections.length; i += 1) {
+      if (intersections[i] && Array.isArray(intersections[i].lanes)) return intersections[i].lanes;
+    }
+    return [];
+  }
+
   function parseOsrmRoute(routeData, profile, provider, preference, exclude) {
     var steps = (routeData.legs && routeData.legs[0] && routeData.legs[0].steps ? routeData.legs[0].steps : []).map(function (step) {
       return {
@@ -376,6 +457,7 @@
         name: step.name || '',
         distanceKm: step.distance / 1000,
         durationMin: step.duration / 60,
+        lanes: normaliseLaneInfo(osrmStepLanes(step)),
         lat: step.maneuver && step.maneuver.location ? step.maneuver.location[1] : null,
         lon: step.maneuver && step.maneuver.location ? step.maneuver.location[0] : null,
       };
@@ -593,6 +675,7 @@
       costing_options: costing.costingOptions,
       directions_options: { units: 'kilometers', language: 'en-GB' },
       shape_format: 'geojson',
+      turn_lanes: true,
       alternates: opts.alternates || 0,
       id: 'mostusefulmaps',
     };
@@ -688,6 +771,7 @@
           modifier: modifierName(maneuver.type),
           type: maneuver.type,
           name: (maneuver.street_names && maneuver.street_names[0]) || maneuver.instruction || '',
+          lanes: normaliseLaneInfo(maneuver.lanes || (maneuver.intersection && maneuver.intersection.lanes) || []),
           lat: null, lon: null,
           beginShapeIndex: maneuver.begin_shape_index,
           exitNumber: maneuver.exit_number != null ? maneuver.exit_number : null,
@@ -1359,6 +1443,7 @@
     driveRoute: driveRoute,
     decodePolyline: decodePolyline,
     valhallaCosting: valhallaCosting,
+    normaliseLaneInfo: normaliseLaneInfo,
     speedLimitWays: speedLimitWays,
     stopsAlong: stopsAlong,
     camerasAlong: camerasAlong,

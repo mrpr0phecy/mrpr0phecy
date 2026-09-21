@@ -215,6 +215,7 @@
       driveConsumption: $('mm-drive-consumption'), drivePrice: $('mm-drive-price'), driveBreak: $('mm-drive-break'),
       driveSources: $('mm-drive-sources'), driveLocate: $('mm-drive-locate'), driveSwap: $('mm-drive-swap'), driveForget: $('mm-drive-forget'),
       nav: $('mm-nav'), navMode: $('mm-nav-mode'), navDistance: $('mm-nav-distance'), navInstruction: $('mm-nav-instruction'), navIcon: $('mm-nav-icon'),
+      navLanes: $('mm-nav-lanes'), navLaneStrip: $('mm-nav-lane-strip'), navLaneNote: $('mm-nav-lane-note'), navLanesState: $('mm-nav-lanes-state'),
       navLimitValue: $('mm-nav-limit-value'), navLimitUnit: $('mm-nav-limit-unit'),
       navCurrentValue: $('mm-nav-current-value'), navCurrentUnit: $('mm-nav-current-unit'), navCurrentBox: $('mm-nav-current-box'),
       navProgress: $('mm-nav-progress'), navRemaining: $('mm-nav-remaining'), navEta: $('mm-nav-eta'),
@@ -3009,6 +3010,73 @@
     }
   }
 
+  function laneArrow(direction) {
+    var arrows = {
+      'left': '←',
+      'slight-left': '↖',
+      'sharp-left': '↙',
+      'through': '↑',
+      'right': '→',
+      'slight-right': '↗',
+      'sharp-right': '↘',
+      'reverse': '↶',
+      'merge-left': '⇱',
+      'merge-right': '⇲',
+      'none': '•',
+    };
+    return arrows[direction] || '↑';
+  }
+
+  function laneDirectionLabel(direction) {
+    var labels = {
+      'left': 'left', 'slight-left': 'slight left', 'sharp-left': 'sharp left',
+      'through': 'straight ahead', 'right': 'right', 'slight-right': 'slight right',
+      'sharp-right': 'sharp right', 'reverse': 'U-turn', 'merge-left': 'merge left',
+      'merge-right': 'merge right', 'none': 'unspecified',
+    };
+    return labels[direction] || direction || 'unspecified';
+  }
+
+  function renderLaneAdvisory(next) {
+    if (!els.navLanes || !els.navLaneStrip) return;
+    var lanes = next && Array.isArray(next.lanes) ? next.lanes : [];
+    if (!lanes.length) {
+      els.navLanes.hidden = true;
+      clear(els.navLaneStrip);
+      if (els.navLaneNote) els.navLaneNote.textContent = '';
+      return;
+    }
+    els.navLanes.hidden = false;
+    clear(els.navLaneStrip);
+    var active = 0;
+    var valid = 0;
+    lanes.forEach(function (lane, index) {
+      var state = lane.active ? 'active' : lane.valid ? 'valid' : lane.state === 'closed' ? 'closed' : 'unknown';
+      if (lane.active) active += 1;
+      if (lane.valid || lane.active) valid += 1;
+      var box = make('div', 'mm-lane');
+      box.setAttribute('data-state', state);
+      var directions = lane.indications && lane.indications.length ? lane.indications : [];
+      var arrowText = directions.length ? directions.map(laneArrow).join(' ') : '—';
+      var description = directions.length ? directions.map(laneDirectionLabel).join(' and ') : 'direction unavailable';
+      var stateText = state === 'active' ? 'highlighted recommended lane' : state === 'valid' ? 'usable lane' : state === 'closed' ? 'not recommended lane' : 'lane direction only';
+      box.setAttribute('aria-label', 'Lane ' + (index + 1) + ': ' + description + ', ' + stateText);
+      box.title = 'Lane ' + (index + 1) + ': ' + description + (state === 'active' ? ' — recommended' : state === 'valid' ? ' — usable' : '');
+      box.appendChild(make('span', 'mm-lane-arrow', arrowText));
+      box.appendChild(make('span', 'mm-lane-number', String(index + 1)));
+      els.navLaneStrip.appendChild(box);
+    });
+    if (els.navLanesState) {
+      els.navLanesState.textContent = active ? active + ' recommended' : valid ? valid + ' usable' : 'directions only';
+    }
+    if (els.navLaneNote) {
+      if (active === 1) els.navLaneNote.textContent = 'Move into the highlighted lane when safe.';
+      else if (active > 1) els.navLaneNote.textContent = 'Either highlighted lane works for this manoeuvre.';
+      else if (valid) els.navLaneNote.textContent = 'Stay in a usable lane; no preferred lane was supplied.';
+      else els.navLaneNote.textContent = 'Lane directions are mapped here; the router supplied no preferred lane.';
+    }
+  }
+
   /** The overlay: next manoeuvre, the limit, your speed, and how far is left. */
   function renderGuidance(nav) {
     if (!els.nav) return;
@@ -3020,6 +3088,7 @@
         : 'Continue on the route';
     }
     if (els.navIcon) els.navIcon.textContent = iconFor(nav.next || {});
+    renderLaneAdvisory(nav.next);
 
     var imperial = state.units === 'imperial';
     var minimum = nav.limit && nav.limit.kph != null ? nav.limit.kph : null;

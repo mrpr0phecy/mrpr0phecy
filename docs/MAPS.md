@@ -127,10 +127,13 @@ than an invented one.
 Valhalla, which takes a costing and real dimensions: a caravan can be routed
 around a low bridge, an HGV gets `use_tolls`, `hazmat` and weight options, and
 "avoid motorways, tolls, ferries or unpaved" are honoured through
-`costing_options`. If Valhalla is unreachable the OSRM chain answers instead and
-the panel says the route is no longer vehicle-aware; if everything is
-unreachable, the panel shows the straight-line distance, explicitly labelled as
-not a road route.
+`costing_options`. The request also asks for turn-lane data. When the router
+returns it, the on-device guidance overlay shows lanes left-to-right with
+highlighted recommended/usable lanes and a plain-language instruction. Missing
+lane data stays hidden rather than being invented. If Valhalla is unreachable
+the OSRM chain answers instead and the panel says the route is no longer
+vehicle-aware; if everything is unreachable, the panel shows the straight-line
+distance, explicitly labelled as not a road route.
 
 **Traffic, honestly.** There is no key-free live traffic feed for the whole of
 the UK. National Highways publishes DATEX II closures behind a subscription key
