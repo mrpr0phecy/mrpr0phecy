@@ -494,6 +494,7 @@
         modifier: step.modifier || null,
         name: step.name || null,
         type: step.type != null ? step.type : null,
+        lanes: Array.isArray(step.lanes) ? step.lanes : null,
         lat: step.lat != null ? step.lat : null,
         lon: step.lon != null ? step.lon : null,
         key: i + ':' + (step.instruction || '').slice(0, 24),

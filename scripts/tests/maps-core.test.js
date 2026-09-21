@@ -856,7 +856,7 @@ test('drive: a session tracks progress, manoeuvres and arrival', () => {
     durationMinutes: 90,
     steps: [
       { distanceKm: 40, durationMin: 30, instruction: 'Head north on the M1', verbal: 'head north on the M1', modifier: 'straight' },
-      { distanceKm: 40, durationMin: 30, instruction: 'Keep left onto the M6', verbal: 'keep left onto the M6', modifier: 'keep left' },
+      { distanceKm: 40, durationMin: 30, instruction: 'Keep left onto the M6', verbal: 'keep left onto the M6', modifier: 'keep left', lanes: [{ indications: ['left'], valid: true }] },
       { distanceKm: 20, durationMin: 30, instruction: 'Arrive at your destination', verbal: 'arrive at your destination', modifier: 'arrive' },
     ],
     speedLimits: [
@@ -879,6 +879,7 @@ test('drive: a session tracks progress, manoeuvres and arrival', () => {
   assert.ok(Math.abs(middle.progressKm - 40) < 2, `expected ~40 km, got ${middle.progressKm}`);
   assert.ok(Math.abs(middle.remainingKm - (route.distanceKm - 40)) < 2);
   assert.match(middle.next.instruction, /M6/);
+  assert.deepEqual(middle.next.lanes[0].indications, ['left'], 'lane data stays attached to the active manoeuvre');
   assert.ok(middle.remainingMinutes < 70 && middle.remainingMinutes > 50, `remaining ${middle.remainingMinutes}`);
   assert.ok(middle.eta instanceof Date);
   assert.equal(middle.limit.kph, 113);
@@ -1050,6 +1051,17 @@ test('drive: Valhalla trips and routes parse into the shapes the UI needs', () =
   assert.equal(caravan.costingOptions.auto.height, 3.1, 'a caravan has a real height');
   assert.ok(caravan.costingOptions.auto.use_highways < 0.5, 'and can ask to keep off motorways');
 
+  const lanes = providers.normaliseLaneInfo([
+    { directions: 10, active: 8 }, // left + through, left is the preferred direction
+    { directions: 2, valid: 2 },
+    { indications: ['right'], valid: false },
+  ]);
+  assert.deepEqual(lanes[0].indications, ['through', 'left']);
+  assert.equal(lanes[0].active, true);
+  assert.equal(lanes[1].valid, true);
+  assert.equal(lanes[2].state, 'closed');
+  assert.deepEqual(providers.normaliseLaneInfo([{ valid: true }])[0].indications, []);
+
   // Sampling a geometry for corridor queries stays bounded.
   const line = [];
   for (let i = 0; i <= 400; i += 1) line.push([-0.1 - i * 0.01, 51.5]);
@@ -1079,7 +1091,7 @@ test('page: the driving scripts load before the page controller', () => {
 
 test('page: the navigation overlay exists, and starts hidden', () => {
   const html = fs.readFileSync(path.join(ROOT, 'maps.html'), 'utf8');
-  for (const id of ['mm-nav', 'mm-nav-distance', 'mm-nav-instruction', 'mm-nav-limit-value', 'mm-nav-current-value', 'mm-nav-progress', 'mm-nav-remaining', 'mm-nav-eta', 'mm-nav-replan', 'mm-nav-stop']) {
+  for (const id of ['mm-nav', 'mm-nav-distance', 'mm-nav-instruction', 'mm-nav-lanes', 'mm-nav-lane-strip', 'mm-nav-lane-note', 'mm-nav-limit-value', 'mm-nav-current-value', 'mm-nav-progress', 'mm-nav-remaining', 'mm-nav-eta', 'mm-nav-replan', 'mm-nav-stop']) {
     assert.ok(html.includes(`id="${id}"`), `the navigation overlay is missing ${id}`);
   }
   assert.match(html, /id="mm-nav"[^>]*hidden/, 'the overlay must not be visible before a drive starts');
@@ -1101,6 +1113,129 @@ test('providers: the driving services are declared with their licences', () => {
   assert.ok(described.traffic && /TfL/.test(described.traffic.name), 'describe() names the traffic source');
   assert.ok(described.weather && /Open-Meteo/.test(described.weather.name), 'describe() names the weather source');
   assert.deepEqual(providers.POI_CATEGORIES.length, providers.poiCategories ? providers.POI_CATEGORIES.length : providers.POI_CATEGORIES.length);
+});
+
+test('providers: driving asks Valhalla for turn-lane data and preserves it', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  const original = globalThis.fetch;
+  let request = null;
+  globalThis.fetch = async (url) => {
+    const query = new URL(String(url)).searchParams.get('json');
+    request = query ? JSON.parse(query) : null;
+    const response = {
+      trip: {
+        summary: { length: 1, time: 60 },
+        legs: [{
+          shape: { type: 'LineString', coordinates: [[-0.4, 51.8], [-0.39, 51.8]] },
+          maneuvers: [{
+            length: 1, time: 60, instruction: 'Turn left', type: 15,
+            lanes: [{ directions: 8, active: 8 }, { directions: 2, valid: 2 }],
+          }],
+        }],
+      },
+    };
+    return new Response(JSON.stringify(response), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const route = await providers.driveRoute(LUTON, { lat: 51.8, lon: -0.39 }, { vehicle: 'car' });
+    assert.equal(request.turn_lanes, true);
+    assert.equal(route.steps[0].lanes[0].active, true);
+    assert.equal(route.steps[0].lanes[1].valid, true);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('providers: OSRM lane indications are retained and missing lanes stay empty', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    routes: [{
+      distance: 1000,
+      duration: 60,
+      geometry: { type: 'LineString', coordinates: [[-0.42, 51.88], [-0.39, 51.8]] },
+      legs: [{ steps: [{
+        distance: 1000,
+        duration: 60,
+        name: 'A road',
+        maneuver: { type: 'turn', modifier: 'left', location: [-0.4, 51.84] },
+        intersections: [{ lanes: [
+          { indications: ['left'], valid: true },
+          { indications: ['through'], valid: false },
+        ] }],
+      }] }],
+    }],
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+  try {
+    const route = await providers.route(LUTON, { lat: 51.8, lon: -0.39 }, 'car', { alternatives: false });
+    assert.deepEqual(route.steps[0].lanes[0].indications, ['left']);
+    assert.equal(route.steps[0].lanes[0].valid, true);
+    assert.equal(route.steps[0].lanes[1].state, 'closed');
+    assert.deepEqual(providers.normaliseLaneInfo(null), []);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('providers: selected-place enrichment is attributed, bounded and keyless', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  providers.clearCache();
+  const original = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    const text = String(url);
+    asked.push(text);
+    let payload;
+    if (text.includes('air-quality-api.open-meteo.com')) {
+      payload = {
+        current: { european_aqi: 18, pm2_5: 7.2, pm10: 11, ozone: 52, nitrogen_dioxide: 8 },
+        current_units: { pm2_5: 'µg/m³', pm10: 'µg/m³', ozone: 'µg/m³', nitrogen_dioxide: 'µg/m³' },
+      };
+    } else if (text.includes('environment.data.gov.uk')) {
+      payload = {
+        items: [{
+          '@id': 'https://environment.data.gov.uk/flood-monitoring/id/floods/example',
+          description: 'River test area', severity: 'Flood Alert', severityLevel: 3,
+          floodArea: { county: 'Testshire', riverOrSea: 'River Test' },
+        }],
+      };
+    } else if (text.includes('commons.wikimedia.org')) {
+      payload = {
+        query: { pages: { '1': {
+          title: 'File:Open place.jpg', dist: 240,
+          imageinfo: [{ thumburl: 'https://upload.wikimedia.org/example.jpg', descriptionurl: 'https://commons.wikimedia.org/wiki/File:Open_place.jpg', extmetadata: { LicenseShortName: { value: 'CC BY-SA 4.0' } } }],
+        } } },
+      };
+    } else if (text.includes('api.openstreetcam.org')) {
+      payload = {
+        result: { data: [{ id: 7, lat: 51.5, lng: -0.4, fileurl: 'https://storage.openstreetcam.org/example.jpg', dateProcessed: '2026-01-02', sequence: { id: 9 } }] },
+      };
+    } else {
+      throw new Error('unexpected endpoint');
+    }
+    return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const [air, floods, commons, street] = await Promise.all([
+      providers.airQuality(LUTON),
+      providers.floodWarnings(LUTON),
+      providers.commons(LUTON),
+      providers.kartaView(LUTON),
+    ]);
+    assert.equal(air.current.european_aqi, 18);
+    assert.match(air.provider.licence, /CC BY 4\.0/);
+    assert.equal(floods.warnings[0].riverOrSea, 'River Test');
+    assert.match(floods.provider.licence, /Open Government Licence/);
+    assert.equal(commons.images[0].licence, 'CC BY-SA 4.0');
+    assert.equal(street.photos[0].sequenceId, 9);
+    assert.match(street.provider.licence, /CC BY-SA 4\.0/);
+    assert.equal(asked.length, 4);
+    assert.ok(asked.some((url) => /min-severity=3/.test(url)), 'floods request only asks for active alerts/warnings');
+    assert.ok(asked.every((url) => !/apikey|api_key|token/i.test(url)), 'all enrichment endpoints are keyless');
+    assert.ok(asked.every((url) => /51\.87970|-0\.41750/.test(url)), 'every request is coordinate-based');
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test('providers: traffic says nothing rather than inventing it', async () => {

@@ -10,7 +10,7 @@ access in a fresh session, run `bash scripts/agent-auth.sh` (self-service
 device flow, sparse-clone recipe inside) instead of asking the owner to paste a
 token.
 
-Last substantive update: 2026-09-07.
+Last substantive update: 2026-09-21.
 
 For anything money-related — what earns, what the real numbers are, and what
 was deliberately not built — see **[INCOME.md](INCOME.md)**.
@@ -1132,11 +1132,23 @@ products, built so the catalogue's tools can use it too.
   GPX). Guidance consults no service once the route is loaded, so a dead spot,
   a tunnel or a border costs nothing.
 - `MM.providers.driveRoute` adds Valhalla to the routing chain for the Drive
-  tab (vehicle dimensions, avoid preferences, alternatives), with the OSRM
-  chain behind it and a labelled straight line behind that. Speed limits come
-  from Overpass, traffic only from a key-free feed that exists (TfL, London),
-  weather from Open-Meteo at the hour you reach each sampled point. Where no
-  key-free feed exists the page says so rather than estimating: national
-  timings are labelled free-flow everywhere outside London.
+  tab (vehicle dimensions, route shape, avoid preferences, alternatives), with
+  the OSRM chain behind it and a labelled straight line behind that. The Route
+  tab uses those open profiles for driving, cycling and walking, with
+  fastest/shortest/quieter choices, explicit avoid preferences and any
+  alternatives the router returns. A real route in any of the three modes can
+  feed the same on-device guidance session. Speed limits come from Overpass,
+  traffic only from a key-free feed that exists (TfL, London), weather from
+  Open-Meteo at the hour you reach each sampled point. Where no key-free feed
+  exists the page says so rather than estimating: national timings are labelled
+  free-flow everywhere outside London.
+- Selecting a place also enables a compact enrichment layer in the place card:
+  Open-Meteo Air Quality gives a modelled European AQI and pollutants,
+  Environment Agency returns nearby England-focused flood warnings, Wikimedia
+  Commons supplies geotagged cultural thumbnails with individual credit and
+  licence links, and KartaView supplies optional historical user-contributed
+  street imagery with capture dates. All four are coordinate-and-radius
+  requests made only after selection, cached and labelled; absence is never
+  presented as safety, coverage or completeness.
 - Provenance, licences, the provider list, the driving layering, the offline
   matrix and the limits of what CI can test are in `docs/MAPS.md`.

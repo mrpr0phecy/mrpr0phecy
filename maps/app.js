@@ -35,8 +35,11 @@
     measure: [],
     measuring: false,
     route: null,
+    routePreference: 'fastest',
+    routeAvoid: { motorways: false, tolls: false, ferries: false, unpaved: false },
     nearby: [],
     place: null,
+    placeOrigin: null,
     offline: !root.navigator || root.navigator.onLine === false,
   };
 
@@ -48,6 +51,7 @@
   var searchTimer = null;
   var suggestIndex = -1;
   var suggestions = [];
+  var searchRequestId = 0;
   var lastRoutePoints = null;
 
   /**
@@ -65,6 +69,7 @@
     session: null,
     watchId: null,
     tapToMove: false,
+    navigationMode: null,
     markers: [],
     overlays: { traffic: true, weather: true, stops: true, cameras: true, limits: true },
     replanning: false,
@@ -199,17 +204,18 @@
       search: $('mm-search'), suggest: $('mm-suggest'), form: $('mm-search-form'),
       place: $('mm-place-body'), route: $('mm-route-body'), measure: $('mm-measure-body'),
       nearby: $('mm-nearby-body'), info: $('mm-info-body'), sun: $('mm-sun'),
-      fromField: $('mm-route-from'), toField: $('mm-route-to'), radius: $('mm-radius'),
+      fromField: $('mm-route-from'), toField: $('mm-route-to'), routeHint: $('mm-route-hint'), radius: $('mm-radius'),
       nearbyChips: $('mm-nearby-chips'),
       styleSelect: $('mm-style'), unitsSelect: $('mm-units'), themeButton: $('mm-theme-toggle'),
       measureToggle: $('mm-measure-toggle'), clearButton: $('mm-clear'), shareButton: $('mm-share'),
-      locateButton: $('mm-locate'), railToggle: $('mm-rail-toggle'),
+      locateButton: $('mm-locate'), zoomIn: $('mm-zoom-in'), zoomOut: $('mm-zoom-out'), railToggle: $('mm-rail-toggle'),
       driveBody: $('mm-drive-body'), driveForm: $('mm-drive-form'), driveFrom: $('mm-drive-from'), driveTo: $('mm-drive-to'),
       driveVehicle: $('mm-drive-vehicle'), driveVehicleNote: $('mm-drive-vehicle-note'), driveDims: $('mm-drive-dims'),
       driveHeight: $('mm-drive-height'), driveWidth: $('mm-drive-width'), driveLength: $('mm-drive-length'), driveWeight: $('mm-drive-weight'),
       driveConsumption: $('mm-drive-consumption'), drivePrice: $('mm-drive-price'), driveBreak: $('mm-drive-break'),
       driveSources: $('mm-drive-sources'), driveLocate: $('mm-drive-locate'), driveSwap: $('mm-drive-swap'), driveForget: $('mm-drive-forget'),
-      nav: $('mm-nav'), navDistance: $('mm-nav-distance'), navInstruction: $('mm-nav-instruction'), navIcon: $('mm-nav-icon'),
+      nav: $('mm-nav'), navMode: $('mm-nav-mode'), navDistance: $('mm-nav-distance'), navInstruction: $('mm-nav-instruction'), navIcon: $('mm-nav-icon'),
+      navLanes: $('mm-nav-lanes'), navLaneStrip: $('mm-nav-lane-strip'), navLaneNote: $('mm-nav-lane-note'), navLanesState: $('mm-nav-lanes-state'),
       navLimitValue: $('mm-nav-limit-value'), navLimitUnit: $('mm-nav-limit-unit'),
       navCurrentValue: $('mm-nav-current-value'), navCurrentUnit: $('mm-nav-current-unit'), navCurrentBox: $('mm-nav-current-box'),
       navProgress: $('mm-nav-progress'), navRemaining: $('mm-nav-remaining'), navEta: $('mm-nav-eta'),
@@ -272,6 +278,19 @@
       doc.body.classList.toggle('rail-hidden');
       els.railToggle.setAttribute('aria-expanded', String(!doc.body.classList.contains('rail-hidden')));
     });
+
+    // Keep the map controls useful even when the live renderer is still
+    // loading. The offline canvas is the source of truth, so these controls
+    // work on a train, behind a firewall, and on older phones too.
+    function setZoom(delta) {
+      var view = map.getView();
+      map.setView(view.center, view.zoom + delta);
+      if (live && live.map) {
+        try { live.map.easeTo({ center: [view.center.lon, view.center.lat], zoom: view.zoom + delta, duration: 220 }); } catch (error) {}
+      }
+    }
+    if (els.zoomIn) els.zoomIn.addEventListener('click', function () { setZoom(1); });
+    if (els.zoomOut) els.zoomOut.addEventListener('click', function () { setZoom(-1); });
 
     startLive();
   }
@@ -411,10 +430,18 @@
     els.search.addEventListener('input', function () {
       clearTimeout(searchTimer);
       var value = els.search.value.trim();
-      if (!value) { closeSuggest(); return; }
+      if (!value) { searchRequestId += 1; closeSuggest(); return; }
       searchTimer = setTimeout(function () { runSearch(value, false); }, 180);
     });
+    els.search.addEventListener('focus', function () {
+      if (els.search.value.trim() && suggestions.length) renderSuggest();
+    });
     els.search.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && suggestions.length) {
+        event.preventDefault();
+        selectPlace(suggestions[Math.max(0, suggestIndex)]);
+        return;
+      }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         suggestIndex += event.key === 'ArrowDown' ? 1 : -1;
@@ -460,7 +487,8 @@
       state.theme = state.theme === 'dark' ? 'light' : 'dark';
       doc.body.classList.toggle('light', state.theme === 'light');
       map.setTheme(state.theme);
-      els.themeButton.textContent = state.theme === 'dark' ? '🌙' : '☀️';
+      var themeIcon = els.themeButton.querySelector('span');
+      if (themeIcon) themeIcon.textContent = state.theme === 'dark' ? '◐' : '☼';
       els.themeButton.setAttribute('aria-label', state.theme === 'dark' ? 'Switch to light map' : 'Switch to dark map');
     });
     els.shareButton.addEventListener('click', function () {
@@ -472,10 +500,18 @@
   function shareUrl() {
     var base = root.location.origin + root.location.pathname;
     var params = ['lat=' + state.center.lat.toFixed(5), 'lon=' + state.center.lon.toFixed(5), 'z=' + state.zoom.toFixed(2)];
+    if (state.panel) params.push('panel=' + encodeURIComponent(state.panel));
+    if (state.units !== 'metric') params.push('units=' + encodeURIComponent(state.units));
+    if (state.styleId !== 'fiord') params.push('style=' + encodeURIComponent(state.styleId));
     if (state.route && lastRoutePoints) {
       params.push('from=' + lastRoutePoints.from.lat.toFixed(5) + ',' + lastRoutePoints.from.lon.toFixed(5));
       params.push('to=' + lastRoutePoints.to.lat.toFixed(5) + ',' + lastRoutePoints.to.lon.toFixed(5));
-      params.push('mode=' + state.route.mode);
+      params.push('mode=' + (state.route.mode || state.routeMode || 'car'));
+      params.push('pref=' + encodeURIComponent(state.routePreference || drive.prefs.routePreference || 'fastest'));
+      var sharedAvoids = drive.route && drive.route === state.route
+        ? ['motorways', 'tolls', 'ferries', 'unpaved'].filter(function (key) { return !!drive.prefs['avoid' + key.charAt(0).toUpperCase() + key.slice(1)]; })
+        : selectedRouteAvoids();
+      if (sharedAvoids.length) params.push('avoid=' + encodeURIComponent(sharedAvoids.join(',')));
       if (drive.prefs && drive.prefs.vehicle && drive.prefs.vehicle !== 'car') params.push('v=' + drive.prefs.vehicle);
     }
     return base + '?' + params.join('&');
@@ -485,9 +521,7 @@
     if (!root.history || !root.history.replaceState) return;
     clearTimeout(syncUrl._timer);
     syncUrl._timer = setTimeout(function () {
-      var params = '?lat=' + state.center.lat.toFixed(5) + '&lon=' + state.center.lon.toFixed(5) +
-        '&z=' + state.zoom.toFixed(2);
-      root.history.replaceState(null, '', params);
+      root.history.replaceState(null, '', shareUrl());
     }, 500);
   }
 
@@ -504,19 +538,24 @@
     if (units === 'imperial' || units === 'metric') state.units = units;
     var style = params.get('style');
     if (style) state.styleId = style;
+    var preference = params.get('pref');
+    if (preference === 'fastest' || preference === 'shortest' || preference === 'quiet') state.routePreference = preference;
+    var sharedAvoid = params.get('avoid');
+    if (sharedAvoid) sharedAvoid.split(',').forEach(function (key) { if (Object.prototype.hasOwnProperty.call(state.routeAvoid, key)) state.routeAvoid[key] = true; });
     var panel = params.get('panel');
     if (panel && PANELS.indexOf(panel) >= 0) state.panel = panel;
     state.pendingQuery = params.get('q') || null;
     var from = params.get('from'), to = params.get('to');
     if (from && to) state.pendingRoute = { from: from, to: to, mode: params.get('mode') || 'car' };
     var vehicle = params.get('v');
-    if (vehicle && MM.speed) {
-      var known = MM.speed.VEHICLES.some(function (entry) { return entry.id === vehicle; });
-      if (known) {
-        loadDrivePrefs();
-        drive.prefs.vehicle = vehicle;
-        saveDrivePrefs();
+    if ((vehicle || preference) && MM.speed) {
+      loadDrivePrefs();
+      if (vehicle) {
+        var known = MM.speed.VEHICLES.some(function (entry) { return entry.id === vehicle; });
+        if (known) drive.prefs.vehicle = vehicle;
       }
+      if (preference === 'fastest' || preference === 'shortest' || preference === 'quiet') drive.prefs.routePreference = preference;
+      saveDrivePrefs();
     }
   }
 
@@ -524,6 +563,8 @@
   function runSearch(query, jump) {
     var text = query.trim();
     if (!text) return;
+    var requestId = ++searchRequestId;
+    suggestIndex = -1;
     var local = [];
     var interpretation = null;
     try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null }); } catch (error) { interpretation = null; }
@@ -537,6 +578,7 @@
     }
 
     ensureGazetteer().then(function (gaz) {
+      if (requestId !== searchRequestId) return;
       local = gaz.search(text, { limit: 6, near: state.center });
       suggestions = local.map(function (row) {
         return { name: row.name, detail: row.country, lat: row.lat, lon: row.lon, kind: 'place', pop: row.pop, offline: true };
@@ -547,6 +589,7 @@
 
     if (state.offline) return;
     MM.providers.geocode(text, { near: state.center }).then(function (result) {
+      if (requestId !== searchRequestId) return;
       if (!result.results || !result.results.length) {
         if (!suggestions.length) toast('No match for “' + text + '”');
         return;
@@ -565,8 +608,13 @@
 
   function renderSuggest() {
     clear(els.suggest);
-    if (!suggestions.length) { els.suggest.hidden = true; return; }
+    if (!suggestions.length) {
+      els.suggest.hidden = true;
+      els.search.setAttribute('aria-expanded', 'false');
+      return;
+    }
     els.suggest.hidden = false;
+    els.search.setAttribute('aria-expanded', 'true');
     suggestions.forEach(function (row, index) {
       var li = make('li');
       li.setAttribute('role', 'option');
@@ -586,12 +634,47 @@
     suggestions = [];
     suggestIndex = -1;
     els.suggest.hidden = true;
+    if (els.search) els.search.setAttribute('aria-expanded', 'false');
   }
 
   // ------------------------------------------------------------- place card
 
+  var RECENT_PLACES_KEY = 'mum-recent-places';
+
+  function readRecentPlaces() {
+    try {
+      var stored = root.localStorage && root.localStorage.getItem(RECENT_PLACES_KEY);
+      var parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed.filter(function (place) {
+        return place && place.name && isFinite(place.lat) && isFinite(place.lon);
+      }).slice(0, 6) : [];
+    } catch (error) { return []; }
+  }
+
+  function rememberPlace(row) {
+    if (!row || !row.name || !isFinite(row.lat) || !isFinite(row.lon)) return;
+    var next = [{ name: row.name, detail: row.detail || '', lat: row.lat, lon: row.lon, country: row.country || null }];
+    readRecentPlaces().forEach(function (place) {
+      if (MM.geodesy.distanceKm(place, row) > 0.5) next.push(place);
+    });
+    try {
+      if (root.localStorage) root.localStorage.setItem(RECENT_PLACES_KEY, JSON.stringify(next.slice(0, 6)));
+    } catch (error) { /* private mode or a full store is still a fine map */ }
+  }
+
+  function clearRecentPlaces() {
+    try {
+      if (root.localStorage) root.localStorage.removeItem(RECENT_PLACES_KEY);
+    } catch (error) { /* a blocked store is already effectively clear */ }
+    renderPlace();
+    toast('Recent places cleared');
+  }
+
   function selectPlace(row) {
     closeSuggest();
+    doc.body.classList.add('mm-has-map-interaction');
+    rememberPlace(row);
+    state.placeOrigin = { lat: state.center.lat, lon: state.center.lon };
     state.place = row;
     els.search.value = row.name;
     focusPoint({ lat: row.lat, lon: row.lon }, row.zoom || Math.max(state.zoom, 12));
@@ -622,18 +705,85 @@
     updateHud();
   }
 
+  var placeRenderToken = 0;
+
   function renderPlace() {
     var body = els.place;
+    var renderToken = ++placeRenderToken;
     clear(body);
     var row = state.place;
     if (!row) {
-      body.appendChild(make('p', 'mm-muted', 'Search for a town, postcode, Plus Code, OS grid reference or coordinate pair — or click anywhere on the map.'));
+      var welcome = make('div', 'mm-welcome');
+      welcome.appendChild(make('span', 'mm-eyebrow', 'A calmer way to navigate'));
+      welcome.appendChild(make('h3', null, 'Where are you going?'));
+      welcome.appendChild(make('p', 'mm-welcome-copy', 'Search for a place, tap the map, or start with a shortcut. No account, no ads, and the useful maths works offline.'));
+
+      var quick = make('div', 'mm-quick-actions');
+      var quickItems = [
+        ['route', '↗', 'Directions', 'Plan a journey'],
+        ['nearby', '⌖', 'Find nearby', 'Places around here'],
+        ['measure', '⌁', 'Measure', 'Distance or area'],
+        ['locate', '⌾', 'Use my location', 'Stay on this device'],
+      ];
+      quickItems.forEach(function (item) {
+        var button = make('button', 'mm-quick-action');
+        button.type = 'button';
+        button.setAttribute('data-mm-quick-action', item[0]);
+        button.appendChild(make('span', 'mm-quick-icon', item[1]));
+        var copy = make('span', 'mm-quick-copy');
+        copy.appendChild(make('b', null, item[2]));
+        copy.appendChild(make('small', null, item[3]));
+        button.appendChild(copy);
+        button.addEventListener('click', function () {
+          if (item[0] === 'locate') locate();
+          else if (item[0] === 'measure') els.measureToggle.click();
+          else showPanel(item[0]);
+        });
+        quick.appendChild(button);
+      });
+      welcome.appendChild(quick);
+
+      var tip = make('div', 'mm-welcome-tip');
+      tip.appendChild(make('span', 'mm-tip-mark', '⌘'));
+      var tipText = make('span');
+      tipText.appendChild(doc.createTextNode('Press '));
+      tipText.appendChild(make('b', null, '/'));
+      tipText.appendChild(doc.createTextNode(' or '));
+      tipText.appendChild(make('b', null, '⌘ K'));
+      tipText.appendChild(doc.createTextNode(' to search anywhere'));
+      tip.appendChild(tipText);
+      welcome.appendChild(tip);
+      body.appendChild(welcome);
+
+      var recent = readRecentPlaces();
+      if (recent.length) {
+        var recentBox = make('div', 'mm-recent');
+        var recentHeading = make('div', 'mm-recent-heading');
+        recentHeading.appendChild(make('h2', null, 'Recent places'));
+        var clearRecent = make('button', 'mm-recent-clear', 'Clear');
+        clearRecent.type = 'button';
+        clearRecent.addEventListener('click', clearRecentPlaces);
+        recentHeading.appendChild(clearRecent);
+        recentBox.appendChild(recentHeading);
+        var list = make('div', 'mm-recent-list');
+        recent.slice(0, 3).forEach(function (place) {
+          var button = make('button', 'mm-recent-item');
+          button.type = 'button';
+          button.appendChild(make('span', 'mm-recent-pin', '•'));
+          button.appendChild(make('span', null, place.name));
+          button.addEventListener('click', function () { selectPlace(place); });
+          list.appendChild(button);
+        });
+        recentBox.appendChild(list);
+        body.appendChild(recentBox);
+      }
       return;
     }
     body.appendChild(make('h3', null, row.name));
     if (row.detail) body.appendChild(make('p', 'tight', row.detail));
 
-    var km = MM.geodesy.distanceKm(state.center, row);
+    var origin = state.placeOrigin || state.center;
+    var km = MM.geodesy.distanceKm(origin, row);
     var dl = make('dl', 'mm-kv');
     kvRow(dl, 'Coordinates', MM.geodesy.formatLatLon(row.lat, row.lon, 5), 'Coordinates');
     kvRow(dl, 'Plus Code', MM.olc.encode(row.lat, row.lon), 'Plus Code');
@@ -642,8 +792,9 @@
     body.appendChild(dl);
 
     var stats = make('div', 'mm-grid3');
-    stats.appendChild(statCard('Straight line', fmtKm(km), 'from map centre'));
-    stats.appendChild(statCard('Bearing', Math.round(MM.geodesy.bearing(state.center, row)) + '°', MM.geodesy.compassPoint(MM.geodesy.bearing(state.center, row))));
+    stats.appendChild(statCard('Straight line', fmtKm(km), km < 0.01 ? 'at map centre' : 'from previous centre'));
+    var bearing = MM.geodesy.bearing(origin, row);
+    stats.appendChild(statCard('Bearing', Math.round(bearing) + '°', MM.geodesy.compassPoint(bearing)));
     var facts = countryFacts(row.country ? countryCodeOf(row) : null);
     if (facts) stats.appendChild(statCard('Country', facts.name, facts.region));
     body.appendChild(stats);
@@ -696,6 +847,7 @@
       var reverseNote = make('p', 'mm-muted', 'Address lookup…');
       body.appendChild(reverseNote);
       MM.providers.reverse(row).then(function (result) {
+        if (renderToken !== placeRenderToken || state.place !== row) return;
         if (result.result && result.result.detail) {
           reverseNote.textContent = 'Address: ' + result.result.detail + ' — ' + result.provider.name + ' (OpenStreetMap data)';
         } else {
@@ -706,6 +858,7 @@
       var wikiNote = make('div');
       body.appendChild(wikiNote);
       MM.providers.wiki(row, { radiusMetres: 5000 }).then(function (result) {
+        if (renderToken !== placeRenderToken || state.place !== row) return;
         if (!result.articles || !result.articles.length) return;
         wikiNote.appendChild(make('h2', null, 'Nearby knowledge'));
         result.articles.slice(0, 3).forEach(function (article) {
@@ -723,12 +876,219 @@
           }
         });
       });
+
+      var enrichment = make('section', 'mm-place-enrichment');
+      body.appendChild(enrichment);
+      renderPlaceEnrichment(row, enrichment, renderToken);
     } else {
       body.appendChild(make('p', 'mm-muted', 'Offline: showing coordinates, Plus Code, grid reference and country facts from the data shipped with this page.'));
     }
 
     var nearest = lastNearest;
     if (nearest) body.appendChild(make('p', 'mm-muted', 'Nearest place: ' + nearest.name + ', ' + fmtKm(nearest.km) + ' away.'));
+  }
+
+  function placeContextCard(title, className) {
+    var card = make('section', 'mm-place-context-card' + (className ? ' ' + className : ''));
+    card.appendChild(make('h3', null, title));
+    return card;
+  }
+
+  function sourceLine(parent, text, url) {
+    var line = make('p', 'mm-source-line');
+    if (url) {
+      var link = make('a', null, text);
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      line.appendChild(link);
+    } else {
+      line.appendChild(make('span', null, text));
+    }
+    parent.appendChild(line);
+    return line;
+  }
+
+  function renderPlaceEnrichment(row, host, renderToken) {
+    clear(host);
+    host.appendChild(make('h2', null, 'Open local context'));
+    host.appendChild(make('p', 'mm-muted', 'A small, on-demand snapshot around these coordinates. Models, warnings and community imagery are useful clues, not a complete survey or a safety guarantee.'));
+    if (state.offline) {
+      host.appendChild(make('p', 'mm-note warn', 'Offline: air quality, flood warnings and open imagery need a connection. No request was made.'));
+      return;
+    }
+
+    var loading = make('p', 'mm-muted');
+    loading.appendChild(make('span', 'mm-spinner'));
+    loading.appendChild(doc.createTextNode(' Asking open services…'));
+    host.appendChild(loading);
+    var calls = [
+      MM.providers.airQuality(row, { cacheMs: 10 * 60 * 1000 }),
+      MM.providers.floodWarnings(row, { radiusKm: 15, cacheMs: 5 * 60 * 1000 }),
+      MM.providers.commons(row, { radiusMetres: 5000, limit: 6, cacheMs: 30 * 60 * 1000 }),
+      MM.providers.kartaView(row, { zoomLevel: 17, radiusMetres: 500, limit: 6, cacheMs: 30 * 60 * 1000 }),
+    ];
+    Promise.all(calls).then(function (results) {
+      if (renderToken !== placeRenderToken || state.place !== row) return;
+      clear(host);
+      host.appendChild(make('h2', null, 'Open local context'));
+      host.appendChild(make('p', 'mm-muted', 'A small, on-demand snapshot around these coordinates. Models, warnings and community imagery are useful clues, not a complete survey or a safety guarantee.'));
+      var grid = make('div', 'mm-place-context-grid');
+      renderAirQualityCard(grid, results[0]);
+      renderFloodCard(grid, results[1]);
+      renderCommonsCard(grid, results[2]);
+      renderKartaViewCard(grid, results[3]);
+      host.appendChild(grid);
+    }).catch(function () {
+      if (renderToken !== placeRenderToken || state.place !== row) return;
+      clear(host);
+      host.appendChild(make('h2', null, 'Open local context'));
+      host.appendChild(make('p', 'mm-note warn', 'The open context services could not be reached. Coordinates and the rest of this place card are still available.'));
+    });
+  }
+
+  function airQualityLabel(aqi) {
+    if (aqi == null || !isFinite(aqi)) return 'AQI unavailable';
+    if (aqi <= 20) return 'Good';
+    if (aqi <= 40) return 'Fair';
+    if (aqi <= 60) return 'Moderate';
+    if (aqi <= 80) return 'Poor';
+    if (aqi <= 100) return 'Very poor';
+    return 'Extremely poor';
+  }
+
+  function renderAirQualityCard(parent, result) {
+    var card = placeContextCard('Air quality');
+    if (!result || !result.current) {
+      card.appendChild(make('p', 'mm-note warn', 'Air-quality data is unavailable right now; no value is being guessed.'));
+      sourceLine(card, 'Open-Meteo Air Quality · CAMS forecast', 'https://air-quality-api.open-meteo.com/');
+      parent.appendChild(card);
+      return;
+    }
+    var current = result.current;
+    var aqi = Number(current.european_aqi);
+    var stats = make('div', 'mm-place-context-stat');
+    stats.appendChild(make('b', null, isFinite(aqi) ? String(Math.round(aqi)) : '—'));
+    stats.appendChild(make('span', null, 'European AQI · ' + airQualityLabel(aqi)));
+    card.appendChild(stats);
+    var dl = make('dl', 'mm-kv');
+    if (current.pm2_5 != null) kvRow(dl, 'PM2.5', Math.round(current.pm2_5 * 10) / 10 + ' ' + (result.units.pm2_5 || 'µg/m³'));
+    if (current.pm10 != null) kvRow(dl, 'PM10', Math.round(current.pm10 * 10) / 10 + ' ' + (result.units.pm10 || 'µg/m³'));
+    if (current.ozone != null) kvRow(dl, 'Ozone', Math.round(current.ozone * 10) / 10 + ' ' + (result.units.ozone || 'µg/m³'));
+    if (current.nitrogen_dioxide != null) kvRow(dl, 'NO₂', Math.round(current.nitrogen_dioxide * 10) / 10 + ' ' + (result.units.nitrogen_dioxide || 'µg/m³'));
+    card.appendChild(dl);
+    card.appendChild(make('p', 'mm-muted', 'A modelled current estimate, not a local monitor reading. Forecast coverage and pollutant availability vary by place.'));
+    sourceLine(card, 'Open-Meteo Air Quality · CAMS · CC BY 4.0', 'https://open-meteo.com/en/docs/air-quality-api');
+    parent.appendChild(card);
+  }
+
+  function renderFloodCard(parent, result) {
+    var card = placeContextCard('Nearby flood warnings');
+    if (!result || result.error) {
+      card.appendChild(make('p', 'mm-note warn', 'The Environment Agency feed could not be reached, so no flood status is shown.'));
+    } else if (!result.warnings || !result.warnings.length) {
+      card.appendChild(make('p', 'mm-note good', 'No active warnings were returned within 15 km. This is not proof that flooding cannot occur.'));
+    } else {
+      card.appendChild(make('p', 'mm-note warn', result.warnings.length + ' active warning' + (result.warnings.length === 1 ? '' : 's') + ' returned nearby.'));
+      var list = make('ul', 'mm-place-context-list');
+      result.warnings.slice(0, 6).forEach(function (warning) {
+        var item = make('li');
+        var label = warning.url ? make('a', null, warning.label) : make('b', null, warning.label);
+        if (warning.url) { label.href = warning.url; label.target = '_blank'; label.rel = 'noopener'; }
+        item.appendChild(label);
+        var detail = [warning.severity, warning.riverOrSea, warning.county].filter(Boolean).join(' · ');
+        if (detail) item.appendChild(make('span', 'mm-muted', ' · ' + detail));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+    card.appendChild(make('p', 'mm-muted', 'England-focused coverage; an absence of a warning is not an all-clear.'));
+    sourceLine(card, 'This uses Environment Agency flood and river level data from the real-time data API (Beta) · OGL', 'https://environment.data.gov.uk/flood-monitoring/doc/reference');
+    parent.appendChild(card);
+  }
+
+  function renderCommonsCard(parent, result) {
+    var card = placeContextCard('Nearby open imagery');
+    if (!result || result.error || !result.images || !result.images.length) {
+      card.appendChild(make('p', 'mm-muted', result && result.error ? 'Wikimedia Commons could not be reached, so no imagery is shown.' : 'No geotagged Wikimedia Commons images were found within 5 km.'));
+      sourceLine(card, 'Wikimedia Commons · each image has its own licence', 'https://commons.wikimedia.org/');
+      parent.appendChild(card);
+      return;
+    }
+    var gallery = make('div', 'mm-place-gallery');
+    result.images.slice(0, 6).forEach(function (image) {
+      var figure = make('figure');
+      var link = make('a');
+      link.href = image.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      var thumbnail = make('img');
+      thumbnail.src = image.thumbUrl;
+      thumbnail.alt = image.title || 'Wikimedia Commons image';
+      thumbnail.loading = 'lazy';
+      thumbnail.addEventListener('error', function () { figure.hidden = true; });
+      link.appendChild(thumbnail);
+      figure.appendChild(link);
+      var caption = make('figcaption');
+      caption.appendChild(make('a', null, image.title || 'Open image'));
+      caption.lastChild.href = image.url;
+      caption.lastChild.target = '_blank';
+      caption.lastChild.rel = 'noopener';
+      var credit = [image.distanceMetres == null ? null : fmtMetres(image.distanceMetres) + ' away', image.artist, image.licence].filter(Boolean).join(' · ');
+      if (credit) caption.appendChild(make('span', 'mm-muted', credit));
+      figure.appendChild(caption);
+      gallery.appendChild(figure);
+    });
+    card.appendChild(gallery);
+    card.appendChild(make('p', 'mm-muted', 'Open cultural imagery; the title link is also the credit/licence page for each individual file.'));
+    sourceLine(card, 'Wikimedia Commons · geosearch', 'https://www.mediawiki.org/wiki/API:Geosearch');
+    parent.appendChild(card);
+  }
+
+  function captureDate(value) {
+    if (!value) return null;
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function renderKartaViewCard(parent, result) {
+    var card = placeContextCard('Street-level imagery');
+    if (!result || result.error || !result.photos || !result.photos.length) {
+      card.appendChild(make('p', 'mm-muted', result && result.error ? 'KartaView could not be reached, so no street imagery is shown.' : 'No KartaView imagery was found within 500 m. Coverage is uneven.'));
+      sourceLine(card, 'KartaView · CC BY-SA 4.0 · user-contributed', 'https://kartaview.org/terms');
+      parent.appendChild(card);
+      return;
+    }
+    var gallery = make('div', 'mm-place-gallery mm-place-gallery-street');
+    result.photos.slice(0, 4).forEach(function (photo) {
+      var figure = make('figure');
+      var link = make('a');
+      link.href = photo.link;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      var thumbnail = make('img');
+      thumbnail.src = photo.imageUrl;
+      thumbnail.alt = 'KartaView street image' + (photo.capturedAt ? ' from ' + captureDate(photo.capturedAt) : '');
+      thumbnail.loading = 'lazy';
+      thumbnail.addEventListener('error', function () { figure.hidden = true; });
+      link.appendChild(thumbnail);
+      figure.appendChild(link);
+      var caption = make('figcaption');
+      var title = photo.capturedAt ? 'Captured ' + captureDate(photo.capturedAt) : 'Open street image';
+      var captionLink = make('a', null, title);
+      captionLink.href = photo.link;
+      captionLink.target = '_blank';
+      captionLink.rel = 'noopener';
+      caption.appendChild(captionLink);
+      var detail = [photo.heading == null ? null : Math.round(photo.heading) + '° heading', photo.device].filter(Boolean).join(' · ');
+      if (detail) caption.appendChild(make('span', 'mm-muted', detail));
+      figure.appendChild(caption);
+      gallery.appendChild(figure);
+    });
+    card.appendChild(gallery);
+    card.appendChild(make('p', 'mm-muted', 'Historical, user-contributed imagery — not live, complete or a promise that the road looks this way now.'));
+    sourceLine(card, 'KartaView · © Grab and KartaView Contributors · CC BY-SA 4.0', 'https://kartaview.org/terms');
+    parent.appendChild(card);
   }
 
   function countryCodeOf(row) {
@@ -787,6 +1147,29 @@
       });
     });
     state.routeMode = 'car';
+    state.routePreference = state.routePreference || 'fastest';
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-route-preference]'), function (button) {
+      button.setAttribute('aria-pressed', String(button.getAttribute('data-mm-route-preference') === state.routePreference));
+      button.addEventListener('click', function () {
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-route-preference]'), function (other) {
+          other.setAttribute('aria-pressed', String(other === button));
+        });
+        state.routePreference = button.getAttribute('data-mm-route-preference') || 'fastest';
+        updateRouteHint();
+        if (els.fromField.value.trim() && els.toField.value.trim()) runRoute();
+      });
+    });
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-route-avoid]'), function (button) {
+      var key = button.getAttribute('data-mm-route-avoid');
+      button.setAttribute('aria-pressed', String(!!state.routeAvoid[key]));
+      button.addEventListener('click', function () {
+        state.routeAvoid[key] = !state.routeAvoid[key];
+        button.setAttribute('aria-pressed', String(state.routeAvoid[key]));
+        updateRouteHint();
+        if (els.fromField.value.trim() && els.toField.value.trim()) runRoute();
+      });
+    });
+    updateRouteHint();
     ['mm-route-from', 'mm-route-to'].forEach(function (id) {
       var field = $(id);
       if (!field) return;
@@ -808,6 +1191,46 @@
     field.value = state.center.lat.toFixed(5) + ', ' + state.center.lon.toFixed(5);
     field.title = 'Map centre';
     toast('Filled with the map centre');
+  }
+
+  function routePreferenceLabel(preference) {
+    return preference === 'shortest' ? 'Shortest' : preference === 'quiet' ? 'Quieter' : 'Fastest';
+  }
+
+  function selectedRouteAvoids() {
+    var labels = [];
+    Object.keys(state.routeAvoid).forEach(function (key) {
+      if (state.routeAvoid[key]) labels.push(key === 'motorways' ? 'motorways' : key);
+    });
+    return labels;
+  }
+
+  function updateRouteHint() {
+    if (!els.routeHint) return;
+    var avoids = selectedRouteAvoids();
+    var message = routePreferenceLabel(state.routePreference) + ' is selected';
+    if (avoids.length) message += ' · avoiding ' + avoids.join(', ');
+    els.routeHint.textContent = message + '. Preferences are passed to the open router where it supports them; the result says what was honoured.';
+  }
+
+  function routeRequestOptions() {
+    var exclude = selectedRouteAvoids();
+    // A quiet walking/cycling route should not quietly send someone onto a
+    // trunk road. This is a preference, not a promise: the provider may still
+    // need a main road to connect two places.
+    if (state.routePreference === 'quiet') {
+      if (state.routeMode === 'car' && exclude.indexOf('motorways') < 0) exclude.push('motorways');
+      if (state.routeMode !== 'car') {
+        ['motorways', 'trunk', 'primary'].forEach(function (road) {
+          if (exclude.indexOf(road) < 0) exclude.push(road);
+        });
+      }
+    }
+    return {
+      alternatives: true,
+      preference: state.routePreference,
+      exclude: exclude,
+    };
   }
 
   function resolveEndpoint(text) {
@@ -854,7 +1277,7 @@
       if (live && live.map) {
         live.map.fitBounds([[from.lon, from.lat], [to.lon, to.lat]], { padding: 80, duration: 600 });
       }
-      return MM.providers.route(from, to, state.routeMode).then(function (route) {
+      return MM.providers.route(from, to, state.routeMode, routeRequestOptions()).then(function (route) {
         state.route = route;
         renderRoute(route, from, to);
       });
@@ -864,6 +1287,31 @@
     });
   }
 
+  function renderRouteAlternatives(route, body, from, to) {
+    if (!route.simple || !route.simple.length || route.straightLine) return;
+    body.appendChild(make('h2', null, 'Other routes'));
+    var list = make('div', 'mm-route-alternatives');
+    route.simple.slice(0, 3).forEach(function (alternative, index) {
+      var button = make('button', 'mm-route-alternative');
+      button.type = 'button';
+      var copy = make('span', 'mm-route-alternative-copy');
+      copy.appendChild(make('b', null, 'Option ' + (index + 2)));
+      copy.appendChild(make('small', null, fmtKm(alternative.distanceKm) + ' · ' + fmtDuration(alternative.durationMinutes)));
+      button.appendChild(copy);
+      button.appendChild(make('span', 'mm-route-alternative-arrow', '→'));
+      button.addEventListener('click', function () {
+        alternative.simple = [];
+        state.route = alternative;
+        map.setPath(alternative.geometry || []);
+        drawLiveRoute(alternative.geometry);
+        renderRoute(alternative, from || lastRoutePoints.from, to || lastRoutePoints.to);
+        toast('Showing option ' + (index + 2));
+      });
+      list.appendChild(button);
+    });
+    body.appendChild(list);
+  }
+
   function renderRoute(route, from, to) {
     var body = els.route;
     clear(body);
@@ -871,6 +1319,12 @@
 
     if (route.straightLine) {
       body.appendChild(make('p', 'mm-note warn', 'The open routing service could not be reached, so this is the straight-line (great-circle) distance — not a road route. Everything else on this panel still works offline.'));
+    } else {
+      var preferenceNote = routePreferenceLabel(route.preference || state.routePreference);
+      if (route.preferenceHonoured === false) preferenceNote += ' requested';
+      if (route.exclude && route.exclude.length) preferenceNote += ' · avoiding ' + route.exclude.join(', ');
+      body.appendChild(make('p', 'mm-route-summary', preferenceNote + ' route · ' + (route.provider ? route.provider.name : 'open router')));
+      if (route.routeWarning) body.appendChild(make('p', 'mm-note warn', route.routeWarning));
     }
     var stats = make('div', 'mm-grid3');
     stats.appendChild(statCard(route.straightLine ? 'Straight line' : 'Distance', fmtKm(route.distanceKm), route.straightLine ? 'as the crow flies' : 'by road'));
@@ -885,6 +1339,7 @@
     if (route.provider) kvRow(dl, 'Routing', route.provider.name + ' (OpenStreetMap data)');
     else if (route.offline) kvRow(dl, 'Routing', 'unavailable — offline');
     body.appendChild(dl);
+    renderRouteAlternatives(route, body, from, to);
 
     if (route.geometry) {
       map.setPath(route.geometry);
@@ -923,6 +1378,12 @@
 
     if (route.geometry) {
       var actions = make('div', 'mm-btn-row');
+      if (!route.straightLine) {
+        var navigateButton = make('button', 'mm-btn primary', state.routeMode === 'bike' ? 'Start cycle navigation' : state.routeMode === 'foot' ? 'Start walking navigation' : 'Start navigation');
+        navigateButton.type = 'button';
+        navigateButton.addEventListener('click', function () { startRouteNavigation(route); });
+        actions.appendChild(navigateButton);
+      }
       var exportButton = make('button', 'mm-btn', 'Copy route as GeoJSON');
       exportButton.type = 'button';
       exportButton.addEventListener('click', function () {
@@ -932,8 +1393,37 @@
       openButton.href = shareUrl();
       actions.appendChild(exportButton);
       actions.appendChild(openButton);
+      if (state.routeMode === 'car' && !route.straightLine) {
+        var driveButton = make('button', 'mm-btn primary', 'Open driving mode');
+        driveButton.type = 'button';
+        driveButton.addEventListener('click', function () {
+          els.driveFrom.value = lastRoutePoints.from.name || MM.geodesy.formatLatLon(lastRoutePoints.from, null, 5);
+          els.driveTo.value = lastRoutePoints.to.name || MM.geodesy.formatLatLon(lastRoutePoints.to, null, 5);
+          showPanel('drive');
+          planDrive();
+        });
+        actions.appendChild(driveButton);
+      }
       body.appendChild(actions);
     }
+  }
+
+  function startRouteNavigation(route) {
+    if (!route || route.straightLine || !lastRoutePoints) {
+      toast('A real road or path route is needed before navigation can start.');
+      return;
+    }
+    if (drive.watchId != null) stopGuidance(false);
+    drive.route = route;
+    drive.from = lastRoutePoints.from;
+    drive.to = lastRoutePoints.to;
+    drive.limits = null;
+    drive.navigationMode = state.routeMode;
+    drive.layers = { traffic: null, weather: null, stops: null, cameras: null };
+    drive.stopsOrdered = null;
+    buildDriveSession(route, state.routeMode);
+    startGuidance();
+    toast(state.routeMode === 'bike' ? 'Cycle navigation started' : state.routeMode === 'foot' ? 'Walking navigation started' : 'Navigation started');
   }
 
   /** The route, on the live basemap as well as the offline one. */
@@ -1086,6 +1576,7 @@
       lastRoutePoints = null;
       state.nearby = [];
       state.place = null;
+      state.placeOrigin = null;
       map.setMarkers([]);
       map.setPath([]);
       map.setPolygon([]);
@@ -1094,8 +1585,7 @@
       }
       renderMeasure();
       renderNearby();
-      var body = els.place; clear(body);
-      body.appendChild(make('p', 'mm-muted', 'Cleared. Search or click the map to start again.'));
+      renderPlace();
       toast('Cleared');
     });
   }
@@ -1127,7 +1617,9 @@
       return;
     }
     // Ordinary click: report the point and what is under it.
+    doc.body.classList.add('mm-has-map-interaction');
     state.picked = payload;
+    state.placeOrigin = { lat: state.center.lat, lon: state.center.lon };
     if (payload.country) {
       state.place = { name: payload.country.name, detail: 'Picked on the map', lat: point.lat, lon: point.lon, country: null };
     } else {
@@ -1391,6 +1883,30 @@
     wiki.appendChild(make('span', 'mm-src-name', 'Nearby knowledge: Wikipedia GeoSearch'));
     wiki.appendChild(make('span', 'mm-src-meta', 'CC BY-SA 4.0'));
     list.appendChild(wiki);
+    if (providers.airQuality) {
+      var airQuality = make('li');
+      airQuality.appendChild(make('span', 'mm-src-name', 'Air quality: ' + providers.airQuality.name));
+      airQuality.appendChild(make('span', 'mm-src-meta', 'modelled CAMS forecast · ' + providers.airQuality.licence));
+      list.appendChild(airQuality);
+    }
+    if (providers.floods) {
+      var floods = make('li');
+      floods.appendChild(make('span', 'mm-src-name', 'Flood warnings: ' + providers.floods.name));
+      floods.appendChild(make('span', 'mm-src-meta', providers.floods.coverage + ' · ' + providers.floods.licence));
+      list.appendChild(floods);
+    }
+    if (providers.commons) {
+      var commons = make('li');
+      commons.appendChild(make('span', 'mm-src-name', 'Open imagery: ' + providers.commons.name));
+      commons.appendChild(make('span', 'mm-src-meta', 'individual file licences · Wikimedia Commons'));
+      list.appendChild(commons);
+    }
+    if (providers.kartaView) {
+      var kartaView = make('li');
+      kartaView.appendChild(make('span', 'mm-src-name', 'Street imagery: ' + providers.kartaView.name));
+      kartaView.appendChild(make('span', 'mm-src-meta', 'historical/user-contributed · CC BY-SA 4.0'));
+      list.appendChild(kartaView);
+    }
     var places = make('li');
     places.appendChild(make('span', 'mm-src-name', 'Offline places: GeoNames'));
     places.appendChild(make('span', 'mm-src-meta', 'CC BY 4.0'));
@@ -1403,7 +1919,8 @@
 
     box.appendChild(make('h2', null, 'What leaves your device'));
     box.appendChild(make('p', null, 'Driving is the one place where more than a pair of points can leave the device, and only when you ask for it: the route’s shape goes to OpenStreetMap’s Overpass API to fetch the speed limits along it, five sampled points go to Open-Meteo for the forecast, and a bounding box goes to TfL for live disruption in London. Your speed, your position and your trip never leave: guidance runs entirely on this device, from data already loaded.'));
-    box.appendChild(make('p', null, 'Your location is never sent anywhere. When you search online, the words you typed go to Photon or Nominatim (OpenStreetMap) to find the place. When you ask for a route, the two endpoints go to an open routing service. Nearby places send a radius and a point to Overpass. Elevations send the sampled points to OpenTopoData. Nothing else is transmitted, there is no account, and nothing is stored in cookies — your units, theme and style live only in this browser tab.'));
+    box.appendChild(make('p', null, 'Your location is never sent anywhere. When you search online, the words you typed go to Photon or Nominatim (OpenStreetMap) to find the place. When you ask for a route, the two endpoints go to an open routing service. Nearby places send a radius and a point to Overpass. Elevations send the sampled points to OpenTopoData. Nothing else is transmitted and there is no account. Vehicle preferences and up to six recent places stay only in this browser; there are no cookies or advertising trackers.'));
+    box.appendChild(make('p', null, 'When you select a place while online, its coordinates are sent to Open-Meteo Air Quality, the Environment Agency flood feed, Wikimedia Commons and KartaView for the optional local-context cards. These services receive the selected point and the small search radius, not your browser location history or route; each request is cached and no background polling is used.'));
     box.appendChild(make('p', null, 'The basemap tiles are fetched from OpenFreeMap, which is what makes the streets appear. Turn the live map off and the page still works, offline, at world and country level.'));
     box.appendChild(make('p', null, 'These are volunteer-run public services with fair-use policies. If this page ever gets busy, the right move is to self-host them — docs/MAPS.md explains how.'));
 
@@ -1472,6 +1989,7 @@
       consumptionPer100: 7,
       pricePerLitre: 1.51,
       breakEveryMinutes: 120,
+      routePreference: 'fastest',
     };
   }
 
@@ -1507,6 +2025,8 @@
       avoidTolls: !!prefs.avoidTolls,
       avoidFerries: !!prefs.avoidFerries,
       avoidUnpaved: !!prefs.avoidUnpaved,
+      preference: prefs.routePreference || 'fastest',
+      preferQuiet: prefs.routePreference === 'quiet',
       heightMetres: heavy && prefs.heightMetres ? prefs.heightMetres : null,
       widthMetres: heavy && prefs.widthMetres ? prefs.widthMetres : null,
       lengthMetres: heavy && prefs.lengthMetres ? prefs.lengthMetres : null,
@@ -1529,6 +2049,19 @@
       });
     }
     updateVehicleNote();
+
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-drive-preference]'), function (button) {
+      var preference = button.getAttribute('data-mm-drive-preference');
+      button.setAttribute('aria-pressed', String(drive.prefs.routePreference === preference));
+      button.addEventListener('click', function () {
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-drive-preference]'), function (other) {
+          other.setAttribute('aria-pressed', String(other === button));
+        });
+        drive.prefs.routePreference = preference;
+        saveDrivePrefs();
+        if (drive.route) planDrive();
+      });
+    });
 
     Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-avoid]'), function (button) {
       var key = button.getAttribute('data-mm-avoid');
@@ -1622,6 +2155,7 @@
         if (els.drivePrice) els.drivePrice.value = drive.prefs.pricePerLitre;
         if (els.driveBreak) els.driveBreak.value = String(drive.prefs.breakEveryMinutes);
         Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-avoid]'), function (button) { button.setAttribute('aria-pressed', 'false'); });
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-drive-preference]'), function (button) { button.setAttribute('aria-pressed', String(button.getAttribute('data-mm-drive-preference') === 'fastest')); });
         updateVehicleNote();
         toast('Vehicle settings forgotten — this browser no longer has them.');
       });
@@ -1696,6 +2230,7 @@
       }
       drive.from = from;
       drive.to = to;
+      lastRoutePoints = { from: from, to: to };
       // Keep the Route pane in step: two panels, one journey.
       if (els.fromField) els.fromField.value = fromText;
       if (els.toField) els.toField.value = toText;
@@ -1712,6 +2247,8 @@
       return MM.providers.driveRoute(from, to, driveOptions()).then(function (route) {
         route.requestMs = route.requestMs || (Date.now() - started);
         drive.route = route;
+        state.route = route;
+        drive.navigationMode = 'car';
         if (route.geometry) {
           map.setPath(route.geometry);
           drawLiveRoute(route.geometry);
@@ -1734,6 +2271,11 @@
 
     if (route.straightLine) {
       body.appendChild(make('p', 'mm-note bad', 'No driving router could be reached just now, so nothing here would be honest: this is the straight-line distance, not a road route. The map, the maths and the offline tools below still work.'));
+    } else {
+      var shape = routePreferenceLabel(route.preference || drive.prefs.routePreference);
+      if (route.preferenceHonoured === false) shape += ' requested';
+      body.appendChild(make('p', 'mm-route-summary', shape + ' driving route · ' + (route.provider ? route.provider.name : 'open router')));
+      if (route.routeWarning) body.appendChild(make('p', 'mm-note warn', route.routeWarning));
     }
 
     var stats = make('div', 'mm-grid3');
@@ -1822,7 +2364,7 @@
 
     // Sun glare is computed offline, from the route's own heading and the sun.
     if (drive.session) drive.session = null;
-    buildDriveSession(route);
+    buildDriveSession(route, drive.navigationMode || 'car');
     renderGlare();
   }
 
@@ -1862,8 +2404,9 @@
   }
 
   /** The offline session: progress, manoeuvres, limits, breaks and glare. */
-  function buildDriveSession(route) {
+  function buildDriveSession(route, modeOverride) {
     if (!route || !route.geometry || route.geometry.length < 2) return null;
+    var vehicle = modeOverride || drive.prefs.vehicle;
     drive.session = MM.drive.createSession({
       geometry: route.geometry,
       distanceKm: route.distanceKm,
@@ -1871,9 +2414,9 @@
       steps: route.steps,
       speedLimits: drive.limits ? drive.limits.segments : null,
     }, {
-      vehicle: drive.prefs.vehicle,
+      vehicle: vehicle,
       units: state.units,
-      breakEveryMinutes: drive.prefs.breakEveryMinutes,
+      breakEveryMinutes: vehicle === 'car' || vehicle === 'caravan' || vehicle === 'van' || vehicle === 'motorhome' || vehicle === 'hgv' ? drive.prefs.breakEveryMinutes : 0,
     });
     return drive.session;
   }
@@ -2376,6 +2919,7 @@
     if (!drive.session) buildDriveSession(drive.route);
     if (!drive.session) return;
     if (els.nav) els.nav.hidden = false;
+    drive.following = true;
 
     var started = false;
     function consume(fix) {
@@ -2403,7 +2947,7 @@
       }, function (error) {
         enableTapToMove(error);
       }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
-      toast('Navigating. Keep this tab open — the route and the speed limits are already on the device.');
+      toast('Navigating. Keep this tab open — guidance stays on this device, even if the connection drops.');
     } else {
       enableTapToMove({ message: 'this browser has no location service' });
     }
@@ -2426,6 +2970,7 @@
       drive.watchId = null;
     }
     drive.tapToMove = false;
+    drive.following = false;
     if (els.nav) els.nav.hidden = true;
     if (!showSummary || !drive.session) return;
     var summary = drive.session.finish();
@@ -2437,7 +2982,7 @@
     kvRow(dl, 'Driven', fmtKm(summary.distanceKm));
     kvRow(dl, 'Time', fmtDuration(summary.durationMinutes));
     kvRow(dl, 'Moving / stopped', fmtDuration(summary.movingSeconds / 60) + ' / ' + fmtDuration(summary.stoppedSeconds / 60));
-    if (summary.maxSpeedKph) kvRow(dl, 'Fastest', Math.round(MM.speed.kphToMph(summary.maxSpeedKph)) + ' mph');
+    if (summary.maxSpeedKph) kvRow(dl, 'Fastest', state.units === 'imperial' ? Math.round(MM.speed.kphToMph(summary.maxSpeedKph)) + ' mph' : Math.round(summary.maxSpeedKph) + ' km/h');
     kvRow(dl, 'Stops', String(summary.stops));
     kvRow(dl, 'Off-route fixes', String(summary.offRouteCount));
     box.appendChild(dl);
@@ -2465,9 +3010,77 @@
     }
   }
 
+  function laneArrow(direction) {
+    var arrows = {
+      'left': '←',
+      'slight-left': '↖',
+      'sharp-left': '↙',
+      'through': '↑',
+      'right': '→',
+      'slight-right': '↗',
+      'sharp-right': '↘',
+      'reverse': '↶',
+      'merge-left': '⇱',
+      'merge-right': '⇲',
+      'none': '•',
+    };
+    return arrows[direction] || '↑';
+  }
+
+  function laneDirectionLabel(direction) {
+    var labels = {
+      'left': 'left', 'slight-left': 'slight left', 'sharp-left': 'sharp left',
+      'through': 'straight ahead', 'right': 'right', 'slight-right': 'slight right',
+      'sharp-right': 'sharp right', 'reverse': 'U-turn', 'merge-left': 'merge left',
+      'merge-right': 'merge right', 'none': 'unspecified',
+    };
+    return labels[direction] || direction || 'unspecified';
+  }
+
+  function renderLaneAdvisory(next) {
+    if (!els.navLanes || !els.navLaneStrip) return;
+    var lanes = next && Array.isArray(next.lanes) ? next.lanes : [];
+    if (!lanes.length) {
+      els.navLanes.hidden = true;
+      clear(els.navLaneStrip);
+      if (els.navLaneNote) els.navLaneNote.textContent = '';
+      return;
+    }
+    els.navLanes.hidden = false;
+    clear(els.navLaneStrip);
+    var active = 0;
+    var valid = 0;
+    lanes.forEach(function (lane, index) {
+      var state = lane.active ? 'active' : lane.valid ? 'valid' : lane.state === 'closed' ? 'closed' : 'unknown';
+      if (lane.active) active += 1;
+      if (lane.valid || lane.active) valid += 1;
+      var box = make('div', 'mm-lane');
+      box.setAttribute('data-state', state);
+      var directions = lane.indications && lane.indications.length ? lane.indications : [];
+      var arrowText = directions.length ? directions.map(laneArrow).join(' ') : '—';
+      var description = directions.length ? directions.map(laneDirectionLabel).join(' and ') : 'direction unavailable';
+      var stateText = state === 'active' ? 'highlighted recommended lane' : state === 'valid' ? 'usable lane' : state === 'closed' ? 'not recommended lane' : 'lane direction only';
+      box.setAttribute('aria-label', 'Lane ' + (index + 1) + ': ' + description + ', ' + stateText);
+      box.title = 'Lane ' + (index + 1) + ': ' + description + (state === 'active' ? ' — recommended' : state === 'valid' ? ' — usable' : '');
+      box.appendChild(make('span', 'mm-lane-arrow', arrowText));
+      box.appendChild(make('span', 'mm-lane-number', String(index + 1)));
+      els.navLaneStrip.appendChild(box);
+    });
+    if (els.navLanesState) {
+      els.navLanesState.textContent = active ? active + ' recommended' : valid ? valid + ' usable' : 'directions only';
+    }
+    if (els.navLaneNote) {
+      if (active === 1) els.navLaneNote.textContent = 'Move into the highlighted lane when safe.';
+      else if (active > 1) els.navLaneNote.textContent = 'Either highlighted lane works for this manoeuvre.';
+      else if (valid) els.navLaneNote.textContent = 'Stay in a usable lane; no preferred lane was supplied.';
+      else els.navLaneNote.textContent = 'Lane directions are mapped here; the router supplied no preferred lane.';
+    }
+  }
+
   /** The overlay: next manoeuvre, the limit, your speed, and how far is left. */
   function renderGuidance(nav) {
     if (!els.nav) return;
+    if (els.navMode) els.navMode.textContent = drive.navigationMode === 'bike' ? 'Cycle navigation' : drive.navigationMode === 'foot' ? 'Walking navigation' : 'Driving navigation';
     if (els.navDistance) els.navDistance.textContent = nav.metresToNext == null ? '—' : fmtMetres(nav.metresToNext);
     if (els.navInstruction) {
       els.navInstruction.textContent = nav.next
@@ -2475,8 +3088,9 @@
         : 'Continue on the route';
     }
     if (els.navIcon) els.navIcon.textContent = iconFor(nav.next || {});
+    renderLaneAdvisory(nav.next);
 
-    var imperial = state.units === 'imperial' || drive.prefs.vehicle === 'car';
+    var imperial = state.units === 'imperial';
     var minimum = nav.limit && nav.limit.kph != null ? nav.limit.kph : null;
     if (els.navLimitValue) {
       els.navLimitValue.textContent = minimum == null
@@ -2529,8 +3143,11 @@
         root.speechSynthesis.speak(utterance);
       } catch (error) { /* silent is fine */ }
     }
-    if (drive.tapToMove) {
+    if (drive.following) {
       map.panTo({ lat: nav.position.lat, lon: nav.position.lon });
+      if (live && live.map) {
+        try { live.map.easeTo({ center: [nav.position.lon, nav.position.lat], duration: 260 }); } catch (error) {}
+      }
     }
   }
 
@@ -2541,23 +3158,41 @@
     if (drive.replanning) return;
     drive.replanning = true;
     toast('Replanning from where you are…');
-    MM.providers.driveRoute({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, driveOptions()).then(function (route) {
+    var replanPromise = drive.navigationMode && drive.navigationMode !== 'car'
+      ? MM.providers.route({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, drive.navigationMode, routeRequestOptions())
+      : MM.providers.driveRoute({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, driveOptions());
+    replanPromise.then(function (route) {
       drive.replanning = false;
       if (route.straightLine) {
         toast('The router is unreachable, so I cannot honestly replan right now.');
         return;
       }
       drive.route = route;
+      state.route = route;
       drive.limits = null;
       drive.layers = { traffic: null, weather: null, stops: null, cameras: null };
       drive.stopsOrdered = null;
+      if (drive.watchId != null && root.navigator && root.navigator.geolocation) {
+        root.navigator.geolocation.clearWatch(drive.watchId);
+        drive.watchId = null;
+      }
+      drive.tapToMove = false;
+      drive.consumeFix = null;
       if (route.geometry) {
         map.setPath(route.geometry);
         drawLiveRoute(route.geometry);
       }
-      buildDriveSession(route);
-      renderDriveRoute(route);
-      if (route.geometry && route.geometry.length > 1) enrichDrive(route);
+      drive.from = { lat: here.lat, lon: here.lon, name: 'Here' };
+      lastRoutePoints = { from: drive.from, to: drive.to };
+      buildDriveSession(route, drive.navigationMode || 'car');
+      if (drive.navigationMode && drive.navigationMode !== 'car') {
+        state.routeMode = drive.navigationMode;
+        renderRoute(route, drive.from, drive.to);
+      } else {
+        renderDriveRoute(route);
+        if (route.geometry && route.geometry.length > 1) enrichDrive(route);
+      }
+      startGuidance();
       toast('Replanned: ' + fmtKm(route.distanceKm) + ', ' + fmtDuration(route.durationMinutes) + ' free-flow.');
     });
   }
@@ -2580,8 +3215,14 @@
       button.addEventListener('keydown', function (event) {
         var list = Array.prototype.slice.call(buttons);
         var index = list.indexOf(button);
-        if (event.key === 'ArrowRight') list[(index + 1) % list.length].focus();
-        if (event.key === 'ArrowLeft') list[(index - 1 + list.length) % list.length].focus();
+        var next = null;
+        if (event.key === 'ArrowRight') next = list[(index + 1) % list.length];
+        if (event.key === 'ArrowLeft') next = list[(index - 1 + list.length) % list.length];
+        if (next) {
+          event.preventDefault();
+          next.focus();
+          showPanel(next.getAttribute('data-mm-panel'));
+        }
       });
     });
   }
@@ -2589,6 +3230,10 @@
   function showPanel(name) {
     if (PANELS.indexOf(name) < 0) return;
     state.panel = name;
+    if (doc.body.classList.contains('rail-hidden')) {
+      doc.body.classList.remove('rail-hidden');
+      if (els.railToggle) els.railToggle.setAttribute('aria-expanded', 'true');
+    }
     Array.prototype.forEach.call(els.tabs.querySelectorAll('[role="tab"]'), function (button) {
       var active = button.getAttribute('data-mm-panel') === name;
       button.setAttribute('aria-selected', String(active));
@@ -2636,9 +3281,10 @@
     if (!box) return;
     clear(box);
     var liveChip = make('span', 'mm-chip');
-    liveChip.setAttribute('data-state', state.live ? 'ok' : (state.liveStatus === 'failed' ? 'warn' : 'fail'));
+    var loadingLive = state.liveStatus === 'waiting';
+    liveChip.setAttribute('data-state', state.live ? 'ok' : (loadingLive || state.liveStatus === 'failed' ? 'warn' : 'fail'));
     liveChip.appendChild(make('span', 'mm-dot'));
-    liveChip.appendChild(make('span', null, state.live ? 'Live map' : state.liveStatus === 'offline' ? 'Offline map' : state.liveStatus === 'failed' ? 'Offline map (tiles unavailable)' : state.liveStatus === 'no-webgl' ? 'Offline map (no WebGL)' : 'Loading live map…'));
+    liveChip.appendChild(make('span', null, state.live ? 'Live map' : state.liveStatus === 'offline' ? 'Offline map' : state.liveStatus === 'failed' ? 'Offline map (tiles unavailable)' : state.liveStatus === 'no-webgl' ? 'Offline map (no WebGL)' : 'Getting live map…'));
     box.appendChild(liveChip);
 
     var netChip = make('span', 'mm-chip');
@@ -2713,6 +3359,12 @@
   function bindKeyboard() {
     doc.addEventListener('keydown', function (event) {
       var tag = event.target && event.target.tagName;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        els.search.focus();
+        els.search.select();
+        return;
+      }
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (event.key === '/') { event.preventDefault(); els.search.focus(); return; }
       if (event.key === 'm' || event.key === 'M') { els.measureToggle.click(); return; }
@@ -2793,7 +3445,7 @@
     driveState: function () {
       if (!drive.route) return null;
       return {
-        vehicle: drive.prefs.vehicle,
+        vehicle: drive.navigationMode || drive.prefs.vehicle,
         provider: drive.route.provider ? drive.route.provider.id : null,
         degraded: !!drive.route.degraded,
         distanceKm: drive.route.distanceKm,

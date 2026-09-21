@@ -117,6 +117,30 @@
     minIntervalMs: 500, timeoutMs: 9000,
   };
 
+  var COMMONS = {
+    id: 'wikimedia-commons', name: 'Wikimedia Commons (GeoSearch)', home: 'commons.wikimedia.org',
+    licence: 'Free cultural works under their individual licences', minIntervalMs: 700, timeoutMs: 10000,
+  };
+
+  var KARTAVIEW = {
+    id: 'kartaview', name: 'KartaView street imagery', home: 'kartaview.org',
+    licence: 'CC BY-SA 4.0 (imagery; credit Grab and KartaView Contributors)', minIntervalMs: 1000, timeoutMs: 12000,
+    url: 'https://api.openstreetcam.org/2.0/photo/',
+  };
+
+  var AIR_QUALITY = {
+    id: 'open-meteo-air-quality', name: 'Open-Meteo Air Quality', home: 'air-quality-api.open-meteo.com',
+    licence: 'CC BY 4.0 (CAMS forecasts)', minIntervalMs: 700, timeoutMs: 12000,
+    url: 'https://air-quality-api.open-meteo.com/v1/air-quality',
+  };
+
+  var FLOODS = {
+    id: 'environment-agency-floods', name: 'Environment Agency flood monitoring', home: 'environment.data.gov.uk',
+    licence: 'Open Government Licence', minIntervalMs: 1200, timeoutMs: 10000,
+    url: 'https://environment.data.gov.uk/flood-monitoring/id/floods',
+    coverage: 'England and some cross-border catchments',
+  };
+
   /**
    * Valhalla is the driving router: unlike a plain OSRM profile it takes a
    * vehicle, its size and its preferences, so a caravan avoids width limits
@@ -333,6 +357,132 @@
     return 'car';
   }
 
+  function osrmExclude(options) {
+    var opts = options || {};
+    var names = { motorways: 'motorway', motorway: 'motorway', tolls: 'toll', toll: 'toll', ferries: 'ferry', ferry: 'ferry', unpaved: 'unpaved' };
+    var seen = {};
+    return (opts.exclude || []).map(function (value) { return names[value] || value; }).filter(function (value) {
+      if (seen[value]) return false;
+      seen[value] = true;
+      return !!value;
+    });
+  }
+
+  var LANE_DIRECTION_BITS = [
+    { bit: 1, name: 'none' },
+    { bit: 2, name: 'through' },
+    { bit: 4, name: 'sharp-left' },
+    { bit: 8, name: 'left' },
+    { bit: 16, name: 'slight-left' },
+    { bit: 32, name: 'slight-right' },
+    { bit: 64, name: 'right' },
+    { bit: 128, name: 'sharp-right' },
+    { bit: 256, name: 'reverse' },
+    { bit: 512, name: 'merge-left' },
+    { bit: 1024, name: 'merge-right' },
+  ];
+
+  function canonicalLaneDirection(value) {
+    var raw = String(value == null ? '' : value).trim().toLowerCase().replace(/[_ ]+/g, '-');
+    var names = {
+      straight: 'through', 'straight-ahead': 'through', through: 'through',
+      'hard-left': 'sharp-left', 'sharp-left': 'sharp-left', left: 'left', 'slight-left': 'slight-left',
+      'hard-right': 'sharp-right', 'sharp-right': 'sharp-right', right: 'right', 'slight-right': 'slight-right',
+      uturn: 'reverse', 'u-turn': 'reverse', reverse: 'reverse',
+      'merge-left': 'merge-left', 'merge-right': 'merge-right', none: 'none',
+    };
+    return names[raw] || null;
+  }
+
+  function laneDirections(value) {
+    if (typeof value === 'number' && isFinite(value)) {
+      return LANE_DIRECTION_BITS.filter(function (entry) { return (value & entry.bit) === entry.bit; }).map(function (entry) { return entry.name; });
+    }
+    if (Array.isArray(value)) {
+      return value.map(canonicalLaneDirection).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value.split(/[;,|]/).map(canonicalLaneDirection).filter(Boolean);
+    }
+    return [];
+  }
+
+  function uniqueDirections(directions) {
+    return directions.filter(function (direction, index) { return directions.indexOf(direction) === index; });
+  }
+
+  /** Normalize Valhalla bitmasks and OSRM-style indication arrays to one UI shape. */
+  function normaliseLaneInfo(lanes) {
+    if (!Array.isArray(lanes)) return [];
+    return lanes.map(function (lane) {
+      var raw = lane || {};
+      var directions = uniqueDirections(laneDirections(raw.indications != null ? raw.indications : raw.directions));
+      var activeRaw = raw.active != null ? raw.active : raw.is_active;
+      var validRaw = raw.valid != null ? raw.valid : raw.is_possible;
+      var activeIndication = canonicalLaneDirection(raw.active_indication || raw.activeIndication || raw.valid_indication || raw.validIndication);
+      if (activeIndication && directions.indexOf(activeIndication) < 0) directions.push(activeIndication);
+      var activeMask = typeof activeRaw === 'number' ? activeRaw : 0;
+      var validMask = typeof validRaw === 'number' ? validRaw : 0;
+      var active = activeRaw === true || activeMask > 0 || !!activeIndication;
+      var valid = active || validRaw === true || validMask > 0;
+      var hasState = activeRaw != null || validRaw != null || !!activeIndication;
+      if (activeRaw === false && activeMask === 0 && !activeIndication) active = false;
+      if (validRaw === false && validMask === 0 && !active) valid = false;
+      return {
+        indications: directions,
+        active: active,
+        valid: valid,
+        state: active ? 'active' : valid ? 'valid' : hasState ? 'closed' : 'unknown',
+        activeIndication: activeIndication,
+        directionsMask: typeof raw.directions === 'number' ? raw.directions : null,
+        validMask: validMask || null,
+        activeMask: activeMask || null,
+      };
+    });
+  }
+
+  function osrmStepLanes(step) {
+    var intersections = step && Array.isArray(step.intersections) ? step.intersections : [];
+    for (var i = 0; i < intersections.length; i += 1) {
+      if (intersections[i] && Array.isArray(intersections[i].lanes)) return intersections[i].lanes;
+    }
+    return [];
+  }
+
+  function parseOsrmRoute(routeData, profile, provider, preference, exclude) {
+    var steps = (routeData.legs && routeData.legs[0] && routeData.legs[0].steps ? routeData.legs[0].steps : []).map(function (step) {
+      return {
+        instruction: step.maneuver && step.maneuver.type ? step.maneuver.type.replace(/-/g, ' ') : 'continue',
+        modifier: step.maneuver && step.maneuver.modifier ? step.maneuver.modifier : null,
+        name: step.name || '',
+        distanceKm: step.distance / 1000,
+        durationMin: step.duration / 60,
+        lanes: normaliseLaneInfo(osrmStepLanes(step)),
+        lat: step.maneuver && step.maneuver.location ? step.maneuver.location[1] : null,
+        lon: step.maneuver && step.maneuver.location ? step.maneuver.location[0] : null,
+      };
+    });
+    return {
+      provider: provider,
+      mode: profile,
+      preference: preference || 'fastest',
+      exclude: exclude || [],
+      distanceKm: routeData.distance / 1000,
+      durationMinutes: routeData.duration / 60,
+      geometry: routeData.geometry.coordinates,
+      steps: steps,
+      raw: routeData,
+      simple: [],
+    };
+  }
+
+  function chooseOsrmRoute(routes, preference) {
+    if (!routes.length || preference !== 'shortest') return routes[0];
+    return routes.reduce(function (best, candidate) {
+      return candidate.distanceKm < best.distanceKm ? candidate : best;
+    }, routes[0]);
+  }
+
   /** Road routing through open routers; the caller falls back to a straight line. */
   function route(from, to, mode, options) {
     var opts = options || {};
@@ -340,44 +490,51 @@
     if (!a || !b) return Promise.resolve({ error: 'bad-endpoints' });
     var profile = modeKey(mode);
     var coordinates = a.lon.toFixed(6) + ',' + a.lat.toFixed(6) + ';' + b.lon.toFixed(6) + ',' + b.lat.toFixed(6);
-    var suffix = '?overview=full&geometries=geojson&steps=true&alternatives=false';
+    var exclude = osrmExclude(opts);
+    var suffix = '?overview=full&geometries=geojson&steps=true&alternatives=' + (opts.alternatives === false ? 'false' : 'true');
+    if (exclude.length) suffix += '&exclude=' + encodeURIComponent(exclude.join(','));
     return chain(ROUTERS[profile], function (provider) {
       var url = provider.base + '/' + coordinates + suffix;
       return fetchJson(url, { id: provider.id, timeoutMs: provider.timeoutMs, minIntervalMs: provider.minIntervalMs })
         .then(function (data) {
           if (!data || !data.routes || !data.routes.length) throw new Error('no route from ' + provider.name);
-          var r = data.routes[0];
-          return {
-            provider: provider,
-            mode: profile,
-            distanceKm: r.distance / 1000,
-            durationMinutes: r.duration / 60,
-            geometry: r.geometry.coordinates,
-            steps: (r.legs && r.legs[0] && r.legs[0].steps ? r.legs[0].steps : []).map(function (step) {
-              return {
-                instruction: step.maneuver && step.maneuver.type ? step.maneuver.type.replace(/-/g, ' ') : 'continue',
-                modifier: step.maneuver && step.maneuver.modifier ? step.maneuver.modifier : null,
-                name: step.name || '',
-                distanceKm: step.distance / 1000,
-                durationMin: step.duration / 60,
-                lat: step.maneuver && step.maneuver.location ? step.maneuver.location[1] : null,
-                lon: step.maneuver && step.maneuver.location ? step.maneuver.location[0] : null,
-              };
-            }),
-            raw: r,
-          };
+          var parsed = data.routes.map(function (candidate) {
+            return parseOsrmRoute(candidate, profile, provider, opts.preference, opts.exclude || []);
+          });
+          var selected = chooseOsrmRoute(parsed, opts.preference);
+          selected.simple = parsed.filter(function (candidate) { return candidate !== selected; });
+          selected.preferenceHonoured = opts.preference !== 'shortest' || parsed.length > 1;
+          return selected;
         });
     }).catch(function (error) {
+      // Some public OSRM profiles accept only a subset of exclude classes.
+      // If a preference was too ambitious for this provider, retry once without
+      // it and say so — a useful ordinary route beats a fake straight line.
+      if (exclude.length && !opts._retryWithoutAvoids) {
+        var retryOptions = Object.assign({}, opts, { exclude: [], _retryWithoutAvoids: true });
+        return route(from, to, mode, retryOptions).then(function (fallback) {
+          if (fallback && !fallback.straightLine) {
+            fallback.exclude = opts.exclude || [];
+            fallback.preferenceHonoured = false;
+            fallback.routeWarning = 'The router could not apply every avoidance preference, so this route is the provider\'s best available answer.';
+          }
+          return fallback;
+        });
+      }
       // The honest fallback: a straight line, labelled as one by the caller.
       var straight = MM.geodesy.measure(a, b);
       return {
         error: error.message,
         offline: true,
         mode: profile,
+        preference: opts.preference || 'fastest',
+        exclude: opts.exclude || [],
         distanceKm: straight.km,
         durationMinutes: null,
         geometry: [[a.lon, a.lat], [b.lon, b.lat]],
         steps: [],
+        simple: [],
+        preferenceHonoured: false,
         straightLine: true,
       };
     });
@@ -457,10 +614,10 @@
     var costingOptions = {};
     if (costing === 'auto' || costing === 'truck') {
       costingOptions[costing] = {
-        use_highways: opts.avoidMotorways ? 0.1 : 1,
+        use_highways: opts.avoidMotorways ? 0.1 : opts.preferQuiet ? 0.25 : 1,
         use_tolls: opts.avoidTolls ? 0 : 1,
         use_ferry: opts.avoidFerries ? 0 : 1,
-        use_tracks: opts.avoidUnpaved ? 0 : 0.5,
+        use_tracks: opts.avoidUnpaved ? 0 : (opts.preferQuiet ? 0.2 : 0.5),
       };
       if (opts.avoidMotorways) costingOptions[costing].use_tolls = opts.avoidTolls ? 0 : 1;
     }
@@ -484,7 +641,7 @@
         width: opts.widthMetres || undefined,
         length: opts.lengthMetres || undefined,
         weight: opts.weightTonnes || undefined,
-        use_highways: opts.avoidMotorways ? 0.1 : (opts.preferHighways ? 1 : 0.9),
+        use_highways: opts.avoidMotorways ? 0.1 : opts.preferQuiet ? 0.25 : (opts.preferHighways ? 1 : 0.9),
       });
       Object.keys(costingOptions.auto).forEach(function (key) {
         if (costingOptions.auto[key] === undefined) delete costingOptions.auto[key];
@@ -518,6 +675,7 @@
       costing_options: costing.costingOptions,
       directions_options: { units: 'kilometers', language: 'en-GB' },
       shape_format: 'geojson',
+      turn_lanes: true,
       alternates: opts.alternates || 0,
       id: 'mostusefulmaps',
     };
@@ -532,17 +690,45 @@
       if (!trip || !trip.legs || !trip.legs.length) throw new Error('no route from Valhalla');
       var parsed = parseValhallaTrip(trip, vehicle);
       parsed.provider = { id: VALHALLA.id, name: VALHALLA.name, licence: VALHALLA.licence, home: VALHALLA.home };
-      parsed.simple = parseAlternates(data.alternates, vehicle);
+      parsed.preference = opts.preference || 'fastest';
+      parsed.exclude = [];
+      var alternates = parseAlternates(data.alternates, vehicle);
+      parsed.preferenceHonoured = opts.preference !== 'shortest' || alternates.length > 0;
+      if (opts.preference === 'shortest' && alternates.length) {
+        var candidates = [parsed].concat(alternates);
+        var shortest = candidates.reduce(function (best, candidate) {
+          return candidate.distanceKm < best.distanceKm ? candidate : best;
+        }, candidates[0]);
+        parsed = shortest;
+        parsed.simple = candidates.filter(function (candidate) { return candidate !== shortest; });
+      } else {
+        parsed.simple = alternates;
+      }
+      parsed.provider = { id: VALHALLA.id, name: VALHALLA.name, licence: VALHALLA.licence, home: VALHALLA.home };
+      parsed.preference = opts.preference || 'fastest';
       parsed.requestMs = Date.now() - started;
       return parsed;
     }).catch(function (error) {
       // Try the classic OSRM chain before giving up on a road route.
-      return route(a, b, vehicle === 'bike' ? 'bike' : vehicle === 'foot' ? 'foot' : 'car').then(function (fallback) {
+      var fallbackExclude = [];
+      if (opts.avoidMotorways) fallbackExclude.push('motorways');
+      if (opts.avoidTolls) fallbackExclude.push('tolls');
+      if (opts.avoidFerries) fallbackExclude.push('ferries');
+      if (opts.avoidUnpaved) fallbackExclude.push('unpaved');
+      return route(a, b, vehicle === 'bike' ? 'bike' : vehicle === 'foot' ? 'foot' : 'car', {
+        preference: opts.preference,
+        alternatives: true,
+        exclude: fallbackExclude,
+      }).then(function (fallback) {
         if (fallback && !fallback.error) {
           fallback.provider = fallback.provider || { id: 'osrm', name: 'OSRM', licence: 'ODbL' };
           fallback.degraded = true;
           fallback.reason = error.message;
-          fallback.vehicleNote = 'The Valhalla driving router was unreachable, so this is a standard car route without vehicle-size awareness.';
+          fallback.vehicleNote = vehicle === 'bike'
+            ? 'The vehicle-aware router was unreachable, so this is a standard cycling route from the fallback router.'
+            : vehicle === 'foot'
+              ? 'The vehicle-aware router was unreachable, so this is a standard walking route from the fallback router.'
+              : 'The Valhalla driving router was unreachable, so this is a standard car route without vehicle-size awareness.';
           return fallback;
         }
         var straight = MM.geodesy.measure(a, b);
@@ -585,6 +771,7 @@
           modifier: modifierName(maneuver.type),
           type: maneuver.type,
           name: (maneuver.street_names && maneuver.street_names[0]) || maneuver.instruction || '',
+          lanes: normaliseLaneInfo(maneuver.lanes || (maneuver.intersection && maneuver.intersection.lanes) || []),
           lat: null, lon: null,
           beginShapeIndex: maneuver.begin_shape_index,
           exitNumber: maneuver.exit_number != null ? maneuver.exit_number : null,
@@ -629,14 +816,12 @@
     return alternates.map(function (entry) {
       var trip = entry.trip || entry;
       if (!trip || !trip.summary) return null;
-      return {
-        distanceKm: trip.summary.length,
-        durationMinutes: trip.summary.time / 60,
-        tolls: !!trip.summary.has_toll,
-        motorways: !!trip.summary.has_highway,
-        geometry: (trip.legs && trip.legs[0] && trip.legs[0].shape && trip.legs[0].shape.coordinates) || null,
-        vehicle: vehicle,
-      };
+      var parsed = parseValhallaTrip(trip, vehicle);
+      parsed.tolls = !!trip.summary.has_toll;
+      parsed.motorways = !!trip.summary.has_highway;
+      parsed.vehicle = vehicle;
+      parsed.simple = [];
+      return parsed;
     }).filter(Boolean);
   }
 
@@ -1040,6 +1225,8 @@
     var url = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*' +
       '&generator=geosearch&ggscoord=' + pt.lat.toFixed(5) + '%7C' + pt.lon.toFixed(5) +
       '&ggsradius=' + radius + '&ggslimit=5&prop=extracts|info&exintro=1&explaintext=1&inprop=url';
+    var cached = getCached(url, opts.cacheMs || 15 * 60 * 1000);
+    if (cached) return Promise.resolve({ provider: WIKI, articles: cached });
     return fetchJson(url, { id: WIKI.id, timeoutMs: WIKI.timeoutMs, minIntervalMs: WIKI.minIntervalMs })
       .then(function (data) {
         var pages = (data && data.query && data.query.pages) || {};
@@ -1054,11 +1241,162 @@
             distanceMetres: page.dist == null ? null : page.dist,
           };
         });
+        putCached(url, articles);
         return { provider: WIKI, articles: articles };
       })
       .catch(function (error) {
         return { error: error.message, offline: true, articles: [] };
       });
+  }
+
+  /** Current air quality at a point, from the open CAMS forecast. */
+  function airQuality(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ current: null, error: 'bad-point' });
+    var url = AIR_QUALITY.url + '?latitude=' + pt.lat.toFixed(5) + '&longitude=' + pt.lon.toFixed(5) +
+      '&current=european_aqi,pm2_5,pm10,ozone,nitrogen_dioxide&timezone=auto&forecast_days=1';
+    var cached = getCached(url, opts.cacheMs || 10 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: AIR_QUALITY.id, timeoutMs: AIR_QUALITY.timeoutMs, minIntervalMs: AIR_QUALITY.minIntervalMs })
+      .then(function (data) {
+        var result = {
+          provider: { id: AIR_QUALITY.id, name: AIR_QUALITY.name, licence: AIR_QUALITY.licence, home: AIR_QUALITY.home },
+          current: data && data.current ? data.current : null,
+          units: data && data.current_units ? data.current_units : {},
+          fetchedAt: new Date(),
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { current: null, error: error.message, offline: true, provider: null }; });
+  }
+
+  /** Current Environment Agency flood warnings near a point. */
+  function floodWarnings(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ warnings: [], error: 'bad-point' });
+    var radiusKm = Math.min(30, Math.max(1, opts.radiusKm || 15));
+    var url = FLOODS.url + '?lat=' + pt.lat.toFixed(5) + '&long=' + pt.lon.toFixed(5) + '&dist=' + radiusKm + '&min-severity=3&_limit=50';
+    var cached = getCached(url, opts.cacheMs || 5 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: FLOODS.id, timeoutMs: FLOODS.timeoutMs, minIntervalMs: FLOODS.minIntervalMs })
+      .then(function (data) {
+        var warnings = ((data && data.items) || []).map(function (item) {
+          var area = item.floodArea || {};
+          var warning = item.severity || item.severityLevel || item.type || 'Flood warning';
+          return {
+            id: item['@id'] || item.id || item.notation || item.fwdCode,
+            label: item.description || item.label || area.label || 'Flood warning area',
+            message: item.message || null,
+            severity: String(warning),
+            severityLevel: item.severityLevel == null ? null : Number(item.severityLevel),
+            county: item.county || area.county || null,
+            riverOrSea: item.riverOrSea || area.riverOrSea || null,
+            url: item['@id'] ? String(item['@id']).replace(/^http:/i, 'https:') : null,
+            lat: item.lat != null ? Number(item.lat) : null,
+            lon: item.long != null ? Number(item.long) : null,
+          };
+        });
+        var result = {
+          provider: { id: FLOODS.id, name: FLOODS.name, licence: FLOODS.licence, home: FLOODS.home },
+          warnings: warnings,
+          radiusKm: radiusKm,
+          fetchedAt: new Date(),
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { warnings: [], error: error.message, offline: true, provider: null }; });
+  }
+
+  /** Nearby geotagged images from Wikimedia Commons. */
+  function commons(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ images: [], error: 'bad-point' });
+    var radius = Math.min(10000, Math.max(1000, opts.radiusMetres || 5000));
+    var url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
+      '&generator=geosearch&ggscoord=' + pt.lat.toFixed(5) + '%7C' + pt.lon.toFixed(5) +
+      '&ggsradius=' + radius + '&ggslimit=' + (opts.limit || 6) + '&ggsnamespace=6' +
+      '&prop=imageinfo|coordinates&iiprop=url|extmetadata&iiurlwidth=520';
+    var cached = getCached(url, opts.cacheMs || 30 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: COMMONS.id, timeoutMs: COMMONS.timeoutMs, minIntervalMs: COMMONS.minIntervalMs })
+      .then(function (data) {
+        var pages = (data && data.query && data.query.pages) || {};
+        var images = Object.keys(pages).map(function (key) {
+          var page = pages[key];
+          var info = page.imageinfo && page.imageinfo[0] ? page.imageinfo[0] : {};
+          var metadata = info.extmetadata || {};
+          return {
+            title: String(page.title || '').replace(/^File:/i, ''),
+            thumbUrl: info.thumburl || info.url || null,
+            url: info.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(page.title || '')),
+            artist: metadata.Artist && metadata.Artist.value ? String(metadata.Artist.value).replace(/<[^>]+>/g, '').slice(0, 160) : null,
+            licence: metadata.LicenseShortName && metadata.LicenseShortName.value ? String(metadata.LicenseShortName.value).slice(0, 80) : 'See Commons page',
+            lat: page.coordinates && page.coordinates[0] ? page.coordinates[0].lat : null,
+            lon: page.coordinates && page.coordinates[0] ? page.coordinates[0].lon : null,
+            distanceMetres: page.dist == null ? null : page.dist,
+          };
+        }).filter(function (image) { return !!image.thumbUrl; });
+        var result = {
+          provider: { id: COMMONS.id, name: COMMONS.name, licence: COMMONS.licence, home: COMMONS.home },
+          images: images,
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { images: [], error: error.message, offline: true, provider: null }; });
+  }
+
+  /** Nearby user-contributed street-level imagery from KartaView. */
+  function kartaView(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ photos: [], error: 'bad-point' });
+    var zoom = Math.max(12, Math.min(19, opts.zoomLevel || 17));
+    var radius = Math.max(1, Math.min(500, opts.radiusMetres || 500));
+    var url = KARTAVIEW.url + '?lat=' + pt.lat.toFixed(5) + '&lng=' + pt.lon.toFixed(5) +
+      '&zoomLevel=' + zoom + '&radius=' + radius + '&join=sequence&orderBy=id&orderDirection=desc';
+    var cached = getCached(url, opts.cacheMs || 30 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: KARTAVIEW.id, timeoutMs: KARTAVIEW.timeoutMs, minIntervalMs: KARTAVIEW.minIntervalMs })
+      .then(function (data) {
+        var rows = data && data.result && Array.isArray(data.result.data) ? data.result.data : [];
+        var photos = rows.map(function (photo) {
+          var sequence = photo.sequence || {};
+          var photoId = photo.id || photo.photoId;
+          var sequenceId = sequence.id || photo.sequenceId;
+          var sequenceIndex = photo.sequenceIndex == null ? null : photo.sequenceIndex;
+          var link = sequenceId != null
+            ? 'https://kartaview.org/details/' + encodeURIComponent(sequenceId) + (sequenceIndex == null ? '' : '/' + encodeURIComponent(sequenceIndex)) + '/track-info'
+            : 'https://kartaview.org/';
+          return {
+            id: photoId,
+            sequenceId: sequenceId,
+            sequenceIndex: sequenceIndex,
+            imageUrl: photo.fileurl ? String(photo.fileurl).replace(/^http:/i, 'https:') : null,
+            link: link,
+            lat: photo.lat == null ? null : Number(photo.lat),
+            lon: photo.lng == null ? null : Number(photo.lng),
+            heading: photo.heading == null ? null : Number(photo.heading),
+            capturedAt: photo.dateProcessed || photo.dateAdded || sequence.dateAdded || null,
+            device: sequence.deviceName || null,
+          };
+        }).filter(function (photo) {
+          return !!photo.imageUrl && latOk(photo.lat) && lonOk(photo.lon);
+        }).slice(0, opts.limit || 6);
+        var result = {
+          provider: { id: KARTAVIEW.id, name: KARTAVIEW.name, licence: KARTAVIEW.licence, home: KARTAVIEW.home },
+          photos: photos,
+          radiusMetres: radius,
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { photos: [], error: error.message, offline: true, provider: null }; });
   }
 
   /** What the UI prints when it says where an answer came from. */
@@ -1072,6 +1410,10 @@
       pois: { id: POIS.id, name: POIS.name, endpoints: POIS.endpoints, licence: POIS.licence },
       elevation: { id: ELEVATION.id, name: ELEVATION.name, licence: ELEVATION.licence },
       wiki: { id: WIKI.id, name: WIKI.name, licence: WIKI.licence },
+      commons: { id: COMMONS.id, name: COMMONS.name, home: COMMONS.home, licence: COMMONS.licence },
+      kartaView: { id: KARTAVIEW.id, name: KARTAVIEW.name, home: KARTAVIEW.home, licence: KARTAVIEW.licence },
+      airQuality: { id: AIR_QUALITY.id, name: AIR_QUALITY.name, home: AIR_QUALITY.home, licence: AIR_QUALITY.licence },
+      floods: { id: FLOODS.id, name: FLOODS.name, home: FLOODS.home, licence: FLOODS.licence, coverage: FLOODS.coverage },
       driving: { id: VALHALLA.id, name: VALHALLA.name, home: VALHALLA.home, licence: VALHALLA.licence, note: VALHALLA.note },
       traffic: { id: TRAFFIC.tfl.id, name: TRAFFIC.tfl.name, home: TRAFFIC.tfl.home, licence: TRAFFIC.tfl.licence, coverage: TRAFFIC.tfl.coverage },
       weather: { id: WEATHER.id, name: WEATHER.name, home: WEATHER.home, licence: WEATHER.licence },
@@ -1089,6 +1431,10 @@
     POI_CATEGORIES: POI_CATEGORIES,
     ELEVATION: ELEVATION,
     WIKI: WIKI,
+    COMMONS: COMMONS,
+    KARTAVIEW: KARTAVIEW,
+    AIR_QUALITY: AIR_QUALITY,
+    FLOODS: FLOODS,
     fetchJson: fetchJson,
     loadStyle: loadStyle,
     geocode: geocode,
@@ -1097,6 +1443,7 @@
     driveRoute: driveRoute,
     decodePolyline: decodePolyline,
     valhallaCosting: valhallaCosting,
+    normaliseLaneInfo: normaliseLaneInfo,
     speedLimitWays: speedLimitWays,
     stopsAlong: stopsAlong,
     camerasAlong: camerasAlong,
@@ -1109,6 +1456,10 @@
     elevation: elevation,
     elevationProfile: elevationProfile,
     wiki: wiki,
+    airQuality: airQuality,
+    floodWarnings: floodWarnings,
+    commons: commons,
+    kartaView: kartaView,
     describe: describe,
     health: function () { return health; },
     clearCache: function () { cache.clear(); },
