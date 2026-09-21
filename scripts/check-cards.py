@@ -41,6 +41,7 @@ KNOWN_CATEGORIES = {
     "Virtual Worlds & Gaming", "MrProphecy Arcade", "Museum & Collection",
     "Sports", "Mind-Blowing Demos", "Algorithms & Computer Science",
     "Survival & Emergency Readiness", "Trucking & Freight",
+    "Fire & Rescue Service",
 }
 
 fails: list[str] = []
