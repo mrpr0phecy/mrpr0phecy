@@ -25,6 +25,17 @@ const INDEX_JSON = path.join(ROOT, 'tools-index.json');
 const CATEGORIES_DIR = path.join(ROOT, 'categories');
 const SITE = 'https://www.themostusefulsiteintheworld.com';
 
+// The ?v= of the shared list layer. It has one home, CACHE_VERSION in sw.js:
+// hard-coding it per generator is how the category pages ended up serving
+// explore.css?v=1 after the site had moved to ?v=16 — a returning visitor's
+// browser would have paired the new markup with the previous deploy's engine.
+const ASSET_VERSION = (() => {
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const match = sw.match(/CACHE_VERSION\s*=\s*'v(\d+)-/);
+  if (!match) throw new Error('sw.js has no CACHE_VERSION = "vN-<date>" — cannot version page assets');
+  return match[1];
+})();
+
 const CAT_BLURBS = {
   'Home & DIY': 'Precision calculators and guides for paint coverage, tiling area, concrete volume, timber sizing, and electrical wiring. Practical mathematics for home improvement and construction.',
   'Wellbeing & Community': 'Self-guided tools for box breathing, grounding exercises, grief support, mindfulness, and community care. Private, respectful utilities designed for daily mental wellness.',
@@ -121,19 +132,14 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     ]
   };
 
-  const toolCardsHtml = catTools.map(t => {
-    const tagsHtml = (t.tags || []).slice(0, 3).map(tag => `<span class="tag">#${esc(tag)}</span>`).join('');
-    return `      <a class="tool-card" href="../${esc(t.url)}" title="${esc(t.title)}">
-        <div class="tool-card-head">
-          <h2 class="tool-card-title">${esc(t.title)}</h2>
-        </div>
-        <p class="tool-card-desc">${esc(t.description)}</p>
-        <div class="tool-card-meta">
-          <div class="tags">${tagsHtml}</div>
-          <span class="open-btn">Open Tool →</span>
-        </div>
-      </a>`;
-  }).join('\n');
+  // Same row component as tools.html and the home page's catalogue list: one
+  // toolbar, one keyboard map, one ＋ button behaviour across the whole site.
+  const toolRowsHtml = catTools.map(t => `        <li class="xp-row" data-slug="${esc(t.slug)}">
+          <a class="xp-open" href="../${esc(t.url)}">
+            <span class="xp-title">${esc(t.title)}</span>
+          </a>
+          <p class="xp-desc">${esc(t.description)}</p>
+        </li>`).join('\n');
 
   const otherCategoriesHtml = allCategories
     .filter(c => c.slug !== cat.slug)
@@ -321,6 +327,9 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       align-items: center;
       justify-content: space-between;
     }
+    /* The page's own topbar is sticky and about 68px tall; the list toolbar
+       parks underneath it rather than on top of it. */
+    .xp-bar { top: 72px; }
     .tools-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -433,6 +442,9 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     footer a:hover { color: var(--accent); }
     footer p { margin-bottom: 8px; }
   </style>
+  <link rel="stylesheet" href="../explore.css?v=${ASSET_VERSION}">
+  <script defer src="../toolbox.js?v=${ASSET_VERSION}"></script>
+  <script defer src="../explore.js?v=${ASSET_VERSION}"></script>
 </head>
 <body>
 
@@ -475,9 +487,28 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       <div class="section-title">
         <span id="tools-heading">All ${catTools.length} ${esc(cat.name)} Calculators &amp; Utilities</span>
       </div>
-      <div class="tools-grid">
-${toolCardsHtml}
+      <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:14px;">
+        Filter the ${catTools.length} tools below, sort them, expand a row for the full description, or keep one
+        in your toolbox with the ＋. Press <kbd style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">/</kbd> to jump to the filter.
+      </p>
+
+      <!-- One sponsorship position on this page, and only one. Unsold: a paid
+           placement replaces this block and carries the "Sponsored" label. -->
+      <div class="xp-sponsor" role="note">
+        <span><b>Sponsorship · one slot on this page</b>
+        Sponsors are always labelled, and a sponsor's own placement carries no tracking scripts, never takes more than 5% of the page and never changes what a tool does. Ask for the real traffic numbers before you buy.</span>
+        <a href="../sponsor.html">Sponsor this category →</a>
       </div>
+
+      <div data-explore="static" id="explore" data-cat-name="${esc(cat)}">
+        <ul class="xp-list">
+${toolRowsHtml}
+        </ul>
+      </div>
+
+      <p style="margin-top:16px;font-size:0.85rem;color:var(--text-muted);">
+        Looking for something else? <a href="../tools.html" style="color:var(--accent);">Filter all ${totalSiteTools} tools →</a>
+      </p>
     </section>
 
     <section class="other-cats">

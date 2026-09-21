@@ -69,8 +69,12 @@ const CRITICAL_FILES = [
   // byte comparison is the only thing that notices.
   'home.css',
   'home-deferred.css',
-  'home-app.js',
-  'home-features.js',
+  'home-core.js',
+  // The shared list layer: the home page, tools.html and all 28 category pages
+  // load these three. A deploy missing any of them renders every list dead.
+  'explore.css',
+  'explore.js',
+  'toolbox.js',
   'tool.html',
   'listen.html',
   '404.html',

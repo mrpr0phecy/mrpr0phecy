@@ -33,8 +33,8 @@ calls, and no session may relax them for scope, speed or ambition:
    cross-promo on the tool catalogue or any card; no tool links on the music
    pages.
 7. **Generated artefacts are only written by their generators** — tool counts,
-   `sitemap.xml`, `index.html`'s HOME-FAST-PATH/HOME-PRERENDER blocks and
-   `cards.json` categories are never hand-edited.
+   `sitemap.xml`, `index.html`'s HOME-FEATURED/HOME-TRENDING/HOME-CATEGORIES
+   blocks and `cards.json` categories are never hand-edited.
 
 Anything that looks like it needs an exception to one of these is an owner
 question: ask in the session, and record the answer here. This file is the only
@@ -111,10 +111,11 @@ first screen.** All of them are produced (`scripts/sync-counts.py`,
 fails on drift. The count appears dozens of times across the published pages
 and docs — editing by hand
 has failed every single time it has been attempted. The home page's
-`HOME-FAST-PATH` and `HOME-PRERENDER` blocks — the head bootstrap that
-prefetches the first tools, the eight pre-rendered card shells and the
-per-category count badges — are the same kind of artefact. They look like
-hand-written markup and are not.
+`HOME-FEATURED`, `HOME-TRENDING` and `HOME-CATEGORIES` blocks — the twelve
+featured rows, the eight most-used rows and the 28 category links — are the
+same kind of artefact. They look like hand-written markup and are not. (The
+page's own list needs no block at all: it is built in the browser from
+`tools-index.json`.)
 
 **`generate-cards-json.js` overwrites the `category` field** from hardcoded
 lists inside the script. Add your slug to the right list *before* running it,

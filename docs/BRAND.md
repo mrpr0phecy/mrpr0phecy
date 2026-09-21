@@ -5,9 +5,9 @@
 ```
 MrProphecy (the maker)
   └── The Most Useful Site in the World (the catalogue product)
-        ├── the homepage search + app (home-app.js)
-        ├── 1,194 tools (each is a utility, not a sub-brand)
-        ├── discovery surface (discovery-app.js)
+        ├── the homepage chrome (home-core.js)
+        ├── 1,205 tools (each is a utility, not a sub-brand)
+        ├── the list layer: explore.js / explore.css / toolbox.js
         └── Lantern (a separate browser AI; not a tool)
 ```
 

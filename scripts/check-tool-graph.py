@@ -280,11 +280,17 @@ def main() -> int:
                 f"(e.g. {', '.join(missing[:4])})"
             )
 
-    # The home page's own catalogue tiers are what the grid is built from; a
-    # tool absent from both is absent from the main page entirely.
+    # The home page no longer builds a grid from the catalogue: since
+    # 2026-09-21 it lists tools from tools-index.json, rendered into
+    # `[data-explore]` on demand (the live grid cost the first paint and gave
+    # every tool a way to look broken). What still has to hold is that the
+    # home page *can* reach the catalogue at all — a home page whose list
+    # engine has lost its source is a page with an empty list.
     home = read("index.html")
-    if "cards/cards-lite.json" not in home and "cards/cards.json" not in home:
-        fails.append("index.html no longer references the catalogue tiers")
+    if "tools-index.json" not in home and "cards/cards.json" not in home:
+        fails.append("index.html no longer references any catalogue source")
+    if 'data-explore' not in home:
+        fails.append("index.html has no [data-explore] container for its list")
 
     if args.verbose:
         print(f"scanned {scanned} shipped page(s), {len(names)} tool(s), {len(cat_slugs)} categor(y/ies)")

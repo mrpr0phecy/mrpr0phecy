@@ -29,16 +29,17 @@ What is collected (and what is not)
 
 Where the code lives
 ---------------------
-* `home-app.js` — top block `mpGtag / mpLogZeroSearch / mpLogSearch /
-  mpLogToolView / mpLogToolCompletion` (~90 lines, after `APP_VERSION`).
-  Wired in two places:
-  1. `applyFiltersCore()` tail — `mpLogSearch(query, visibleCount,
-     currentSelectedCategory)` (so every filter/search fires, not just
-     entries from the input box).
-  2. `renderCardContent()` post-`updateSiteStats()` — `mpLogToolView` plus
-     sandboxed `submit`/`click` listeners for completion.
-* `discovery-app.js` — identical helpers (namespaced `mp…`) + `setupSearch`
-  zero-branch and delegated `click` on `a.tool-card / a.tool-row`.
+* `explore.js` — top block `logSearch / logToolView / logToolCompletion`
+  (namespaced `mp…`). Wired in two places, because those are the two places a
+  catalogue is filtered or opened:
+  1. `render()` tail — `logSearch(query, count)` for every filter pass, not
+     just keystrokes in the box, so a query that arrives from `?q=` counts too;
+  2. the delegated `click` on `.xp-open` / `[data-slug]` links —
+     `logToolView(slug, category)`, which is what the completion signal is
+     built from.
+* `home-core.js` — `mpGtag` plus the deploy stamp (`APP_VERSION`), the panels'
+  open/close events, and the deep-link forward (`?card=` → `tool.html`).
+  Since 2026-09-21 it no longer logs tool views: the home page runs no tools.
 
 Caps & privacy rails
 ---------------------

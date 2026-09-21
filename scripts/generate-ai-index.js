@@ -224,7 +224,29 @@ one-line description, grouped by category.
 ${sections.join('\n\n')}
 `;
 
-  // ---------- 3. tools-index.html (static, zero JS) ----------
+  // ---------- 3. tools-index.html (the directory that survives anything) ----
+  //
+  // This page has two jobs and they used to pull in opposite directions:
+  //
+  //   1. be the surface that works when nothing else does — a crawler, a text
+  //      reader, a phone on a train, a browser with scripting off. That is why
+  //      every tool is a real <a> in the served HTML, written out at build time;
+  //   2. be worth landing on. Until 2026-09-21 it was the only full list on the
+  //      site you could not filter, sort or add to, which made the page linked
+  //      from llms.txt the most limited one we had.
+  //
+  // Both are satisfied by the same thing the rest of the site now does: the
+  // rows are served (job 1) and the shared list layer decorates them in place
+  // (job 2). No JavaScript is needed to read, search with the browser's own
+  // find, or follow any link on this page — the layer only adds the filter,
+  // the sort, the keyboard map and the toolbox ＋.
+  const assetVersion = (() => {
+    const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const match = sw.match(/CACHE_VERSION\s*=\s*'v(\d+)-/);
+    if (!match) throw new Error("sw.js has no CACHE_VERSION = 'vN-<date>' — cannot version page assets");
+    return match[1];
+  })();
+
   const today = new Date().toISOString().slice(0, 10);
   const navLinks = ordered.map(cat =>
     `      <a href="#${slugCat(cat)}">${emojiFor(cat)} ${esc(cat)} <span>${byCat.get(cat).length}</span></a>`
@@ -232,21 +254,18 @@ ${sections.join('\n\n')}
   const sectionsHtml = ordered.map(cat => {
     const items = byCat.get(cat).map(c => {
       const url = `tool.html?card=${encodeURIComponent(c.name)}`;
-      return `        <li>
-          <a href="${url}">${esc(c.title || c.name)}</a>
-          <span>${esc((c.description || 'Free browser tool.').replace(/\s+/g, ' ').trim())}</span>
-        </li>`;
+      return `        <li class="xp-row" data-slug="${esc(c.name)}">` +
+        `<a class="xp-open" href="${url}"><span class="xp-title">${esc(c.title || c.name)}</span></a>` +
+        `<p class="xp-desc">${esc((c.description || 'Free browser tool.').replace(/\s+/g, ' ').trim())}</p>` +
+        `</li>`;
     }).join('\n');
     // One honest line per category: turns the directory from a link farm
-    // into 27 genuinely useful hub sections (P1-R3). Counts stay dynamic.
+    // into 28 genuinely useful hub sections. Counts stay dynamic.
     const blurb = CAT_BLURB[cat] || 'Free browser tools. No sign-up, no ads.';
-    return `    <section class="cat" id="${slugCat(cat)}">
-      <h2>${emojiFor(cat)} ${esc(cat)} <span class="count">${byCat.get(cat).length} tools</span></h2>
-      <p class="cat-blurb">${esc(blurb)}</p>
-      <ul>
-${items}
-      </ul>
-    </section>`;
+    return `    <section class="cat-block" id="${slugCat(cat)}" data-xp-group="${esc(cat)}">\n` +
+      `      <h2>${emojiFor(cat)} ${esc(cat)} <span class="count">${byCat.get(cat).length} tools</span></h2>\n` +
+      `      <p class="cat-blurb">${esc(blurb)}</p>\n` +
+      `      <ul class="xp-list">\n${items}\n      </ul>\n    </section>`;
   }).join('\n');
 
   const html = `<!doctype html>
@@ -274,33 +293,30 @@ ${items}
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0a0f14; color: #e6faff; line-height: 1.6; padding: 24px 16px 60px;
+      background: #0a0f14; color: #e6faff; line-height: 1.6; padding: 0 16px 60px;
     }
     main { max-width: 860px; margin: 0 auto; }
+    .hero { padding: 34px 0 8px; }
     h1 { font-size: clamp(1.5rem, 4vw, 2.2rem); letter-spacing: -0.02em; }
     h1 span { color: #2dd4ff; }
     .sub { color: rgba(230, 250, 255, 0.7); font-size: 0.9rem; margin: 8px 0 4px; }
     .metaline { font-size: 0.78rem; color: rgba(230, 250, 255, 0.55); margin-bottom: 20px; }
     .metaline a, .back a, .ai-note a { color: #2dd4ff; }
-    nav.toc {
-      display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 26px;
-    }
+    nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 26px; }
     nav.toc a {
       font-size: 0.8rem; text-decoration: none; color: #e6faff;
       border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px; padding: 5px 11px;
     }
     nav.toc a span { color: rgba(230, 250, 255, 0.55); margin-left: 4px; font-size: 0.72rem; }
     nav.toc a:hover { border-color: #2dd4ff; color: #2dd4ff; }
-    section.cat { margin-bottom: 30px; scroll-margin-top: 16px; }
+    section.cat-block { margin-bottom: 30px; scroll-margin-top: 88px; }
+    /* The toolbar sticks under nothing but the viewport on this page (no
+       sticky header here), so it clears the top edge instead of the 52px gap
+       the site's shell needs. */
+    .xp-bar { top: 8px; }
     h2 { font-size: 1.05rem; margin-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding-bottom: 8px; }
     h2 .count { font-size: 0.72rem; font-weight: 600; color: #2dd4ff; background: rgba(45, 212, 255, 0.1); border: 1px solid rgba(45, 212, 255, 0.25); padding: 2px 9px; border-radius: 999px; vertical-align: middle; margin-left: 8px; }
     p.cat-blurb { font-size: 0.85rem; color: rgba(230, 250, 255, 0.65); margin: 0 0 10px; }
-    ul { list-style: none; }
-    li { padding: 9px 0 9px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
-    li a { color: #fff; font-weight: 600; font-size: 0.92rem; text-decoration: none; }
-    li a:hover { color: #2dd4ff; }
-    li a::after { content: " ↗"; color: rgba(45, 212, 255, 0.6); font-size: 0.8em; }
-    li span { display: block; color: rgba(230, 250, 255, 0.6); font-size: 0.8rem; margin-top: 2px; }
     .ai-note {
       margin-top: 34px; border: 1px dashed rgba(45, 212, 255, 0.35); border-radius: 12px;
       padding: 14px 16px; font-size: 0.82rem; color: rgba(230, 250, 255, 0.75);
@@ -308,18 +324,33 @@ ${items}
     .back { margin-top: 22px; font-size: 0.85rem; }
     footer { margin-top: 30px; font-size: 0.75rem; color: rgba(230, 250, 255, 0.45); }
   </style>
+  <link rel="stylesheet" href="explore.css?v=${assetVersion}">
+  <script defer src="toolbox.js?v=${assetVersion}"></script>
+  <script defer src="explore.js?v=${assetVersion}"></script>
 </head>
 <body>
   <main>
-    <h1>Every tool, <span>plain and simple</span></h1>
-    <p class="sub">The complete directory of all <strong>${total}</strong> free tools on The Most Useful Site in the World — ${ordered.length} categories, zero JavaScript, every tool one click away.</p>
-    <p class="metaline">This page needs no scripts — it works in every browser, reader and crawler. <a href="index.html">Open the interactive homepage →</a></p>
+    <div class="hero">
+      <h1>Every tool, <span>plain and simple</span></h1>
+      <p class="sub">The complete directory of all <strong>${total}</strong> free tools on The Most Useful Site in the World — ${ordered.length} categories, every tool one click away, no sign-up and no ads.</p>
+      <p class="metaline">This page works with scripting switched off: every tool below is a plain link, and your browser's own find (<kbd>Ctrl</kbd>+<kbd>F</kbd>) searches all ${total} of them. With scripting on you also get the filter box, sorting, the <kbd>/</kbd> keyboard shortcut and the <strong>＋</strong> that saves a tool into your toolbox. <a href="tools.html">Prefer the full filterable index →</a></p>
+    </div>
 
-    <nav class="toc" aria-label="Categories">
+    <div id="explore" data-explore="static">
+      <div class="explore-head">
+        <p class="explore-lede">${total} tools in ${ordered.length} categories. Filter them, sort them, or press <kbd>/</kbd>.</p>
+        <div class="xp-sponsor" role="note">
+          <span><b>Sponsorship · one slot on this page</b> Sponsors are always labelled, and a sponsor's own placement carries no tracking scripts, never takes more than 5% of the page and never changes what a tool does. Ask for the real traffic numbers before you buy.</span>
+          <a href="sponsor.html">Sponsor this directory →</a>
+        </div>
+      </div>
+
+      <nav class="toc" aria-label="Categories">
 ${navLinks}
-    </nav>
+      </nav>
 
 ${sectionsHtml}
+    </div>
 
     <div class="ai-note">
       🤖 <strong>AI agents &amp; developers:</strong> the same catalogue is available as

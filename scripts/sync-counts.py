@@ -157,10 +157,17 @@ CLAIM = re.compile(
 # "numberOfItems": 562 and index.html's CollectionPage count.
 JSONLD_NO = re.compile(r'("numberOfItems"\s*:\s*)(\d{3,4})(?=\s*[,}])')
 
-# Named chrome can show a bare number with no following noun (count-all).
-# Keep this in the canonical synchroniser, rather than a second design fixer.
+# Named chrome can show a bare number with no following noun. Keep this in the
+# canonical synchroniser, rather than a second design fixer.
+#   heroToolCount — the home page's hero badge
+#   exploreCount  — the heading over the catalogue list
+# (`count-all` used to be here: the id of the home page's "All tools" filter
+# pill back when the page mounted live cards. The pills went with the grid on
+# 2026-09-21; the pattern stayed until the next change to this file, because a
+# pattern for an id nothing ships is worse than no pattern — it hides the fact
+# that the element is gone.)
 CHROME_COUNT = re.compile(
-    r"""(\bid\s*=\s*["'](?:heroToolCount|count-all)["'][^>]*>\s*)(\d{3,4})\b""",
+    r"""(\bid\s*=\s*["'](?:heroToolCount|exploreCount)["'][^>]*>\s*)(\d{3,4})\b""",
     re.IGNORECASE,
 )
 

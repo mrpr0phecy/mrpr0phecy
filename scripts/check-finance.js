@@ -635,9 +635,24 @@ section('sponsorship — the 5% rule');
      than several on a cluttered one, so this guard protects revenue as much as
      it protects the reader. Encoded here so erosion has to be deliberate. */
   const SPONSOR_MARK = /<!--\s*SPONSOR-SLOT\s*-->/g;
+
+  /* Two shapes carry a sponsorship position, and both are checked the same
+     way: a card fragment (an actual placement, marked with the comment) and
+     the list pages' `.xp-sponsor` invitation block — the note that says a
+     placement is available. The invitation is not a paid placement, but it is
+     how a page gets *two* placements one honest-sounding edit at a time
+     ("just label the invitation Sponsored too"), so it counts towards the
+     same one-per-page budget. */
   const cardFiles = fs.existsSync(path.join(ROOT, 'cards'))
     ? fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith('.html'))
     : [];
+  const listFiles = ['index.html', 'tools.html', 'tools-index.html',
+    'popular.html', 'new.html', 'use-case.html']
+    .filter(f => fs.existsSync(path.join(ROOT, f)))
+    .concat(fs.existsSync(path.join(ROOT, 'categories'))
+      ? fs.readdirSync(path.join(ROOT, 'categories'))
+        .filter(f => f.endsWith('.html')).map(f => path.join('categories', f))
+      : []);
   let multi = [];
   let unlabelled = [];
   for (const f of cardFiles) {
@@ -645,6 +660,13 @@ section('sponsorship — the 5% rule');
     const slots = (txt.match(SPONSOR_MARK) || []).length;
     if (slots > 1) multi.push(`${f} (${slots})`);
     if (slots === 1 && !/Sponsored/.test(txt)) unlabelled.push(f);
+  }
+  for (const f of listFiles) {
+    const txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const slots = (txt.match(SPONSOR_MARK) || []).length;
+    const invitations = (txt.match(/class="[^"]*xp-sponsor/g) || []).length;
+    const total = slots + invitations;
+    if (total > 1) multi.push(`${f} (${total})`);
   }
   if (multi.length) {
     fail(`more than one sponsor slot on: ${multi.join(', ')} — the 5% rule allows one per page`);

@@ -93,8 +93,8 @@ or make a change that cannot read as a duplicate in another language.
 files are all owned by `npm run build`: `cards/cards*.json`, `sitemap.xml`,
 `sitemap.html`, `tools.html`, `tools-index.{json,html}`, `categories/`,
 `related.json`, `embed.html`, `api/tools*.json`, `tools/*.html`, `llms.txt`,
-`llms-full.txt`, `index.html`'s HOME-FAST-PATH / HOME-PRERENDER blocks and
-every published tool count.
+`llms-full.txt`, `index.html`'s HOME-FEATURED / HOME-TRENDING /
+HOME-CATEGORIES blocks and every published tool count.
 
 **There is no site brain any more.** `local-ai-knowledge.json` (4.5 MB), its
 857-line builder, its evaluator and `learning/` were deleted on 2026-09-20.
