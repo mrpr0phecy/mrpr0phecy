@@ -61,38 +61,40 @@ SW = os.path.join(ROOT, "sw.js")
 # An inline block must stay a handful of declarations (the @font-face pair is
 # ~0.8 KB). Anything larger is the sheet creeping back into the document.
 INLINE_BUDGET = 4_000
-# Budgets, in gzip bytes, for what the split produced (~15.2 KB / ~5.7 KB).
-# If a change trips these, either trim the CSS or raise the number on purpose —
-# do not let the first-paint payload grow by accident.
-HOME_CSS_GZIP_BUDGET = 20_000
-DEFERRED_GZIP_BUDGET = 9_000
+# Budgets, in gzip bytes, for what the split produces now (~7.5 KB / ~2.8 KB).
+# The numbers came down with the 2026-09-21 rewrite: two thirds of this sheet
+# styled a card grid the main page no longer mounts. If a change trips these,
+# either trim the CSS or raise the number on purpose — do not let the
+# first-paint payload grow by accident.
+HOME_CSS_GZIP_BUDGET = 11_000
+DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 
 # Containers that are hidden at first paint. Every selector in the deferred
 # file must mention one of these tokens; the ones with a selector+declaration
 # also pin the hide rule to the critical sheet. Tokens are matched ignoring
-# case and hyphens, so `standalone-modal` covers `#standaloneModalShareBtn`.
+# case and hyphens, so `palette` covers `.palette-panel`.
+#
+# This list is the machine-readable version of "what is closed, hidden or far
+# below the fold when the page paints". It was seven entries longer until
+# 2026-09-21: the maximise modal, the directory view, the reader-mode toggle and
+# the grid/list mode panels were all surfaces of the live card grid, and the
+# main page stopped mounting tools (see scripts/tests/no-live-tools.test.js).
+# Their rules went with them, so their entries have gone too — the checker
+# fails on a stale entry precisely so this list cannot drift from the file.
 HIDDEN = [
-    ("palette", "palette popover, closed until asked for", None, None),
-    ("contributions", "contributions popover", None, None),
-    ("contribution", "contributions popover", None, None),
-    ("premium", "sponsorship card inside the contributions popover", None, None),
-    ("theme-btn", "accent/theme buttons inside the palette popover", None, None),
-    ("gratitude", "thank-you line inside the contributions popover", None, None),
-    ("toolbox", "toolbox popover", ".toolbox", "display: none"),
-    ("grid-mode", "grid mode is a toolbox view", None, None),
-    ("list-mode", "list mode is a toolbox view", None, None),
-    ("directory", "directory view is display:none until the visitor asks", None, None),
-    ("standalone-modal", "maximise modal is invisible until opened",
-     ".standalone-modal", "pointer-events: none"),
-    ("no-results", "empty-search panel is inline display:none", None, None),
-    ("music-spotlight", "footer spotlight, 1205 cards below the fold", None, None),
-    ("site-footer", "page footer, 1205 cards below the fold", None, None),
-    ("footer", "page footer", None, None),
+    ("palette", "the accent/theme popover, closed until asked for", None, None),
+    ("theme-btn", "theme swatches inside that popover", None, None),
+    ("contributions", "the support popover", None, None),
+    ("contribution", "the giving rows inside the support popover", None, None),
+    ("premium", "the sponsor-a-tool card inside the support popover", None, None),
+    ("gratitude", "thank-you line inside the support popover", None, None),
+    ("toolbox", "the toolbox popover, closed until the visitor opens it",
+     ".toolbox", "display: none"),
+    ("panel", "the shared popover shell", ".panel", "display: none"),
     ("popover", "closed popovers are hidden by the UA stylesheet", None, None),
     ("backdrop", "::backdrop only paints with an open popover/dialog", None, None),
-    ("panel", "palette/contributions panels", ".panel", "display: none"),
-    ("reader-mode", "reader mode is a persisted view state, structural only", None, None),
+    ("music-spotlight", "footer spotlight, an entire catalogue below the fold", None, None),
 ]
 
 STYLE_BLOCK = re.compile(r"<style[^>]*>([\s\S]*?)</style>", re.I)
