@@ -37,6 +37,7 @@
     route: null,
     nearby: [],
     place: null,
+    placeOrigin: null,
     offline: !root.navigator || root.navigator.onLine === false,
   };
 
@@ -48,6 +49,7 @@
   var searchTimer = null;
   var suggestIndex = -1;
   var suggestions = [];
+  var searchRequestId = 0;
   var lastRoutePoints = null;
 
   /**
@@ -203,7 +205,7 @@
       nearbyChips: $('mm-nearby-chips'),
       styleSelect: $('mm-style'), unitsSelect: $('mm-units'), themeButton: $('mm-theme-toggle'),
       measureToggle: $('mm-measure-toggle'), clearButton: $('mm-clear'), shareButton: $('mm-share'),
-      locateButton: $('mm-locate'), railToggle: $('mm-rail-toggle'),
+      locateButton: $('mm-locate'), zoomIn: $('mm-zoom-in'), zoomOut: $('mm-zoom-out'), railToggle: $('mm-rail-toggle'),
       driveBody: $('mm-drive-body'), driveForm: $('mm-drive-form'), driveFrom: $('mm-drive-from'), driveTo: $('mm-drive-to'),
       driveVehicle: $('mm-drive-vehicle'), driveVehicleNote: $('mm-drive-vehicle-note'), driveDims: $('mm-drive-dims'),
       driveHeight: $('mm-drive-height'), driveWidth: $('mm-drive-width'), driveLength: $('mm-drive-length'), driveWeight: $('mm-drive-weight'),
@@ -272,6 +274,19 @@
       doc.body.classList.toggle('rail-hidden');
       els.railToggle.setAttribute('aria-expanded', String(!doc.body.classList.contains('rail-hidden')));
     });
+
+    // Keep the map controls useful even when the live renderer is still
+    // loading. The offline canvas is the source of truth, so these controls
+    // work on a train, behind a firewall, and on older phones too.
+    function setZoom(delta) {
+      var view = map.getView();
+      map.setView(view.center, view.zoom + delta);
+      if (live && live.map) {
+        try { live.map.easeTo({ center: [view.center.lon, view.center.lat], zoom: view.zoom + delta, duration: 220 }); } catch (error) {}
+      }
+    }
+    if (els.zoomIn) els.zoomIn.addEventListener('click', function () { setZoom(1); });
+    if (els.zoomOut) els.zoomOut.addEventListener('click', function () { setZoom(-1); });
 
     startLive();
   }
@@ -411,10 +426,18 @@
     els.search.addEventListener('input', function () {
       clearTimeout(searchTimer);
       var value = els.search.value.trim();
-      if (!value) { closeSuggest(); return; }
+      if (!value) { searchRequestId += 1; closeSuggest(); return; }
       searchTimer = setTimeout(function () { runSearch(value, false); }, 180);
     });
+    els.search.addEventListener('focus', function () {
+      if (els.search.value.trim() && suggestions.length) renderSuggest();
+    });
     els.search.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && suggestions.length) {
+        event.preventDefault();
+        selectPlace(suggestions[Math.max(0, suggestIndex)]);
+        return;
+      }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
         suggestIndex += event.key === 'ArrowDown' ? 1 : -1;
@@ -460,7 +483,8 @@
       state.theme = state.theme === 'dark' ? 'light' : 'dark';
       doc.body.classList.toggle('light', state.theme === 'light');
       map.setTheme(state.theme);
-      els.themeButton.textContent = state.theme === 'dark' ? '🌙' : '☀️';
+      var themeIcon = els.themeButton.querySelector('span');
+      if (themeIcon) themeIcon.textContent = state.theme === 'dark' ? '◐' : '☼';
       els.themeButton.setAttribute('aria-label', state.theme === 'dark' ? 'Switch to light map' : 'Switch to dark map');
     });
     els.shareButton.addEventListener('click', function () {
@@ -524,6 +548,8 @@
   function runSearch(query, jump) {
     var text = query.trim();
     if (!text) return;
+    var requestId = ++searchRequestId;
+    suggestIndex = -1;
     var local = [];
     var interpretation = null;
     try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null }); } catch (error) { interpretation = null; }
@@ -537,6 +563,7 @@
     }
 
     ensureGazetteer().then(function (gaz) {
+      if (requestId !== searchRequestId) return;
       local = gaz.search(text, { limit: 6, near: state.center });
       suggestions = local.map(function (row) {
         return { name: row.name, detail: row.country, lat: row.lat, lon: row.lon, kind: 'place', pop: row.pop, offline: true };
@@ -547,6 +574,7 @@
 
     if (state.offline) return;
     MM.providers.geocode(text, { near: state.center }).then(function (result) {
+      if (requestId !== searchRequestId) return;
       if (!result.results || !result.results.length) {
         if (!suggestions.length) toast('No match for “' + text + '”');
         return;
@@ -565,8 +593,13 @@
 
   function renderSuggest() {
     clear(els.suggest);
-    if (!suggestions.length) { els.suggest.hidden = true; return; }
+    if (!suggestions.length) {
+      els.suggest.hidden = true;
+      els.search.setAttribute('aria-expanded', 'false');
+      return;
+    }
     els.suggest.hidden = false;
+    els.search.setAttribute('aria-expanded', 'true');
     suggestions.forEach(function (row, index) {
       var li = make('li');
       li.setAttribute('role', 'option');
@@ -586,12 +619,47 @@
     suggestions = [];
     suggestIndex = -1;
     els.suggest.hidden = true;
+    if (els.search) els.search.setAttribute('aria-expanded', 'false');
   }
 
   // ------------------------------------------------------------- place card
 
+  var RECENT_PLACES_KEY = 'mum-recent-places';
+
+  function readRecentPlaces() {
+    try {
+      var stored = root.localStorage && root.localStorage.getItem(RECENT_PLACES_KEY);
+      var parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed.filter(function (place) {
+        return place && place.name && isFinite(place.lat) && isFinite(place.lon);
+      }).slice(0, 6) : [];
+    } catch (error) { return []; }
+  }
+
+  function rememberPlace(row) {
+    if (!row || !row.name || !isFinite(row.lat) || !isFinite(row.lon)) return;
+    var next = [{ name: row.name, detail: row.detail || '', lat: row.lat, lon: row.lon, country: row.country || null }];
+    readRecentPlaces().forEach(function (place) {
+      if (MM.geodesy.distanceKm(place, row) > 0.5) next.push(place);
+    });
+    try {
+      if (root.localStorage) root.localStorage.setItem(RECENT_PLACES_KEY, JSON.stringify(next.slice(0, 6)));
+    } catch (error) { /* private mode or a full store is still a fine map */ }
+  }
+
+  function clearRecentPlaces() {
+    try {
+      if (root.localStorage) root.localStorage.removeItem(RECENT_PLACES_KEY);
+    } catch (error) { /* a blocked store is already effectively clear */ }
+    renderPlace();
+    toast('Recent places cleared');
+  }
+
   function selectPlace(row) {
     closeSuggest();
+    doc.body.classList.add('mm-has-map-interaction');
+    rememberPlace(row);
+    state.placeOrigin = { lat: state.center.lat, lon: state.center.lon };
     state.place = row;
     els.search.value = row.name;
     focusPoint({ lat: row.lat, lon: row.lon }, row.zoom || Math.max(state.zoom, 12));
@@ -627,13 +695,77 @@
     clear(body);
     var row = state.place;
     if (!row) {
-      body.appendChild(make('p', 'mm-muted', 'Search for a town, postcode, Plus Code, OS grid reference or coordinate pair — or click anywhere on the map.'));
+      var welcome = make('div', 'mm-welcome');
+      welcome.appendChild(make('span', 'mm-eyebrow', 'A calmer way to navigate'));
+      welcome.appendChild(make('h3', null, 'Where are you going?'));
+      welcome.appendChild(make('p', 'mm-welcome-copy', 'Search for a place, tap the map, or start with a shortcut. No account, no ads, and the useful maths works offline.'));
+
+      var quick = make('div', 'mm-quick-actions');
+      var quickItems = [
+        ['route', '↗', 'Directions', 'Plan a journey'],
+        ['nearby', '⌖', 'Find nearby', 'Places around here'],
+        ['measure', '⌁', 'Measure', 'Distance or area'],
+        ['locate', '⌾', 'Use my location', 'Stay on this device'],
+      ];
+      quickItems.forEach(function (item) {
+        var button = make('button', 'mm-quick-action');
+        button.type = 'button';
+        button.setAttribute('data-mm-quick-action', item[0]);
+        button.appendChild(make('span', 'mm-quick-icon', item[1]));
+        var copy = make('span', 'mm-quick-copy');
+        copy.appendChild(make('b', null, item[2]));
+        copy.appendChild(make('small', null, item[3]));
+        button.appendChild(copy);
+        button.addEventListener('click', function () {
+          if (item[0] === 'locate') locate();
+          else if (item[0] === 'measure') els.measureToggle.click();
+          else showPanel(item[0]);
+        });
+        quick.appendChild(button);
+      });
+      welcome.appendChild(quick);
+
+      var tip = make('div', 'mm-welcome-tip');
+      tip.appendChild(make('span', 'mm-tip-mark', '⌘'));
+      var tipText = make('span');
+      tipText.appendChild(doc.createTextNode('Press '));
+      tipText.appendChild(make('b', null, '/'));
+      tipText.appendChild(doc.createTextNode(' or '));
+      tipText.appendChild(make('b', null, '⌘ K'));
+      tipText.appendChild(doc.createTextNode(' to search anywhere'));
+      tip.appendChild(tipText);
+      welcome.appendChild(tip);
+      body.appendChild(welcome);
+
+      var recent = readRecentPlaces();
+      if (recent.length) {
+        var recentBox = make('div', 'mm-recent');
+        var recentHeading = make('div', 'mm-recent-heading');
+        recentHeading.appendChild(make('h2', null, 'Recent places'));
+        var clearRecent = make('button', 'mm-recent-clear', 'Clear');
+        clearRecent.type = 'button';
+        clearRecent.addEventListener('click', clearRecentPlaces);
+        recentHeading.appendChild(clearRecent);
+        recentBox.appendChild(recentHeading);
+        var list = make('div', 'mm-recent-list');
+        recent.slice(0, 3).forEach(function (place) {
+          var button = make('button', 'mm-recent-item');
+          button.type = 'button';
+          button.appendChild(make('span', 'mm-recent-pin', '•'));
+          button.appendChild(make('span', null, place.name));
+          button.addEventListener('click', function () { selectPlace(place); });
+          list.appendChild(button);
+        });
+        recentBox.appendChild(list);
+        body.appendChild(recentBox);
+      }
       return;
     }
     body.appendChild(make('h3', null, row.name));
     if (row.detail) body.appendChild(make('p', 'tight', row.detail));
 
-    var km = MM.geodesy.distanceKm(state.center, row);
+    var origin = state.placeOrigin || state.center;
+    var km = MM.geodesy.distanceKm(origin, row);
     var dl = make('dl', 'mm-kv');
     kvRow(dl, 'Coordinates', MM.geodesy.formatLatLon(row.lat, row.lon, 5), 'Coordinates');
     kvRow(dl, 'Plus Code', MM.olc.encode(row.lat, row.lon), 'Plus Code');
@@ -642,8 +774,9 @@
     body.appendChild(dl);
 
     var stats = make('div', 'mm-grid3');
-    stats.appendChild(statCard('Straight line', fmtKm(km), 'from map centre'));
-    stats.appendChild(statCard('Bearing', Math.round(MM.geodesy.bearing(state.center, row)) + '°', MM.geodesy.compassPoint(MM.geodesy.bearing(state.center, row))));
+    stats.appendChild(statCard('Straight line', fmtKm(km), km < 0.01 ? 'at map centre' : 'from previous centre'));
+    var bearing = MM.geodesy.bearing(origin, row);
+    stats.appendChild(statCard('Bearing', Math.round(bearing) + '°', MM.geodesy.compassPoint(bearing)));
     var facts = countryFacts(row.country ? countryCodeOf(row) : null);
     if (facts) stats.appendChild(statCard('Country', facts.name, facts.region));
     body.appendChild(stats);
@@ -932,6 +1065,17 @@
       openButton.href = shareUrl();
       actions.appendChild(exportButton);
       actions.appendChild(openButton);
+      if (state.routeMode === 'car' && !route.straightLine) {
+        var driveButton = make('button', 'mm-btn primary', 'Open driving mode');
+        driveButton.type = 'button';
+        driveButton.addEventListener('click', function () {
+          els.driveFrom.value = lastRoutePoints.from.name || MM.geodesy.formatLatLon(lastRoutePoints.from, null, 5);
+          els.driveTo.value = lastRoutePoints.to.name || MM.geodesy.formatLatLon(lastRoutePoints.to, null, 5);
+          showPanel('drive');
+          planDrive();
+        });
+        actions.appendChild(driveButton);
+      }
       body.appendChild(actions);
     }
   }
@@ -1086,6 +1230,7 @@
       lastRoutePoints = null;
       state.nearby = [];
       state.place = null;
+      state.placeOrigin = null;
       map.setMarkers([]);
       map.setPath([]);
       map.setPolygon([]);
@@ -1094,8 +1239,7 @@
       }
       renderMeasure();
       renderNearby();
-      var body = els.place; clear(body);
-      body.appendChild(make('p', 'mm-muted', 'Cleared. Search or click the map to start again.'));
+      renderPlace();
       toast('Cleared');
     });
   }
@@ -1127,7 +1271,9 @@
       return;
     }
     // Ordinary click: report the point and what is under it.
+    doc.body.classList.add('mm-has-map-interaction');
     state.picked = payload;
+    state.placeOrigin = { lat: state.center.lat, lon: state.center.lon };
     if (payload.country) {
       state.place = { name: payload.country.name, detail: 'Picked on the map', lat: point.lat, lon: point.lon, country: null };
     } else {
@@ -1403,7 +1549,7 @@
 
     box.appendChild(make('h2', null, 'What leaves your device'));
     box.appendChild(make('p', null, 'Driving is the one place where more than a pair of points can leave the device, and only when you ask for it: the route’s shape goes to OpenStreetMap’s Overpass API to fetch the speed limits along it, five sampled points go to Open-Meteo for the forecast, and a bounding box goes to TfL for live disruption in London. Your speed, your position and your trip never leave: guidance runs entirely on this device, from data already loaded.'));
-    box.appendChild(make('p', null, 'Your location is never sent anywhere. When you search online, the words you typed go to Photon or Nominatim (OpenStreetMap) to find the place. When you ask for a route, the two endpoints go to an open routing service. Nearby places send a radius and a point to Overpass. Elevations send the sampled points to OpenTopoData. Nothing else is transmitted, there is no account, and nothing is stored in cookies — your units, theme and style live only in this browser tab.'));
+    box.appendChild(make('p', null, 'Your location is never sent anywhere. When you search online, the words you typed go to Photon or Nominatim (OpenStreetMap) to find the place. When you ask for a route, the two endpoints go to an open routing service. Nearby places send a radius and a point to Overpass. Elevations send the sampled points to OpenTopoData. Nothing else is transmitted and there is no account. Vehicle preferences and up to six recent places stay only in this browser; there are no cookies or advertising trackers.'));
     box.appendChild(make('p', null, 'The basemap tiles are fetched from OpenFreeMap, which is what makes the streets appear. Turn the live map off and the page still works, offline, at world and country level.'));
     box.appendChild(make('p', null, 'These are volunteer-run public services with fair-use policies. If this page ever gets busy, the right move is to self-host them — docs/MAPS.md explains how.'));
 
@@ -2476,7 +2622,7 @@
     }
     if (els.navIcon) els.navIcon.textContent = iconFor(nav.next || {});
 
-    var imperial = state.units === 'imperial' || drive.prefs.vehicle === 'car';
+    var imperial = state.units === 'imperial';
     var minimum = nav.limit && nav.limit.kph != null ? nav.limit.kph : null;
     if (els.navLimitValue) {
       els.navLimitValue.textContent = minimum == null
@@ -2580,8 +2726,14 @@
       button.addEventListener('keydown', function (event) {
         var list = Array.prototype.slice.call(buttons);
         var index = list.indexOf(button);
-        if (event.key === 'ArrowRight') list[(index + 1) % list.length].focus();
-        if (event.key === 'ArrowLeft') list[(index - 1 + list.length) % list.length].focus();
+        var next = null;
+        if (event.key === 'ArrowRight') next = list[(index + 1) % list.length];
+        if (event.key === 'ArrowLeft') next = list[(index - 1 + list.length) % list.length];
+        if (next) {
+          event.preventDefault();
+          next.focus();
+          showPanel(next.getAttribute('data-mm-panel'));
+        }
       });
     });
   }
@@ -2589,6 +2741,10 @@
   function showPanel(name) {
     if (PANELS.indexOf(name) < 0) return;
     state.panel = name;
+    if (doc.body.classList.contains('rail-hidden')) {
+      doc.body.classList.remove('rail-hidden');
+      if (els.railToggle) els.railToggle.setAttribute('aria-expanded', 'true');
+    }
     Array.prototype.forEach.call(els.tabs.querySelectorAll('[role="tab"]'), function (button) {
       var active = button.getAttribute('data-mm-panel') === name;
       button.setAttribute('aria-selected', String(active));
@@ -2636,9 +2792,10 @@
     if (!box) return;
     clear(box);
     var liveChip = make('span', 'mm-chip');
-    liveChip.setAttribute('data-state', state.live ? 'ok' : (state.liveStatus === 'failed' ? 'warn' : 'fail'));
+    var loadingLive = state.liveStatus === 'waiting';
+    liveChip.setAttribute('data-state', state.live ? 'ok' : (loadingLive || state.liveStatus === 'failed' ? 'warn' : 'fail'));
     liveChip.appendChild(make('span', 'mm-dot'));
-    liveChip.appendChild(make('span', null, state.live ? 'Live map' : state.liveStatus === 'offline' ? 'Offline map' : state.liveStatus === 'failed' ? 'Offline map (tiles unavailable)' : state.liveStatus === 'no-webgl' ? 'Offline map (no WebGL)' : 'Loading live map…'));
+    liveChip.appendChild(make('span', null, state.live ? 'Live map' : state.liveStatus === 'offline' ? 'Offline map' : state.liveStatus === 'failed' ? 'Offline map (tiles unavailable)' : state.liveStatus === 'no-webgl' ? 'Offline map (no WebGL)' : 'Getting live map…'));
     box.appendChild(liveChip);
 
     var netChip = make('span', 'mm-chip');
@@ -2713,6 +2870,12 @@
   function bindKeyboard() {
     doc.addEventListener('keydown', function (event) {
       var tag = event.target && event.target.tagName;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        els.search.focus();
+        els.search.select();
+        return;
+      }
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (event.key === '/') { event.preventDefault(); els.search.focus(); return; }
       if (event.key === 'm' || event.key === 'M') { els.measureToggle.click(); return; }

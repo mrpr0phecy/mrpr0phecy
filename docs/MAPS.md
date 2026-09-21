@@ -160,11 +160,12 @@ makes the feature testable in CI and usable on a desktop.
 
 - No accounts, no cookies, no analytics property on `maps.html` (the site's
   analytics footprint is frozen — see CONSTRAINTS.md).
-- One thing is kept in this browser's local storage on `maps.html`: the drive
-  preferences (`mum-drive-prefs` — your vehicle, any dimensions, fuel figures,
-  break interval and layer switches). It never leaves the device, no service
-  ever sees it, and the Drive panel's details section has a **Forget my
-  settings** button that removes it.
+- This browser's local storage keeps the drive preferences (`mum-drive-prefs` —
+  your vehicle, any dimensions, fuel figures, break interval and layer
+  switches) and up to six recent places. They never leave the device and no
+  service ever sees them. The Drive panel's details section has a **Forget my
+  settings** button for the drive preferences; recent places can be removed
+  with the browser's site-data controls.
 - Nothing is transmitted until the visitor asks for something that needs a
   service, and the Info panel lists exactly which service gets what: search
   words go to a geocoder, two endpoints go to a router, a radius and a point go

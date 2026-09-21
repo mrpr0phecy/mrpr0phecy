@@ -45,7 +45,9 @@
   function createCanvas(parent) {
     var canvas = document.createElement('canvas');
     canvas.className = 'mm-localmap-canvas';
-    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('role', 'application');
+    canvas.setAttribute('aria-label', 'Interactive world map. Use arrow keys to pan, plus and minus to zoom, and Enter or Space to inspect a point.');
+    canvas.tabIndex = 0;
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     canvas.style.display = 'block';
@@ -478,6 +480,7 @@
         case '+': case '=': self.setView(self.center, self.zoom + 1); break;
         case '-': case '_': self.setView(self.center, self.zoom - 1); break;
         case 'Home': self.setView({ lat: 20, lon: 0 }, 2); break;
+        case 'Enter': case ' ': self.picked = { lat: self.center.lat, lon: self.center.lon }; self._emit('click', { point: self.picked, country: null }); break;
         default: moved = false;
       }
       if (moved) {
