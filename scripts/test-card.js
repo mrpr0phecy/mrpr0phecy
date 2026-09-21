@@ -196,7 +196,9 @@ function mountCard(card, window, sink) {
   const doc = window.document;
   const container = doc.createElement('div');
   container.id = `card-${base.replace(/\.html$/, '')}`;
-  container.className = 'card-sandbox';
+  // class="card" mirrors tool.html, the only production injector: cards scope
+  // via closest('.card'), so the harness must provide that ancestor too.
+  container.className = 'card card-sandbox';
   doc.getElementById('toolbox-grid').appendChild(container);
 
   // mirror index.html: parse, strip scripts, append body, then append scripts as new elements
