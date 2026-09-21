@@ -333,6 +333,50 @@
     return 'car';
   }
 
+  function osrmExclude(options) {
+    var opts = options || {};
+    var names = { motorways: 'motorway', motorway: 'motorway', tolls: 'toll', toll: 'toll', ferries: 'ferry', ferry: 'ferry', unpaved: 'unpaved' };
+    var seen = {};
+    return (opts.exclude || []).map(function (value) { return names[value] || value; }).filter(function (value) {
+      if (seen[value]) return false;
+      seen[value] = true;
+      return !!value;
+    });
+  }
+
+  function parseOsrmRoute(routeData, profile, provider, preference, exclude) {
+    var steps = (routeData.legs && routeData.legs[0] && routeData.legs[0].steps ? routeData.legs[0].steps : []).map(function (step) {
+      return {
+        instruction: step.maneuver && step.maneuver.type ? step.maneuver.type.replace(/-/g, ' ') : 'continue',
+        modifier: step.maneuver && step.maneuver.modifier ? step.maneuver.modifier : null,
+        name: step.name || '',
+        distanceKm: step.distance / 1000,
+        durationMin: step.duration / 60,
+        lat: step.maneuver && step.maneuver.location ? step.maneuver.location[1] : null,
+        lon: step.maneuver && step.maneuver.location ? step.maneuver.location[0] : null,
+      };
+    });
+    return {
+      provider: provider,
+      mode: profile,
+      preference: preference || 'fastest',
+      exclude: exclude || [],
+      distanceKm: routeData.distance / 1000,
+      durationMinutes: routeData.duration / 60,
+      geometry: routeData.geometry.coordinates,
+      steps: steps,
+      raw: routeData,
+      simple: [],
+    };
+  }
+
+  function chooseOsrmRoute(routes, preference) {
+    if (!routes.length || preference !== 'shortest') return routes[0];
+    return routes.reduce(function (best, candidate) {
+      return candidate.distanceKm < best.distanceKm ? candidate : best;
+    }, routes[0]);
+  }
+
   /** Road routing through open routers; the caller falls back to a straight line. */
   function route(from, to, mode, options) {
     var opts = options || {};
@@ -340,44 +384,51 @@
     if (!a || !b) return Promise.resolve({ error: 'bad-endpoints' });
     var profile = modeKey(mode);
     var coordinates = a.lon.toFixed(6) + ',' + a.lat.toFixed(6) + ';' + b.lon.toFixed(6) + ',' + b.lat.toFixed(6);
-    var suffix = '?overview=full&geometries=geojson&steps=true&alternatives=false';
+    var exclude = osrmExclude(opts);
+    var suffix = '?overview=full&geometries=geojson&steps=true&alternatives=' + (opts.alternatives === false ? 'false' : 'true');
+    if (exclude.length) suffix += '&exclude=' + encodeURIComponent(exclude.join(','));
     return chain(ROUTERS[profile], function (provider) {
       var url = provider.base + '/' + coordinates + suffix;
       return fetchJson(url, { id: provider.id, timeoutMs: provider.timeoutMs, minIntervalMs: provider.minIntervalMs })
         .then(function (data) {
           if (!data || !data.routes || !data.routes.length) throw new Error('no route from ' + provider.name);
-          var r = data.routes[0];
-          return {
-            provider: provider,
-            mode: profile,
-            distanceKm: r.distance / 1000,
-            durationMinutes: r.duration / 60,
-            geometry: r.geometry.coordinates,
-            steps: (r.legs && r.legs[0] && r.legs[0].steps ? r.legs[0].steps : []).map(function (step) {
-              return {
-                instruction: step.maneuver && step.maneuver.type ? step.maneuver.type.replace(/-/g, ' ') : 'continue',
-                modifier: step.maneuver && step.maneuver.modifier ? step.maneuver.modifier : null,
-                name: step.name || '',
-                distanceKm: step.distance / 1000,
-                durationMin: step.duration / 60,
-                lat: step.maneuver && step.maneuver.location ? step.maneuver.location[1] : null,
-                lon: step.maneuver && step.maneuver.location ? step.maneuver.location[0] : null,
-              };
-            }),
-            raw: r,
-          };
+          var parsed = data.routes.map(function (candidate) {
+            return parseOsrmRoute(candidate, profile, provider, opts.preference, opts.exclude || []);
+          });
+          var selected = chooseOsrmRoute(parsed, opts.preference);
+          selected.simple = parsed.filter(function (candidate) { return candidate !== selected; });
+          selected.preferenceHonoured = opts.preference !== 'shortest' || parsed.length > 1;
+          return selected;
         });
     }).catch(function (error) {
+      // Some public OSRM profiles accept only a subset of exclude classes.
+      // If a preference was too ambitious for this provider, retry once without
+      // it and say so — a useful ordinary route beats a fake straight line.
+      if (exclude.length && !opts._retryWithoutAvoids) {
+        var retryOptions = Object.assign({}, opts, { exclude: [], _retryWithoutAvoids: true });
+        return route(from, to, mode, retryOptions).then(function (fallback) {
+          if (fallback && !fallback.straightLine) {
+            fallback.exclude = opts.exclude || [];
+            fallback.preferenceHonoured = false;
+            fallback.routeWarning = 'The router could not apply every avoidance preference, so this route is the provider\'s best available answer.';
+          }
+          return fallback;
+        });
+      }
       // The honest fallback: a straight line, labelled as one by the caller.
       var straight = MM.geodesy.measure(a, b);
       return {
         error: error.message,
         offline: true,
         mode: profile,
+        preference: opts.preference || 'fastest',
+        exclude: opts.exclude || [],
         distanceKm: straight.km,
         durationMinutes: null,
         geometry: [[a.lon, a.lat], [b.lon, b.lat]],
         steps: [],
+        simple: [],
+        preferenceHonoured: false,
         straightLine: true,
       };
     });
@@ -457,10 +508,10 @@
     var costingOptions = {};
     if (costing === 'auto' || costing === 'truck') {
       costingOptions[costing] = {
-        use_highways: opts.avoidMotorways ? 0.1 : 1,
+        use_highways: opts.avoidMotorways ? 0.1 : opts.preferQuiet ? 0.25 : 1,
         use_tolls: opts.avoidTolls ? 0 : 1,
         use_ferry: opts.avoidFerries ? 0 : 1,
-        use_tracks: opts.avoidUnpaved ? 0 : 0.5,
+        use_tracks: opts.avoidUnpaved ? 0 : (opts.preferQuiet ? 0.2 : 0.5),
       };
       if (opts.avoidMotorways) costingOptions[costing].use_tolls = opts.avoidTolls ? 0 : 1;
     }
@@ -484,7 +535,7 @@
         width: opts.widthMetres || undefined,
         length: opts.lengthMetres || undefined,
         weight: opts.weightTonnes || undefined,
-        use_highways: opts.avoidMotorways ? 0.1 : (opts.preferHighways ? 1 : 0.9),
+        use_highways: opts.avoidMotorways ? 0.1 : opts.preferQuiet ? 0.25 : (opts.preferHighways ? 1 : 0.9),
       });
       Object.keys(costingOptions.auto).forEach(function (key) {
         if (costingOptions.auto[key] === undefined) delete costingOptions.auto[key];
@@ -532,17 +583,45 @@
       if (!trip || !trip.legs || !trip.legs.length) throw new Error('no route from Valhalla');
       var parsed = parseValhallaTrip(trip, vehicle);
       parsed.provider = { id: VALHALLA.id, name: VALHALLA.name, licence: VALHALLA.licence, home: VALHALLA.home };
-      parsed.simple = parseAlternates(data.alternates, vehicle);
+      parsed.preference = opts.preference || 'fastest';
+      parsed.exclude = [];
+      var alternates = parseAlternates(data.alternates, vehicle);
+      parsed.preferenceHonoured = opts.preference !== 'shortest' || alternates.length > 0;
+      if (opts.preference === 'shortest' && alternates.length) {
+        var candidates = [parsed].concat(alternates);
+        var shortest = candidates.reduce(function (best, candidate) {
+          return candidate.distanceKm < best.distanceKm ? candidate : best;
+        }, candidates[0]);
+        parsed = shortest;
+        parsed.simple = candidates.filter(function (candidate) { return candidate !== shortest; });
+      } else {
+        parsed.simple = alternates;
+      }
+      parsed.provider = { id: VALHALLA.id, name: VALHALLA.name, licence: VALHALLA.licence, home: VALHALLA.home };
+      parsed.preference = opts.preference || 'fastest';
       parsed.requestMs = Date.now() - started;
       return parsed;
     }).catch(function (error) {
       // Try the classic OSRM chain before giving up on a road route.
-      return route(a, b, vehicle === 'bike' ? 'bike' : vehicle === 'foot' ? 'foot' : 'car').then(function (fallback) {
+      var fallbackExclude = [];
+      if (opts.avoidMotorways) fallbackExclude.push('motorways');
+      if (opts.avoidTolls) fallbackExclude.push('tolls');
+      if (opts.avoidFerries) fallbackExclude.push('ferries');
+      if (opts.avoidUnpaved) fallbackExclude.push('unpaved');
+      return route(a, b, vehicle === 'bike' ? 'bike' : vehicle === 'foot' ? 'foot' : 'car', {
+        preference: opts.preference,
+        alternatives: true,
+        exclude: fallbackExclude,
+      }).then(function (fallback) {
         if (fallback && !fallback.error) {
           fallback.provider = fallback.provider || { id: 'osrm', name: 'OSRM', licence: 'ODbL' };
           fallback.degraded = true;
           fallback.reason = error.message;
-          fallback.vehicleNote = 'The Valhalla driving router was unreachable, so this is a standard car route without vehicle-size awareness.';
+          fallback.vehicleNote = vehicle === 'bike'
+            ? 'The vehicle-aware router was unreachable, so this is a standard cycling route from the fallback router.'
+            : vehicle === 'foot'
+              ? 'The vehicle-aware router was unreachable, so this is a standard walking route from the fallback router.'
+              : 'The Valhalla driving router was unreachable, so this is a standard car route without vehicle-size awareness.';
           return fallback;
         }
         var straight = MM.geodesy.measure(a, b);
@@ -629,14 +708,12 @@
     return alternates.map(function (entry) {
       var trip = entry.trip || entry;
       if (!trip || !trip.summary) return null;
-      return {
-        distanceKm: trip.summary.length,
-        durationMinutes: trip.summary.time / 60,
-        tolls: !!trip.summary.has_toll,
-        motorways: !!trip.summary.has_highway,
-        geometry: (trip.legs && trip.legs[0] && trip.legs[0].shape && trip.legs[0].shape.coordinates) || null,
-        vehicle: vehicle,
-      };
+      var parsed = parseValhallaTrip(trip, vehicle);
+      parsed.tolls = !!trip.summary.has_toll;
+      parsed.motorways = !!trip.summary.has_highway;
+      parsed.vehicle = vehicle;
+      parsed.simple = [];
+      return parsed;
     }).filter(Boolean);
   }
 

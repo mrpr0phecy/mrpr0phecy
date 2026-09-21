@@ -62,7 +62,7 @@ went wrong" state.
 |---|---|---|---|
 | Basemap tiles | OpenFreeMap (`tiles.openfreemap.org`) | OpenStreetMap, ODbL | when the live map loads |
 | Place search | Photon (`photon.komoot.io`), then Nominatim | OpenStreetMap, ODbL | when you search, if online |
-| Road routing (Route tab) | FOSSGIS (`routing.openstreetmap.de`), then the OSRM demo server | OpenStreetMap, ODbL | when you ask for a route |
+| Road, cycle and walking routing (Route tab) | FOSSGIS (`routing.openstreetmap.de`), then the OSRM demo server | OpenStreetMap, ODbL | when you ask for a route |
 | Driving routes (Drive tab) | FOSSGIS Valhalla (`valhalla1.openstreetmap.de`), then the above | OpenStreetMap, ODbL | when you plan a drive or replan |
 | Speed limits along a route | Overpass API (`overpass-api.de`) | OpenStreetMap, ODbL | when you plan a drive (a query per ~80 km, ≤40 sampled points each, 40 m corridor) |
 | Live traffic | TfL Unified API (`api.tfl.gov.uk`), road disruptions | TfL Open Data | when a drive touches Greater London |
@@ -87,6 +87,14 @@ minimum interval between calls per service, caches responses, times out every
 request, and never fires anything without a user action. If this page ever gets
 real traffic, self-host (Photon, OSRM, Overpass and OpenFreeMap are all
 self-hostable) rather than leaning harder on the volunteers.
+
+**Route choices and active guidance.** The Route tab supports driving, cycling
+and walking profiles, with fastest, shortest and quieter choices, explicit avoid
+chips for motorways, tolls, ferries and unpaved ways, and any alternatives the
+router returns. A real route can start the same on-device guidance overlay for
+all three modes; it follows the user's position, announces manoeuvres, gives an
+ETA and continues through a dead spot. The UI never calls a straight line a
+road or path route, and every provider limitation is labelled.
 
 ## 4. Driving
 

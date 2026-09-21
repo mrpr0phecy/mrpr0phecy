@@ -35,6 +35,8 @@
     measure: [],
     measuring: false,
     route: null,
+    routePreference: 'fastest',
+    routeAvoid: { motorways: false, tolls: false, ferries: false, unpaved: false },
     nearby: [],
     place: null,
     placeOrigin: null,
@@ -67,6 +69,7 @@
     session: null,
     watchId: null,
     tapToMove: false,
+    navigationMode: null,
     markers: [],
     overlays: { traffic: true, weather: true, stops: true, cameras: true, limits: true },
     replanning: false,
@@ -201,7 +204,7 @@
       search: $('mm-search'), suggest: $('mm-suggest'), form: $('mm-search-form'),
       place: $('mm-place-body'), route: $('mm-route-body'), measure: $('mm-measure-body'),
       nearby: $('mm-nearby-body'), info: $('mm-info-body'), sun: $('mm-sun'),
-      fromField: $('mm-route-from'), toField: $('mm-route-to'), radius: $('mm-radius'),
+      fromField: $('mm-route-from'), toField: $('mm-route-to'), routeHint: $('mm-route-hint'), radius: $('mm-radius'),
       nearbyChips: $('mm-nearby-chips'),
       styleSelect: $('mm-style'), unitsSelect: $('mm-units'), themeButton: $('mm-theme-toggle'),
       measureToggle: $('mm-measure-toggle'), clearButton: $('mm-clear'), shareButton: $('mm-share'),
@@ -211,7 +214,7 @@
       driveHeight: $('mm-drive-height'), driveWidth: $('mm-drive-width'), driveLength: $('mm-drive-length'), driveWeight: $('mm-drive-weight'),
       driveConsumption: $('mm-drive-consumption'), drivePrice: $('mm-drive-price'), driveBreak: $('mm-drive-break'),
       driveSources: $('mm-drive-sources'), driveLocate: $('mm-drive-locate'), driveSwap: $('mm-drive-swap'), driveForget: $('mm-drive-forget'),
-      nav: $('mm-nav'), navDistance: $('mm-nav-distance'), navInstruction: $('mm-nav-instruction'), navIcon: $('mm-nav-icon'),
+      nav: $('mm-nav'), navMode: $('mm-nav-mode'), navDistance: $('mm-nav-distance'), navInstruction: $('mm-nav-instruction'), navIcon: $('mm-nav-icon'),
       navLimitValue: $('mm-nav-limit-value'), navLimitUnit: $('mm-nav-limit-unit'),
       navCurrentValue: $('mm-nav-current-value'), navCurrentUnit: $('mm-nav-current-unit'), navCurrentBox: $('mm-nav-current-box'),
       navProgress: $('mm-nav-progress'), navRemaining: $('mm-nav-remaining'), navEta: $('mm-nav-eta'),
@@ -496,10 +499,18 @@
   function shareUrl() {
     var base = root.location.origin + root.location.pathname;
     var params = ['lat=' + state.center.lat.toFixed(5), 'lon=' + state.center.lon.toFixed(5), 'z=' + state.zoom.toFixed(2)];
+    if (state.panel) params.push('panel=' + encodeURIComponent(state.panel));
+    if (state.units !== 'metric') params.push('units=' + encodeURIComponent(state.units));
+    if (state.styleId !== 'fiord') params.push('style=' + encodeURIComponent(state.styleId));
     if (state.route && lastRoutePoints) {
       params.push('from=' + lastRoutePoints.from.lat.toFixed(5) + ',' + lastRoutePoints.from.lon.toFixed(5));
       params.push('to=' + lastRoutePoints.to.lat.toFixed(5) + ',' + lastRoutePoints.to.lon.toFixed(5));
-      params.push('mode=' + state.route.mode);
+      params.push('mode=' + (state.route.mode || state.routeMode || 'car'));
+      params.push('pref=' + encodeURIComponent(state.routePreference || drive.prefs.routePreference || 'fastest'));
+      var sharedAvoids = drive.route && drive.route === state.route
+        ? ['motorways', 'tolls', 'ferries', 'unpaved'].filter(function (key) { return !!drive.prefs['avoid' + key.charAt(0).toUpperCase() + key.slice(1)]; })
+        : selectedRouteAvoids();
+      if (sharedAvoids.length) params.push('avoid=' + encodeURIComponent(sharedAvoids.join(',')));
       if (drive.prefs && drive.prefs.vehicle && drive.prefs.vehicle !== 'car') params.push('v=' + drive.prefs.vehicle);
     }
     return base + '?' + params.join('&');
@@ -509,9 +520,7 @@
     if (!root.history || !root.history.replaceState) return;
     clearTimeout(syncUrl._timer);
     syncUrl._timer = setTimeout(function () {
-      var params = '?lat=' + state.center.lat.toFixed(5) + '&lon=' + state.center.lon.toFixed(5) +
-        '&z=' + state.zoom.toFixed(2);
-      root.history.replaceState(null, '', params);
+      root.history.replaceState(null, '', shareUrl());
     }, 500);
   }
 
@@ -528,19 +537,24 @@
     if (units === 'imperial' || units === 'metric') state.units = units;
     var style = params.get('style');
     if (style) state.styleId = style;
+    var preference = params.get('pref');
+    if (preference === 'fastest' || preference === 'shortest' || preference === 'quiet') state.routePreference = preference;
+    var sharedAvoid = params.get('avoid');
+    if (sharedAvoid) sharedAvoid.split(',').forEach(function (key) { if (Object.prototype.hasOwnProperty.call(state.routeAvoid, key)) state.routeAvoid[key] = true; });
     var panel = params.get('panel');
     if (panel && PANELS.indexOf(panel) >= 0) state.panel = panel;
     state.pendingQuery = params.get('q') || null;
     var from = params.get('from'), to = params.get('to');
     if (from && to) state.pendingRoute = { from: from, to: to, mode: params.get('mode') || 'car' };
     var vehicle = params.get('v');
-    if (vehicle && MM.speed) {
-      var known = MM.speed.VEHICLES.some(function (entry) { return entry.id === vehicle; });
-      if (known) {
-        loadDrivePrefs();
-        drive.prefs.vehicle = vehicle;
-        saveDrivePrefs();
+    if ((vehicle || preference) && MM.speed) {
+      loadDrivePrefs();
+      if (vehicle) {
+        var known = MM.speed.VEHICLES.some(function (entry) { return entry.id === vehicle; });
+        if (known) drive.prefs.vehicle = vehicle;
       }
+      if (preference === 'fastest' || preference === 'shortest' || preference === 'quiet') drive.prefs.routePreference = preference;
+      saveDrivePrefs();
     }
   }
 
@@ -920,6 +934,29 @@
       });
     });
     state.routeMode = 'car';
+    state.routePreference = state.routePreference || 'fastest';
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-route-preference]'), function (button) {
+      button.setAttribute('aria-pressed', String(button.getAttribute('data-mm-route-preference') === state.routePreference));
+      button.addEventListener('click', function () {
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-route-preference]'), function (other) {
+          other.setAttribute('aria-pressed', String(other === button));
+        });
+        state.routePreference = button.getAttribute('data-mm-route-preference') || 'fastest';
+        updateRouteHint();
+        if (els.fromField.value.trim() && els.toField.value.trim()) runRoute();
+      });
+    });
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-route-avoid]'), function (button) {
+      var key = button.getAttribute('data-mm-route-avoid');
+      button.setAttribute('aria-pressed', String(!!state.routeAvoid[key]));
+      button.addEventListener('click', function () {
+        state.routeAvoid[key] = !state.routeAvoid[key];
+        button.setAttribute('aria-pressed', String(state.routeAvoid[key]));
+        updateRouteHint();
+        if (els.fromField.value.trim() && els.toField.value.trim()) runRoute();
+      });
+    });
+    updateRouteHint();
     ['mm-route-from', 'mm-route-to'].forEach(function (id) {
       var field = $(id);
       if (!field) return;
@@ -941,6 +978,46 @@
     field.value = state.center.lat.toFixed(5) + ', ' + state.center.lon.toFixed(5);
     field.title = 'Map centre';
     toast('Filled with the map centre');
+  }
+
+  function routePreferenceLabel(preference) {
+    return preference === 'shortest' ? 'Shortest' : preference === 'quiet' ? 'Quieter' : 'Fastest';
+  }
+
+  function selectedRouteAvoids() {
+    var labels = [];
+    Object.keys(state.routeAvoid).forEach(function (key) {
+      if (state.routeAvoid[key]) labels.push(key === 'motorways' ? 'motorways' : key);
+    });
+    return labels;
+  }
+
+  function updateRouteHint() {
+    if (!els.routeHint) return;
+    var avoids = selectedRouteAvoids();
+    var message = routePreferenceLabel(state.routePreference) + ' is selected';
+    if (avoids.length) message += ' · avoiding ' + avoids.join(', ');
+    els.routeHint.textContent = message + '. Preferences are passed to the open router where it supports them; the result says what was honoured.';
+  }
+
+  function routeRequestOptions() {
+    var exclude = selectedRouteAvoids();
+    // A quiet walking/cycling route should not quietly send someone onto a
+    // trunk road. This is a preference, not a promise: the provider may still
+    // need a main road to connect two places.
+    if (state.routePreference === 'quiet') {
+      if (state.routeMode === 'car' && exclude.indexOf('motorways') < 0) exclude.push('motorways');
+      if (state.routeMode !== 'car') {
+        ['motorways', 'trunk', 'primary'].forEach(function (road) {
+          if (exclude.indexOf(road) < 0) exclude.push(road);
+        });
+      }
+    }
+    return {
+      alternatives: true,
+      preference: state.routePreference,
+      exclude: exclude,
+    };
   }
 
   function resolveEndpoint(text) {
@@ -987,7 +1064,7 @@
       if (live && live.map) {
         live.map.fitBounds([[from.lon, from.lat], [to.lon, to.lat]], { padding: 80, duration: 600 });
       }
-      return MM.providers.route(from, to, state.routeMode).then(function (route) {
+      return MM.providers.route(from, to, state.routeMode, routeRequestOptions()).then(function (route) {
         state.route = route;
         renderRoute(route, from, to);
       });
@@ -997,6 +1074,31 @@
     });
   }
 
+  function renderRouteAlternatives(route, body, from, to) {
+    if (!route.simple || !route.simple.length || route.straightLine) return;
+    body.appendChild(make('h2', null, 'Other routes'));
+    var list = make('div', 'mm-route-alternatives');
+    route.simple.slice(0, 3).forEach(function (alternative, index) {
+      var button = make('button', 'mm-route-alternative');
+      button.type = 'button';
+      var copy = make('span', 'mm-route-alternative-copy');
+      copy.appendChild(make('b', null, 'Option ' + (index + 2)));
+      copy.appendChild(make('small', null, fmtKm(alternative.distanceKm) + ' · ' + fmtDuration(alternative.durationMinutes)));
+      button.appendChild(copy);
+      button.appendChild(make('span', 'mm-route-alternative-arrow', '→'));
+      button.addEventListener('click', function () {
+        alternative.simple = [];
+        state.route = alternative;
+        map.setPath(alternative.geometry || []);
+        drawLiveRoute(alternative.geometry);
+        renderRoute(alternative, from || lastRoutePoints.from, to || lastRoutePoints.to);
+        toast('Showing option ' + (index + 2));
+      });
+      list.appendChild(button);
+    });
+    body.appendChild(list);
+  }
+
   function renderRoute(route, from, to) {
     var body = els.route;
     clear(body);
@@ -1004,6 +1106,12 @@
 
     if (route.straightLine) {
       body.appendChild(make('p', 'mm-note warn', 'The open routing service could not be reached, so this is the straight-line (great-circle) distance — not a road route. Everything else on this panel still works offline.'));
+    } else {
+      var preferenceNote = routePreferenceLabel(route.preference || state.routePreference);
+      if (route.preferenceHonoured === false) preferenceNote += ' requested';
+      if (route.exclude && route.exclude.length) preferenceNote += ' · avoiding ' + route.exclude.join(', ');
+      body.appendChild(make('p', 'mm-route-summary', preferenceNote + ' route · ' + (route.provider ? route.provider.name : 'open router')));
+      if (route.routeWarning) body.appendChild(make('p', 'mm-note warn', route.routeWarning));
     }
     var stats = make('div', 'mm-grid3');
     stats.appendChild(statCard(route.straightLine ? 'Straight line' : 'Distance', fmtKm(route.distanceKm), route.straightLine ? 'as the crow flies' : 'by road'));
@@ -1018,6 +1126,7 @@
     if (route.provider) kvRow(dl, 'Routing', route.provider.name + ' (OpenStreetMap data)');
     else if (route.offline) kvRow(dl, 'Routing', 'unavailable — offline');
     body.appendChild(dl);
+    renderRouteAlternatives(route, body, from, to);
 
     if (route.geometry) {
       map.setPath(route.geometry);
@@ -1056,6 +1165,12 @@
 
     if (route.geometry) {
       var actions = make('div', 'mm-btn-row');
+      if (!route.straightLine) {
+        var navigateButton = make('button', 'mm-btn primary', state.routeMode === 'bike' ? 'Start cycle navigation' : state.routeMode === 'foot' ? 'Start walking navigation' : 'Start navigation');
+        navigateButton.type = 'button';
+        navigateButton.addEventListener('click', function () { startRouteNavigation(route); });
+        actions.appendChild(navigateButton);
+      }
       var exportButton = make('button', 'mm-btn', 'Copy route as GeoJSON');
       exportButton.type = 'button';
       exportButton.addEventListener('click', function () {
@@ -1078,6 +1193,24 @@
       }
       body.appendChild(actions);
     }
+  }
+
+  function startRouteNavigation(route) {
+    if (!route || route.straightLine || !lastRoutePoints) {
+      toast('A real road or path route is needed before navigation can start.');
+      return;
+    }
+    if (drive.watchId != null) stopGuidance(false);
+    drive.route = route;
+    drive.from = lastRoutePoints.from;
+    drive.to = lastRoutePoints.to;
+    drive.limits = null;
+    drive.navigationMode = state.routeMode;
+    drive.layers = { traffic: null, weather: null, stops: null, cameras: null };
+    drive.stopsOrdered = null;
+    buildDriveSession(route, state.routeMode);
+    startGuidance();
+    toast(state.routeMode === 'bike' ? 'Cycle navigation started' : state.routeMode === 'foot' ? 'Walking navigation started' : 'Navigation started');
   }
 
   /** The route, on the live basemap as well as the offline one. */
@@ -1618,6 +1751,7 @@
       consumptionPer100: 7,
       pricePerLitre: 1.51,
       breakEveryMinutes: 120,
+      routePreference: 'fastest',
     };
   }
 
@@ -1653,6 +1787,8 @@
       avoidTolls: !!prefs.avoidTolls,
       avoidFerries: !!prefs.avoidFerries,
       avoidUnpaved: !!prefs.avoidUnpaved,
+      preference: prefs.routePreference || 'fastest',
+      preferQuiet: prefs.routePreference === 'quiet',
       heightMetres: heavy && prefs.heightMetres ? prefs.heightMetres : null,
       widthMetres: heavy && prefs.widthMetres ? prefs.widthMetres : null,
       lengthMetres: heavy && prefs.lengthMetres ? prefs.lengthMetres : null,
@@ -1675,6 +1811,19 @@
       });
     }
     updateVehicleNote();
+
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-drive-preference]'), function (button) {
+      var preference = button.getAttribute('data-mm-drive-preference');
+      button.setAttribute('aria-pressed', String(drive.prefs.routePreference === preference));
+      button.addEventListener('click', function () {
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-drive-preference]'), function (other) {
+          other.setAttribute('aria-pressed', String(other === button));
+        });
+        drive.prefs.routePreference = preference;
+        saveDrivePrefs();
+        if (drive.route) planDrive();
+      });
+    });
 
     Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-avoid]'), function (button) {
       var key = button.getAttribute('data-mm-avoid');
@@ -1768,6 +1917,7 @@
         if (els.drivePrice) els.drivePrice.value = drive.prefs.pricePerLitre;
         if (els.driveBreak) els.driveBreak.value = String(drive.prefs.breakEveryMinutes);
         Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-avoid]'), function (button) { button.setAttribute('aria-pressed', 'false'); });
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-drive-preference]'), function (button) { button.setAttribute('aria-pressed', String(button.getAttribute('data-mm-drive-preference') === 'fastest')); });
         updateVehicleNote();
         toast('Vehicle settings forgotten — this browser no longer has them.');
       });
@@ -1842,6 +1992,7 @@
       }
       drive.from = from;
       drive.to = to;
+      lastRoutePoints = { from: from, to: to };
       // Keep the Route pane in step: two panels, one journey.
       if (els.fromField) els.fromField.value = fromText;
       if (els.toField) els.toField.value = toText;
@@ -1858,6 +2009,8 @@
       return MM.providers.driveRoute(from, to, driveOptions()).then(function (route) {
         route.requestMs = route.requestMs || (Date.now() - started);
         drive.route = route;
+        state.route = route;
+        drive.navigationMode = 'car';
         if (route.geometry) {
           map.setPath(route.geometry);
           drawLiveRoute(route.geometry);
@@ -1880,6 +2033,11 @@
 
     if (route.straightLine) {
       body.appendChild(make('p', 'mm-note bad', 'No driving router could be reached just now, so nothing here would be honest: this is the straight-line distance, not a road route. The map, the maths and the offline tools below still work.'));
+    } else {
+      var shape = routePreferenceLabel(route.preference || drive.prefs.routePreference);
+      if (route.preferenceHonoured === false) shape += ' requested';
+      body.appendChild(make('p', 'mm-route-summary', shape + ' driving route · ' + (route.provider ? route.provider.name : 'open router')));
+      if (route.routeWarning) body.appendChild(make('p', 'mm-note warn', route.routeWarning));
     }
 
     var stats = make('div', 'mm-grid3');
@@ -1968,7 +2126,7 @@
 
     // Sun glare is computed offline, from the route's own heading and the sun.
     if (drive.session) drive.session = null;
-    buildDriveSession(route);
+    buildDriveSession(route, drive.navigationMode || 'car');
     renderGlare();
   }
 
@@ -2008,8 +2166,9 @@
   }
 
   /** The offline session: progress, manoeuvres, limits, breaks and glare. */
-  function buildDriveSession(route) {
+  function buildDriveSession(route, modeOverride) {
     if (!route || !route.geometry || route.geometry.length < 2) return null;
+    var vehicle = modeOverride || drive.prefs.vehicle;
     drive.session = MM.drive.createSession({
       geometry: route.geometry,
       distanceKm: route.distanceKm,
@@ -2017,9 +2176,9 @@
       steps: route.steps,
       speedLimits: drive.limits ? drive.limits.segments : null,
     }, {
-      vehicle: drive.prefs.vehicle,
+      vehicle: vehicle,
       units: state.units,
-      breakEveryMinutes: drive.prefs.breakEveryMinutes,
+      breakEveryMinutes: vehicle === 'car' || vehicle === 'caravan' || vehicle === 'van' || vehicle === 'motorhome' || vehicle === 'hgv' ? drive.prefs.breakEveryMinutes : 0,
     });
     return drive.session;
   }
@@ -2522,6 +2681,7 @@
     if (!drive.session) buildDriveSession(drive.route);
     if (!drive.session) return;
     if (els.nav) els.nav.hidden = false;
+    drive.following = true;
 
     var started = false;
     function consume(fix) {
@@ -2549,7 +2709,7 @@
       }, function (error) {
         enableTapToMove(error);
       }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
-      toast('Navigating. Keep this tab open — the route and the speed limits are already on the device.');
+      toast('Navigating. Keep this tab open — guidance stays on this device, even if the connection drops.');
     } else {
       enableTapToMove({ message: 'this browser has no location service' });
     }
@@ -2572,6 +2732,7 @@
       drive.watchId = null;
     }
     drive.tapToMove = false;
+    drive.following = false;
     if (els.nav) els.nav.hidden = true;
     if (!showSummary || !drive.session) return;
     var summary = drive.session.finish();
@@ -2583,7 +2744,7 @@
     kvRow(dl, 'Driven', fmtKm(summary.distanceKm));
     kvRow(dl, 'Time', fmtDuration(summary.durationMinutes));
     kvRow(dl, 'Moving / stopped', fmtDuration(summary.movingSeconds / 60) + ' / ' + fmtDuration(summary.stoppedSeconds / 60));
-    if (summary.maxSpeedKph) kvRow(dl, 'Fastest', Math.round(MM.speed.kphToMph(summary.maxSpeedKph)) + ' mph');
+    if (summary.maxSpeedKph) kvRow(dl, 'Fastest', state.units === 'imperial' ? Math.round(MM.speed.kphToMph(summary.maxSpeedKph)) + ' mph' : Math.round(summary.maxSpeedKph) + ' km/h');
     kvRow(dl, 'Stops', String(summary.stops));
     kvRow(dl, 'Off-route fixes', String(summary.offRouteCount));
     box.appendChild(dl);
@@ -2614,6 +2775,7 @@
   /** The overlay: next manoeuvre, the limit, your speed, and how far is left. */
   function renderGuidance(nav) {
     if (!els.nav) return;
+    if (els.navMode) els.navMode.textContent = drive.navigationMode === 'bike' ? 'Cycle navigation' : drive.navigationMode === 'foot' ? 'Walking navigation' : 'Driving navigation';
     if (els.navDistance) els.navDistance.textContent = nav.metresToNext == null ? '—' : fmtMetres(nav.metresToNext);
     if (els.navInstruction) {
       els.navInstruction.textContent = nav.next
@@ -2675,8 +2837,11 @@
         root.speechSynthesis.speak(utterance);
       } catch (error) { /* silent is fine */ }
     }
-    if (drive.tapToMove) {
+    if (drive.following) {
       map.panTo({ lat: nav.position.lat, lon: nav.position.lon });
+      if (live && live.map) {
+        try { live.map.easeTo({ center: [nav.position.lon, nav.position.lat], duration: 260 }); } catch (error) {}
+      }
     }
   }
 
@@ -2687,23 +2852,41 @@
     if (drive.replanning) return;
     drive.replanning = true;
     toast('Replanning from where you are…');
-    MM.providers.driveRoute({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, driveOptions()).then(function (route) {
+    var replanPromise = drive.navigationMode && drive.navigationMode !== 'car'
+      ? MM.providers.route({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, drive.navigationMode, routeRequestOptions())
+      : MM.providers.driveRoute({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, driveOptions());
+    replanPromise.then(function (route) {
       drive.replanning = false;
       if (route.straightLine) {
         toast('The router is unreachable, so I cannot honestly replan right now.');
         return;
       }
       drive.route = route;
+      state.route = route;
       drive.limits = null;
       drive.layers = { traffic: null, weather: null, stops: null, cameras: null };
       drive.stopsOrdered = null;
+      if (drive.watchId != null && root.navigator && root.navigator.geolocation) {
+        root.navigator.geolocation.clearWatch(drive.watchId);
+        drive.watchId = null;
+      }
+      drive.tapToMove = false;
+      drive.consumeFix = null;
       if (route.geometry) {
         map.setPath(route.geometry);
         drawLiveRoute(route.geometry);
       }
-      buildDriveSession(route);
-      renderDriveRoute(route);
-      if (route.geometry && route.geometry.length > 1) enrichDrive(route);
+      drive.from = { lat: here.lat, lon: here.lon, name: 'Here' };
+      lastRoutePoints = { from: drive.from, to: drive.to };
+      buildDriveSession(route, drive.navigationMode || 'car');
+      if (drive.navigationMode && drive.navigationMode !== 'car') {
+        state.routeMode = drive.navigationMode;
+        renderRoute(route, drive.from, drive.to);
+      } else {
+        renderDriveRoute(route);
+        if (route.geometry && route.geometry.length > 1) enrichDrive(route);
+      }
+      startGuidance();
       toast('Replanned: ' + fmtKm(route.distanceKm) + ', ' + fmtDuration(route.durationMinutes) + ' free-flow.');
     });
   }
@@ -2956,7 +3139,7 @@
     driveState: function () {
       if (!drive.route) return null;
       return {
-        vehicle: drive.prefs.vehicle,
+        vehicle: drive.navigationMode || drive.prefs.vehicle,
         provider: drive.route.provider ? drive.route.provider.id : null,
         degraded: !!drive.route.degraded,
         distanceKm: drive.route.distanceKm,
