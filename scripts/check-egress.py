@@ -64,6 +64,7 @@ KNOWN = {
                                           # own canvas data: URLs (no https
                                           # literal in the file at all)
     "budget": "B",                        # chart.js from jsDelivr
+    "motor-startup": "B",                 # chart.js from jsDelivr
     "evolution-walker": "B",              # three.js from cdnjs
     # Product B mini-games embed the official YouTube IFrame player API.
     # No user input is sent; YouTube's own player is the point of the tool.

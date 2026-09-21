@@ -615,6 +615,9 @@
         }
     </style>
 
+    <h2 id="creative-writing-title" style="margin-top:0;">✍️ Creative Writing Studio</h2>
+    <p id="creative-writing-desc" class="small" style="margin:0 0 16px;color:rgba(230,250,255,0.9);">Prompts, character and plot generators, story ideas, world builder, word bank and focus timer for writers.</p>
+
     <div class="writing-tabs">
         <button class="writing-tab active" data-panel="quick-write">✍️ Quick Write</button>
         <button class="writing-tab" data-panel="character">👤 Character</button>
@@ -1123,14 +1126,16 @@
             "Describe a library where the books are alive and choose their readers."
         ];
         
-        // New Prompt Button
-        document.getElementById('newPromptBtn').addEventListener('click', () => {
+        // New Prompt Button (named handler: the old arrow function used
+        // `arguments.callee`, which throws — `arguments` doesn't exist in
+        // arrows — so every click died before reattaching the listener).
+        document.getElementById('newPromptBtn').addEventListener('click', function newPromptHandler() {
             const randomPrompt = writingPrompts[Math.floor(Math.random() * writingPrompts.length)];
-            document.getElementById('writingPrompt').innerHTML = 
+            document.getElementById('writingPrompt').innerHTML =
                 `"${randomPrompt}" <button class="new-prompt-btn" id="newPromptBtn">New</button>`;
-            
+
             // Reattach event listener
-            document.getElementById('newPromptBtn').addEventListener('click', arguments.callee);
+            document.getElementById('newPromptBtn').addEventListener('click', newPromptHandler);
         });
         
         // Word Count and Auto-save
@@ -1178,8 +1183,23 @@
         
         document.getElementById('copyText').addEventListener('click', () => {
             writingText.select();
-            document.execCommand('copy');
-            showNotification('Text copied to clipboard!', 'success');
+            // execCommand is deprecated and missing in some contexts — prefer
+            // the Clipboard API, fall back to the legacy call, and never throw.
+            const legacyCopy = () => {
+                try { return document.execCommand ? document.execCommand('copy') : false; }
+                catch (e) { return false; }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(writingText.value).then(() => {
+                    showNotification('Text copied to clipboard!', 'success');
+                }).catch(() => {
+                    legacyCopy();
+                    showNotification('Text copied to clipboard!', 'success');
+                });
+            } else {
+                legacyCopy();
+                showNotification('Text copied to clipboard!', 'success');
+            }
         });
         
         document.getElementById('clearText').addEventListener('click', () => {

@@ -148,6 +148,9 @@ function makeWindow(sink) {
     url: 'https://www.themostusefulsiteintheworld.com/',
     beforeParse(window) {
       window.alert = msg => sink.push(`alert(): ${String(msg).slice(0, 80)}`);
+      // jsdom's prompt() yields undefined; real browsers yield string|null.
+      // Null (= user pressed Cancel) is the faithful harness behaviour.
+      window.prompt = () => null;
       window.fetch = () => { sink.push('fetch() called'); return Promise.reject(new Error('network disabled')); };
       window.HTMLCanvasElement.prototype.getContext = function () {
         // minimal 2D context stub — enough for tools that draw on load
@@ -168,7 +171,12 @@ function makeWindow(sink) {
       window.scrollTo = () => {};
       window.HTMLElement.prototype.scrollIntoView = () => {};
       window.AudioContext = window.webkitAudioContext = function () {
-        const node = () => ({ connect() { return node(); }, disconnect() {}, start() {}, stop() {}, frequency: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, gain: { value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {} }, type: 'sine', buffer: null, playbackRate: { value: 1 }, Q: { value: 1 }, detune: { value: 0 }, getByteFrequencyData() {}, getByteTimeDomainData() {}, fftSize: 2048, frequencyBinCount: 1024 });
+        // AudioParam stub: real browsers provide setTargetAtTime /
+        // cancelAndHoldAtTime on every AudioParam and a .pan param on
+        // StereoPannerNode — the stub must too, or correct cards that pan
+        // audio fail the harness with "... of undefined" errors.
+        const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {}, cancelScheduledValues() {}, cancelAndHoldAtTime() {} });
+        const node = () => ({ connect() { return node(); }, disconnect() {}, start() {}, stop() {}, frequency: param(), gain: param(), pan: param(), type: 'sine', buffer: null, playbackRate: { value: 1 }, Q: param(), detune: param(), getByteFrequencyData() {}, getByteTimeDomainData() {}, fftSize: 2048, frequencyBinCount: 1024 });
         return { currentTime: 0, sampleRate: 44100, state: 'running', destination: node(), createOscillator: node, createGain: node, createAnalyser: node, createBufferSource: node, createBiquadFilter: node, createStereoPanner: node, createDelay: node, createConvolver: node, createDynamicsCompressor: node, createBuffer: (c, l, r) => ({ getChannelData: () => new Float32Array(l), duration: l / r, length: l, numberOfChannels: c }), createPeriodicWave: () => ({}), resume: () => Promise.resolve(), suspend: () => Promise.resolve(), close: () => Promise.resolve(), decodeAudioData: () => Promise.resolve({}) };
       };
       window.speechSynthesis = { speak() {}, cancel() {}, getVoices: () => [], pause() {}, resume() {}, speaking: false, addEventListener() {} };
@@ -227,12 +235,18 @@ function mountCard(card, window, sink) {
   try { doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true })); } catch (e) { errors.push('DOMContentLoaded handler threw: ' + e.message); }
   try { window.dispatchEvent(new window.Event('load')); } catch (e) { errors.push('load handler threw: ' + e.message); }
 
-  // click every button once, fire input on every field — smoke, not semantics
+  // click every button once, fire input on every field — smoke, not semantics.
+  // Nodes detached by an earlier click (e.g. a mode toggle that rewrites the
+  // card) are skipped: real users can't click what's no longer on the page,
+  // and detached listeners firing against a rebuilt DOM only ever produced
+  // false-positive null errors.
   const clickables = Array.from(container.querySelectorAll('button, [role=button]')).slice(0, 60);
   for (const b of clickables) {
+    if (!b.isConnected) continue;
     try { b.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true })); } catch (e) { errors.push(`click on "${(b.textContent || '').trim().slice(0, 30)}" threw: ${e.message}`); }
   }
   for (const i of Array.from(container.querySelectorAll('input, select, textarea')).slice(0, 60)) {
+    if (!i.isConnected) continue;
     try {
       i.dispatchEvent(new window.Event('input', { bubbles: true }));
       i.dispatchEvent(new window.Event('change', { bubbles: true }));
