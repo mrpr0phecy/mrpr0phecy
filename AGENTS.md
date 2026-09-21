@@ -11,7 +11,7 @@ actually hurt the site, the owner's income or a visitor.
 
 Two products that never mix:
 
-- **Product A** — `themostusefulsiteintheworld.com`: 1205 offline browser
+- **Product A** — `themostusefulsiteintheworld.com`: 1206 offline browser
   tools, each one a fragment in `cards/`, loaded into one shared DOM by
   `index.html` / `tool.html`. Plus `ai.html` (Lantern, the on-site AI).
 - **Product B** — the music pages (`listen.html`, `artists.html`, the hreflang
@@ -80,7 +80,7 @@ shared DOM, runs the gate, commits and pushes. By hand: write
 the slug, the JS in an IIFE, no network calls — add the slug to its category
 list in `generate-cards-json.js`, then `npm run build` and
 `npm run verify:deep`. Check `tool.html?card=<slug>` and
-`...&embed=1` at 1205 px. A YMYL tool (Health & Fitness, Finance & Money) also
+`...&embed=1` at 1206 px. A YMYL tool (Health & Fitness, Finance & Money) also
 needs the `docs/TRUST.md` checklist — methodology, primary source, worked
 example, edge cases, disclaimer, last-reviewed date — in the fragment or,
 better, in a `tools/<slug>.html` deep page rendered from

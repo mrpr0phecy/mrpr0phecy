@@ -952,6 +952,8 @@ const importedSalvageMap = {
   'mime-type-lookup-table': 'Algorithms & Computer Science',
   'mohs-hardness-gallery': 'Museum & Collection',
   'moon-phases-eclipse-geometry': 'Astronomy & Space',
+  'mostusefulmaps': 'Science & Engineering',   // the site's own map: offline world map,
+                                                // geodesic measuring, Plus Codes, grid refs
   'mortgage-overpayment-calculator': 'Finance & Money',
   'mulch-coverage-calculator': 'Home & DIY',
   'museum-tombstone-label': 'Museum & Collection',
