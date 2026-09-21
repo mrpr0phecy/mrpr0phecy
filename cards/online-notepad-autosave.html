@@ -1,0 +1,325 @@
+<h2 id="npad-title" style="margin-top:0;color:var(--accent);">📝 Online Notepad — Autosave, Word Count & Download</h2>
+
+<div id="npad-root">
+<p id="npad-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:12px;">
+  A plain, fast notepad that saves itself as you type. Several notes in tabs, live word and character counts, find
+  &amp; replace, and one-click download as .txt — all stored in this browser, never on a server.
+</p>
+
+<div role="tablist" aria-label="Notes" id="npad-tabs" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:8px;"></div>
+
+<form onsubmit="event.preventDefault();" style="margin:0;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+    <button type="button" id="npad-new" class="npad-btn" title="New note (Ctrl+Alt+N)">+ New</button>
+    <button type="button" id="npad-find-toggle" class="npad-btn" title="Find &amp; replace (Ctrl+F)">Find</button>
+    <button type="button" id="npad-download" class="npad-btn" title="Download as .txt (Ctrl+S)">Download .txt</button>
+    <button type="button" id="npad-copy" class="npad-btn">Copy all</button>
+    <button type="button" id="npad-print" class="npad-btn">Print</button>
+    <label class="npad-btn" style="display:inline-block;">Import .txt <input type="file" id="npad-import" accept=".txt,.md,.csv,.log,text/plain" style="display:none;"></label>
+    <button type="button" id="npad-delete" class="npad-btn" style="color:#ff8a8a;">Delete note</button>
+    <span style="flex:1;"></span>
+    <button type="button" id="npad-smaller" class="npad-btn" aria-label="Smaller text">A−</button>
+    <button type="button" id="npad-bigger" class="npad-btn" aria-label="Larger text">A+</button>
+    <button type="button" id="npad-mono" class="npad-btn" aria-pressed="false" title="Monospace font">Mono</button>
+    <button type="button" id="npad-wrap" class="npad-btn" aria-pressed="true" title="Wrap long lines">Wrap</button>
+  </div>
+
+  <div id="npad-findbar" hidden style="display:none;gap:6px;flex-wrap:wrap;align-items:center;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px;margin-bottom:8px;">
+    <label for="npad-find" style="font-size:.85rem;">Find</label>
+    <input type="text" id="npad-find" style="flex:1;min-width:120px;padding:6px 8px;border-radius:6px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:13px;">
+    <label for="npad-replace" style="font-size:.85rem;">Replace</label>
+    <input type="text" id="npad-replace" style="flex:1;min-width:120px;padding:6px 8px;border-radius:6px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:13px;">
+    <label style="font-size:.8rem;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="npad-case"> Match case</label>
+    <button type="button" id="npad-findnext" class="npad-btn">Next</button>
+    <button type="button" id="npad-replaceone" class="npad-btn">Replace</button>
+    <button type="button" id="npad-replaceall" class="npad-btn">Replace all</button>
+    <span id="npad-findcount" style="font-size:.8rem;color:rgba(230,250,255,0.6);min-width:5em;"></span>
+  </div>
+
+  <label for="npad-text" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Note text</label>
+  <textarea id="npad-text" spellcheck="true" placeholder="Start typing — it saves by itself."
+    style="width:100%;min-height:52vh;padding:14px;border-radius:10px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:16px;line-height:1.6;resize:vertical;font-family:inherit;tab-size:4;"></textarea>
+</form>
+
+<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:0.8rem;color:rgba(230,250,255,0.6);margin-top:6px;" aria-live="polite">
+  <span id="npad-stats">0 words · 0 characters</span>
+  <span id="npad-pos">Ln 1, Col 1</span>
+  <span id="npad-saved">Nothing to save yet</span>
+</div>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.55);font-size:0.85rem;">
+  <summary style="cursor:pointer;">Where notes are kept, keyboard shortcuts, and the honest limits</summary>
+  <p style="margin-top:8px;">
+    <strong>Storage.</strong> Notes are written to this browser's <code>localStorage</code> about half a second after you
+    stop typing, and again when you switch tab, switch note or leave the page. That means: they survive a reboot, they
+    are only on this device and this browser (a phone and a laptop do not share them), and "clear browsing data" or a
+    private window closing will delete them. Download anything you would mind losing — Ctrl+S does it.
+  </p>
+  <p>
+    <strong>Shortcuts.</strong> Ctrl+S download · Ctrl+F find &amp; replace · Ctrl+Alt+N new note · Esc closes the find
+    bar · Tab inserts a tab character instead of moving focus (Shift+Tab leaves the box).
+  </p>
+  <p>
+    <strong>Counts.</strong> Words are runs of letters, numbers or apostrophes separated by spaces, so "don't" is one
+    word and "e-mail" is two — the same rule most word processors use. Reading time assumes 200 words a minute.
+  </p>
+  <p>
+    <strong>Limits.</strong> Browsers allow roughly 5 MB per site in local storage — about two million words. The status
+    line warns when you are close. Nothing is encrypted at rest, so keep passwords in a password manager, not here.
+  </p>
+</details>
+
+<style>
+#npad-root .npad-btn{padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.9);cursor:pointer;font-size:13px;font-weight:600;}
+#npad-root .npad-btn:hover{background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#npad-root .npad-btn[aria-pressed="true"]{background:rgba(45,212,255,0.2);border-color:rgba(45,212,255,0.5);color:var(--accent);}
+#npad-root .npad-tab{padding:6px 12px;border-radius:8px 8px 0 0;border:1px solid rgba(255,255,255,0.1);border-bottom:none;background:rgba(255,255,255,0.04);color:rgba(230,250,255,0.7);cursor:pointer;font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#npad-root .npad-tab[aria-selected="true"]{background:rgba(45,212,255,0.15);color:var(--accent);border-color:rgba(45,212,255,0.4);font-weight:700;}
+#npad-root button:focus-visible,#npad-root textarea:focus-visible,#npad-root input:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+#npad-root textarea.npad-nowrap{white-space:pre;overflow-x:auto;}
+#npad-root textarea.npad-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+</style>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('npad-root');
+  if (!root) return;
+  var $ = function (id) { return root.querySelector('#' + id); };
+  var KEY = 'npad.notes.v1';
+  var ta = $('npad-text');
+  var state = { notes: [], active: 0, prefs: { size: 16, mono: false, wrap: true } };
+  var saveTimer = null, dirty = false, lastFindIndex = -1;
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function newNote(text) { return { id: uid(), text: text || '', updated: Date.now() }; }
+  function titleOf(n) {
+    var first = (n.text || '').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean)[0];
+    return first ? first.slice(0, 28) : 'Untitled';
+  }
+
+  function load() {
+    var s = null; try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (s && Array.isArray(s.notes) && s.notes.length) {
+      state.notes = s.notes.filter(function (n) { return n && typeof n.text === 'string'; }).map(function (n) { return { id: n.id || uid(), text: n.text, updated: n.updated || Date.now() }; });
+      state.active = Math.min(s.active || 0, state.notes.length - 1);
+      if (s.prefs) state.prefs = { size: s.prefs.size || 16, mono: !!s.prefs.mono, wrap: s.prefs.wrap !== false };
+    }
+    if (!state.notes.length) state.notes = [newNote('')];
+  }
+
+  function persist() {
+    dirty = false;
+    try {
+      var json = JSON.stringify(state);
+      localStorage.setItem(KEY, json);
+      var kb = Math.round(json.length / 1024);
+      var t = new Date();
+      $('npad-saved').textContent = 'Saved ' + t.toTimeString().slice(0, 5) + (kb > 4000 ? ' · ' + kb + ' KB — near the storage limit, download a copy' : '');
+      $('npad-saved').style.color = kb > 4000 ? '#ffd700' : '';
+    } catch (e) {
+      $('npad-saved').textContent = 'Could not save — storage full or blocked. Download your text.';
+      $('npad-saved').style.color = '#ff8a8a';
+    }
+  }
+  function scheduleSave() {
+    dirty = true;
+    $('npad-saved').textContent = 'Saving…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persist, 500);
+  }
+  function flush() { if (dirty) { clearTimeout(saveTimer); persist(); } }
+
+  function current() { return state.notes[state.active]; }
+
+  function renderTabs() {
+    var bar = $('npad-tabs');
+    while (bar.firstChild) bar.removeChild(bar.firstChild);
+    state.notes.forEach(function (n, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'npad-tab'; b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', i === state.active ? 'true' : 'false');
+      b.textContent = titleOf(n); b.title = titleOf(n);
+      b.addEventListener('click', function () { switchTo(i); });
+      bar.appendChild(b);
+    });
+  }
+
+  function switchTo(i) {
+    flush();
+    state.active = Math.max(0, Math.min(i, state.notes.length - 1));
+    ta.value = current().text;
+    renderTabs(); stats(); scheduleSave();
+    ta.focus();
+  }
+
+  function stats() {
+    var v = ta.value;
+    var words = (v.match(/[\p{L}\p{N}’']+/gu) || []).length;
+    var chars = v.length, noSpace = v.replace(/\s/g, '').length;
+    var lines = v ? v.split(/\r?\n/).length : 0;
+    var mins = Math.ceil(words / 200);
+    $('npad-stats').textContent = words + ' word' + (words === 1 ? '' : 's') + ' · ' + chars + ' char' + (chars === 1 ? '' : 's') + ' (' + noSpace + ' no spaces) · ' + lines + ' line' + (lines === 1 ? '' : 's') + (words ? ' · ~' + mins + ' min read' : '');
+    pos();
+  }
+  function pos() {
+    var upTo = ta.value.slice(0, ta.selectionStart || 0);
+    var ln = upTo.split('\n').length, col = upTo.length - upTo.lastIndexOf('\n');
+    $('npad-pos').textContent = 'Ln ' + ln + ', Col ' + col;
+  }
+
+  function applyPrefs() {
+    ta.style.fontSize = state.prefs.size + 'px';
+    ta.classList.toggle('npad-mono', state.prefs.mono);
+    ta.classList.toggle('npad-nowrap', !state.prefs.wrap);
+    $('npad-mono').setAttribute('aria-pressed', state.prefs.mono ? 'true' : 'false');
+    $('npad-wrap').setAttribute('aria-pressed', state.prefs.wrap ? 'true' : 'false');
+  }
+
+  function download() {
+    var n = current();
+    var name = titleOf(n).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'note';
+    var blob = new Blob([n.text], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name + '.txt';
+    root.appendChild(a); a.click(); root.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  function copyAll() {
+    var done = function () { $('npad-saved').textContent = 'Copied to clipboard'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done, done);
+    else { ta.select(); try { document.execCommand('copy'); } catch (e) {} done(); }
+  }
+
+  function printNote() {
+    // A hidden same-origin iframe: no popup blocker, and window.open(…,'noopener')
+    // would hand back null in Chrome so we could not fill the page anyway.
+    var f = document.createElement('iframe');
+    f.setAttribute('title', 'Print preview'); f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;';
+    root.appendChild(f);
+    var remove = function () { if (f.parentNode) f.parentNode.removeChild(f); };
+    try {
+      var d = f.contentDocument || f.contentWindow.document;
+      var pre = d.createElement('pre');
+      pre.style.cssText = 'white-space:pre-wrap;word-wrap:break-word;font:14px/1.5 system-ui,sans-serif;margin:24px;';
+      pre.textContent = ta.value;
+      d.title = titleOf(current());
+      d.body.appendChild(pre);
+      f.contentWindow.addEventListener('afterprint', remove);
+      f.contentWindow.focus(); f.contentWindow.print();
+      setTimeout(remove, 60000);
+    } catch (e) { remove(); $('npad-saved').textContent = 'Printing is not available here — download the .txt instead.'; }
+  }
+
+  // ---- find & replace -------------------------------------------------
+  function findBar(show) {
+    var bar = $('npad-findbar');
+    bar.hidden = !show; bar.style.display = show ? 'flex' : 'none';
+    if (show) { $('npad-find').focus(); countMatches(); }
+  }
+  function matcher() {
+    var q = $('npad-find').value; if (!q) return null;
+    var esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(esc, $('npad-case').checked ? 'g' : 'gi');
+  }
+  function countMatches() {
+    var re = matcher(); var el = $('npad-findcount');
+    if (!re) { el.textContent = ''; return 0; }
+    var n = (ta.value.match(re) || []).length;
+    el.textContent = n + ' match' + (n === 1 ? '' : 'es');
+    return n;
+  }
+  function findNext() {
+    var re = matcher(); if (!re) return;
+    var from = Math.max(ta.selectionEnd || 0, lastFindIndex + 1);
+    re.lastIndex = from;
+    var m = re.exec(ta.value);
+    if (!m) { re.lastIndex = 0; m = re.exec(ta.value); }
+    if (!m) { countMatches(); return; }
+    lastFindIndex = m.index;
+    ta.focus(); ta.setSelectionRange(m.index, m.index + m[0].length);
+    // scroll the selection into view
+    var before = ta.value.slice(0, m.index).split('\n').length;
+    var lineH = parseFloat(getComputedStyle(ta).lineHeight) || 24;
+    ta.scrollTop = Math.max(0, (before - 3) * lineH);
+    countMatches();
+  }
+  function replaceOne() {
+    var re = matcher(); if (!re) return;
+    var sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+    re.lastIndex = 0;
+    var one = new RegExp(re.source, re.flags.replace('g', ''));
+    if (sel && one.test(sel)) {
+      var s = ta.selectionStart;
+      ta.setRangeText($('npad-replace').value, ta.selectionStart, ta.selectionEnd, 'end');
+      lastFindIndex = s;
+      onInput();
+    }
+    findNext();
+  }
+  function replaceAll() {
+    var re = matcher(); if (!re) return;
+    var n = countMatches();
+    ta.value = ta.value.replace(re, $('npad-replace').value.replace(/\$/g, '$$$$'));
+    onInput();
+    $('npad-findcount').textContent = 'Replaced ' + n;
+  }
+
+  // ---- events ------------------------------------------------------------
+  function onInput() {
+    current().text = ta.value; current().updated = Date.now();
+    stats(); renderTabs(); scheduleSave();
+  }
+  ta.addEventListener('input', onInput);
+  ta.addEventListener('keyup', pos);
+  ta.addEventListener('click', pos);
+  ta.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); ta.setRangeText('\t', ta.selectionStart, ta.selectionEnd, 'end'); onInput(); }
+  });
+  root.addEventListener('keydown', function (e) {
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && !e.altKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); flush(); download(); }
+    else if (mod && !e.altKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); findBar(true); }
+    else if (mod && e.altKey && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); $('npad-new').click(); }
+    else if (e.key === 'Escape' && !$('npad-findbar').hidden) { findBar(false); ta.focus(); }
+  });
+  $('npad-new').addEventListener('click', function () { flush(); state.notes.push(newNote('')); switchTo(state.notes.length - 1); });
+  $('npad-delete').addEventListener('click', function () {
+    var n = current();
+    if (n.text.trim() && !window.confirm('Delete "' + titleOf(n) + '"? This cannot be undone.')) return;
+    state.notes.splice(state.active, 1);
+    if (!state.notes.length) state.notes.push(newNote(''));
+    switchTo(Math.min(state.active, state.notes.length - 1));
+  });
+  $('npad-download').addEventListener('click', function () { flush(); download(); });
+  $('npad-copy').addEventListener('click', copyAll);
+  $('npad-print').addEventListener('click', printNote);
+  $('npad-import').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function () { flush(); state.notes.push(newNote(String(r.result || ''))); switchTo(state.notes.length - 1); };
+    r.readAsText(f); this.value = '';
+  });
+  $('npad-smaller').addEventListener('click', function () { state.prefs.size = Math.max(11, state.prefs.size - 1); applyPrefs(); scheduleSave(); });
+  $('npad-bigger').addEventListener('click', function () { state.prefs.size = Math.min(32, state.prefs.size + 1); applyPrefs(); scheduleSave(); });
+  $('npad-mono').addEventListener('click', function () { state.prefs.mono = !state.prefs.mono; applyPrefs(); scheduleSave(); });
+  $('npad-wrap').addEventListener('click', function () { state.prefs.wrap = !state.prefs.wrap; applyPrefs(); scheduleSave(); });
+  $('npad-find-toggle').addEventListener('click', function () { findBar($('npad-findbar').hidden); });
+  $('npad-find').addEventListener('input', function () { lastFindIndex = -1; countMatches(); });
+  $('npad-find').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); findNext(); } });
+  $('npad-case').addEventListener('change', countMatches);
+  $('npad-findnext').addEventListener('click', findNext);
+  $('npad-replaceone').addEventListener('click', replaceOne);
+  $('npad-replaceall').addEventListener('click', replaceAll);
+  window.addEventListener('beforeunload', flush);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) flush(); });
+
+  load();
+  applyPrefs();
+  ta.value = current().text;
+  renderTabs(); stats();
+  $('npad-saved').textContent = state.notes.some(function (n) { return n.text; }) ? 'Restored from this browser' : 'Nothing to save yet';
+})();
+</script>

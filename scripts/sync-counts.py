@@ -153,8 +153,12 @@ GAP = rf"{BRIDGE}\s*{FILLER}"
 # Comma-formatted claims are deliberately left alone rather than reformatted:
 # the canonical claim form in these files is unseparated, and the frozen
 # narrative sections are not ours to renumber.
+# A number that is a pixel measurement ("360 px. A YMYL tool…" in AGENTS.md)
+# is not a count claim either: the word window happily walked across "px. A
+# YMYL" to reach "tool", and that viewport width was renumbered to the tool
+# count on every release until 2026-09-21.
 CLAIM = re.compile(
-    rf"(?<![\d.,])({KNOWN_STALE})(\+?)({GAP}){NOUN}\b",
+    rf"(?<![\d.,])({KNOWN_STALE})(?!\s*px\b)(\+?)({GAP}){NOUN}\b",
     re.IGNORECASE,
 )
 
