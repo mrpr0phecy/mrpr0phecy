@@ -34,6 +34,19 @@
 
   var KEY = 'mp.toolbox.v1';
   var PANEL_ID = 'toolbox';
+  // Slugs are [a-z0-9-]; anything else arriving from storage, an import or a
+  // shared link is corruption or garbage, never a tool. One helper so every
+  // intake agrees — and every intake dedupes, so a list is always a set.
+  var SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
+  function cleanSlugs(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    for (var i = 0; i < list.length && out.length < 500; i++) {
+      var s = list[i];
+      if (typeof s === 'string' && SLUG_RE.test(s) && out.indexOf(s) === -1) out.push(s);
+    }
+    return out;
+  }
   var slugs = [];
   var byslug = null;                 // slug → { name, title, category } from cards-lite.json
   var litePromise = null;
@@ -45,9 +58,7 @@
     try {
       var raw = localStorage.getItem(KEY);
       if (!raw) return [];
-      var parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter(function (s) { return typeof s === 'string' && s && s.length < 90; }).slice(0, 500);
+      return cleanSlugs(JSON.parse(raw));
     } catch (e) { return []; }
   }
   function write() {
@@ -64,7 +75,7 @@
   function index(slug) { return slugs.indexOf(slug); }
   function has(slug) { return index(slug) !== -1; }
   function add(slug) {
-    if (!slug || has(slug)) return false;
+    if (!slug || !SLUG_RE.test(slug) || has(slug)) return false;
     slugs.push(slug);
     emit();
     return true;
@@ -90,7 +101,7 @@
     return true;
   }
   function replace(list) {
-    slugs = (list || []).filter(function (s) { return typeof s === 'string' && s; }).slice(0, 500);
+    slugs = cleanSlugs(list || []);
     emit();
   }
 
@@ -99,7 +110,9 @@
   function toast(msg, label, href) {
     if (!toastEl) {
       toastEl = document.createElement('div');
-      toastEl.className = 'xp-toast xp-wrap';
+      // .xp-toast only: xp-wrap's max-width and auto margins fight the fixed
+      // left:50% centering and pad the pill out to the page gutter.
+      toastEl.className = 'xp-toast';
       toastEl.setAttribute('role', 'status');
       document.body.appendChild(toastEl);
     }
@@ -274,10 +287,17 @@
   }
 
   function wirePanel(host) {
-    host.addEventListener('change', function (e) {
+    // renderPanel() runs on every change, but these listeners live on the host
+    // itself — wiring twice would double every toast, confirm and action.
+    if (host._mpWired) return;
+    host._mpWired = true;
+    // <details> fires `toggle`, never `change` — and it does not bubble, hence
+    // the capture phase. Without this, a collapsed group springs back open on
+    // the next render because its state was never remembered.
+    host.addEventListener('toggle', function (e) {
       var d = e.target.closest && e.target.closest('.tb-group');
       if (d) groupState[d.getAttribute('data-group')] = d.open;
-    });
+    }, true);
     host.addEventListener('click', function (e) {
       var t = e.target;
       if (!t.closest) return;
@@ -304,7 +324,7 @@
       } else if (kind === 'copy') {
         var text = slugs.map(function (s) {
           var tool = byslug && byslug[s];
-          return '- ' + ((tool && tool.title) || s) + ' — ' + toolHref(s, 'https://www.themostusefulsiteintheworld.com/');
+          return '- ' + ((tool && tool.title) || s) + ' — ' + toolHref(s, 'https://www.themostusefulsiteintheworld.com/tool.html?card=');
         }).join('\n');
         copyText(text, 'Toolbox copied as a list');
       } else if (kind === 'share') {
@@ -348,8 +368,11 @@
         if (!list) { toast('That file is not a toolbox export'); return; }
         var merged = slugs.slice();
         list.forEach(function (s) { if (typeof s === 'string' && merged.indexOf(s) === -1) merged.push(s); });
+        var before = slugs.length;
         replace(merged);
-        toast('Imported ' + list.length + ' tools');
+        // replace() drops anything that is not a real slug, so count what
+        // actually landed rather than what the file claimed.
+        toast('Imported ' + (slugs.length - before) + ' tools');
       };
       reader.readAsText(file);
     });
@@ -376,16 +399,23 @@
     var m = /[?&]toolbox=([A-Za-z0-9\-_%=]+)/.exec(location.search);
     if (!m) return;
     var raw = m[1];
+    // Not a share link: the manifest's installed-app shortcut (?toolbox=open),
+    // which home-core.js answers by opening the panel.
+    if (raw === 'open') return;
     var payload = '';
     try {
-      payload = atob(raw.replace(/-/g, '+').replace(/_/g, '/'));
+      // shareUrl() strips the base64 padding; atob() wants it back, and
+      // without it most shared links decode to nothing.
+      var padded = raw.replace(/-/g, '+').replace(/_/g, '/');
+      while (padded.length % 4) padded += '=';
+      payload = atob(padded);
     } catch (e) {
       try { payload = decodeURIComponent(raw); } catch (e2) { payload = ''; }
     }
-    var incoming = payload.split(',').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 500);
+    var incoming = cleanSlugs(payload.split(',').map(function (s) { return s.trim(); }));
     if (!incoming.length) return;
     var fresh = incoming.filter(function (s) { return !has(s); });
-    if (!fresh.length) { toast('Everyone in that shared toolbox is already saved'); return; }
+    if (!fresh.length) { toast('Every tool in that shared toolbox is already saved'); return; }
     showSharedBanner(fresh, incoming.length);
   }
 
@@ -424,12 +454,16 @@
     if (!panel) return;
     panel.removeAttribute('hidden');
     panel.style.display = '';
-    if (typeof panel.showPopover === 'function') {
+    panel.setAttribute('aria-hidden', 'false');
+    if (typeof panel.showPopover === 'function' && panel.hasAttribute('popover')) {
       try { panel.showPopover(); } catch (e) {}
-    } else {
+    } else if (panel.hasAttribute('data-popover-fallback')) {
+      // Pre-popover browsers: the .open class is the mechanism (home-core.js
+      // wires the toggle buttons the same way).
+      panel.classList.add('open');
+    } else if (typeof panel.showPopover !== 'function') {
       panel.setAttribute('data-open', 'true');
       panel.style.display = 'block';
-      panel.setAttribute('aria-hidden', 'false');
     }
     var toggle = document.querySelector('[data-toolbox-toggle]');
     if (toggle) {
@@ -469,10 +503,17 @@
       var panel = document.getElementById(PANEL_ID);
       if (panel && typeof panel.hidePopover === 'function' && panel.hasAttribute('popover')) {
         try { panel.hidePopover(); } catch (e) {}
-      } else if (panel) {
-        panel.style.display = 'none';
         panel.setAttribute('aria-hidden', 'true');
-        panel.setAttribute('hidden', '');
+      } else if (panel) {
+        // No inline display:none here: on a fallback panel it would outlive
+        // the .open class and the panel could never reopen.
+        panel.classList.remove('open');
+        panel.removeAttribute('data-open');
+        panel.setAttribute('aria-hidden', 'true');
+        if (!panel.hasAttribute('data-popover-fallback')) {
+          panel.style.display = 'none';
+          panel.setAttribute('hidden', '');
+        }
       }
     });
     document.addEventListener('keydown', function (e) {
@@ -548,6 +589,10 @@
     if (!panel) return;
     if (typeof panel.hidePopover === 'function' && panel.hasAttribute('popover')) {
       try { panel.hidePopover(); } catch (e) {}
+      panel.setAttribute('aria-hidden', 'true');
+    } else if (panel.hasAttribute('data-popover-fallback')) {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
     } else {
       panel.setAttribute('hidden', '');
       panel.style.display = 'none';

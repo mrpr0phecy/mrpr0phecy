@@ -500,7 +500,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
         <a href="../sponsor.html">Sponsor this category →</a>
       </div>
 
-      <div data-explore="static" id="explore" data-cat-name="${esc(cat)}">
+      <div data-explore="static" id="explore" data-cat-name="${esc(cat.name)}">
         <ul class="xp-list">
 ${toolRowsHtml}
         </ul>

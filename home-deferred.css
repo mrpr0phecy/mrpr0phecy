@@ -13,11 +13,11 @@
                          modal, footer) — fetched alongside but applied only
                          after the first paint (media="print" -> "all").
 
-   Nothing here can be seen before it arrives: every rule targets a container that is hidden at first paint, or a view the visitor has to ask for (reader mode, the directory, the toolbox, the modal, no-results, the footer 1194 cards down).
+   Nothing here can be seen before it arrives: every rule targets a container that is hidden at first paint, or a view the visitor has to ask for (reader mode, the directory, the toolbox, the modal, no-results, the footer 1205 cards down).
 
    Invariants enforced by scripts/check-critical-css.py: every class the first
    paint can show is styled by home.css; every var()/keyframes name used here is
-   defined here; index.html's ?v=, APP_VERSION in home-app.js and CACHE_VERSION
+   defined here; index.html's ?v=, APP_VERSION in home-core.js and CACHE_VERSION
    in sw.js all match.
 */
         [popover] {
@@ -32,7 +32,20 @@
         }
         [popover]:popover-open {
             display: block;
+            /* The entry animation has no fill mode, so without a resting state
+               the panel falls back to .panel's opacity:0 / pointer-events:none
+               the moment the animation ends — a panel that flashes in and then
+               shows nothing and eats no clicks. */
+            opacity: 1;
+            pointer-events: auto;
+            transform: none;
             animation: popoverIn 0.28s cubic-bezier(0.4,0,0.2,1);
+        }
+        /* The toolbox lays its titlebar over a flex:1 content pane; opened as
+           a plain block, the content overflows the fixed height instead of
+           filling it. */
+        .toolbox[popover]:popover-open {
+            display: flex;
         }
         @keyframes popoverIn {
             from { opacity: 0; transform: translateY(8px) scale(0.98); }
@@ -120,12 +133,23 @@
         }
         
         .palette-color {
+            /* Real <button>s, so they are keyboard-focusable by default; the
+               resets undo the UA button chrome so the swatch is just colour. */
+            appearance: none;
+            border: none;
+            padding: 0;
+            font: inherit;
             height: 36px;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
             position: relative;
             overflow: hidden;
+        }
+        .palette-color:focus-visible,
+        .theme-btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
         }
         
         .palette-color:hover {
@@ -592,7 +616,10 @@
             flex: 1;
             position: relative;
             background: rgba(0, 0, 0, 0.2);
+            /* A saved list longer than the panel must scroll, not clip: this
+               element is also #toolboxContent, the list's only container. */
             overflow: hidden;
+            overflow-y: auto;
         }
         
         /* ===== TOOLBOX MODES ===== */
