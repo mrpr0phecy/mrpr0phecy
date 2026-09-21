@@ -114,11 +114,20 @@ establish *which* site first.
 ├── robots.txt              Allows all, points at the sitemap
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
-├── icon-192.png, icon-512.png, icon-maskable-512.png   (palette-optimised)
-├── logo.png (unreferenced by any page — kept deliberately)
+├── brand/                  the mark's source: mark.py (geometry + rasteriser),
+│                           gen_assets.py (writes every asset below),
+│                           check-mark.py, measure.py — see brand/README.md
+├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
+│   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
+│                           home screen, Android and iOS (§5)
+├── logo-mark.svg           the same mark, vector, at hero scale — linked by
+│                           index.html's lockup and its footer
+├── logo.png                1024² lockup (mark + wordmark). Unreferenced by any
+│                           page — kept deliberately, for press and profiles
 ├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
 ├── backgroundpic.jpg + backgroundpic.webp (the one the pages use)
-├── og-ai.jpg, og-tools.png, og-mp.png, luton-og.png, sonic-og.png (social cards)
+├── og-brand.png, og-tools.png, og-ai.jpg, og-mp.png, luton-og.png,
+│   sonic-og.png          social cards (og-brand.png is index.html's)
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
 ├── README.md               Short public-facing readme
 ├── CV.docx / CV.pdf / cv.pdf / latestcv.docx    Owner's CV files
@@ -798,9 +807,29 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   `setupMobileOptimizations`).
 - **`tool.html`**: `.tool-card-box` and its injected container are
   `min-width:0; max-width:100%` — the second half of the card-overflow fix.
-- **Hero**: `.futuristic-badge` text is `rgba(230,250,255,.85)` on a
-  `rgba(0,243,255,.08)` tint; `.main-search-bar` is 52px tall with a
-  full-height search button; `.futuristic-subtitle` uses `text-wrap:pretty`.
+- **Hero**: rebuilt 2026-09-21 around the brand, in this order — `.hero-brand`
+  (the mark plus `THE MOST USEFUL SITE IN THE WORLD` in 0.8rem/800 with 0.14em
+  of tracking), `h1.futuristic-title` (the promise, not the site's name:
+  "Every tool you need, already in your browser.", `clamp(1.6rem,6.4vw,3.35rem)`,
+  26ch, two balanced lines at every width), `.hero-subtitle`, the search field,
+  the popular chips, then `.hero-facts` (a pulsing dot, the live tool count,
+  the promise) and `.hero-keys`. The badge, its sheen animation (`titleSheen`)
+  and the 🔍 glyph that used to sit in the search field are gone — the icon
+  there is now an inline SVG that takes the accent colour. The catalogue's own
+  emoji are untouched: a tool's emoji belongs to the tool.
+- **One chip per emoji, in the hero and the section headings**: `.section-emoji`
+  (30px, 9px radius) on the headings, `.cat-icon` (32-36px, 10px radius) on the
+  28 category tiles. Flat emoji beside a flat heading is what makes a page look
+  assembled rather than designed. The sticky-bar buttons, the panels and the
+  tool rows keep their own emoji deliberately — those are controls and content,
+  not headings.
+- **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, and it is the
+  same drawing as the favicon, the PWA icons and the social card: one geometry
+  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`), six
+  shipped files. `logo-mark.svg` and `favicon.svg` are byte-identical — one
+  file, two names — and `python3 brand/check-mark.py` (standard library only)
+  fails if the vector and the rasters ever disagree about a radius, a gradient,
+  a stroke or the spark's curve. Edit the mark in `brand/`, never in the SVG.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.

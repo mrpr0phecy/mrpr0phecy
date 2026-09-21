@@ -55,7 +55,11 @@ TOPBAR = '<div class="topbar"><div class="wrap">\n  <a href="../index.html">🛠
 
 FOOTER_JS = '<footer><div class="wrap">\n  <p><a href="../index.html">All __COUNT__ tools</a>·<a href="../about.html">About</a>·<a href="../press.html">Press</a>·<a href="../tools.html">Index</a>·<a href="../popular.html">Popular</a>·<a href="../new.html">New</a>·<a href="../use-case.html">Use case</a>·<a href="../help.html">Help</a>·<a href="../changelog.html">Changelog</a>·<a href="../embed.html">Embed</a>·<a href="../sitemap.html">Sitemap</a>·<a href="../blog/">Blog</a>·<a href="../donate.html">Donate</a>·<a href="../sponsor.html">Sponsor</a>·<a href="../listen.html">Music</a></p>\n</div></footer>\n\n<script>\n// Auto-size the embedded tool: tool.html?card=<slug>&embed=1 posts its height.\nwindow.addEventListener(\'message\', function (e) {\n  if (e.origin !== window.location.origin) return;\n  var d = e.data || {};\n  if (d.type === \'tmusitw:height\' && d.card === \'__SLUG__\' && d.height > 0) {\n    document.getElementById(\'tool-frame\').style.height = Math.min(d.height, 4000) + \'px\';\n  }\n});\n</script>\n\n</body></html>'
 
-FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffd400'/%3E%3Cstop offset='1' stop-color='%23ff9500'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='url(%23g)' stroke-width='5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3C/svg%3E"
+# Both tags, not a href: the pages are one directory down, and current
+# browsers take the SVG while everything else (and a pinned shortcut) takes the
+# ICO. Both are the same drawing — see the branding note in ARCHITECTURE.md.
+FAVICON = ('<link rel="icon" href="../favicon.ico" sizes="32x32">\n'
+           '<link rel="icon" href="../favicon.svg" type="image/svg+xml">')
 
 
 # --------------------------------------------------------------------------
@@ -269,7 +273,7 @@ def render(page: dict, count: int) -> str:
                   f'📖 Long-form companion: <a href="../guides/{page["guide"]}.html" '
                   f'style="color: var(--accent);">{esc(page["guide_label"])}</a>.</p>' if page.get("guide") else "")
 
-    return f"""{HEAD_TOP}<link rel="icon" href="{page.get('favicon', FAVICON)}">
+    return f"""{HEAD_TOP}{FAVICON}
 <title>{esc(page["title"])}</title>
 <meta name="description" content="{esc(page["description"])}">
 <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
