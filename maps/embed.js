@@ -378,9 +378,11 @@
     plusCode: function (lat, lon) {
       return ensureCore().then(function () { return root.MM.olc.encode(lat, lon); });
     },
+    /** The OS grid reference as text (like plusCode), or null elsewhere. */
     gridReference: function (lat, lon) {
       return ensureCore().then(function () {
-        return root.MM.gridref.coveredBy(lat, lon) ? root.MM.gridref.fromWgs84(lat, lon, 5) : null;
+        if (!root.MM.gridref.coveredBy(lat, lon)) return null;
+        return root.MM.gridref.fromWgs84(lat, lon, 5).gridRef;
       });
     },
     sunTimes: function (date, lat, lon) {
