@@ -121,7 +121,13 @@
   function lite() {
     if (byslug) return Promise.resolve(byslug);
     if (litePromise) return litePromise;
-    var dir = document.body.getAttribute('data-cards-dir') || '';
+    /* The lite tier is at the site root, and half the pages that load this
+       file live one directory down (/categories/<slug>.html) — asking for
+       `cards/cards-lite.json` from there 404s, which silently degrades the
+       panel to raw slugs. `data-cards-dir` on <body> overrides the guess for
+       any future nesting. */
+    var dir = document.body.getAttribute('data-cards-dir') ||
+      (location.pathname.indexOf('/categories/') !== -1 ? '../' : '');
     litePromise = fetch(dir + 'cards/cards-lite.json', { priority: 'low' })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (list) {
@@ -242,7 +248,7 @@
         var title = (item.tool && item.tool.title) || item.slug;
         html += '<div class="tb-item">' +
           '<div><a href="' + esc(toolHref(item.slug, base)) + '" title="' + esc(title) + '">' + esc(title) + '</a>' +
-          '<span class="tb-cat">' + esc(item.slug) + '</span></div>' +
+          '<span class="tb-cat">' + esc((item.tool && item.tool.category) || item.slug) + '</span></div>' +
           '<div class="tb-acts">' +
           '<button type="button" data-tb-move="-1" data-slug="' + esc(item.slug) + '" title="Move up" aria-label="Move ' + esc(title) + ' up">↑</button>' +
           '<button type="button" data-tb-move="1" data-slug="' + esc(item.slug) + '" title="Move down" aria-label="Move ' + esc(title) + ' down">↓</button>' +

@@ -106,7 +106,12 @@ function makeSandbox(opts) {
   const sandbox = {
     console,
     document,
-    location: { search: opts.search || '', pathname: '/index.html', origin: 'https://example.test', href: 'https://example.test/' },
+    location: {
+      search: opts.search || '',
+      pathname: opts.pathname || '/index.html',
+      origin: 'https://example.test',
+      href: 'https://example.test/' + (opts.pathname || '/index.html').replace(/^\//, '')
+    },
     navigator: { clipboard: { writeText: () => Promise.resolve() } },
     localStorage: {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
@@ -118,7 +123,8 @@ function makeSandbox(opts) {
     btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     confirm: () => true,
-    fetch: () => Promise.resolve({ ok: false, json: () => Promise.resolve([]) }),
+    fetch: (url) => { sandbox.fetched = sandbox.fetched || []; sandbox.fetched.push(String(url));
+      return Promise.resolve({ ok: false, json: () => Promise.resolve([]) }); },
     FileReader: function () {},
     CustomEvent: function () {},
     URLSearchParams
@@ -230,6 +236,24 @@ function makeSandbox(opts) {
   assert(btn, 'including the ＋ button itself');
   assert.strictEqual(btn.textContent, '＋');
   assert(sandbox.window.mpToolbox.has('bmi') === false);
+}
+
+/* ---------------------------- 6. the lite tier is found from any page depth */
+{
+  // Category pages live one directory down. Asking for `cards/cards-lite.json`
+  // from /categories/ 404s, and because the failure is swallowed the panel
+  // quietly shows raw slugs instead of titles — a bug that looks like styling.
+  const deep = makeSandbox({ pathname: '/categories/mathematics.html' });
+  deep.sandbox.window.mpToolbox.ready();
+  const deepUrls = (deep.sandbox.fetched || []).join(',');
+  assert.ok(deepUrls.indexOf('../cards/cards-lite.json') !== -1,
+    'a category page must ask for the lite tier one level up: ' + (deepUrls || '(nothing fetched)'));
+
+  const root = makeSandbox({});
+  root.sandbox.window.mpToolbox.ready();
+  const rootUrls = (root.sandbox.fetched || []).join(',');
+  assert.ok(rootUrls.indexOf('cards/cards-lite.json') === 0,
+    'a root page must ask for it in place: ' + (rootUrls || '(nothing fetched)'));
 }
 
 console.log('toolbox: storage, share links, ＋ buttons and corrupt values all behave');
