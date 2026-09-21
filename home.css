@@ -150,6 +150,14 @@
             :root {
                 view-transition-name: none;
             }
+            /* The transition overlay is painted over the whole viewport and it
+               answers hit-testing unless it is told not to: for the length of
+               every transition the page used to swallow *every* click, which
+               reads as "the site ignored me". Filtering runs one of these per
+               keystroke (debounced), so this was not a rare window. */
+            ::view-transition {
+                pointer-events: none;
+            }
             ::view-transition-group(root) {
                 animation-duration: var(--vt-duration);
                 animation-timing-function: cubic-bezier(0.4,0,0.2,1);
@@ -158,14 +166,11 @@
             ::view-transition-new(root) {
                 animation-duration: var(--vt-duration);
             }
-            /* Card shared elements get their own VT group */
-            .card {
-                view-transition-name: var(--vt-name, none);
-            }
-            /* Header and controls stay stable during VT */
-            .main-header, .catalog-controls-container, .sticky-command-bar {
-                view-transition-name: header;
-            }
+            /* Cards are deliberately NOT named. A named element is excluded
+               from hit-testing for the duration of the transition, so naming
+               all 1,195 of them made the entire grid deaf while a filter ran;
+               and no shared-element card transition needs it. The rule below
+               only names the one surface that actually morphs. */
             .dashboard {
                 view-transition-name: dashboard;
             }
@@ -1348,6 +1353,11 @@
             animation: slideIn 0.3s ease;
             max-width: min(320px, calc(100vw - 40px));
             border: 1px solid;
+            /* A toast has nothing to click, and it sits over the top-right of
+               the grid for three seconds: without this it swallowed the next
+               click that landed underneath it. Rating a card and then clicking
+               a card in that corner did nothing at all. */
+            pointer-events: none;
         }
         
         /* ===== MOBILE RESPONSIVE ===== */
@@ -2348,10 +2358,10 @@
         }
 
         @layer utilities {
-            /* View Transitions for search clear button */
-            #mainSearchClear, #resultsCountText {
-                view-transition-name: search-meta;
-            }
+            /* Two elements sharing one view-transition-name (`search-meta`)
+               made every transition on the page abort before it started, and
+               both of them sat inside the toolbar that owns the search box.
+               Nothing morphs here, so nothing is named. */
 
             /* Anchor positioning fallback visuals */
             @supports not (anchor-name: --a) {

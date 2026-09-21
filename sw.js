@@ -52,7 +52,7 @@
 // a first visit followed by an offline visit rendered an unstyled page with no
 // cards. Every one of those URLs carries a ?v= derived from this constant, so a
 // deploy is a new URL and a stale entry is impossible.
-const CACHE_VERSION = 'v14-2026-09-20';
+const CACHE_VERSION = 'v15-2026-09-20';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
