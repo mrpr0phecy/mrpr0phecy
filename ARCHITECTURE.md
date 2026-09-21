@@ -10,7 +10,7 @@ access in a fresh session, run `bash scripts/agent-auth.sh` (self-service
 device flow, sparse-clone recipe inside) instead of asking the owner to paste a
 token.
 
-Last substantive update: 2026-09-07.
+Last substantive update: 2026-09-21.
 
 For anything money-related — what earns, what the real numbers are, and what
 was deliberately not built — see **[INCOME.md](INCOME.md)**.
@@ -1142,5 +1142,13 @@ products, built so the catalogue's tools can use it too.
   Open-Meteo at the hour you reach each sampled point. Where no key-free feed
   exists the page says so rather than estimating: national timings are labelled
   free-flow everywhere outside London.
+- Selecting a place also enables a compact enrichment layer in the place card:
+  Open-Meteo Air Quality gives a modelled European AQI and pollutants,
+  Environment Agency returns nearby England-focused flood warnings, Wikimedia
+  Commons supplies geotagged cultural thumbnails with individual credit and
+  licence links, and KartaView supplies optional historical user-contributed
+  street imagery with capture dates. All four are coordinate-and-radius
+  requests made only after selection, cached and labelled; absence is never
+  presented as safety, coverage or completeness.
 - Provenance, licences, the provider list, the driving layering, the offline
   matrix and the limits of what CI can test are in `docs/MAPS.md`.

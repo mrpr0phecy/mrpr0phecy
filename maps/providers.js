@@ -117,6 +117,30 @@
     minIntervalMs: 500, timeoutMs: 9000,
   };
 
+  var COMMONS = {
+    id: 'wikimedia-commons', name: 'Wikimedia Commons (GeoSearch)', home: 'commons.wikimedia.org',
+    licence: 'Free cultural works under their individual licences', minIntervalMs: 700, timeoutMs: 10000,
+  };
+
+  var KARTAVIEW = {
+    id: 'kartaview', name: 'KartaView street imagery', home: 'kartaview.org',
+    licence: 'CC BY-SA 4.0 (imagery; credit Grab and KartaView Contributors)', minIntervalMs: 1000, timeoutMs: 12000,
+    url: 'https://api.openstreetcam.org/2.0/photo/',
+  };
+
+  var AIR_QUALITY = {
+    id: 'open-meteo-air-quality', name: 'Open-Meteo Air Quality', home: 'air-quality-api.open-meteo.com',
+    licence: 'CC BY 4.0 (CAMS forecasts)', minIntervalMs: 700, timeoutMs: 12000,
+    url: 'https://air-quality-api.open-meteo.com/v1/air-quality',
+  };
+
+  var FLOODS = {
+    id: 'environment-agency-floods', name: 'Environment Agency flood monitoring', home: 'environment.data.gov.uk',
+    licence: 'Open Government Licence', minIntervalMs: 1200, timeoutMs: 10000,
+    url: 'https://environment.data.gov.uk/flood-monitoring/id/floods',
+    coverage: 'England and some cross-border catchments',
+  };
+
   /**
    * Valhalla is the driving router: unlike a plain OSRM profile it takes a
    * vehicle, its size and its preferences, so a caravan avoids width limits
@@ -1117,6 +1141,8 @@
     var url = 'https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*' +
       '&generator=geosearch&ggscoord=' + pt.lat.toFixed(5) + '%7C' + pt.lon.toFixed(5) +
       '&ggsradius=' + radius + '&ggslimit=5&prop=extracts|info&exintro=1&explaintext=1&inprop=url';
+    var cached = getCached(url, opts.cacheMs || 15 * 60 * 1000);
+    if (cached) return Promise.resolve({ provider: WIKI, articles: cached });
     return fetchJson(url, { id: WIKI.id, timeoutMs: WIKI.timeoutMs, minIntervalMs: WIKI.minIntervalMs })
       .then(function (data) {
         var pages = (data && data.query && data.query.pages) || {};
@@ -1131,11 +1157,162 @@
             distanceMetres: page.dist == null ? null : page.dist,
           };
         });
+        putCached(url, articles);
         return { provider: WIKI, articles: articles };
       })
       .catch(function (error) {
         return { error: error.message, offline: true, articles: [] };
       });
+  }
+
+  /** Current air quality at a point, from the open CAMS forecast. */
+  function airQuality(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ current: null, error: 'bad-point' });
+    var url = AIR_QUALITY.url + '?latitude=' + pt.lat.toFixed(5) + '&longitude=' + pt.lon.toFixed(5) +
+      '&current=european_aqi,pm2_5,pm10,ozone,nitrogen_dioxide&timezone=auto&forecast_days=1';
+    var cached = getCached(url, opts.cacheMs || 10 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: AIR_QUALITY.id, timeoutMs: AIR_QUALITY.timeoutMs, minIntervalMs: AIR_QUALITY.minIntervalMs })
+      .then(function (data) {
+        var result = {
+          provider: { id: AIR_QUALITY.id, name: AIR_QUALITY.name, licence: AIR_QUALITY.licence, home: AIR_QUALITY.home },
+          current: data && data.current ? data.current : null,
+          units: data && data.current_units ? data.current_units : {},
+          fetchedAt: new Date(),
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { current: null, error: error.message, offline: true, provider: null }; });
+  }
+
+  /** Current Environment Agency flood warnings near a point. */
+  function floodWarnings(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ warnings: [], error: 'bad-point' });
+    var radiusKm = Math.min(30, Math.max(1, opts.radiusKm || 15));
+    var url = FLOODS.url + '?lat=' + pt.lat.toFixed(5) + '&long=' + pt.lon.toFixed(5) + '&dist=' + radiusKm + '&min-severity=3&_limit=50';
+    var cached = getCached(url, opts.cacheMs || 5 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: FLOODS.id, timeoutMs: FLOODS.timeoutMs, minIntervalMs: FLOODS.minIntervalMs })
+      .then(function (data) {
+        var warnings = ((data && data.items) || []).map(function (item) {
+          var area = item.floodArea || {};
+          var warning = item.severity || item.severityLevel || item.type || 'Flood warning';
+          return {
+            id: item['@id'] || item.id || item.notation || item.fwdCode,
+            label: item.description || item.label || area.label || 'Flood warning area',
+            message: item.message || null,
+            severity: String(warning),
+            severityLevel: item.severityLevel == null ? null : Number(item.severityLevel),
+            county: item.county || area.county || null,
+            riverOrSea: item.riverOrSea || area.riverOrSea || null,
+            url: item['@id'] ? String(item['@id']).replace(/^http:/i, 'https:') : null,
+            lat: item.lat != null ? Number(item.lat) : null,
+            lon: item.long != null ? Number(item.long) : null,
+          };
+        });
+        var result = {
+          provider: { id: FLOODS.id, name: FLOODS.name, licence: FLOODS.licence, home: FLOODS.home },
+          warnings: warnings,
+          radiusKm: radiusKm,
+          fetchedAt: new Date(),
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { warnings: [], error: error.message, offline: true, provider: null }; });
+  }
+
+  /** Nearby geotagged images from Wikimedia Commons. */
+  function commons(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ images: [], error: 'bad-point' });
+    var radius = Math.min(10000, Math.max(1000, opts.radiusMetres || 5000));
+    var url = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
+      '&generator=geosearch&ggscoord=' + pt.lat.toFixed(5) + '%7C' + pt.lon.toFixed(5) +
+      '&ggsradius=' + radius + '&ggslimit=' + (opts.limit || 6) + '&ggsnamespace=6' +
+      '&prop=imageinfo|coordinates&iiprop=url|extmetadata&iiurlwidth=520';
+    var cached = getCached(url, opts.cacheMs || 30 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: COMMONS.id, timeoutMs: COMMONS.timeoutMs, minIntervalMs: COMMONS.minIntervalMs })
+      .then(function (data) {
+        var pages = (data && data.query && data.query.pages) || {};
+        var images = Object.keys(pages).map(function (key) {
+          var page = pages[key];
+          var info = page.imageinfo && page.imageinfo[0] ? page.imageinfo[0] : {};
+          var metadata = info.extmetadata || {};
+          return {
+            title: String(page.title || '').replace(/^File:/i, ''),
+            thumbUrl: info.thumburl || info.url || null,
+            url: info.descriptionurl || ('https://commons.wikimedia.org/wiki/' + encodeURIComponent(page.title || '')),
+            artist: metadata.Artist && metadata.Artist.value ? String(metadata.Artist.value).replace(/<[^>]+>/g, '').slice(0, 160) : null,
+            licence: metadata.LicenseShortName && metadata.LicenseShortName.value ? String(metadata.LicenseShortName.value).slice(0, 80) : 'See Commons page',
+            lat: page.coordinates && page.coordinates[0] ? page.coordinates[0].lat : null,
+            lon: page.coordinates && page.coordinates[0] ? page.coordinates[0].lon : null,
+            distanceMetres: page.dist == null ? null : page.dist,
+          };
+        }).filter(function (image) { return !!image.thumbUrl; });
+        var result = {
+          provider: { id: COMMONS.id, name: COMMONS.name, licence: COMMONS.licence, home: COMMONS.home },
+          images: images,
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { images: [], error: error.message, offline: true, provider: null }; });
+  }
+
+  /** Nearby user-contributed street-level imagery from KartaView. */
+  function kartaView(point, options) {
+    var opts = options || {};
+    var pt = MM.geodesy.point(point);
+    if (!pt) return Promise.resolve({ photos: [], error: 'bad-point' });
+    var zoom = Math.max(12, Math.min(19, opts.zoomLevel || 17));
+    var radius = Math.max(1, Math.min(500, opts.radiusMetres || 500));
+    var url = KARTAVIEW.url + '?lat=' + pt.lat.toFixed(5) + '&lng=' + pt.lon.toFixed(5) +
+      '&zoomLevel=' + zoom + '&radius=' + radius + '&join=sequence&orderBy=id&orderDirection=desc';
+    var cached = getCached(url, opts.cacheMs || 30 * 60 * 1000);
+    if (cached) return Promise.resolve(cached);
+    return fetchJson(url, { id: KARTAVIEW.id, timeoutMs: KARTAVIEW.timeoutMs, minIntervalMs: KARTAVIEW.minIntervalMs })
+      .then(function (data) {
+        var rows = data && data.result && Array.isArray(data.result.data) ? data.result.data : [];
+        var photos = rows.map(function (photo) {
+          var sequence = photo.sequence || {};
+          var photoId = photo.id || photo.photoId;
+          var sequenceId = sequence.id || photo.sequenceId;
+          var sequenceIndex = photo.sequenceIndex == null ? null : photo.sequenceIndex;
+          var link = sequenceId != null
+            ? 'https://kartaview.org/details/' + encodeURIComponent(sequenceId) + (sequenceIndex == null ? '' : '/' + encodeURIComponent(sequenceIndex)) + '/track-info'
+            : 'https://kartaview.org/';
+          return {
+            id: photoId,
+            sequenceId: sequenceId,
+            sequenceIndex: sequenceIndex,
+            imageUrl: photo.fileurl ? String(photo.fileurl).replace(/^http:/i, 'https:') : null,
+            link: link,
+            lat: photo.lat == null ? null : Number(photo.lat),
+            lon: photo.lng == null ? null : Number(photo.lng),
+            heading: photo.heading == null ? null : Number(photo.heading),
+            capturedAt: photo.dateProcessed || photo.dateAdded || sequence.dateAdded || null,
+            device: sequence.deviceName || null,
+          };
+        }).filter(function (photo) {
+          return !!photo.imageUrl && latOk(photo.lat) && lonOk(photo.lon);
+        }).slice(0, opts.limit || 6);
+        var result = {
+          provider: { id: KARTAVIEW.id, name: KARTAVIEW.name, licence: KARTAVIEW.licence, home: KARTAVIEW.home },
+          photos: photos,
+          radiusMetres: radius,
+        };
+        putCached(url, result);
+        return result;
+      })
+      .catch(function (error) { return { photos: [], error: error.message, offline: true, provider: null }; });
   }
 
   /** What the UI prints when it says where an answer came from. */
@@ -1149,6 +1326,10 @@
       pois: { id: POIS.id, name: POIS.name, endpoints: POIS.endpoints, licence: POIS.licence },
       elevation: { id: ELEVATION.id, name: ELEVATION.name, licence: ELEVATION.licence },
       wiki: { id: WIKI.id, name: WIKI.name, licence: WIKI.licence },
+      commons: { id: COMMONS.id, name: COMMONS.name, home: COMMONS.home, licence: COMMONS.licence },
+      kartaView: { id: KARTAVIEW.id, name: KARTAVIEW.name, home: KARTAVIEW.home, licence: KARTAVIEW.licence },
+      airQuality: { id: AIR_QUALITY.id, name: AIR_QUALITY.name, home: AIR_QUALITY.home, licence: AIR_QUALITY.licence },
+      floods: { id: FLOODS.id, name: FLOODS.name, home: FLOODS.home, licence: FLOODS.licence, coverage: FLOODS.coverage },
       driving: { id: VALHALLA.id, name: VALHALLA.name, home: VALHALLA.home, licence: VALHALLA.licence, note: VALHALLA.note },
       traffic: { id: TRAFFIC.tfl.id, name: TRAFFIC.tfl.name, home: TRAFFIC.tfl.home, licence: TRAFFIC.tfl.licence, coverage: TRAFFIC.tfl.coverage },
       weather: { id: WEATHER.id, name: WEATHER.name, home: WEATHER.home, licence: WEATHER.licence },
@@ -1166,6 +1347,10 @@
     POI_CATEGORIES: POI_CATEGORIES,
     ELEVATION: ELEVATION,
     WIKI: WIKI,
+    COMMONS: COMMONS,
+    KARTAVIEW: KARTAVIEW,
+    AIR_QUALITY: AIR_QUALITY,
+    FLOODS: FLOODS,
     fetchJson: fetchJson,
     loadStyle: loadStyle,
     geocode: geocode,
@@ -1186,6 +1371,10 @@
     elevation: elevation,
     elevationProfile: elevationProfile,
     wiki: wiki,
+    airQuality: airQuality,
+    floodWarnings: floodWarnings,
+    commons: commons,
+    kartaView: kartaView,
     describe: describe,
     health: function () { return health; },
     clearCache: function () { cache.clear(); },

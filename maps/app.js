@@ -704,8 +704,11 @@
     updateHud();
   }
 
+  var placeRenderToken = 0;
+
   function renderPlace() {
     var body = els.place;
+    var renderToken = ++placeRenderToken;
     clear(body);
     var row = state.place;
     if (!row) {
@@ -843,6 +846,7 @@
       var reverseNote = make('p', 'mm-muted', 'Address lookup…');
       body.appendChild(reverseNote);
       MM.providers.reverse(row).then(function (result) {
+        if (renderToken !== placeRenderToken || state.place !== row) return;
         if (result.result && result.result.detail) {
           reverseNote.textContent = 'Address: ' + result.result.detail + ' — ' + result.provider.name + ' (OpenStreetMap data)';
         } else {
@@ -853,6 +857,7 @@
       var wikiNote = make('div');
       body.appendChild(wikiNote);
       MM.providers.wiki(row, { radiusMetres: 5000 }).then(function (result) {
+        if (renderToken !== placeRenderToken || state.place !== row) return;
         if (!result.articles || !result.articles.length) return;
         wikiNote.appendChild(make('h2', null, 'Nearby knowledge'));
         result.articles.slice(0, 3).forEach(function (article) {
@@ -870,12 +875,219 @@
           }
         });
       });
+
+      var enrichment = make('section', 'mm-place-enrichment');
+      body.appendChild(enrichment);
+      renderPlaceEnrichment(row, enrichment, renderToken);
     } else {
       body.appendChild(make('p', 'mm-muted', 'Offline: showing coordinates, Plus Code, grid reference and country facts from the data shipped with this page.'));
     }
 
     var nearest = lastNearest;
     if (nearest) body.appendChild(make('p', 'mm-muted', 'Nearest place: ' + nearest.name + ', ' + fmtKm(nearest.km) + ' away.'));
+  }
+
+  function placeContextCard(title, className) {
+    var card = make('section', 'mm-place-context-card' + (className ? ' ' + className : ''));
+    card.appendChild(make('h3', null, title));
+    return card;
+  }
+
+  function sourceLine(parent, text, url) {
+    var line = make('p', 'mm-source-line');
+    if (url) {
+      var link = make('a', null, text);
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      line.appendChild(link);
+    } else {
+      line.appendChild(make('span', null, text));
+    }
+    parent.appendChild(line);
+    return line;
+  }
+
+  function renderPlaceEnrichment(row, host, renderToken) {
+    clear(host);
+    host.appendChild(make('h2', null, 'Open local context'));
+    host.appendChild(make('p', 'mm-muted', 'A small, on-demand snapshot around these coordinates. Models, warnings and community imagery are useful clues, not a complete survey or a safety guarantee.'));
+    if (state.offline) {
+      host.appendChild(make('p', 'mm-note warn', 'Offline: air quality, flood warnings and open imagery need a connection. No request was made.'));
+      return;
+    }
+
+    var loading = make('p', 'mm-muted');
+    loading.appendChild(make('span', 'mm-spinner'));
+    loading.appendChild(doc.createTextNode(' Asking open services…'));
+    host.appendChild(loading);
+    var calls = [
+      MM.providers.airQuality(row, { cacheMs: 10 * 60 * 1000 }),
+      MM.providers.floodWarnings(row, { radiusKm: 15, cacheMs: 5 * 60 * 1000 }),
+      MM.providers.commons(row, { radiusMetres: 5000, limit: 6, cacheMs: 30 * 60 * 1000 }),
+      MM.providers.kartaView(row, { zoomLevel: 17, radiusMetres: 500, limit: 6, cacheMs: 30 * 60 * 1000 }),
+    ];
+    Promise.all(calls).then(function (results) {
+      if (renderToken !== placeRenderToken || state.place !== row) return;
+      clear(host);
+      host.appendChild(make('h2', null, 'Open local context'));
+      host.appendChild(make('p', 'mm-muted', 'A small, on-demand snapshot around these coordinates. Models, warnings and community imagery are useful clues, not a complete survey or a safety guarantee.'));
+      var grid = make('div', 'mm-place-context-grid');
+      renderAirQualityCard(grid, results[0]);
+      renderFloodCard(grid, results[1]);
+      renderCommonsCard(grid, results[2]);
+      renderKartaViewCard(grid, results[3]);
+      host.appendChild(grid);
+    }).catch(function () {
+      if (renderToken !== placeRenderToken || state.place !== row) return;
+      clear(host);
+      host.appendChild(make('h2', null, 'Open local context'));
+      host.appendChild(make('p', 'mm-note warn', 'The open context services could not be reached. Coordinates and the rest of this place card are still available.'));
+    });
+  }
+
+  function airQualityLabel(aqi) {
+    if (aqi == null || !isFinite(aqi)) return 'AQI unavailable';
+    if (aqi <= 20) return 'Good';
+    if (aqi <= 40) return 'Fair';
+    if (aqi <= 60) return 'Moderate';
+    if (aqi <= 80) return 'Poor';
+    if (aqi <= 100) return 'Very poor';
+    return 'Extremely poor';
+  }
+
+  function renderAirQualityCard(parent, result) {
+    var card = placeContextCard('Air quality');
+    if (!result || !result.current) {
+      card.appendChild(make('p', 'mm-note warn', 'Air-quality data is unavailable right now; no value is being guessed.'));
+      sourceLine(card, 'Open-Meteo Air Quality · CAMS forecast', 'https://air-quality-api.open-meteo.com/');
+      parent.appendChild(card);
+      return;
+    }
+    var current = result.current;
+    var aqi = Number(current.european_aqi);
+    var stats = make('div', 'mm-place-context-stat');
+    stats.appendChild(make('b', null, isFinite(aqi) ? String(Math.round(aqi)) : '—'));
+    stats.appendChild(make('span', null, 'European AQI · ' + airQualityLabel(aqi)));
+    card.appendChild(stats);
+    var dl = make('dl', 'mm-kv');
+    if (current.pm2_5 != null) kvRow(dl, 'PM2.5', Math.round(current.pm2_5 * 10) / 10 + ' ' + (result.units.pm2_5 || 'µg/m³'));
+    if (current.pm10 != null) kvRow(dl, 'PM10', Math.round(current.pm10 * 10) / 10 + ' ' + (result.units.pm10 || 'µg/m³'));
+    if (current.ozone != null) kvRow(dl, 'Ozone', Math.round(current.ozone * 10) / 10 + ' ' + (result.units.ozone || 'µg/m³'));
+    if (current.nitrogen_dioxide != null) kvRow(dl, 'NO₂', Math.round(current.nitrogen_dioxide * 10) / 10 + ' ' + (result.units.nitrogen_dioxide || 'µg/m³'));
+    card.appendChild(dl);
+    card.appendChild(make('p', 'mm-muted', 'A modelled current estimate, not a local monitor reading. Forecast coverage and pollutant availability vary by place.'));
+    sourceLine(card, 'Open-Meteo Air Quality · CAMS · CC BY 4.0', 'https://open-meteo.com/en/docs/air-quality-api');
+    parent.appendChild(card);
+  }
+
+  function renderFloodCard(parent, result) {
+    var card = placeContextCard('Nearby flood warnings');
+    if (!result || result.error) {
+      card.appendChild(make('p', 'mm-note warn', 'The Environment Agency feed could not be reached, so no flood status is shown.'));
+    } else if (!result.warnings || !result.warnings.length) {
+      card.appendChild(make('p', 'mm-note good', 'No active warnings were returned within 15 km. This is not proof that flooding cannot occur.'));
+    } else {
+      card.appendChild(make('p', 'mm-note warn', result.warnings.length + ' active warning' + (result.warnings.length === 1 ? '' : 's') + ' returned nearby.'));
+      var list = make('ul', 'mm-place-context-list');
+      result.warnings.slice(0, 6).forEach(function (warning) {
+        var item = make('li');
+        var label = warning.url ? make('a', null, warning.label) : make('b', null, warning.label);
+        if (warning.url) { label.href = warning.url; label.target = '_blank'; label.rel = 'noopener'; }
+        item.appendChild(label);
+        var detail = [warning.severity, warning.riverOrSea, warning.county].filter(Boolean).join(' · ');
+        if (detail) item.appendChild(make('span', 'mm-muted', ' · ' + detail));
+        list.appendChild(item);
+      });
+      card.appendChild(list);
+    }
+    card.appendChild(make('p', 'mm-muted', 'England-focused coverage; an absence of a warning is not an all-clear.'));
+    sourceLine(card, 'This uses Environment Agency flood and river level data from the real-time data API (Beta) · OGL', 'https://environment.data.gov.uk/flood-monitoring/doc/reference');
+    parent.appendChild(card);
+  }
+
+  function renderCommonsCard(parent, result) {
+    var card = placeContextCard('Nearby open imagery');
+    if (!result || result.error || !result.images || !result.images.length) {
+      card.appendChild(make('p', 'mm-muted', result && result.error ? 'Wikimedia Commons could not be reached, so no imagery is shown.' : 'No geotagged Wikimedia Commons images were found within 5 km.'));
+      sourceLine(card, 'Wikimedia Commons · each image has its own licence', 'https://commons.wikimedia.org/');
+      parent.appendChild(card);
+      return;
+    }
+    var gallery = make('div', 'mm-place-gallery');
+    result.images.slice(0, 6).forEach(function (image) {
+      var figure = make('figure');
+      var link = make('a');
+      link.href = image.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      var thumbnail = make('img');
+      thumbnail.src = image.thumbUrl;
+      thumbnail.alt = image.title || 'Wikimedia Commons image';
+      thumbnail.loading = 'lazy';
+      thumbnail.addEventListener('error', function () { figure.hidden = true; });
+      link.appendChild(thumbnail);
+      figure.appendChild(link);
+      var caption = make('figcaption');
+      caption.appendChild(make('a', null, image.title || 'Open image'));
+      caption.lastChild.href = image.url;
+      caption.lastChild.target = '_blank';
+      caption.lastChild.rel = 'noopener';
+      var credit = [image.distanceMetres == null ? null : fmtMetres(image.distanceMetres) + ' away', image.artist, image.licence].filter(Boolean).join(' · ');
+      if (credit) caption.appendChild(make('span', 'mm-muted', credit));
+      figure.appendChild(caption);
+      gallery.appendChild(figure);
+    });
+    card.appendChild(gallery);
+    card.appendChild(make('p', 'mm-muted', 'Open cultural imagery; the title link is also the credit/licence page for each individual file.'));
+    sourceLine(card, 'Wikimedia Commons · geosearch', 'https://www.mediawiki.org/wiki/API:Geosearch');
+    parent.appendChild(card);
+  }
+
+  function captureDate(value) {
+    if (!value) return null;
+    var date = new Date(value);
+    return isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function renderKartaViewCard(parent, result) {
+    var card = placeContextCard('Street-level imagery');
+    if (!result || result.error || !result.photos || !result.photos.length) {
+      card.appendChild(make('p', 'mm-muted', result && result.error ? 'KartaView could not be reached, so no street imagery is shown.' : 'No KartaView imagery was found within 500 m. Coverage is uneven.'));
+      sourceLine(card, 'KartaView · CC BY-SA 4.0 · user-contributed', 'https://kartaview.org/terms');
+      parent.appendChild(card);
+      return;
+    }
+    var gallery = make('div', 'mm-place-gallery mm-place-gallery-street');
+    result.photos.slice(0, 4).forEach(function (photo) {
+      var figure = make('figure');
+      var link = make('a');
+      link.href = photo.link;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      var thumbnail = make('img');
+      thumbnail.src = photo.imageUrl;
+      thumbnail.alt = 'KartaView street image' + (photo.capturedAt ? ' from ' + captureDate(photo.capturedAt) : '');
+      thumbnail.loading = 'lazy';
+      thumbnail.addEventListener('error', function () { figure.hidden = true; });
+      link.appendChild(thumbnail);
+      figure.appendChild(link);
+      var caption = make('figcaption');
+      var title = photo.capturedAt ? 'Captured ' + captureDate(photo.capturedAt) : 'Open street image';
+      var captionLink = make('a', null, title);
+      captionLink.href = photo.link;
+      captionLink.target = '_blank';
+      captionLink.rel = 'noopener';
+      caption.appendChild(captionLink);
+      var detail = [photo.heading == null ? null : Math.round(photo.heading) + '° heading', photo.device].filter(Boolean).join(' · ');
+      if (detail) caption.appendChild(make('span', 'mm-muted', detail));
+      figure.appendChild(caption);
+      gallery.appendChild(figure);
+    });
+    card.appendChild(gallery);
+    card.appendChild(make('p', 'mm-muted', 'Historical, user-contributed imagery — not live, complete or a promise that the road looks this way now.'));
+    sourceLine(card, 'KartaView · © Grab and KartaView Contributors · CC BY-SA 4.0', 'https://kartaview.org/terms');
+    parent.appendChild(card);
   }
 
   function countryCodeOf(row) {
@@ -1670,6 +1882,30 @@
     wiki.appendChild(make('span', 'mm-src-name', 'Nearby knowledge: Wikipedia GeoSearch'));
     wiki.appendChild(make('span', 'mm-src-meta', 'CC BY-SA 4.0'));
     list.appendChild(wiki);
+    if (providers.airQuality) {
+      var airQuality = make('li');
+      airQuality.appendChild(make('span', 'mm-src-name', 'Air quality: ' + providers.airQuality.name));
+      airQuality.appendChild(make('span', 'mm-src-meta', 'modelled CAMS forecast · ' + providers.airQuality.licence));
+      list.appendChild(airQuality);
+    }
+    if (providers.floods) {
+      var floods = make('li');
+      floods.appendChild(make('span', 'mm-src-name', 'Flood warnings: ' + providers.floods.name));
+      floods.appendChild(make('span', 'mm-src-meta', providers.floods.coverage + ' · ' + providers.floods.licence));
+      list.appendChild(floods);
+    }
+    if (providers.commons) {
+      var commons = make('li');
+      commons.appendChild(make('span', 'mm-src-name', 'Open imagery: ' + providers.commons.name));
+      commons.appendChild(make('span', 'mm-src-meta', 'individual file licences · Wikimedia Commons'));
+      list.appendChild(commons);
+    }
+    if (providers.kartaView) {
+      var kartaView = make('li');
+      kartaView.appendChild(make('span', 'mm-src-name', 'Street imagery: ' + providers.kartaView.name));
+      kartaView.appendChild(make('span', 'mm-src-meta', 'historical/user-contributed · CC BY-SA 4.0'));
+      list.appendChild(kartaView);
+    }
     var places = make('li');
     places.appendChild(make('span', 'mm-src-name', 'Offline places: GeoNames'));
     places.appendChild(make('span', 'mm-src-meta', 'CC BY 4.0'));
@@ -1683,6 +1919,7 @@
     box.appendChild(make('h2', null, 'What leaves your device'));
     box.appendChild(make('p', null, 'Driving is the one place where more than a pair of points can leave the device, and only when you ask for it: the route’s shape goes to OpenStreetMap’s Overpass API to fetch the speed limits along it, five sampled points go to Open-Meteo for the forecast, and a bounding box goes to TfL for live disruption in London. Your speed, your position and your trip never leave: guidance runs entirely on this device, from data already loaded.'));
     box.appendChild(make('p', null, 'Your location is never sent anywhere. When you search online, the words you typed go to Photon or Nominatim (OpenStreetMap) to find the place. When you ask for a route, the two endpoints go to an open routing service. Nearby places send a radius and a point to Overpass. Elevations send the sampled points to OpenTopoData. Nothing else is transmitted and there is no account. Vehicle preferences and up to six recent places stay only in this browser; there are no cookies or advertising trackers.'));
+    box.appendChild(make('p', null, 'When you select a place while online, its coordinates are sent to Open-Meteo Air Quality, the Environment Agency flood feed, Wikimedia Commons and KartaView for the optional local-context cards. These services receive the selected point and the small search radius, not your browser location history or route; each request is cached and no background polling is used.'));
     box.appendChild(make('p', null, 'The basemap tiles are fetched from OpenFreeMap, which is what makes the streets appear. Turn the live map off and the page still works, offline, at world and country level.'));
     box.appendChild(make('p', null, 'These are volunteer-run public services with fair-use policies. If this page ever gets busy, the right move is to self-host them — docs/MAPS.md explains how.'));
 

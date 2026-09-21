@@ -1103,6 +1103,67 @@ test('providers: the driving services are declared with their licences', () => {
   assert.deepEqual(providers.POI_CATEGORIES.length, providers.poiCategories ? providers.POI_CATEGORIES.length : providers.POI_CATEGORIES.length);
 });
 
+test('providers: selected-place enrichment is attributed, bounded and keyless', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  providers.clearCache();
+  const original = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url) => {
+    const text = String(url);
+    asked.push(text);
+    let payload;
+    if (text.includes('air-quality-api.open-meteo.com')) {
+      payload = {
+        current: { european_aqi: 18, pm2_5: 7.2, pm10: 11, ozone: 52, nitrogen_dioxide: 8 },
+        current_units: { pm2_5: 'µg/m³', pm10: 'µg/m³', ozone: 'µg/m³', nitrogen_dioxide: 'µg/m³' },
+      };
+    } else if (text.includes('environment.data.gov.uk')) {
+      payload = {
+        items: [{
+          '@id': 'https://environment.data.gov.uk/flood-monitoring/id/floods/example',
+          description: 'River test area', severity: 'Flood Alert', severityLevel: 3,
+          floodArea: { county: 'Testshire', riverOrSea: 'River Test' },
+        }],
+      };
+    } else if (text.includes('commons.wikimedia.org')) {
+      payload = {
+        query: { pages: { '1': {
+          title: 'File:Open place.jpg', dist: 240,
+          imageinfo: [{ thumburl: 'https://upload.wikimedia.org/example.jpg', descriptionurl: 'https://commons.wikimedia.org/wiki/File:Open_place.jpg', extmetadata: { LicenseShortName: { value: 'CC BY-SA 4.0' } } }],
+        } } },
+      };
+    } else if (text.includes('api.openstreetcam.org')) {
+      payload = {
+        result: { data: [{ id: 7, lat: 51.5, lng: -0.4, fileurl: 'https://storage.openstreetcam.org/example.jpg', dateProcessed: '2026-01-02', sequence: { id: 9 } }] },
+      };
+    } else {
+      throw new Error('unexpected endpoint');
+    }
+    return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const [air, floods, commons, street] = await Promise.all([
+      providers.airQuality(LUTON),
+      providers.floodWarnings(LUTON),
+      providers.commons(LUTON),
+      providers.kartaView(LUTON),
+    ]);
+    assert.equal(air.current.european_aqi, 18);
+    assert.match(air.provider.licence, /CC BY 4\.0/);
+    assert.equal(floods.warnings[0].riverOrSea, 'River Test');
+    assert.match(floods.provider.licence, /Open Government Licence/);
+    assert.equal(commons.images[0].licence, 'CC BY-SA 4.0');
+    assert.equal(street.photos[0].sequenceId, 9);
+    assert.match(street.provider.licence, /CC BY-SA 4\.0/);
+    assert.equal(asked.length, 4);
+    assert.ok(asked.some((url) => /min-severity=3/.test(url)), 'floods request only asks for active alerts/warnings');
+    assert.ok(asked.every((url) => !/apikey|api_key|token/i.test(url)), 'all enrichment endpoints are keyless');
+    assert.ok(asked.every((url) => /51\.87970|-0\.41750/.test(url)), 'every request is coordinate-based');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test('providers: traffic says nothing rather than inventing it', async () => {
   const providers = require(path.join(ROOT, 'maps/providers.js'));
   // Scotland: no key-free live traffic feed covers it, so the answer is a

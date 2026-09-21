@@ -29,7 +29,8 @@ maps/core/gazetteer.js        offline place search and the "what did you type?" 
 maps/localmap.js              the offline canvas renderer (pan/zoom/pick, no library)
 maps/livemap.js               MapLibre GL + OpenFreeMap vector tiles, layered on top
 maps/providers.js             every live service: styles, geocoders, routers, Overpass,
-                              elevation, Wikipedia — with licences, timeouts and rate limits
+                              elevation, Wikipedia and place enrichment — with licences,
+                              timeouts, caching and rate limits
 maps/embed.js                 window.MostUsefulMaps: the API cards use
 
 maps/vendor/                  MapLibre GL JS 5.24.0 (BSD-3), topojson-client (ISC),
@@ -70,6 +71,10 @@ went wrong" state.
 | Nearby places | Overpass API (`overpass-api.de`, then `overpass.kumi.systems`) | OpenStreetMap, ODbL | when you press Find nearby |
 | Elevation | OpenTopoData `srtm90m` | SRTM, public domain (NASA/USGS) | when a route is drawn |
 | Nearby articles | Wikipedia GeoSearch | CC BY-SA 4.0 | when a place is selected |
+| Air quality | Open-Meteo Air Quality / CAMS | CC BY 4.0 | when a place is selected; modelled current estimate, not a monitor reading |
+| Flood warnings | Environment Agency flood-monitoring API | Open Government Licence | when a place is selected; England-focused coverage, and no warning is not proof of safety |
+| Nearby cultural imagery | Wikimedia Commons GeoSearch | each file's licence and credit page | when a place is selected; each thumbnail links to its individual credit/licence page |
+| Nearby street imagery | KartaView | CC BY-SA 4.0 imagery | when a place is selected; historical/user-contributed and coverage is uneven |
 | Offline places | GeoNames via `all-the-cities` | CC BY 4.0 | never — shipped in `maps/data/` |
 | Offline outlines | Natural Earth via `world-atlas` | public domain | never — shipped in `maps/data/` |
 | Time zones | `tz-lookup` | CC0 | never — shipped in `maps/vendor/` |
@@ -84,9 +89,12 @@ shown in the map corner, in the Info panel, and on the card.
 
 **Public instances are shared infrastructure.** `maps/providers.js` enforces a
 minimum interval between calls per service, caches responses, times out every
-request, and never fires anything without a user action. If this page ever gets
-real traffic, self-host (Photon, OSRM, Overpass and OpenFreeMap are all
-self-hostable) rather than leaning harder on the volunteers.
+request, and never fires anything without a user action. Selecting a place is
+one such user action: the local-context cards send only that point and their
+small radius to the named sources, and they never poll in the background. If
+this page ever gets real traffic, self-host (Photon, OSRM, Overpass and
+OpenFreeMap are all self-hostable) rather than leaning harder on the
+volunteers.
 
 **Route choices and active guidance.** The Route tab supports driving, cycling
 and walking profiles, with fastest, shortest and quieter choices, explicit avoid
@@ -185,6 +193,13 @@ makes the feature testable in CI and usable on a desktop.
   points go to Open-Meteo for the forecast, and a bounding box goes to TfL for
   London disruption. Your position, your speed and your trip never leave the
   device — guidance is computed from what is already loaded.
+- Selecting a place while online sends its coordinates and the documented small
+  search radii to Open-Meteo Air Quality, the Environment Agency flood feed,
+  Wikimedia Commons and KartaView. Those are user-triggered, coordinate-based
+  lookups only: there is no location history, route sharing, hidden tracking or
+  background polling. KartaView and Commons imagery are linked back to their
+  credit/licence pages; flood coverage is England-focused and air quality is a
+  modelled forecast, not a monitor reading.
 - `check-egress.py` does not scan `maps/`, so the providers are classified here
   instead: the live services are class **C** (fetching open data is the
   feature), and the vendored libraries are class **B** shipped locally, not
@@ -207,6 +222,7 @@ makes the feature testable in CI and usable on a desktop.
 | Trip recording and GPX export | written in the browser; nothing uploaded |
 | Sun glare, break reminders | solar maths and your own driving time |
 | Live traffic, weather, stopping places, cameras | unavailable until asked for, and each panel says so |
+| Air quality, flood warnings and open imagery | unavailable until a place is selected online; no request is made offline |
 | Live streets, addresses, POIs, elevation, Wikipedia | unavailable, and the panel says so |
 
 ## 7. Embedding it in a card
@@ -275,6 +291,8 @@ session are plain globals on `MM`, with no DOM and no fetching inside them.
   weather read at the hour you would arrive (against a stubbed response), and
   traffic that reports a labelled absence outside London rather than inventing
   a delay;
+- the place-enrichment provider declarations and their keyless, attributed
+  endpoints (air quality, Environment Agency warnings, Commons and KartaView);
 - and a set of page-contract tests: every `maps/*.js` parses, every file
   `maps.html` loads exists, every element `maps/app.js` looks up is defined,
   the driving scripts load in dependency order, the navigation overlay exists
@@ -282,9 +300,11 @@ session are plain globals on `MM`, with no DOM and no fetching inside them.
 
 What is **not** covered by CI, because the sandbox and CI have no general
 network access: the live tile servers, the geocoders, the routers (including
-Valhalla), Overpass, OpenTopoData, TfL and Open-Meteo. Those paths were written against their documented APIs and are
-exercised in the browser; if a service changes shape, `maps/providers.js` is the
-single place to fix it, and every one of them degrades to an offline answer.
+Valhalla), Overpass, OpenTopoData, TfL, Open-Meteo, Open-Meteo Air Quality, the
+Environment Agency feed, Wikimedia Commons and KartaView. Those paths were
+written against their documented APIs and are exercised in the browser; if a
+service changes shape, `maps/providers.js` is the single place to fix it, and
+every one of them degrades to an offline answer.
 
 ## 9. Deliberate omissions
 
