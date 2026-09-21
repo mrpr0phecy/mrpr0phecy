@@ -84,6 +84,112 @@
     };
   }
 
+  /* --------------------------------------------------------- sticky chrome --
+     The toolbar parks directly under whatever sticky chrome the host page puts
+     above it: the home page's command bar, tools.html's topbar, the category
+     pages' topbar. Every host page used to hard-code that offset in its own
+     stylesheet (60 px, 52 px, 72 px, 8 px — four numbers, three of them wrong
+     at some width, and the category toolbar sat *under* its own topbar on a
+     phone). This measures the real thing instead and republishes it as
+     `--xp-sticky-h`, which explore.css's `.xp-bar` consumes.
+
+     Recomputed on scroll (rAF-throttled) and on resize, because a sticky
+     element that has slid off-screen is not chrome: while the home page's
+     command bar is hidden the toolbar sits at the very top of the viewport,
+     and while it is showing it sits below it. */
+  function measureStickyOffset() {
+    var h = 0;
+    var candidates = document.querySelectorAll('.topbar, .toc, [data-xp-sticky], #stickyCommandBar');
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (el.classList.contains('xp-bar')) continue;
+      var cs;
+      try { cs = window.getComputedStyle(el); } catch (e) { continue; }
+      if (cs.position !== 'sticky' && cs.position !== 'fixed') continue;
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      var r = el.getBoundingClientRect();
+      // Pinned near the top edge, actually painted, and not one of the
+      // bottom-anchored floating buttons — those live at the other end.
+      if (r.height < 8 || r.bottom <= 2 || r.top > 160) continue;
+      if (r.bottom > h) h = r.bottom;
+    }
+    document.documentElement.style.setProperty('--xp-sticky-h', Math.round(h) + 'px');
+  }
+
+  /* ---------------------------------------------------- scroll affordance --
+     The facet row is the one control on the site that is wider than the screen
+     at every size — 1,206 tools over 28 categories, in a strip that scrolls
+     sideways. A row that just ends at the right edge reads as "that is all of
+     them". So the row publishes where it is in its own scroll (data-overflow =
+     start | middle | end) and the stylesheet fades whichever edge still has
+     something behind it. Measured, not guessed: at the far right the fade
+     disappears instead of hiding the last chip forever.
+
+     The home page's popular-search chips are the same component in spirit
+     (a shortcut row that scrolls on a phone), so they are picked up here too
+     rather than duplicating the listener in a second file. */
+  function markOverflow(el) {
+    var max = el.scrollWidth - el.clientWidth;
+    if (max <= 2) { el.removeAttribute('data-overflow'); return; }
+    var x = el.scrollLeft;
+    el.setAttribute('data-overflow', x <= 2 ? 'start' : (x >= max - 2 ? 'end' : 'middle'));
+  }
+
+  var FADE_ROWS = '[data-xp-facets], .xp-facets, .popular-chips, .toc-inner, nav.toc';
+
+  /* The floating toolbox button sits over the end of the page. On a phone it
+     lands exactly on the footer's last links once you scroll to the bottom, so
+     the page gets clearance under its content — but only the pages that
+     actually carry the button, which is why this is a class on the document
+     rather than padding in one stylesheet. Cheap to re-check, so it rides
+     along with the same "what does the page look like now" pass. */
+  function markFloatingClearance() {
+    document.documentElement.classList.toggle('xp-has-float', !!document.querySelector('.xp-tb-float'));
+  }
+
+  function syncOverflowFades() {
+    markFloatingClearance();
+    var rows = document.querySelectorAll(FADE_ROWS);
+    for (var i = 0; i < rows.length; i++) markOverflow(rows[i]);
+  }
+
+  function watchOverflowFades() {
+    syncOverflowFades();
+    // One capturing listener on the document, not one per row. Scroll events
+    // do not bubble, but a capture-phase listener still receives them from
+    // every scroller under the document — including the rows that do not exist
+    // yet. The first version bound directly to the elements it found at mount,
+    // and the list toolbar rebuilds its facet row as soon as the catalogue
+    // arrives, so from that moment the fade was frozen at "start" (measured,
+    // then fixed).
+    document.addEventListener('scroll', function (e) {
+      var el = e.target;
+      if (!el || el.nodeType !== 1 || !el.matches(FADE_ROWS)) return;
+      if (el.__xpFadeQueued) return;
+      el.__xpFadeQueued = true;
+      requestAnimationFrame(function () { el.__xpFadeQueued = false; markOverflow(el); });
+    }, true);
+    window.addEventListener('resize', function () {
+      if (window.__xpFadeResizeQueued) return;
+      window.__xpFadeResizeQueued = true;
+      requestAnimationFrame(function () { window.__xpFadeResizeQueued = false; syncOverflowFades(); });
+    }, { passive: true });
+  }
+
+  function watchStickyOffset() {
+    var queued = false;
+    var schedule = function () {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; measureStickyOffset(); syncOverflowFades(); });
+    };
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule, { passive: true });
+    measureStickyOffset();
+    watchOverflowFades();
+    return schedule;
+  }
+
   /* -------------------------------------------------- instrumentation -----
      Same local, capped buffers the site has always used (docs/
      INSTRUMENTATION.md, `__mp_` keys reserved for exactly this). A search that
@@ -204,26 +310,42 @@
     var catOptions = '<option value="">All categories</option>' + categoryCounts.map(function (c) {
       return '<option value="' + esc(c.name) + '">' + esc(c.name) + ' (' + c.count + ')</option>';
     }).join('');
+    /* One toolbar, three groups: what you are looking for (search), which slice
+       of the catalogue you are looking at (category, sort, density), and what
+       the list is telling you (count, toolbox). It used to be a single
+       flex-wrap line of nine controls, which on a 320 px phone became 238 px
+       of the first screen — five rows before the first tool. */
     return '' +
+      '<div class="xp-bar-top">' +
       '<div class="xp-field">' +
-      '<input id="xp-input" type="search" autocomplete="off" placeholder="Filter ' + state.rows.length.toLocaleString('en-GB') + ' tools — name, task, or tag" aria-label="Filter tools" />' +
+      '<input id="xp-input" type="search" autocomplete="off" placeholder="Filter ' + state.rows.length.toLocaleString('en-GB') + ' tools…" aria-label="Filter tools" enterkeyhint="search" />' +
       '<button type="button" class="xp-clear" data-xp-clear aria-label="Clear filter">✕</button>' +
       '</div>' +
+      '<div class="xp-tools">' +
       (state.mode === 'json'
         ? '<select class="xp-select" id="xp-cat" aria-label="Category">' + catOptions + '</select>'
         : '') +
       '<select class="xp-select" id="xp-sort" aria-label="Sort">' + sorts.map(function (k) {
         return '<option value="' + k + '"' + (state.sort === k ? ' selected' : '') + '>' + SORTS[k] + '</option>';
       }).join('') + '</select>' +
-      '<div role="group" aria-label="Row density" style="display:flex;gap:4px;">' +
+      '<div class="xp-density" role="group" aria-label="Row density">' +
       '<button type="button" class="xp-btn" data-xp-density="comfortable" aria-pressed="false" title="Comfortable rows">Comfortable</button>' +
       '<button type="button" class="xp-btn" data-xp-density="compact" aria-pressed="false" title="Compact rows">Compact</button>' +
       '</div>' +
+      '<button type="button" class="xp-btn xp-gold" data-tb-open title="Open your toolbox (t)" aria-label="Open your toolbox">🧰<span class="tb-badge" data-toolbox-count></span></button>' +
+      '</div>' +
       '<span class="xp-count" id="xp-count" role="status" aria-live="polite" aria-atomic="true"></span>' +
-      '<button type="button" class="xp-btn xp-gold" data-tb-open title="Open your toolbox (t)">🧰 My toolbox<span class="tb-badge" data-toolbox-count></span></button>' +
+      '</div>' +
+      (state.mode === 'json'
+        ? '<div class="xp-facets" role="group" aria-label="Filter by category" data-xp-facets></div>'
+        : '') +
       '<p class="xp-hint">Keyboard: <kbd>/</kbd> search · <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>x</kbd> details · <kbd>b</kbd> add to toolbox · <kbd>Enter</kbd> open · <kbd>t</kbd> toolbox</p>';
   }
 
+  /* The category chips live *inside* the sticky bar, so a visitor scrolling
+     through 1,206 rows can still narrow them without scrolling back to the
+     top. (`[data-xp-facets]` is created by toolbarHTML for the JSON mode; the
+     static pages have a category of their own and no chips.) */
   function facetHTML() {
     if (state.mode !== 'json' || categoryCounts.length < 2) return '';
     var html = '<button type="button" class="xp-facet" data-xp-cat="" aria-pressed="' + (!state.cat) + '">All <span class="xp-facet-n">' + state.rows.length + '</span></button>';
@@ -232,7 +354,7 @@
       html += '<button type="button" class="xp-facet" data-xp-cat="' + esc(c.name) + '" aria-pressed="' + (state.cat === c.name) + '">' +
         esc(c.name) + ' <span class="xp-facet-n">' + c.count + '</span></button>';
     });
-    return '<div class="xp-facets" role="group" aria-label="Filter by category" data-xp-facets>' + html + '</div>';
+    return html;
   }
 
   /* ---------------------------------------------------------------- rows */
@@ -281,6 +403,7 @@
     if (els.input && els.input.value !== state.q) els.input.value = state.q;
     if (els.field) els.field.classList.toggle('xp-has-value', !!state.q);
     if (els.facets) els.facets.innerHTML = facetHTML();
+    syncOverflowFades();
     syncCatSelect();
     state.current = -1;
     syncToolboxButtons();
@@ -661,9 +784,15 @@
       els.empty = empty;
     }
 
-    var facets = document.createElement('div');
-    container.parentNode.insertBefore(facets, container);
-    els.facets = facets;
+    /* The category chips live *inside* the sticky bar (see toolbarHTML), not
+       beside it: they filter the list, so they have to stay reachable while
+       the visitor is reading it. `els.facets` is picked up after the bar is
+       rendered — for the static pages there are none, and the guards below
+       handle that.
+
+       Measuring the chrome the bar must clear does not wait for the catalogue
+       to land: what is above the list is in the served HTML. */
+    watchStickyOffset();
 
     // "Show more" is created when the page did not ship one. Static pages have
     // all their rows already, so only the JSON mode needs it.
@@ -687,7 +816,8 @@
           els.input = bar.querySelector('#xp-input');
           els.field = bar.querySelector('.xp-field');
           els.count = bar.querySelector('#xp-count');
-          els.facets.innerHTML = facetHTML();
+          els.facets = bar.querySelector('[data-xp-facets]');
+          if (els.facets) els.facets.innerHTML = facetHTML();
           applyFromUrl();
           wire();
           setDensity(savedDensity());
@@ -728,6 +858,7 @@
     els.input = bar.querySelector('#xp-input');
     els.field = bar.querySelector('.xp-field');
     els.count = bar.querySelector('#xp-count');
+    els.facets = bar.querySelector('[data-xp-facets]');
     applyFromUrl();
     wire();
     setDensity(savedDensity());
