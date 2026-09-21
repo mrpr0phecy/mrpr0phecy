@@ -1124,5 +1124,19 @@ products, built so the catalogue's tools can use it too.
   (`distance`, `measure`, `plusCode`, `sunTimes`, `parse`, `searchPlaces`).
   Nothing loads until a card asks, which matters because all 1,206 cards share
   one DOM.
-- Provenance, licences, the provider list, the offline matrix and the limits of
-  what CI can test are in `docs/MAPS.md`.
+- `maps/core/speed.js` and `maps/core/drive.js` are the driving layer: a
+  vehicle-aware speed-limit engine (OSM `maxspeed`/`maxspeed:type`, national
+  default tables per vehicle, the Welsh 20 mph default, every answer carrying
+  its basis) and a navigation session that runs entirely on the device
+  (progress, manoeuvres, off-route detection, ETA, breaks, sun glare, trip log,
+  GPX). Guidance consults no service once the route is loaded, so a dead spot,
+  a tunnel or a border costs nothing.
+- `MM.providers.driveRoute` adds Valhalla to the routing chain for the Drive
+  tab (vehicle dimensions, avoid preferences, alternatives), with the OSRM
+  chain behind it and a labelled straight line behind that. Speed limits come
+  from Overpass, traffic only from a key-free feed that exists (TfL, London),
+  weather from Open-Meteo at the hour you reach each sampled point. Where no
+  key-free feed exists the page says so rather than estimating: national
+  timings are labelled free-flow everywhere outside London.
+- Provenance, licences, the provider list, the driving layering, the offline
+  matrix and the limits of what CI can test are in `docs/MAPS.md`.

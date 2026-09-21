@@ -62,7 +62,11 @@ went wrong" state.
 |---|---|---|---|
 | Basemap tiles | OpenFreeMap (`tiles.openfreemap.org`) | OpenStreetMap, ODbL | when the live map loads |
 | Place search | Photon (`photon.komoot.io`), then Nominatim | OpenStreetMap, ODbL | when you search, if online |
-| Road routing | FOSSGIS (`routing.openstreetmap.de`), then the OSRM demo server | OpenStreetMap, ODbL | when you ask for a route |
+| Road routing (Route tab) | FOSSGIS (`routing.openstreetmap.de`), then the OSRM demo server | OpenStreetMap, ODbL | when you ask for a route |
+| Driving routes (Drive tab) | FOSSGIS Valhalla (`valhalla1.openstreetmap.de`), then the above | OpenStreetMap, ODbL | when you plan a drive or replan |
+| Speed limits along a route | Overpass API (`overpass-api.de`) | OpenStreetMap, ODbL | when you plan a drive (chunked, ≤400 sampled points per query) |
+| Live traffic | TfL Unified API (`api.tfl.gov.uk`), road disruptions | TfL Open Data | when a drive touches Greater London |
+| Weather at arrival time | Open-Meteo (`api.open-meteo.com`) | CC BY 4.0 | when you plan a drive (≤40 sampled points, one call) |
 | Nearby places | Overpass API (`overpass-api.de`, then `overpass.kumi.systems`) | OpenStreetMap, ODbL | when you press Find nearby |
 | Elevation | OpenTopoData `srtm90m` | SRTM, public domain (NASA/USGS) | when a route is drawn |
 | Nearby articles | Wikipedia GeoSearch | CC BY-SA 4.0 | when a place is selected |
@@ -71,7 +75,11 @@ went wrong" state.
 | Time zones | `tz-lookup` | CC0 | never — shipped in `maps/vendor/` |
 
 `maps/data/SOURCES.json` records the exact package versions and SHA-256 hashes of
-the inputs, and the bytes/rows/hashes of the generated outputs. Attribution is
+the inputs, the bytes/rows/hashes of the generated outputs, and every live
+service with its licence and whether it needs a key (`live_services`). It is
+written by `scripts/build-maps-data.js` — `--provenance` refreshes it from the
+committed files alone, which is how the live-service list is kept honest
+without the upstream packages to hand. Attribution is
 shown in the map corner, in the Info panel, and on the card.
 
 **Public instances are shared infrastructure.** `maps/providers.js` enforces a
@@ -80,22 +88,100 @@ request, and never fires anything without a user action. If this page ever gets
 real traffic, self-host (Photon, OSRM, Overpass and OpenFreeMap are all
 self-hostable) rather than leaning harder on the volunteers.
 
-## 4. Privacy
+## 4. Driving
 
-- No accounts, no cookies, no local storage, no analytics property on
-  `maps.html` (the site's analytics footprint is frozen — see CONSTRAINTS.md).
+The Drive tab is the part aimed at a specific job: the drive itself. It is
+built so that the things a driver actually needs are correct, labelled, and
+available when the signal is not.
+
+**Restricted roads and variable limits.** Speed limits are not one number per
+road. In the UK the national limits depend on the vehicle as well as the road:
+a car may do 60 mph on a single carriageway, the same car towing a caravan may
+do 50, and a lorry over 7.5 t is limited to 40 in Scotland and Northern Ireland.
+Wales has defaulted restricted roads to 20 mph since September 2023; England,
+Scotland and Northern Ireland are still 30. `maps/core/speed.js` encodes those
+tables, and every limit it returns carries its **basis** — `signed` when a
+mapper recorded it, `national` or `built-up default` when it comes from the
+country's own rules, `assumed single carriageway` when the geometry is unknown,
+and `unknown` when we genuinely do not know. Countries whose limits vary by
+state or province (the US, Canada, Australia…) return no number at all rather
+than an invented one.
+
+**Routes that know what you are driving.** `MM.providers.driveRoute` asks
+Valhalla, which takes a costing and real dimensions: a caravan can be routed
+around a low bridge, an HGV gets `use_tolls`, `hazmat` and weight options, and
+"avoid motorways, tolls, ferries or unpaved" are honoured through
+`costing_options`. If Valhalla is unreachable the OSRM chain answers instead and
+the panel says the route is no longer vehicle-aware; if everything is
+unreachable, the panel shows the straight-line distance, explicitly labelled as
+not a road route.
+
+**Traffic, honestly.** There is no key-free live traffic feed for the whole of
+the UK. National Highways publishes DATEX II closures behind a subscription key
+(and without CORS headers), so a static page cannot use it; most 511 APIs need
+free registration. What is genuinely free is TfL's road disruption feed for
+Greater London, so that is what the page uses, only when the route actually
+goes there, and everything else is labelled **free-flow** rather than dressed up
+as live. If the owner ever exports National Highways data with their own key,
+the page will read `maps/data/road-alerts.json` and show it with its timestamp.
+
+**Speed cameras.** Shown only for Great Britain and Ireland, where publishing
+fixed-camera locations is lawful and they are mapped for the purpose. Everywhere
+else the layer stays off and says why. The panel calls it what it is: an
+information layer, not a warning system.
+
+**Weather at the time you will be there.** Up to five points along the route are
+sampled and matched to the forecast hour you would reach each one. Rain, fog,
+snow, thunderstorms and strong gusts become plain-language warnings; the rows
+show temperature, chance of rain, wind and visibility.
+
+**Guidance that needs nothing.** `maps/core/drive.js` keeps the navigation loop
+on the device: progress along the route, off-route detection (45 m while moving,
+90 m when crawling, so GPS noise does not nag), a replan prompt after 12 seconds
+off route, the next manoeuvre, an ETA built from the router's own per-step
+timings, break reminders after a configurable period of continuous driving, sun
+glare windows from the route's heading and the sun's position, a trip recorder
+and a GPX export. Once the route and its limits are loaded, losing the network
+changes nothing — which is exactly when a driver needs it. Spoken prompts use
+the browser's own speech synthesis if it has one; nothing is downloaded.
+
+**What the driver sees.** The navigation overlay is a single glance: next
+manoeuvre, distance to it, the limit as a sign with its basis, the current speed
+turning red past the 10% + 2 mph enforcement threshold, progress, remaining time
+and ETA. It is not an `aria-live` alert region, because it updates constantly;
+the alert slot underneath is reserved for things that matter (off route, a
+break, arrival).
+
+**Tap-to-move.** Where a browser will not share a location, clicking the map
+moves the guidance along the route through exactly the same session code. It
+makes the feature testable in CI and usable on a desktop.
+
+## 5. Privacy
+
+- No accounts, no cookies, no analytics property on `maps.html` (the site's
+  analytics footprint is frozen — see CONSTRAINTS.md).
+- One thing is kept in this browser's local storage on `maps.html`: the drive
+  preferences (`mum-drive-prefs` — your vehicle, any dimensions, fuel figures,
+  break interval and layer switches). It never leaves the device, no service
+  ever sees it, and the Drive panel's details section has a **Forget my
+  settings** button that removes it.
 - Nothing is transmitted until the visitor asks for something that needs a
   service, and the Info panel lists exactly which service gets what: search
   words go to a geocoder, two endpoints go to a router, a radius and a point go
   to Overpass, sampled points go to OpenTopoData.
 - Geolocation is browser-only: the coordinates are used on the device and are
   never sent anywhere by this page.
+- A drive sends more than a search does, and only when you ask for one: the
+  route's shape goes to Overpass for the speed limits along it, five sampled
+  points go to Open-Meteo for the forecast, and a bounding box goes to TfL for
+  London disruption. Your position, your speed and your trip never leave the
+  device — guidance is computed from what is already loaded.
 - `check-egress.py` does not scan `maps/`, so the providers are classified here
   instead: the live services are class **C** (fetching open data is the
   feature), and the vendored libraries are class **B** shipped locally, not
   fetched from a CDN.
 
-## 5. What works offline
+## 6. What works offline
 
 | Feature | Offline behaviour |
 |---|---|
@@ -107,9 +193,14 @@ self-hostable) rather than leaning harder on the volunteers.
 | Sunrise/sunset/twilight/golden hour/moon | NOAA algorithms on the device |
 | Time zone and local time | tz-lookup on the device |
 | Route distance | straight-line fallback, labelled as a straight line |
+| Speed limits along a route | once loaded, every limit is held in memory and used by guidance |
+| Navigation, next manoeuvre, ETA | position + route + clock, all on the device |
+| Trip recording and GPX export | written in the browser; nothing uploaded |
+| Sun glare, break reminders | solar maths and your own driving time |
+| Live traffic, weather, stopping places, cameras | unavailable until asked for, and each panel says so |
 | Live streets, addresses, POIs, elevation, Wikipedia | unavailable, and the panel says so |
 
-## 6. Embedding it in a card
+## 7. Embedding it in a card
 
 ```html
 <div id="mycard-map" style="height:240px"></div>
@@ -140,7 +231,11 @@ The catalogue entry (`cards/mostusefulmaps.html`) is the worked example: an
 offline mini-map, two-point geodesic measurement, Plus Code output, geolocation,
 and a deep link into the full page.
 
-## 7. Testing
+A card that wants the driving maths rather than the page can load
+`maps/core/speed.js` and `maps/core/drive.js` itself: the limit engine and the
+session are plain globals on `MM`, with no DOM and no fetching inside them.
+
+## 8. Testing
 
 `scripts/tests/maps-core.test.js` runs in the normal `npm test` /
 `npm run verify:deep` suite (no dependencies, plain `node --test`). It covers:
@@ -154,17 +249,28 @@ and a deep link into the full page.
 - sun times, phases and moon phase;
 - the offline gazetteer's ranking, folding and interpretation;
 - country lookup through the vendored TopoJSON;
+- the driving engine: OSM `maxspeed` parsing including the UK's `maxspeed:type`
+  vocabulary, vehicle-specific national limits (car, caravan, van, motorhome,
+  HGV), the Welsh 20 mph default, time-conditional limits, the 10% + 2 mph
+  over-limit threshold, session progress and off-route/replan behaviour, sun
+  glare against a known sun position, the OSM-way-to-route speed-limit join and
+  its coverage figure, trip maths and GPX export;
+- the driving providers: Valhalla polyline decoding and costing options,
+  weather read at the hour you would arrive (against a stubbed response), and
+  traffic that reports a labelled absence outside London rather than inventing
+  a delay;
 - and a set of page-contract tests: every `maps/*.js` parses, every file
   `maps.html` loads exists, every element `maps/app.js` looks up is defined,
-  and `maps.html` carries no analytics or tracker.
+  the driving scripts load in dependency order, the navigation overlay exists
+  and starts hidden, and `maps.html` carries no analytics or tracker.
 
 What is **not** covered by CI, because the sandbox and CI have no general
-network access: the live tile servers, the geocoders, the routers, Overpass and
-OpenTopoData. Those paths were written against their documented APIs and are
+network access: the live tile servers, the geocoders, the routers (including
+Valhalla), Overpass, OpenTopoData, TfL and Open-Meteo. Those paths were written against their documented APIs and are
 exercised in the browser; if a service changes shape, `maps/providers.js` is the
 single place to fix it, and every one of them degrades to an offline answer.
 
-## 8. Deliberate omissions
+## 9. Deliberate omissions
 
 - **Satellite imagery.** The good open option (Sentinel-2 cloudless by EOX) is
   licensed non-commercially, which does not fit a site with donations and
@@ -176,7 +282,7 @@ single place to fix it, and every one of them degrades to an offline answer.
 - **A service worker.** `sw.js` is still unregistered site-wide; adding offline
   caching is a separate decision (see the open questions in CONSTRAINTS.md).
 
-## 9. Regenerating the data
+## 10. Regenerating the data
 
 ```bash
 node scripts/build-maps-data.js --check      # CI-safe: verifies hashes and shapes

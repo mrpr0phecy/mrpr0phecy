@@ -20,7 +20,7 @@
   var doc = root.document;
   var MM = null;
 
-  var PANELS = ['place', 'route', 'measure', 'nearby', 'info'];
+  var PANELS = ['place', 'route', 'drive', 'measure', 'nearby', 'info'];
 
   var state = {
     center: { lat: 51.8797, lon: -0.4175 },
@@ -49,6 +49,33 @@
   var suggestIndex = -1;
   var suggestions = [];
   var lastRoutePoints = null;
+
+  /**
+   * The driving companion's own state. Kept apart from `state` because most of
+   * it is about one drive in progress: the vehicle, the speed-limit profile, the
+   * live layers that have answered, and the guidance session when it is running.
+   */
+  var drive = {
+    prefs: null,
+    route: null,
+    from: null,
+    to: null,
+    limits: null,
+    layers: { traffic: null, weather: null, stops: null, cameras: null },
+    session: null,
+    watchId: null,
+    tapToMove: false,
+    markers: [],
+    overlays: { traffic: true, weather: true, stops: true, cameras: true, limits: true },
+    replanning: false,
+    // Panel nodes this module creates itself. They are kept here rather than
+    // looked up by id, so a re-render can never pick up a stale copy.
+    nodes: { cost: null, sections: null, bodies: {} },
+    stopsOrdered: null,
+    consumeFix: null,
+  };
+
+  var DRIVE_PREFS_KEY = 'mum-drive-prefs';
 
   // ------------------------------------------------------------------ utils
 
@@ -165,6 +192,16 @@
       styleSelect: $('mm-style'), unitsSelect: $('mm-units'), themeButton: $('mm-theme-toggle'),
       measureToggle: $('mm-measure-toggle'), clearButton: $('mm-clear'), shareButton: $('mm-share'),
       locateButton: $('mm-locate'), railToggle: $('mm-rail-toggle'),
+      driveBody: $('mm-drive-body'), driveForm: $('mm-drive-form'), driveFrom: $('mm-drive-from'), driveTo: $('mm-drive-to'),
+      driveVehicle: $('mm-drive-vehicle'), driveVehicleNote: $('mm-drive-vehicle-note'), driveDims: $('mm-drive-dims'),
+      driveHeight: $('mm-drive-height'), driveWidth: $('mm-drive-width'), driveLength: $('mm-drive-length'), driveWeight: $('mm-drive-weight'),
+      driveConsumption: $('mm-drive-consumption'), drivePrice: $('mm-drive-price'), driveBreak: $('mm-drive-break'),
+      driveSources: $('mm-drive-sources'), driveLocate: $('mm-drive-locate'), driveSwap: $('mm-drive-swap'), driveForget: $('mm-drive-forget'),
+      nav: $('mm-nav'), navDistance: $('mm-nav-distance'), navInstruction: $('mm-nav-instruction'), navIcon: $('mm-nav-icon'),
+      navLimitValue: $('mm-nav-limit-value'), navLimitUnit: $('mm-nav-limit-unit'),
+      navCurrentValue: $('mm-nav-current-value'), navCurrentUnit: $('mm-nav-current-unit'), navCurrentBox: $('mm-nav-current-box'),
+      navProgress: $('mm-nav-progress'), navRemaining: $('mm-nav-remaining'), navEta: $('mm-nav-eta'),
+      navReplan: $('mm-nav-replan'), navStop: $('mm-nav-stop'), navAlert: $('mm-nav-alert'),
     };
 
     if (root.topojson) MM.topojson = root.topojson;
@@ -176,6 +213,7 @@
     bindTabs();
     bindTopbar();
     bindRoute();
+    bindDrive();
     bindMeasure();
     bindNearby();
     bindInfo();
@@ -426,6 +464,7 @@
       params.push('from=' + lastRoutePoints.from.lat.toFixed(5) + ',' + lastRoutePoints.from.lon.toFixed(5));
       params.push('to=' + lastRoutePoints.to.lat.toFixed(5) + ',' + lastRoutePoints.to.lon.toFixed(5));
       params.push('mode=' + state.route.mode);
+      if (drive.prefs && drive.prefs.vehicle && drive.prefs.vehicle !== 'car') params.push('v=' + drive.prefs.vehicle);
     }
     return base + '?' + params.join('&');
   }
@@ -458,6 +497,15 @@
     state.pendingQuery = params.get('q') || null;
     var from = params.get('from'), to = params.get('to');
     if (from && to) state.pendingRoute = { from: from, to: to, mode: params.get('mode') || 'car' };
+    var vehicle = params.get('v');
+    if (vehicle && MM.speed) {
+      var known = MM.speed.VEHICLES.some(function (entry) { return entry.id === vehicle; });
+      if (known) {
+        loadDrivePrefs();
+        drive.prefs.vehicle = vehicle;
+        saveDrivePrefs();
+      }
+    }
   }
 
   /** Offline matches first (instant), live geocoder results when they arrive. */
@@ -828,16 +876,7 @@
 
     if (route.geometry) {
       map.setPath(route.geometry);
-      if (live && live.map && live.map.getSource) {
-        try {
-          var data = { type: 'Feature', geometry: { type: 'LineString', coordinates: route.geometry }, properties: {} };
-          if (live.map.getSource('mm-route')) live.map.getSource('mm-route').setData(data);
-          else {
-            live.map.addSource('mm-route', { type: 'geojson', data: data });
-            live.map.addLayer({ id: 'mm-route-line', type: 'line', source: 'mm-route', paint: { 'line-color': '#2dd4ff', 'line-width': 5, 'line-opacity': 0.9 } });
-          }
-        } catch (error) { /* style reload in progress */ }
-      }
+      drawLiveRoute(route.geometry);
     }
 
     if (route.steps && route.steps.length) {
@@ -885,14 +924,34 @@
     }
   }
 
+  /** The route, on the live basemap as well as the offline one. */
+  function drawLiveRoute(geometry) {
+    if (!geometry || !live || !live.map || !live.map.getSource) return;
+    try {
+      var data = { type: 'Feature', geometry: { type: 'LineString', coordinates: geometry }, properties: {} };
+      if (live.map.getSource('mm-route')) live.map.getSource('mm-route').setData(data);
+      else {
+        live.map.addSource('mm-route', { type: 'geojson', data: data });
+        live.map.addLayer({ id: 'mm-route-line', type: 'line', source: 'mm-route', paint: { 'line-color': '#2dd4ff', 'line-width': 5, 'line-opacity': 0.9 } });
+      }
+    } catch (error) { /* a style reload is in progress; the canvas renderer still has it */ }
+  }
+
   function iconFor(step) {
     var type = (step.instruction || '').toLowerCase();
+    var modifier = String(step.modifier || '').toLowerCase();
+    if (modifier === 'arrive') return '🏁';
+    if (modifier.indexOf('roundabout') >= 0) return '🔄';
+    if (modifier.indexOf('sharp right') >= 0 || modifier.indexOf('u-turn right') >= 0) return '↪️';
+    if (modifier.indexOf('sharp left') >= 0 || modifier.indexOf('u-turn left') >= 0) return '↩️';
+    if (modifier.indexOf('slight right') >= 0 || modifier === 'keep right' || modifier === 'exit right') return '↗️';
+    if (modifier.indexOf('slight left') >= 0 || modifier === 'keep left' || modifier === 'exit left') return '↖️';
     if (type.indexOf('roundabout') >= 0) return '🔄';
     if (type.indexOf('arrive') >= 0) return '🏁';
     if (type.indexOf('depart') >= 0) return '🚩';
     if (type.indexOf('merge') >= 0) return '⤵️';
-    if (step.modifier === 'left') return '⬅️';
-    if (step.modifier === 'right') return '➡️';
+    if (modifier.indexOf('left') >= 0) return '⬅️';
+    if (modifier.indexOf('right') >= 0) return '➡️';
     return '⬆️';
   }
 
@@ -1030,6 +1089,7 @@
   }
 
   function onMapClick(payload) {
+    if (driveTapToMove(payload.point)) return;
     var point = payload.point;
     if (state.measuring) {
       var first = state.measure[0];
@@ -1293,6 +1353,24 @@
     overpass.appendChild(make('span', 'mm-src-name', 'Nearby places: Overpass API'));
     overpass.appendChild(make('span', 'mm-src-meta', 'OpenStreetMap · ODbL'));
     list.appendChild(overpass);
+    if (providers.driving) {
+      var driving = make('li');
+      driving.appendChild(make('span', 'mm-src-name', 'Driving routes: ' + providers.driving.name));
+      driving.appendChild(make('span', 'mm-src-meta', 'OpenStreetMap · ODbL · vehicle sizes and limits'));
+      list.appendChild(driving);
+    }
+    if (providers.traffic) {
+      var traffic = make('li');
+      traffic.appendChild(make('span', 'mm-src-name', 'Live traffic: ' + providers.traffic.name));
+      traffic.appendChild(make('span', 'mm-src-meta', providers.traffic.coverage + ' · ' + providers.traffic.licence));
+      list.appendChild(traffic);
+    }
+    if (providers.weather) {
+      var weather = make('li');
+      weather.appendChild(make('span', 'mm-src-name', 'Weather: ' + providers.weather.name));
+      weather.appendChild(make('span', 'mm-src-meta', providers.weather.licence));
+      list.appendChild(weather);
+    }
     var elevation = make('li');
     elevation.appendChild(make('span', 'mm-src-name', 'Elevation: OpenTopoData'));
     elevation.appendChild(make('span', 'mm-src-meta', 'SRTM 90 m · public domain'));
@@ -1312,6 +1390,7 @@
     box.appendChild(list);
 
     box.appendChild(make('h2', null, 'What leaves your device'));
+    box.appendChild(make('p', null, 'Driving is the one place where more than a pair of points can leave the device, and only when you ask for it: the route’s shape goes to OpenStreetMap’s Overpass API to fetch the speed limits along it, five sampled points go to Open-Meteo for the forecast, and a bounding box goes to TfL for live disruption in London. Your speed, your position and your trip never leave: guidance runs entirely on this device, from data already loaded.'));
     box.appendChild(make('p', null, 'Your location is never sent anywhere. When you search online, the words you typed go to Photon or Nominatim (OpenStreetMap) to find the place. When you ask for a route, the two endpoints go to an open routing service. Nearby places send a radius and a point to Overpass. Elevations send the sampled points to OpenTopoData. Nothing else is transmitted, there is no account, and nothing is stored in cookies — your units, theme and style live only in this browser tab.'));
     box.appendChild(make('p', null, 'The basemap tiles are fetched from OpenFreeMap, which is what makes the streets appear. Turn the live map off and the page still works, offline, at world and country level.'));
     box.appendChild(make('p', null, 'These are volunteer-run public services with fair-use policies. If this page ever gets busy, the right move is to self-host them — docs/MAPS.md explains how.'));
@@ -1325,6 +1404,9 @@
       ['Plus Codes and OS grid references', 'full encoder and decoder, on your device'],
       ['Sunrise, sunset, twilight, moon', 'NOAA solar algorithm, on your device'],
       ['Time zone and local time', 'tz-lookup data, on your device'],
+      ['Speed limits while driving', 'every limit loaded along the route, kept on the device'],
+      ['Navigation, ETA and trip log', 'position, route and clock only — no service is consulted'],
+      ['Sun in your eyes and break reminders', 'solar maths and your own driving time, on the device'],
     ].forEach(function (pair) {
       var li = make('li');
       li.appendChild(make('span', 'mm-src-name', pair[0]));
@@ -1358,6 +1440,1110 @@
 
   // --------------------------------------------------------------- panels
 
+  // ------------------------------------------------------------------ drive
+
+  /**
+   * Everything the driving companion needs to know about you, remembered on
+   * this device only (localStorage, no server, no analytics).
+   */
+  function defaultPrefs() {
+    return {
+      vehicle: 'car',
+      avoidMotorways: false,
+      avoidTolls: false,
+      avoidFerries: false,
+      avoidUnpaved: false,
+      heightMetres: null,
+      widthMetres: null,
+      lengthMetres: null,
+      weightTonnes: null,
+      consumptionPer100: 7,
+      pricePerLitre: 1.51,
+      breakEveryMinutes: 120,
+    };
+  }
+
+  function loadDrivePrefs() {
+    var prefs = defaultPrefs();
+    try {
+      var stored = root.localStorage && root.localStorage.getItem(DRIVE_PREFS_KEY);
+      if (stored) {
+        var parsed = JSON.parse(stored);
+        Object.keys(prefs).forEach(function (key) {
+          if (parsed[key] != null) prefs[key] = parsed[key];
+        });
+      }
+    } catch (error) { /* a blocked store must never stop the map */ }
+    drive.prefs = prefs;
+    return prefs;
+  }
+
+  function saveDrivePrefs() {
+    try {
+      if (root.localStorage) root.localStorage.setItem(DRIVE_PREFS_KEY, JSON.stringify(drive.prefs));
+    } catch (error) { /* private mode, quota, whatever: not worth a message */ }
+  }
+
+  /** Valhalla's options for the chosen vehicle, from the panel's own controls. */
+  function driveOptions() {
+    var prefs = drive.prefs;
+    var vehicle = prefs.vehicle;
+    var heavy = vehicle === 'hgv' || vehicle === 'motorhome' || vehicle === 'caravan';
+    return {
+      vehicle: vehicle,
+      avoidMotorways: !!prefs.avoidMotorways,
+      avoidTolls: !!prefs.avoidTolls,
+      avoidFerries: !!prefs.avoidFerries,
+      avoidUnpaved: !!prefs.avoidUnpaved,
+      heightMetres: heavy && prefs.heightMetres ? prefs.heightMetres : null,
+      widthMetres: heavy && prefs.widthMetres ? prefs.widthMetres : null,
+      lengthMetres: heavy && prefs.lengthMetres ? prefs.lengthMetres : null,
+      weightTonnes: heavy && prefs.weightTonnes ? prefs.weightTonnes : null,
+      alternates: 2,
+    };
+  }
+
+  function bindDrive() {
+    if (!els.driveBody) return;
+    loadDrivePrefs();
+
+    if (els.driveVehicle) {
+      els.driveVehicle.value = drive.prefs.vehicle;
+      els.driveVehicle.addEventListener('change', function () {
+        drive.prefs.vehicle = els.driveVehicle.value;
+        saveDrivePrefs();
+        updateVehicleNote();
+        if (drive.route) planDrive();
+      });
+    }
+    updateVehicleNote();
+
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-avoid]'), function (button) {
+      var key = button.getAttribute('data-mm-avoid');
+      var map = { motorways: 'avoidMotorways', tolls: 'avoidTolls', ferries: 'avoidFerries', unpaved: 'avoidUnpaved' };
+      button.setAttribute('aria-pressed', String(!!drive.prefs[map[key]]));
+      button.addEventListener('click', function () {
+        drive.prefs[map[key]] = !drive.prefs[map[key]];
+        button.setAttribute('aria-pressed', String(drive.prefs[map[key]]));
+        saveDrivePrefs();
+        if (drive.route) planDrive();
+      });
+    });
+
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-layer]'), function (button) {
+      var key = button.getAttribute('data-mm-layer');
+      button.setAttribute('aria-pressed', String(drive.overlays[key] !== false));
+      button.addEventListener('click', function () {
+        drive.overlays[key] = !drive.overlays[key];
+        button.setAttribute('aria-pressed', String(drive.overlays[key]));
+        paintDriveMarkers();
+      });
+    });
+
+    ['heightMetres', 'widthMetres', 'lengthMetres', 'weightTonnes'].forEach(function (key, index) {
+      var field = [els.driveHeight, els.driveWidth, els.driveLength, els.driveWeight][index];
+      if (!field) return;
+      if (drive.prefs[key]) field.value = drive.prefs[key];
+      field.addEventListener('change', function () {
+        var value = parseFloat(field.value);
+        drive.prefs[key] = isFinite(value) && value > 0 ? value : null;
+        saveDrivePrefs();
+      });
+    });
+
+    if (els.driveConsumption) {
+      els.driveConsumption.value = drive.prefs.consumptionPer100;
+      els.driveConsumption.addEventListener('change', function () {
+        var value = parseFloat(els.driveConsumption.value);
+        drive.prefs.consumptionPer100 = isFinite(value) && value > 0 ? value : 7;
+        saveDrivePrefs();
+        if (drive.route) renderDriveCost(drive.route.distanceKm, drive.route.durationMinutes);
+      });
+    }
+    if (els.drivePrice) {
+      els.drivePrice.value = drive.prefs.pricePerLitre;
+      els.drivePrice.addEventListener('change', function () {
+        var value = parseFloat(els.drivePrice.value);
+        drive.prefs.pricePerLitre = isFinite(value) && value > 0 ? value : 1.51;
+        saveDrivePrefs();
+        if (drive.route) renderDriveCost(drive.route.distanceKm, drive.route.durationMinutes);
+      });
+    }
+    if (els.driveBreak) {
+      els.driveBreak.value = String(drive.prefs.breakEveryMinutes);
+      els.driveBreak.addEventListener('change', function () {
+        drive.prefs.breakEveryMinutes = parseInt(els.driveBreak.value, 10) || 0;
+        saveDrivePrefs();
+        if (drive.session) drive.session.breakEveryMinutes = drive.prefs.breakEveryMinutes || Infinity;
+      });
+    }
+
+    if (els.driveForm) {
+      els.driveForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        planDrive();
+      });
+    }
+    if (els.driveLocate) {
+      els.driveLocate.addEventListener('click', function () {
+        useMyLocationAsStart(els.driveFrom);
+      });
+    }
+    if (els.driveSwap) {
+      els.driveSwap.addEventListener('click', function () {
+        var from = els.driveFrom.value;
+        els.driveFrom.value = els.driveTo.value;
+        els.driveTo.value = from;
+        if (drive.route) planDrive();
+      });
+    }
+    if (els.driveForget) {
+      els.driveForget.addEventListener('click', function () {
+        try {
+          if (root.localStorage) root.localStorage.removeItem(DRIVE_PREFS_KEY);
+        } catch (error) { /* nothing to do */ }
+        loadDrivePrefs();
+        drive.prefs = defaultPrefs();
+        if (els.driveVehicle) els.driveVehicle.value = drive.prefs.vehicle;
+        [els.driveHeight, els.driveWidth, els.driveLength, els.driveWeight].forEach(function (field) { if (field) field.value = ''; });
+        if (els.driveConsumption) els.driveConsumption.value = drive.prefs.consumptionPer100;
+        if (els.drivePrice) els.drivePrice.value = drive.prefs.pricePerLitre;
+        if (els.driveBreak) els.driveBreak.value = String(drive.prefs.breakEveryMinutes);
+        Array.prototype.forEach.call(doc.querySelectorAll('[data-mm-avoid]'), function (button) { button.setAttribute('aria-pressed', 'false'); });
+        updateVehicleNote();
+        toast('Vehicle settings forgotten — this browser no longer has them.');
+      });
+    }
+    if (els.navStop) els.navStop.addEventListener('click', function () { stopGuidance(true); });
+    if (els.navReplan) {
+      els.navReplan.addEventListener('click', function () {
+        replanFromHere();
+      });
+    }
+
+    renderDriveSources();
+    fillDriveInputs();
+  }
+
+  function updateVehicleNote() {
+    if (!els.driveVehicleNote) return;
+    var info = MM.speed.vehicleInfo(drive.prefs.vehicle);
+    els.driveVehicleNote.textContent = info.note;
+    var heavy = drive.prefs.vehicle === 'hgv' || drive.prefs.vehicle === 'caravan' || drive.prefs.vehicle === 'motorhome';
+    if (els.driveDims) els.driveDims.hidden = !heavy;
+  }
+
+  function fillDriveInputs() {
+    if (els.driveFrom && !els.driveFrom.value && els.fromField && els.fromField.value) els.driveFrom.value = els.fromField.value;
+    if (els.driveTo && !els.driveTo.value) {
+      if (els.toField && els.toField.value) els.driveTo.value = els.toField.value;
+    }
+  }
+
+  function useMyLocationAsStart(field) {
+    if (!field) return;
+    if (!root.navigator || !root.navigator.geolocation) {
+      field.focus();
+      toast('This browser will not share a location — type a starting point instead.');
+      return;
+    }
+    toast('Finding you…');
+    root.navigator.geolocation.getCurrentPosition(function (fix) {
+      field.value = fix.coords.latitude.toFixed(5) + ', ' + fix.coords.longitude.toFixed(5);
+      if (drive.prefs && drive.prefs.vehicle) saveDrivePrefs();
+    }, function () {
+      toast('Location was refused. Type a starting point instead.');
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+  }
+
+  /** Resolve a drive endpoint, falling back to the route pane's own resolver. */
+  function resolveDriveEndpoint(text) {
+    if (!text || !String(text).trim()) return Promise.resolve(null);
+    return resolveEndpoint(String(text));
+  }
+
+  /**
+   * Plan a drive: vehicle-aware route, then the speed limits, then the live
+   * layers. Each stage paints as soon as it has something, so a slow or dead
+   * feed never holds up the route itself.
+   */
+  function planDrive() {
+    var body = els.driveBody;
+    if (!body) return;
+    var fromText = els.driveFrom ? els.driveFrom.value : '';
+    var toText = els.driveTo ? els.driveTo.value : '';
+    clear(body);
+    body.appendChild(make('p', 'mm-muted', 'Planning the drive…'));
+    Promise.all([resolveDriveEndpoint(fromText), resolveDriveEndpoint(toText)]).then(function (points) {
+      var from = points[0];
+      var to = points[1];
+      if (!from || !to) {
+        clear(body);
+        body.appendChild(make('p', 'mm-note warn', 'I could not work out one of those places. Try a town name, a postcode, “51.5074, -0.1278”, a Plus Code or an OS grid reference.'));
+        return;
+      }
+      drive.from = from;
+      drive.to = to;
+      // Keep the Route pane in step: two panels, one journey.
+      if (els.fromField) els.fromField.value = fromText;
+      if (els.toField) els.toField.value = toText;
+      state.routeMode = 'car';
+
+      map.setMarkers([
+        { lat: from.lat, lon: from.lon, label: 'Start: ' + (from.name || MM.geodesy.formatLatLon(from, null, 3)), colour: '#2dd4ff' },
+        { lat: to.lat, lon: to.lon, label: 'End: ' + (to.name || MM.geodesy.formatLatLon(to, null, 3)), colour: '#ffd400' },
+      ]);
+      map.fitBounds([from, to], { padding: 80 });
+      if (live && live.map) live.map.fitBounds([[from.lon, from.lat], [to.lon, to.lat]], { padding: 80, duration: 600 });
+
+      var started = Date.now();
+      return MM.providers.driveRoute(from, to, driveOptions()).then(function (route) {
+        route.requestMs = route.requestMs || (Date.now() - started);
+        drive.route = route;
+        if (route.geometry) {
+          map.setPath(route.geometry);
+          drawLiveRoute(route.geometry);
+        }
+        renderDriveRoute(route);
+        if (!route.straightLine && route.geometry && route.geometry.length > 1) enrichDrive(route);
+        return route;
+      });
+    }).catch(function (error) {
+      clear(body);
+      body.appendChild(make('p', 'mm-note bad', 'Planning failed: ' + error.message));
+    });
+  }
+
+  function renderDriveRoute(route) {
+    var body = els.driveBody;
+    clear(body);
+    var from = drive.from;
+    var to = drive.to;
+
+    if (route.straightLine) {
+      body.appendChild(make('p', 'mm-note bad', 'No driving router could be reached just now, so nothing here would be honest: this is the straight-line distance, not a road route. The map, the maths and the offline tools below still work.'));
+    }
+
+    var stats = make('div', 'mm-grid3');
+    stats.appendChild(statCard('Distance', fmtKm(route.distanceKm), route.straightLine ? 'as the crow flies' : 'by road'));
+    if (route.durationMinutes) {
+      stats.appendChild(statCard('Free-flow time', fmtDuration(route.durationMinutes), 'no traffic delay added'));
+    } else {
+      stats.appendChild(statCard('Time', '—', 'router gave no time'));
+    }
+    var arrival = route.durationMinutes ? new Date(Date.now() + route.durationMinutes * 60000) : null;
+    stats.appendChild(statCard('If you left now', arrival ? fmtTime(arrival) : '—', 'free-flow estimate'));
+    body.appendChild(stats);
+
+    if (route.degraded) {
+      body.appendChild(make('p', 'mm-note warn', (route.vehicleNote || 'The vehicle-aware router was unreachable, so this is a standard car route.') + ' (Valhalla said: ' + route.reason + ')'));
+    }
+    if (route.motorways === false && !route.straightLine) body.appendChild(make('p', 'mm-note', 'This route uses no motorways.'));
+    if (route.tolls) body.appendChild(make('p', 'mm-note', 'This route includes a toll road.'));
+
+    var dl = make('dl', 'mm-kv');
+    kvRow(dl, 'From', (from.name ? from.name + ' — ' : '') + MM.geodesy.formatLatLon(from, null, 4));
+    kvRow(dl, 'To', (to.name ? to.name + ' — ' : '') + MM.geodesy.formatLatLon(to, null, 4));
+    kvRow(dl, 'Vehicle', MM.speed.vehicleInfo(drive.prefs.vehicle).label);
+    if (route.provider) kvRow(dl, 'Routing', route.provider.name + ' · ' + route.provider.licence);
+    if (route.requestMs) kvRow(dl, 'Answered in', route.requestMs + ' ms');
+    if (route.motorways) kvRow(dl, 'Motorways', 'yes');
+    body.appendChild(dl);
+
+    // Alternatives: a real choice is the point of a routing engine.
+    if (route.simple && route.simple.length) {
+      var box = make('div', 'mm-drive-alt');
+      box.appendChild(make('h3', null, 'Other ways to go'));
+      route.simple.forEach(function (alternative, index) {
+        var row = make('button', 'mm-alt-row');
+        row.type = 'button';
+        var title = make('b', null, fmtKm(alternative.distanceKm));
+        var detail = make('span', 'mm-muted', fmtDuration(alternative.durationMinutes) + (alternative.tolls ? ' · tolls' : '') + (alternative.motorways === false ? ' · no motorways' : ''));
+        row.appendChild(title);
+        row.appendChild(detail);
+        row.addEventListener('click', function () {
+          // Alternates are a valid answer in their own right: show one, and say
+          // that the detailed layers belong to the route you originally asked
+          // for, so nothing gets mislabelled.
+          if (alternative.geometry) {
+            map.setPath(alternative.geometry);
+            drawLiveRoute(alternative.geometry);
+          }
+          toast('Showing alternative ' + (index + 1) + ' — ' + fmtKm(alternative.distanceKm) + ', ' + fmtDuration(alternative.durationMinutes) + '. The speed limits and live layers below describe the first route.');
+        });
+        box.appendChild(row);
+      });
+      body.appendChild(box);
+    }
+
+    var cost = make('div', null);
+    cost.id = 'mm-drive-cost';
+    body.appendChild(cost);
+    drive.nodes.cost = cost;
+    drive.nodes.bodies = {};
+    renderDriveCost(route.distanceKm, route.durationMinutes);
+
+    // Placeholders that fill in as the live layers answer.
+    var sections = make('div', null);
+    sections.id = 'mm-drive-sections';
+    body.appendChild(sections);
+    drive.nodes.sections = sections;
+    addDriveSection('limits', 'Speed limits', 'Checking the signed limits along the route…');
+    addDriveSection('traffic', 'Live traffic', 'Checking for live disruption…');
+    addDriveSection('weather', 'Weather when you get there', 'Checking the forecast along the route…');
+    addDriveSection('stops', 'Stops on the way', 'Looking for services and chargers…');
+    addDriveSection('cameras', 'Cameras', 'Checking for fixed cameras…');
+    addDriveSection('glare', 'Sun in your eyes', '');
+
+    var actions = make('div', 'mm-btn-row');
+    actions.style.marginTop = '10px';
+    var navigate = make('button', 'mm-btn primary', '🧭 Navigate');
+    navigate.type = 'button';
+    navigate.addEventListener('click', function () { startGuidance(); });
+    actions.appendChild(navigate);
+    var share = make('button', 'mm-btn ghost', 'Share this drive');
+    share.type = 'button';
+    share.addEventListener('click', function () { copyText(shareUrl(), 'Drive link copied'); });
+    actions.appendChild(share);
+    body.appendChild(actions);
+    body.appendChild(make('p', 'mm-muted', 'Routes: OpenStreetMap data via Valhalla (ODbL). Speed limits: OpenStreetMap via Overpass (ODbL). Weather: Open-Meteo (CC BY 4.0). Traffic: TfL Open Data. Nothing here is a substitute for the signs, signals or the road itself.'));
+
+    // Sun glare is computed offline, from the route's own heading and the sun.
+    if (drive.session) drive.session = null;
+    buildDriveSession(route);
+    renderGlare();
+  }
+
+  function addDriveSection(id, title, placeholder) {
+    var sections = drive.nodes.sections;
+    if (!sections) return null;
+    var box = make('section', 'mm-drive-section');
+    box.id = 'mm-drive-' + id;
+    box.appendChild(make('h3', null, title));
+    var bodyBox = make('div', 'mm-drive-section-body');
+    bodyBox.id = 'mm-drive-' + id + '-body';
+    if (placeholder) bodyBox.appendChild(make('p', 'mm-muted', placeholder));
+    box.appendChild(bodyBox);
+    sections.appendChild(box);
+    drive.nodes.bodies[id] = bodyBox;
+    return bodyBox;
+  }
+
+  function driveSectionBody(id) { return drive.nodes.bodies[id] || null; }
+
+  function renderDriveCost(distanceKm, durationMinutes) {
+    var host = drive.nodes.cost;
+    if (!host || distanceKm == null) return;
+    clear(host);
+    var cost = MM.drive.costEstimate(distanceKm, {
+      units: state.units,
+      litresPer100Km: drive.prefs.consumptionPer100,
+      pricePerLitre: drive.prefs.pricePerLitre,
+      currency: 'GBP',
+    });
+    var dl = make('dl', 'mm-kv');
+    kvRow(dl, 'Fuel for this drive', '≈ £' + cost.cost.toFixed(2) + ' (' + cost.litres.toFixed(1) + ' litres)');
+    kvRow(dl, 'Your figures', cost.basis);
+    if (durationMinutes) kvRow(dl, 'Arrive with', Math.round(durationMinutes) + ' minutes of driving done');
+    host.appendChild(dl);
+    host.appendChild(make('p', 'mm-muted', 'Your own consumption and price, never a market average dressed up as one.'));
+  }
+
+  /** The offline session: progress, manoeuvres, limits, breaks and glare. */
+  function buildDriveSession(route) {
+    if (!route || !route.geometry || route.geometry.length < 2) return null;
+    drive.session = MM.drive.createSession({
+      geometry: route.geometry,
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      steps: route.steps,
+      speedLimits: drive.limits ? drive.limits.segments : null,
+    }, {
+      vehicle: drive.prefs.vehicle,
+      units: state.units,
+      breakEveryMinutes: drive.prefs.breakEveryMinutes,
+    });
+    return drive.session;
+  }
+
+  /** Kick off every live layer: independent, labelled, and allowed to fail. */
+  function enrichDrive(route) {
+    var geometry = route.geometry;
+    var wants = drive.overlays;
+
+    if (wants.limits !== false) {
+      var current = driveSectionBody('limits');
+      var progress = make('p', 'mm-muted', 'Checking the signed limits along the route…');
+      if (current) { clear(current); current.appendChild(progress); }
+      MM.providers.speedLimitWays(geometry, {
+        onProgress: function (step) {
+          progress.textContent = 'Checking the signed limits along the route… (' + (step.done + 1) + ' of ' + step.total + ' stretches)';
+        },
+      }).then(function (result) {
+        if (!result.ways.length) {
+          if (current) {
+            clear(current);
+            current.appendChild(make('p', 'mm-note warn', 'OpenStreetMap had no speed-limit data along this route just now'
+              + (result.failures.length ? ' (Overpass reported: ' + result.failures[0] + ')' : '') + '. The limits below are country defaults for your vehicle, and say so.'));
+            renderCountryDefaults(route, result, current, true);
+          }
+          return null;
+        }
+        var limits = MM.drive.limitsFromWays(geometry, {
+          ways: result.ways,
+          spacingKm: 0.2,
+          matchRadiusMetres: 40,
+          vehicle: drive.prefs.vehicle,
+          countryAt: countryGuessAt,
+          urbanAt: urbanGuessAt,
+          scotlandOrNI: scotlandOrNIAt,
+        });
+        drive.limits = limits;
+        if (drive.session) drive.session.limits = MM.drive.normaliseLimits(limits.segments, limits.totalKm);
+        renderLimits(limits, result);
+        paintDriveMarkers();
+        return limits;
+      });
+    }
+
+    if (wants.traffic !== false) {
+      MM.providers.trafficAlong(geometry).then(function (traffic) {
+        drive.layers.traffic = traffic;
+        renderTraffic(traffic);
+        paintDriveMarkers();
+      });
+    } else {
+      renderTraffic(null);
+    }
+
+    if (wants.weather !== false) {
+      var samples = weatherSamples(route);
+      MM.providers.weatherAlong(samples, { startAt: new Date() }).then(function (weather) {
+        drive.layers.weather = weather;
+        renderWeather(weather, route);
+      });
+    } else {
+      renderWeather(null, route);
+    }
+
+    if (wants.stops !== false) {
+      MM.providers.stopsAlong(geometry, {}).then(function (stops) {
+        drive.layers.stops = stops;
+        renderStops(stops);
+        paintDriveMarkers();
+      });
+    } else {
+      renderStops(null);
+    }
+
+    if (wants.cameras !== false && camerasArePublishable(route)) {
+      MM.providers.camerasAlong(geometry, {}).then(function (cameras) {
+        drive.layers.cameras = cameras;
+        renderCameras(cameras);
+        paintDriveMarkers();
+      });
+    } else if (wants.cameras !== false) {
+      renderCameras(null, true);
+    } else {
+      renderCameras(null);
+    }
+  }
+
+  /**
+   * Fixed-camera locations are only published here for the countries where
+   * that is lawful and the community maps them deliberately: Great Britain and
+   * Ireland. Anywhere else the layer stays off and the panel says why.
+   */
+  function camerasArePublishable(route) {
+    var start = route.geometry && route.geometry[0];
+    if (!start) return false;
+    var cc = countryGuessAt(start[1], start[0]);
+    if (cc) return cc === 'GB' || cc === 'IE';
+    // The gazetteer and the country polygons both arrive later than the route
+    // does, so fall back to rough bounding boxes for the two countries this
+    // layer is allowed in. A route that is not in them simply keeps the layer
+    // off, which is the safe direction to be wrong in.
+    var lat = start[1];
+    var lon = start[0];
+    var greatBritain = lat > 49.8 && lat < 61.1 && lon > -8.3 && lon < 2.1 && lat < 61.1;
+    var ireland = lat > 51.3 && lat < 55.5 && lon > -10.7 && lon < -5.8;
+    return greatBritain || ireland;
+  }
+
+  /** Country at a point, from the offline gazetteer's nearest town. */
+  function countryGuessAt(lat, lon) {
+    if (!gazetteer || !gazetteer.cities || !gazetteer.cities.length) return null;
+    var nearest = MM.gazetteer.nearest({ lat: lat, lon: lon });
+    if (!nearest || nearest.km > 120) return null;
+    return nearest.row[3] || null;
+  }
+
+  /**
+   * Built-up area, without shipping a building-footprint dataset: within 6 km
+   * of a town of 5,000+ people. It is a proxy, and the panel says so wherever
+   * it is used to justify a 20 or 30 mph default.
+   */
+  function urbanGuessAt(lat, lon) {
+    if (!gazetteer || !gazetteer.cities || !gazetteer.cities.length) return false;
+    var nearby = MM.gazetteer.inBBox({ north: lat + 0.06, south: lat - 0.06, east: lon + 0.09, west: lon - 0.09 }, { minPopulation: 5000 });
+    if (!nearby || !nearby.length) return false;
+    for (var i = 0; i < nearby.length; i += 1) {
+      if (nearby[i].km != null && nearby[i].km < 6) return true;
+    }
+    return false;
+  }
+
+  function scotlandOrNIAt(lat, lon) {
+    var cc = countryGuessAt(lat, lon);
+    if (cc !== 'GB') return false;
+    if (lat > 54.6) return true; // Scotland, roughly
+    if (lon < -5.4 && lat > 54.0) return true; // Northern Ireland
+    return false;
+  }
+
+  function weatherSamples(route) {
+    var out = [];
+    var fractions = [0, 0.25, 0.5, 0.75, 1];
+    var total = route.distanceKm || 1;
+    var durationMinutes = route.durationMinutes || 0;
+    for (var i = 0; i < fractions.length; i += 1) {
+      var point = drive.session ? drive.session.atKm(total * fractions[i]) : null;
+      if (!point) continue;
+      out.push({ lat: point.lat, lon: point.lon, alongKm: total * fractions[i], etaMinutes: durationMinutes * fractions[i] });
+    }
+    return out;
+  }
+
+  // -------------------------------------------------------- speed limits UI
+
+  function limitColour(kph) {
+    if (kph == null) return '#7b8794';
+    if (kph >= 110) return '#3b82f6';
+    if (kph >= 90) return '#0ea5b7';
+    if (kph >= 60) return '#22c55e';
+    if (kph >= 45) return '#f59e0b';
+    return '#ef4757';
+  }
+
+  function renderLimits(limits, source) {
+    var host = driveSectionBody('limits');
+    if (!host) return;
+    clear(host);
+
+    var summary = MM.drive.limitSummary(limits.segments);
+    var dl = make('dl', 'mm-kv');
+    kvRow(dl, 'Limits matched from OSM', Math.round(limits.coverage * 100) + '% of the route');
+    kvRow(dl, 'Stretches', limits.segments.length + ' limit changes over ' + fmtKm(limits.totalKm));
+    kvRow(dl, 'Source', (source.provider ? source.provider.name : 'Overpass API') + ' · ' + (source.provider ? source.provider.licence : 'ODbL'));
+    host.appendChild(dl);
+
+    if (limits.coverage < 0.85) {
+      host.appendChild(make('p', 'mm-note warn', 'Only ' + Math.round(limits.coverage * 100) + '% of this route is covered by OSM speed-limit data. The gaps below are country defaults for your vehicle and are labelled as assumed — the signs on the road are the ones that count.'));
+    }
+
+    var list = make('ul', 'mm-limit-list');
+    summary.forEach(function (row) {
+      var item = make('li', 'mm-limit-row');
+      var sign = make('span', 'mm-limit-sign');
+      sign.style.borderColor = limitColour(row.kph);
+      sign.textContent = row.kph == null ? '?' : (state.units === 'imperial' || drive.prefs.vehicle ? Math.round(row.mph || MM.speed.kphToMph(row.kph)) : Math.round(row.kph));
+      item.appendChild(sign);
+      var text = make('span');
+      text.appendChild(make('b', null, fmtKm(row.km)));
+      text.appendChild(doc.createTextNode(' · ' + (row.signedKm > 0 ? fmtKm(row.signedKm) + ' signed' : '') + (row.assumedKm > 0 ? (row.signedKm > 0 ? ', ' : '') + fmtKm(row.assumedKm) + ' assumed' : '')));
+      item.appendChild(text);
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    host.appendChild(make('p', 'mm-muted', 'A “signed” stretch is one OpenStreetMap records a limit for. An “assumed” stretch uses the national default for that road type and your vehicle — which is why a car towing a caravan sees 50 mph where a car sees 60.'));
+
+    var profile = make('div', 'mm-limit-profile');
+    limits.segments.forEach(function (segment) {
+      var bar = make('span', 'mm-limit-seg');
+      bar.style.width = Math.max(0.4, ((segment.toKm - segment.fromKm) / limits.totalKm) * 100) + '%';
+      bar.style.background = limitColour(segment.kph);
+      bar.title = Math.round(segment.fromKm) + '–' + Math.round(segment.toKm) + ' km: ' + (segment.kph == null ? 'unknown' : MM.speed.formatLimit({ kph: segment.kph, unlimited: false }, state.units)) + ' (' + (segment.source === 'signed' ? 'signed' : segment.basis || 'assumed') + ')';
+      profile.appendChild(bar);
+    });
+    host.appendChild(profile);
+  }
+
+  function renderCountryDefaults(route, source, host, warn) {
+    // No OSM limits at all: still give the driver the country's own defaults,
+    // clearly marked, rather than an empty panel.
+    var samples = [];
+    var step = Math.max(1, Math.floor((route.geometry || []).length / 8));
+    for (var i = 0; i < (route.geometry || []).length; i += step) {
+      var coordinate = route.geometry[i];
+      samples.push({ lat: coordinate[1], lon: coordinate[0], km: (route.distanceKm || 0) * (i / Math.max(1, route.geometry.length - 1)) });
+    }
+    var list = make('ul', 'mm-limit-list');
+    samples.forEach(function (sample) {
+      var cc = countryGuessAt(sample.lat, sample.lon);
+      var urban = urbanGuessAt(sample.lat, sample.lon);
+      var limit = MM.speed.fromTags({ highway: urban ? 'residential' : 'secondary' }, {
+        country: cc, urban: urban, vehicle: drive.prefs.vehicle,
+        wales: cc === 'GB' && MM.drive.isWales(sample.lat, sample.lon),
+        scotlandOrNI: scotlandOrNIAt(sample.lat, sample.lon),
+      });
+      var item = make('li', 'mm-limit-row');
+      var sign = make('span', 'mm-limit-sign');
+      sign.style.borderColor = limitColour(limit.kph);
+      sign.textContent = limit.kph == null ? '?' : Math.round(MM.speed.kphToMph(limit.kph));
+      item.appendChild(sign);
+      item.appendChild(make('span', null, 'Around ' + Math.round(sample.km) + ' km: ' + MM.speed.formatLimit(limit, state.units) + ' · ' + MM.speed.basisLabel(limit) + (urban ? ' (built-up)' : '')));
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    host.appendChild(make('p', 'mm-muted', 'Country defaults for what you are driving. Built-up areas are inferred from the nearest town of 5,000+ people — a proxy, not a survey.'));
+  }
+
+  // ------------------------------------------------------------ live layers
+
+  function renderTraffic(traffic) {
+    var host = driveSectionBody('traffic');
+    if (!host) return;
+    clear(host);
+    if (!traffic) {
+      host.appendChild(make('p', 'mm-muted', 'Traffic layer switched off. Times shown are free-flow estimates from the router, not live traffic.'));
+      return;
+    }
+    if (traffic.error) {
+      host.appendChild(make('p', 'mm-note warn', 'TfL could not be reached, so no live traffic is shown. Nothing is being invented to fill the gap — the times here are the router’s free-flow estimate.'));
+      return;
+    }
+    if (traffic.coverage === 'none') {
+      host.appendChild(make('p', 'mm-note warn', traffic.note || 'No key-free live traffic feed covers this route.'));
+      host.appendChild(make('p', 'mm-muted', 'Free live traffic that needs no key is scarce: Transport for London publishes it for the capital, National Highways does not (their DATEX II feed needs a subscription key, and a key cannot be shipped to a browser). Speed limits, weather and guidance below are unaffected.'));
+      return;
+    }
+    var provider = traffic.provider ? traffic.provider.name + ' · ' + traffic.provider.licence + ' · ' + traffic.provider.home : 'TfL';
+    if (!traffic.events.length) {
+      host.appendChild(make('p', 'mm-note good', traffic.note || 'No disruption reported on this route right now.'));
+      host.appendChild(make('p', 'mm-muted', 'Coverage: ' + (traffic.coverage || 'unknown') + '. Source: ' + provider + '.'));
+      return;
+    }
+    host.appendChild(make('p', 'mm-note warn', traffic.events.length + ' live ' + (traffic.events.length === 1 ? 'disruption' : 'disruptions') + ' on or beside this route.'));
+    var list = make('ul', 'mm-event-list');
+    traffic.events.slice(0, 8).forEach(function (event) {
+      var item = make('li', 'mm-event-row');
+      item.appendChild(make('b', null, event.severityLabel ? event.severityLabel + ': ' : ''));
+      item.appendChild(doc.createTextNode(event.title));
+      if (event.alongKm != null) item.appendChild(make('span', 'mm-muted', ' · ' + Math.round(event.alongKm) + ' km along'));
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    host.appendChild(make('p', 'mm-muted', 'Coverage: ' + (traffic.coverage || 'unknown') + '. Source: ' + provider + '. Free-flow times elsewhere on this page do not include traffic delay.'));
+  }
+
+  function renderWeather(weather, route) {
+    var host = driveSectionBody('weather');
+    if (!host) return;
+    clear(host);
+    if (!weather) {
+      host.appendChild(make('p', 'mm-muted', 'Weather layer switched off.'));
+      return;
+    }
+    if (weather.error || !weather.points.length) {
+      host.appendChild(make('p', 'mm-note warn', 'The forecast could not be reached, so no weather is shown. The drive planning below does not depend on it.'));
+      return;
+    }
+    var warnings = [];
+    var windWarnings = [];
+    var seenWarnings = {};
+    function addWarning(bucket, text) {
+      if (seenWarnings[text]) return;
+      seenWarnings[text] = true;
+      bucket.push(text);
+    }
+    var list = make('ul', 'mm-weather-list');
+    weather.points.forEach(function (point) {
+      var description = weatherDescription(point.weatherCode);
+      var item = make('li', 'mm-weather-row');
+      var when = point.etaMinutes ? (point.etaMinutes < 60 ? Math.round(point.etaMinutes) + ' min in' : (point.etaMinutes / 60).toFixed(1) + ' h in') : 'now';
+      item.appendChild(make('b', null, 'At ' + Math.round(point.alongKm || 0) + ' km (' + when + ')'));
+      var details = [];
+      if (point.temperatureC != null) details.push(Math.round(point.temperatureC) + '°C');
+      if (description) details.push(description);
+      if (point.precipitationChance != null && point.precipitationChance >= 20) details.push(point.precipitationChance + '% chance of rain');
+      if (point.windKph != null) details.push('wind ' + Math.round(point.windKph) + ' km/h' + (point.gustKph != null ? ' gusting ' + Math.round(point.gustKph) : ''));
+      if (point.visibilityM != null && point.visibilityM < 2000) details.push('visibility ' + Math.round(point.visibilityM) + ' m');
+      item.appendChild(make('span', 'mm-muted', details.join(' · ')));
+      list.appendChild(item);
+      if (point.precipitationChance != null && point.precipitationChance >= 50) {
+        addWarning(warnings, 'rain likely ' + (point.etaMinutes > 60 ? (point.etaMinutes / 60).toFixed(1) + ' hours in' : 'within the hour') + ' around ' + Math.round(point.alongKm || 0) + ' km');
+      }
+      if (point.weatherCode != null && (point.weatherCode === 45 || point.weatherCode === 48)) addWarning(warnings, 'fog on the route');
+      if (point.weatherCode != null && (point.weatherCode === 71 || point.weatherCode === 73 || point.weatherCode === 75 || point.weatherCode === 85 || point.weatherCode === 86)) addWarning(warnings, 'snow on the route');
+      if (point.weatherCode != null && point.weatherCode >= 95) addWarning(warnings, 'thunderstorms on the route');
+      if (point.gustKph != null && point.gustKph >= 55) addWarning(windWarnings, 'strong gusts (' + Math.round(point.gustKph) + ' km/h)');
+      if (point.visibilityM != null && point.visibilityM < 1000) addWarning(warnings, 'low visibility');
+    });
+    host.appendChild(list);
+    var allWarnings = warnings.concat(windWarnings);
+    if (allWarnings.length) host.appendChild(make('p', 'mm-note warn', 'Worth knowing: ' + allWarnings.slice(0, 3).join('; ') + '.'));
+    host.appendChild(make('p', 'mm-muted', 'Open-Meteo (CC BY 4.0), sampled at five points along the route at the hour you would reach each one. Forecasts are forecasts.'));
+  }
+
+  function weatherDescription(code) {
+    if (code == null) return null;
+    var table = {
+      0: 'clear', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'fog', 48: 'freezing fog',
+      51: 'light drizzle', 53: 'drizzle', 55: 'heavy drizzle', 56: 'freezing drizzle', 57: 'freezing drizzle',
+      61: 'light rain', 63: 'rain', 65: 'heavy rain', 66: 'freezing rain', 67: 'freezing rain',
+      71: 'light snow', 73: 'snow', 75: 'heavy snow', 77: 'snow grains', 80: 'light showers', 81: 'showers',
+      82: 'heavy showers', 85: 'snow showers', 86: 'heavy snow showers', 95: 'thunderstorm', 96: 'thunderstorm with hail',
+      99: 'thunderstorm with heavy hail',
+    };
+    return table[code] || null;
+  }
+
+  function renderStops(stops) {
+    var host = driveSectionBody('stops');
+    if (!host) return;
+    clear(host);
+    if (!stops || stops.error || !stops.stops.length) {
+      host.appendChild(make('p', 'mm-muted', stops && stops.error ? 'OpenStreetMap’s Overpass API could not be reached, so no stops are listed.' : 'No services, fuel, chargers or loos are mapped within 1.5 km of this route.'));
+      return;
+    }
+    var session = drive.session;
+    var ordered = session ? MM.drive.orderStopsAlong(stops.stops, session) : stops.stops;
+    drive.stopsOrdered = ordered.slice(0, 40);
+    if (!ordered.length) {
+      host.appendChild(make('p', 'mm-muted', stops.stops.length + ' places are mapped within 1.5 km of the corridor, but none is within 2.5 km of the road itself — nothing worth a detour, so nothing is listed.'));
+      return;
+    }
+    var shown = ordered.slice(0, 8);
+    var list = make('ul', 'mm-event-list');
+    shown.forEach(function (stop) {
+      var item = make('li', 'mm-event-row');
+      item.appendChild(make('b', null, stop.name));
+      var detail = [stop.kind];
+      if (stop.facilities && stop.facilities.length) detail.push(stop.facilities.slice(0, 4).join(', '));
+      if (stop.alongKm != null) detail.push(Math.round(stop.alongKm) + ' km along, ' + (stop.detourKm * 1000 < 100 ? 'on the road' : Math.round(stop.detourKm * 1000) + ' m off it'));
+      item.appendChild(make('span', 'mm-muted', ' · ' + detail.join(' · ')));
+      item.addEventListener('click', function () {
+        focusPoint({ lat: stop.lat, lon: stop.lon }, 14);
+      });
+      item.style.cursor = 'pointer';
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    host.appendChild(make('p', 'mm-muted', ordered.length + ' stops mapped within 1.5 km of the route, ' + stops.provider.name + ' · ' + stops.provider.licence + '. Tap one to look at it.'));
+  }
+
+  function renderCameras(cameras, skipped) {
+    var host = driveSectionBody('cameras');
+    if (!host) return;
+    clear(host);
+    if (skipped) {
+      host.appendChild(make('p', 'mm-muted', 'Fixed camera locations are only shown for Great Britain and Ireland, where they are mapped for this purpose. Publishing them is restricted or ambiguous in other countries, so this layer stays off rather than guess.'));
+      return;
+    }
+    if (!cameras) {
+      host.appendChild(make('p', 'mm-muted', 'Camera layer switched off.'));
+      return;
+    }
+    if (cameras.error) {
+      host.appendChild(make('p', 'mm-muted', 'The camera check could not be reached.'));
+      return;
+    }
+    if (!cameras.cameras.length) {
+      host.appendChild(make('p', 'mm-note good', 'No fixed cameras mapped within 45 m of this route.'));
+      host.appendChild(make('p', 'mm-muted', 'OpenStreetMap community mapping, so absence is not proof of absence — and mobile, average-speed and red-light cameras are not all in the data.'));
+      return;
+    }
+    host.appendChild(make('p', 'mm-note warn', cameras.cameras.length + ' fixed ' + (cameras.cameras.length === 1 ? 'camera' : 'cameras') + ' mapped on or beside this route.'));
+    var list = make('ul', 'mm-event-list');
+    cameras.cameras.slice(0, 6).forEach(function (camera) {
+      var item = make('li', 'mm-event-row');
+      item.appendChild(make('b', null, '📷 ' + camera.type));
+      item.appendChild(make('span', 'mm-muted', ' · ' + MM.geodesy.formatLatLon({ lat: camera.lat, lon: camera.lon }, null, 4)));
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    host.appendChild(make('p', 'mm-muted', 'An information layer, not a warning system, and not advice about speed. ' + cameras.provider.name + ', ' + cameras.provider.licence + '.'));
+  }
+
+  function renderGlare() {
+    var host = driveSectionBody('glare');
+    if (!host || !drive.session) return;
+    clear(host);
+    var windows = drive.session.glareWindows(new Date());
+    if (!windows.length) {
+      host.appendChild(make('p', 'mm-muted', 'No stretch of this drive has the sun low and directly ahead in the next two hours — at least not from this route\'s heading and the sun\'s position, which is all that can honestly be predicted.'));
+      return;
+    }
+    var list = make('ul', 'mm-event-list');
+    windows.slice(0, 4).forEach(function (window) {
+      var item = make('li', 'mm-event-row');
+      item.appendChild(make('b', null, '☀️ Around ' + Math.round(window.fromKm) + '–' + Math.round(window.toKm) + ' km'));
+      item.appendChild(make('span', 'mm-muted', ' · sun ' + Math.round(window.altitude) + '° up, ' + Math.abs(Math.round(window.heading)) + '° off your heading · leaves at ' + fmtTime(window.fromTime)));
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+    host.appendChild(make('p', 'mm-muted', 'Worked out on this device from the route’s own heading and the sun’s position — no glare dataset exists, and none is invented. A low sun also means a dirty windscreen and low-level dazzle, so a 1.5 second gap becomes a 4 second one.'));
+  }
+
+  function renderDriveSources() {
+    if (!els.driveSources) return;
+    els.driveSources.textContent = 'Routing: Valhalla on OpenStreetMap data (ODbL), FOSSGIS public instance · Speed limits and stops: OpenStreetMap via Overpass (ODbL) · Weather: Open-Meteo (CC BY 4.0) · Traffic: TfL Open Data (London only). Your vehicle settings stay in this browser.';
+  }
+
+  // ------------------------------------------------------------- map layers
+
+  function paintDriveMarkers() {
+    if (!drive.route || !drive.route.geometry) return;
+    var markers = [];
+    if (drive.from) markers.push({ lat: drive.from.lat, lon: drive.from.lon, label: 'Start', colour: '#2dd4ff' });
+    if (drive.to) markers.push({ lat: drive.to.lat, lon: drive.to.lon, label: 'End', colour: '#ffd400' });
+
+    if (drive.overlays.limits !== false && drive.limits && drive.limits.segments.length) {
+      var last = null;
+      drive.limits.segments.forEach(function (segment) {
+        var key = segment.kph == null ? 'x' : Math.round(segment.kph);
+        if (key === last) return;
+        last = key;
+        var point = drive.session ? drive.session.atKm(segment.fromKm) : null;
+        if (!point) return;
+        markers.push({
+          lat: point.lat, lon: point.lon,
+          label: segment.kph == null ? '?' : String(Math.round(MM.speed.kphToMph(segment.kph))) + (segment.source === 'signed' ? '' : '≈'),
+          colour: limitColour(segment.kph),
+        });
+      });
+    }
+    if (drive.overlays.traffic !== false && drive.layers.traffic && drive.layers.traffic.events) {
+      drive.layers.traffic.events.slice(0, 12).forEach(function (event) {
+        markers.push({ lat: event.lat, lon: event.lon, label: '⚠ ' + (event.severityLabel || 'disruption'), colour: '#ef4757' });
+      });
+    }
+    if (drive.overlays.stops !== false && drive.stopsOrdered) {
+      drive.stopsOrdered.slice(0, 6).forEach(function (stop) {
+        markers.push({ lat: stop.lat, lon: stop.lon, label: stop.kind === 'EV charging' ? '🔌' : stop.kind === 'services' ? '🛣' : '⛽', colour: '#a3e635' });
+      });
+    }
+    if (drive.overlays.cameras !== false && drive.layers.cameras && drive.layers.cameras.cameras) {
+      drive.layers.cameras.cameras.slice(0, 12).forEach(function (camera) {
+        markers.push({ lat: camera.lat, lon: camera.lon, label: '📷', colour: '#f59e0b' });
+      });
+    }
+    drive.markers = markers;
+    map.setMarkers(markers);
+  }
+
+  // ------------------------------------------------------------- guidance
+
+  /**
+   * Start navigating. Guidance is a completely local loop: a position, the
+   * route you already have, and the limits already fetched. Losing the network
+   * changes nothing here, which is exactly when you need it most.
+   */
+  function startGuidance() {
+    if (!drive.route || drive.route.straightLine) {
+      toast('Plan a driving route first — there is nothing honest to navigate yet.');
+      return;
+    }
+    if (!drive.session) buildDriveSession(drive.route);
+    if (!drive.session) return;
+    if (els.nav) els.nav.hidden = false;
+
+    var started = false;
+    function consume(fix) {
+      var state = drive.session.update(fix);
+      if (!state) return;
+      if (!started) {
+        started = true;
+        if (drive.route.geometry && drive.route.geometry.length) {
+          map.fitBounds([{ lat: drive.route.geometry[0][1], lon: drive.route.geometry[0][0] }, { lat: drive.route.geometry[drive.route.geometry.length - 1][1], lon: drive.route.geometry[drive.route.geometry.length - 1][0] }], { padding: 60 });
+        }
+      }
+      renderGuidance(state);
+    }
+    drive.consumeFix = consume;
+
+    if (root.navigator && root.navigator.geolocation && root.navigator.geolocation.watchPosition) {
+      drive.watchId = root.navigator.geolocation.watchPosition(function (position) {
+        consume({
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
+          speedKph: position.coords.speed != null && position.coords.speed >= 0 ? position.coords.speed * 3.6 : null,
+          heading: position.coords.heading != null && !isNaN(position.coords.heading) ? position.coords.heading : null,
+          accuracyMetres: position.coords.accuracy,
+        });
+      }, function (error) {
+        enableTapToMove(error);
+      }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+      toast('Navigating. Keep this tab open — the route and the speed limits are already on the device.');
+    } else {
+      enableTapToMove({ message: 'this browser has no location service' });
+    }
+  }
+
+  function enableTapToMove(error) {
+    drive.tapToMove = true;
+    drive.tapHintShown = true;
+    if (els.navAlert) {
+      els.navAlert.hidden = false;
+      clear(els.navAlert);
+      els.navAlert.appendChild(make('span', null, 'No location from this device' + (error && error.message ? ' (' + error.message + ')' : '') + ': tap the map to move along the route, or stop at any time.'));
+    }
+    toast('No location service: tap the map to move along the route.');
+  }
+
+  function stopGuidance(showSummary) {
+    if (drive.watchId != null && root.navigator && root.navigator.geolocation) {
+      root.navigator.geolocation.clearWatch(drive.watchId);
+      drive.watchId = null;
+    }
+    drive.tapToMove = false;
+    if (els.nav) els.nav.hidden = true;
+    if (!showSummary || !drive.session) return;
+    var summary = drive.session.finish();
+    var host = driveSectionBody('limits');
+    if (!host) return;
+    var box = make('section', 'mm-drive-section');
+    box.appendChild(make('h3', null, 'Trip so far'));
+    var dl = make('dl', 'mm-kv');
+    kvRow(dl, 'Driven', fmtKm(summary.distanceKm));
+    kvRow(dl, 'Time', fmtDuration(summary.durationMinutes));
+    kvRow(dl, 'Moving / stopped', fmtDuration(summary.movingSeconds / 60) + ' / ' + fmtDuration(summary.stoppedSeconds / 60));
+    if (summary.maxSpeedKph) kvRow(dl, 'Fastest', Math.round(MM.speed.kphToMph(summary.maxSpeedKph)) + ' mph');
+    kvRow(dl, 'Stops', String(summary.stops));
+    kvRow(dl, 'Off-route fixes', String(summary.offRouteCount));
+    box.appendChild(dl);
+    var button = make('button', 'mm-btn ghost', '⬇ Save this drive as GPX');
+    button.type = 'button';
+    button.addEventListener('click', function () { downloadFile('mostusefulmaps-drive.gpx', drive.session.toGpx('Drive'), 'application/gpx+xml'); });
+    box.appendChild(button);
+    box.appendChild(make('p', 'mm-muted', 'Recorded in this browser only: it is never uploaded. Save it now if you want to keep it.'));
+    host.parentNode.insertBefore(box, host);
+  }
+
+  function downloadFile(name, text, type) {
+    try {
+      var blob = new Blob([text], { type: type || 'text/plain' });
+      var url = URL.createObjectURL(blob);
+      var link = doc.createElement('a');
+      link.href = url;
+      link.download = name;
+      doc.body.appendChild(link);
+      link.click();
+      doc.body.removeChild(link);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    } catch (error) {
+      toast('This browser would not let me save the file.');
+    }
+  }
+
+  /** The overlay: next manoeuvre, the limit, your speed, and how far is left. */
+  function renderGuidance(nav) {
+    if (!els.nav) return;
+    if (els.navDistance) els.navDistance.textContent = nav.metresToNext == null ? '—' : fmtMetres(nav.metresToNext);
+    if (els.navInstruction) {
+      els.navInstruction.textContent = nav.next
+        ? (nav.next.name && nav.next.instruction.indexOf(nav.next.name) < 0 ? nav.next.instruction + ' (' + nav.next.name + ')' : nav.next.instruction)
+        : 'Continue on the route';
+    }
+    if (els.navIcon) els.navIcon.textContent = iconFor(nav.next || {});
+
+    var imperial = state.units === 'imperial' || drive.prefs.vehicle === 'car';
+    var minimum = nav.limit && nav.limit.kph != null ? nav.limit.kph : null;
+    if (els.navLimitValue) {
+      els.navLimitValue.textContent = minimum == null
+        ? '–'
+        : (imperial ? String(Math.round(MM.speed.kphToMph(minimum))) : String(Math.round(minimum)));
+    }
+    if (els.navLimitUnit) {
+      els.navLimitUnit.textContent = minimum == null
+        ? (nav.limit && nav.limit.basis ? nav.limit.basis : 'limit unknown')
+        : (imperial ? 'mph' : 'km/h') + (nav.limit.source === 'signed' ? '' : ' ≈');
+    }
+    if (els.navCurrentValue) {
+      els.navCurrentValue.textContent = nav.speedMph == null
+        ? '–'
+        : String(Math.round(state.units === 'imperial' ? nav.speedMph : nav.speedKph));
+    }
+    if (els.navCurrentUnit) els.navCurrentUnit.textContent = state.units === 'imperial' ? 'mph' : 'km/h';
+    if (els.navCurrentBox) {
+      els.navCurrentBox.setAttribute('data-over', String(!!nav.overLimit));
+      els.navCurrentBox.title = nav.overLimit
+        ? 'Over the limit by about ' + Math.round(nav.overByKph) + ' km/h (the 10% + 2 mph enforcement threshold is already allowed for)'
+        : 'Your speed';
+    }
+    if (els.navProgress) els.navProgress.style.width = Math.round(Math.max(0, Math.min(1, nav.progress)) * 100) + '%';
+    if (els.navRemaining) els.navRemaining.textContent = fmtKm(nav.remainingKm) + ' · ' + (nav.remainingMinutes == null ? '—' : fmtDuration(nav.remainingMinutes));
+    if (els.navEta) els.navEta.textContent = nav.eta ? 'ETA ' + fmtTime(nav.eta) : 'ETA —';
+    if (els.navReplan) els.navReplan.hidden = !nav.needsReplan;
+    if (els.navAlert) {
+      var message = null;
+      if (nav.offRoute) message = 'Off the route. ' + (nav.needsReplan ? 'Replan from here?' : 'Keep going and I will rejoin when I can.');
+      else if (nav.breakDue) message = 'You have been driving for ' + Math.round(nav.continuousDrivingMinutes) + ' minutes. A break is worth more than a shortcut.';
+      else if (nav.arrived) message = 'You have arrived.';
+      else if (drive.tapToMove && !drive.tapHintShown) {
+        message = 'No location from this device: tap the map to move along the route, or stop at any time.';
+        drive.tapHintShown = true;
+      }
+      if (message) {
+        els.navAlert.hidden = false;
+        clear(els.navAlert);
+        els.navAlert.appendChild(make('span', null, message));
+      } else {
+        els.navAlert.hidden = true;
+      }
+    }
+    var phrase = drive.session.speak(nav);
+    if (phrase && root.speechSynthesis && root.speechSynthesis.speak) {
+      try {
+        var utterance = new root.SpeechSynthesisUtterance(phrase);
+        utterance.rate = 1.02;
+        root.speechSynthesis.speak(utterance);
+      } catch (error) { /* silent is fine */ }
+    }
+    if (drive.tapToMove) {
+      map.panTo({ lat: nav.position.lat, lon: nav.position.lon });
+    }
+  }
+
+  /** A fresh route from where you actually are. */
+  function replanFromHere() {
+    if (!drive.session || !drive.session.state || !drive.to) return;
+    var here = drive.session.state.position;
+    if (drive.replanning) return;
+    drive.replanning = true;
+    toast('Replanning from where you are…');
+    MM.providers.driveRoute({ lat: here.lat, lon: here.lon, name: 'Here' }, drive.to, driveOptions()).then(function (route) {
+      drive.replanning = false;
+      if (route.straightLine) {
+        toast('The router is unreachable, so I cannot honestly replan right now.');
+        return;
+      }
+      drive.route = route;
+      drive.limits = null;
+      drive.layers = { traffic: null, weather: null, stops: null, cameras: null };
+      drive.stopsOrdered = null;
+      if (route.geometry) {
+        map.setPath(route.geometry);
+        drawLiveRoute(route.geometry);
+      }
+      buildDriveSession(route);
+      renderDriveRoute(route);
+      if (route.geometry && route.geometry.length > 1) enrichDrive(route);
+      toast('Replanned: ' + fmtKm(route.distanceKm) + ', ' + fmtDuration(route.durationMinutes) + ' free-flow.');
+    });
+  }
+
+  /**
+   * In tap-to-move mode a map click stands in for a position fix. It goes
+   * through exactly the same session code as a GPS fix, so what you see is
+   * what the navigator will do.
+   */
+  function driveTapToMove(point) {
+    if (!drive.tapToMove || !drive.session || !drive.consumeFix) return false;
+    drive.consumeFix({ lat: point.lat, lon: point.lon, speedKph: null, heading: null });
+    return true;
+  }
+
   function bindTabs() {
     var buttons = els.tabs.querySelectorAll('[role="tab"]');
     Array.prototype.forEach.call(buttons, function (button) {
@@ -1382,6 +2568,7 @@
     Array.prototype.forEach.call(doc.querySelectorAll('.mm-pane'), function (pane) {
       pane.setAttribute('data-active', String(pane.id === 'mm-pane-' + name));
     });
+    if (name === 'drive') fillDriveInputs();
     if (name === 'nearby' && !state.nearby.length) renderNearby();
     if (name === 'measure') renderMeasure();
   }
@@ -1501,6 +2688,7 @@
       if (event.key === '/') { event.preventDefault(); els.search.focus(); return; }
       if (event.key === 'm' || event.key === 'M') { els.measureToggle.click(); return; }
       if (event.key === 'l' || event.key === 'L') { locate(); return; }
+      if (event.key === 'd' || event.key === 'D') { showPanel('drive'); return; }
       if (event.key === '?') { showPanel('info'); }
     });
   }
@@ -1538,8 +2726,16 @@
         button.setAttribute('aria-pressed', String(button.getAttribute('data-mm-mode') === state.pendingRoute.mode));
       });
       state.routeMode = state.pendingRoute.mode;
-      showPanel('route');
-      runRoute();
+      if (state.panel === 'drive') {
+        // A shared drive link reopens as a drive, with the same vehicle.
+        if (els.driveFrom) els.driveFrom.value = state.pendingRoute.from;
+        if (els.driveTo) els.driveTo.value = state.pendingRoute.to;
+        showPanel('drive');
+        planDrive();
+      } else {
+        showPanel('route');
+        runRoute();
+      }
     }
     if (els.unitsSelect) els.unitsSelect.value = state.units;
     if (els.styleSelect) els.styleSelect.value = state.styleId;
@@ -1548,6 +2744,42 @@
     renderNearby();
     renderPlace();
   }
+
+  /**
+   * A deliberately small surface for the test harness and for other tools on
+   * this site that want to drive the page. Everything it exposes goes through
+   * exactly the same code the buttons use — there is no second path.
+   */
+  (root.MM = root.MM || {}).app = {
+    panel: function (name) { return showPanel(name); },
+    planDrive: function () { return planDrive(); },
+    startGuidance: function () { return startGuidance(); },
+    stopGuidance: function (summary) { return stopGuidance(summary !== false); },
+    /** Feed a position in, as the location service would (optionally timed). */
+    moveTo: function (lat, lon, speedKph, at) {
+      if (!drive.consumeFix) return null;
+      drive.consumeFix({ lat: lat, lon: lon, speedKph: speedKph == null ? null : speedKph, at: at || undefined });
+      return drive.session ? drive.session.state : null;
+    },
+    driveState: function () {
+      if (!drive.route) return null;
+      return {
+        vehicle: drive.prefs.vehicle,
+        provider: drive.route.provider ? drive.route.provider.id : null,
+        degraded: !!drive.route.degraded,
+        distanceKm: drive.route.distanceKm,
+        durationMinutes: drive.route.durationMinutes,
+        limits: drive.limits ? { segments: drive.limits.segments.length, coverage: drive.limits.coverage } : null,
+        traffic: drive.layers.traffic ? { events: (drive.layers.traffic.events || []).length, coverage: drive.layers.traffic.coverage || null } : null,
+        weather: drive.layers.weather ? { points: (drive.layers.weather.points || []).length } : null,
+        stops: drive.layers.stops ? { stops: (drive.layers.stops.stops || []).length } : null,
+        cameras: drive.layers.cameras ? { cameras: (drive.layers.cameras.cameras || []).length } : null,
+        markers: drive.markers.length,
+        state: drive.session ? drive.session.state : null,
+        gpx: drive.session ? drive.session.toGpx('Test') : null,
+      };
+    },
+  };
 
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { boot(); finishBoot(); });
   else { boot(); finishBoot(); }

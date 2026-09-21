@@ -24,6 +24,9 @@
  *     --node-path /tmp/maps-build/node_modules
  *
  *   node scripts/build-maps-data.js --check     # verify what is committed
+ *   node scripts/build-maps-data.js --provenance # refresh SOURCES.json from
+ *                                               # the committed files (no
+ *                                               # upstream packages needed)
  *
  * `--check` never needs the sources: it re-reads the shipped files and proves
  * they still match the hashes recorded in SOURCES.json. That is the drift
@@ -197,10 +200,101 @@ function cmdCheck() {
   );
 }
 
+/**
+ * The live services the page may fetch, with their licences and terms.
+ *
+ * These are not build inputs — they are part of the provenance record, because
+ * "where does this answer come from" is the question this page is built to
+ * answer. Anything key-gated is recorded here too, with key_required: true, so
+ * the reason it is *not* wired to the browser is written down rather than lost.
+ */
+function liveServices() {
+  return [
+    {
+      id: 'fossgis-valhalla',
+      name: 'FOSSGIS Valhalla',
+      home: 'valhalla1.openstreetmap.de',
+      used_for: 'driving routes that understand vehicle height, width, weight and avoid preferences',
+      licence: 'ODbL (OpenStreetMap data)',
+      key_required: false,
+      terms: 'Public instance run by FOSSGIS under a fair-use policy; self-host Valhalla for volume.',
+    },
+    {
+      id: 'overpass',
+      name: 'Overpass API (OpenStreetMap)',
+      home: 'overpass-api.de',
+      used_for: 'signed speed limits along a route, service areas, fixed cameras',
+      licence: 'ODbL (OpenStreetMap data)',
+      key_required: false,
+      terms: 'Volunteer-run mirrors; small chunked queries with backoff on failure.',
+    },
+    {
+      id: 'tfl-road-disruption',
+      name: 'TfL Unified API — Road Disruption',
+      home: 'api.tfl.gov.uk',
+      used_for: 'live road disruption in Greater London',
+      licence: 'TfL Open Data (attribution required)',
+      key_required: false,
+      terms: 'Works key-free at the public rate limit; higher limits need a free app_id/app_key.',
+    },
+    {
+      id: 'open-meteo',
+      name: 'Open-Meteo',
+      home: 'api.open-meteo.com',
+      used_for: 'weather at the hour you reach each sampled point along a route',
+      licence: 'CC BY 4.0',
+      key_required: false,
+      terms: 'Free for non-commercial use, no key, attribution required.',
+    },
+    {
+      id: 'national-highways-datex2',
+      name: 'National Highways DATEX II closures',
+      home: 'api.data.nationalhighways.co.uk',
+      used_for: 'England-wide road closures — deliberately NOT wired to the browser',
+      licence: 'Open Government Licence',
+      key_required: true,
+      terms: 'Needs a subscription key, which must never ship in a static page, and sends no CORS headers. Used only if the owner exports it to maps/data/road-alerts.json, which the page reads and labels with its date.',
+    },
+  ];
+}
+
+/** Build the provenance object for the two generated data files. */
+function provenance(inputs) {
+  const gazBuf = fs.readFileSync(GAZETTEER);
+  const factsBuf = fs.readFileSync(COUNTRY_FACTS);
+  const gazetteer = JSON.parse(gazBuf);
+  const facts = JSON.parse(factsBuf);
+  return {
+    note:
+      'Provenance for the generated offline data in maps/data/. Written by scripts/build-maps-data.js.',
+    generated: new Date().toISOString().slice(0, 10),
+    generator: 'scripts/build-maps-data.js',
+    inputs,
+    outputs: [
+      { file: 'maps/data/gazetteer.json', bytes: gazBuf.length, rows: gazetteer.cities.length, sha256: sha256(gazBuf) },
+      { file: 'maps/data/countries.json', bytes: factsBuf.length, rows: Object.keys(facts.countries).length, sha256: sha256(factsBuf) },
+    ],
+    live_services: liveServices(),
+  };
+}
+
+/** --provenance: refresh SOURCES.json from what is committed. */
+function cmdProvenance() {
+  if (!fs.existsSync(SOURCES)) die('maps/data/SOURCES.json is missing');
+  const existing = readJson(SOURCES);
+  if (!existing.inputs || !existing.inputs.length) die('SOURCES.json has no inputs to carry forward');
+  const next = provenance(existing.inputs);
+  fs.writeFileSync(SOURCES, JSON.stringify(next, null, 2) + '\n');
+  process.stdout.write(
+    `provenance refreshed: ${next.outputs.length} outputs, ${next.live_services.length} live services\n`
+  );
+}
+
 // ---------------------------------------------------------------------- main
 
 function main() {
   if (CHECK) return cmdCheck();
+  if (args.indexOf('--provenance') >= 0) return cmdProvenance();
 
   const citiesPbf = flag('--cities') || process.env.MAPS_CITIES_PBF;
   const countriesPath = flag('--countries') || process.env.MAPS_COUNTRIES_JSON;
@@ -221,20 +315,10 @@ function main() {
   fs.writeFileSync(GAZETTEER, gazBuf);
   fs.writeFileSync(COUNTRY_FACTS, factsBuf);
 
-  const sources = {
-    note:
-      'Provenance for the generated offline data in maps/data/. Written by scripts/build-maps-data.js.',
-    generated: new Date().toISOString().slice(0, 10),
-    generator: 'scripts/build-maps-data.js',
-    inputs: [
-      { package: 'all-the-cities', version: '3.1.0', upstream: 'GeoNames', license: 'CC BY 4.0', sha256: sha256(fs.readFileSync(citiesPbf)) },
-      { package: 'world-countries', version: '5.1.0', license: 'ODbL-1.0', sha256: sha256(fs.readFileSync(countriesPath)) },
-    ],
-    outputs: [
-      { file: 'maps/data/gazetteer.json', bytes: gazBuf.length, rows: gazetteer.cities.length, sha256: sha256(gazBuf) },
-      { file: 'maps/data/countries.json', bytes: factsBuf.length, rows: Object.keys(facts.countries).length, sha256: sha256(factsBuf) },
-    ],
-  };
+  const sources = provenance([
+    { package: 'all-the-cities', version: '3.1.0', upstream: 'GeoNames', license: 'CC BY 4.0', sha256: sha256(fs.readFileSync(citiesPbf)) },
+    { package: 'world-countries', version: '5.1.0', license: 'ODbL-1.0', sha256: sha256(fs.readFileSync(countriesPath)) },
+  ]);
   fs.writeFileSync(SOURCES, JSON.stringify(sources, null, 2) + '\n');
 
   process.stdout.write(

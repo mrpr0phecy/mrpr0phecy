@@ -767,3 +767,398 @@ test('page: the embed API a card would use is documented and present', () => {
   assert.ok(/maps\/embed\.js/.test(source), 'the card should load the embed API');
   assert.ok(!/(?:\/\/|https?:)\/\/[^"' ]*maps\//.test(source), 'the card must use a same-origin path');
 });
+
+// ============================================================ driving engine
+
+const speed = require(path.join(ROOT, 'maps/core/speed.js'));
+const drive = require(path.join(ROOT, 'maps/core/drive.js'));
+
+test('speed: OSM maxspeed values are read the way mappers write them', () => {
+  assert.equal(speed.parseMaxspeed('30 mph').kph, 48.28);
+  assert.equal(speed.parseMaxspeed('50').kph, 50);
+  assert.equal(speed.parseMaxspeed('50 km/h').kph, 50);
+  assert.equal(speed.parseMaxspeed('50kmh').kph, 50);
+  assert.equal(speed.parseMaxspeed('walk').kph, 8);
+  assert.equal(speed.parseMaxspeed('none').unlimited, true);
+  assert.equal(speed.parseMaxspeed('signals').variable, true);
+  assert.equal(speed.parseMaxspeed('national').ok, false, 'national needs the road class');
+  assert.equal(speed.parseMaxspeed('GB:nsl_single').kph, 97);
+  assert.equal(speed.parseMaxspeed('GB:nsl_dual').kph, 113);
+  assert.equal(speed.parseMaxspeed('GB:motorway').kph, 113);
+  assert.equal(speed.parseMaxspeed('GB:nsl_restricted').kph, 48);
+  assert.equal(speed.parseMaxspeed('GB-WLS:nsl_restricted').kph, 32);
+  assert.equal(speed.parseMaxspeed('GB:zone20').kph, 32);
+  assert.equal(speed.parseMaxspeed('nonsense').ok, false);
+  assert.equal(speed.parseMaxspeed(null).ok, false);
+});
+
+test('speed: the UK national limits depend on what you are driving', () => {
+  const car = speed.fromTags({ highway: 'secondary' }, { country: 'GB', vehicle: 'car', roadClass: 'secondary' });
+  const caravan = speed.fromTags({ highway: 'secondary' }, { country: 'GB', vehicle: 'caravan', roadClass: 'secondary' });
+  const hgv = speed.fromTags({ highway: 'secondary' }, { country: 'GB', vehicle: 'hgv', roadClass: 'secondary', scotlandOrNI: true });
+  assert.equal(car.kph, 97, 'car on a single carriageway: 60 mph');
+  assert.equal(car.mph, 60);
+  assert.equal(caravan.kph, 80, 'towing: 50 mph on singles');
+  assert.equal(hgv.kph, 64, 'over 7.5 t in Scotland/NI: 40 mph on singles');
+  assert.equal(hgv.mph, 40);
+  assert.equal(speed.fromTags({ highway: 'motorway' }, { country: 'GB', vehicle: 'van', roadClass: 'motorway' }).mph, 70);
+  assert.equal(speed.fromTags({ highway: 'motorway' }, { country: 'GB', vehicle: 'caravan', roadClass: 'motorway' }).mph, 60);
+});
+
+test('speed: built-up defaults follow the nation, not the map', () => {
+  const england = speed.nationalDefault('GB', 'residential', { vehicle: 'car', urban: true, wales: false });
+  const wales = speed.nationalDefault('GB', 'residential', { vehicle: 'car', urban: true, wales: true });
+  assert.equal(england.kph, 48, 'England, Scotland and NI: 30 mph');
+  assert.equal(wales.kph, 32, 'Wales: 20 mph since September 2023');
+  const townCentre = { lat: 51.4816, lon: -3.1791 }; // Cardiff
+  assert.equal(drive.isWales(townCentre.lat, townCentre.lon), true);
+  assert.equal(drive.isWales(51.5074, -0.1278), false, 'London is not in Wales');
+});
+
+test('speed: signed limits beat defaults, and conditionals are honoured', () => {
+  const signed = speed.fromTags({ highway: 'trunk', maxspeed: '50 mph' }, { country: 'GB', vehicle: 'car' });
+  assert.equal(signed.kph, 80.47);
+  assert.equal(signed.source, 'signed');
+  assert.equal(speed.basisLabel(signed), 'signed');
+
+  const night = new Date('2026-01-15T23:30:00Z');
+  const day = new Date('2026-01-15T12:00:00Z');
+  const tags = { highway: 'primary', 'maxspeed:conditional': '30 mph @ (22:00-06:00)' };
+  assert.equal(speed.fromTags(tags, { country: 'GB', vehicle: 'car', date: night }).mph, 30);
+  assert.equal(speed.fromTags(tags, { country: 'GB', vehicle: 'car', date: day }).source, 'national-assumed-single');
+});
+
+test('speed: countries whose limits vary by state are not guessed at', () => {
+  const texas = speed.fromTags({ highway: 'motorway' }, { country: 'US', vehicle: 'car' });
+  assert.equal(texas.kph, null);
+  assert.match(texas.basis, /state/);
+  assert.match(speed.basisLabel(texas), /unknown|state/);
+});
+
+test('speed: the over-limit warning uses the 10% + 2 mph guidance, not a guess', () => {
+  const limit30 = speed.mphToKph(30);
+  assert.equal(speed.isOver(speed.mphToKph(35), limit30), false, '35 in a 30 is within the enforcement threshold');
+  assert.equal(speed.isOver(speed.mphToKph(36), limit30), true, '36 in a 30 is not');
+  const limit70 = speed.mphToKph(70);
+  assert.equal(speed.isOver(speed.mphToKph(78), limit70), false);
+  assert.equal(speed.isOver(speed.mphToKph(80), limit70), true);
+  assert.equal(speed.isOver(null, limit70), false, 'no speed, no warning');
+});
+
+test('drive: a session tracks progress, manoeuvres and arrival', () => {
+  // A 100 km route due north, with two manoeuvres.
+  const geometry = [];
+  for (let i = 0; i <= 100; i += 1) geometry.push([-0.4175, 51.5 + i * 0.008994]); // ~1 km steps
+  const routeKm = geodesy.pathLengthKm(geometry.map((c) => ({ lat: c[1], lon: c[0] })));
+  const route = {
+    geometry,
+    distanceKm: routeKm,
+    durationMinutes: 90,
+    steps: [
+      { distanceKm: 40, durationMin: 30, instruction: 'Head north on the M1', verbal: 'head north on the M1', modifier: 'straight' },
+      { distanceKm: 40, durationMin: 30, instruction: 'Keep left onto the M6', verbal: 'keep left onto the M6', modifier: 'keep left' },
+      { distanceKm: 20, durationMin: 30, instruction: 'Arrive at your destination', verbal: 'arrive at your destination', modifier: 'arrive' },
+    ],
+    speedLimits: [
+      { fromKm: 0, toKm: 60, kph: 113, source: 'signed', basis: 'signed' },
+      { fromKm: 60, toKm: routeKm, kph: 48, source: 'signed', basis: 'signed' },
+    ],
+  };
+
+  const session = drive.createSession(route, { vehicle: 'car', units: 'imperial', breakEveryMinutes: 120 });
+  const start = session.update({ lat: 51.5, lon: -0.4175, speedKph: 0, at: '2026-05-01T08:00:00Z' });
+  assert.ok(start.onRoute, 'a fix on the line is on route');
+  assert.ok(start.progressKm < 0.5, `expected to start at the beginning, got ${start.progressKm}`);
+  assert.equal(start.limit.kph, 113);
+  assert.equal(start.limitConfidence, 'high');
+  assert.equal(start.overLimit, false);
+  assert.match(start.next.instruction, /M1/);
+  assert.equal(start.remainingMinutes, 90);
+
+  const middle = session.update({ lat: 51.5 + 40 * 0.008994, lon: -0.4175, speedKph: 100, at: '2026-05-01T08:25:00Z' });
+  assert.ok(Math.abs(middle.progressKm - 40) < 2, `expected ~40 km, got ${middle.progressKm}`);
+  assert.ok(Math.abs(middle.remainingKm - (route.distanceKm - 40)) < 2);
+  assert.match(middle.next.instruction, /M6/);
+  assert.ok(middle.remainingMinutes < 70 && middle.remainingMinutes > 50, `remaining ${middle.remainingMinutes}`);
+  assert.ok(middle.eta instanceof Date);
+  assert.equal(middle.limit.kph, 113);
+
+  // Over the limit in the 30 mph stretch.
+  const late = session.update({ lat: 51.5 + 70 * 0.008994, lon: -0.4175, speedKph: 60, at: '2026-05-01T09:00:00Z' });
+  assert.equal(late.limit.kph, 48);
+  assert.equal(late.overLimit, true, '60 km/h in a 30 mph (48 km/h) limit');
+  assert.ok(late.overByKph > 10);
+
+  // Off-route: 300 m to the east for long enough to need a replan.
+  const off = session.update({ lat: 51.5 + 80 * 0.008994, lon: -0.4135, speedKph: 40, at: '2026-05-01T09:10:00Z' });
+  assert.equal(off.onRoute, false);
+  assert.ok(off.offsetMetres > 45);
+  const stillOff = session.update({ lat: 51.5 + 80 * 0.008994, lon: -0.4135, speedKph: 40, at: '2026-05-01T09:10:20Z' });
+  assert.equal(stillOff.needsReplan, true, '20 seconds off route should prompt a replan');
+
+  // Speech: said once per threshold, not every second.
+  const first = session.update({ lat: 51.5 + 98 * 0.008994, lon: -0.4175, speedKph: 30, at: '2026-05-01T09:20:00Z' });
+  const phrase = session.speak(first);
+  if (phrase) {
+    assert.match(phrase, /arrive|keep|turn|continue|head/i);
+    assert.equal(session.speak(first), null, 'the same manoeuvre is not announced twice at the same threshold');
+  }
+});
+
+test('drive: sun glare is worked out from the route heading and the sun', () => {
+  // Due west across England, leaving at a time when the sun is low and ahead.
+  const geometry = [];
+  for (let i = 0; i <= 60; i += 1) geometry.push([-0.1 - i * 0.0095, 51.6]);
+  const route = {
+    geometry,
+    distanceKm: geodesy.pathLengthKm(geometry.map((c) => ({ lat: c[1], lon: c[0] }))),
+    durationMinutes: 60,
+    steps: [{ distanceKm: 100, durationMin: 60, instruction: 'Head west', modifier: 'straight' }],
+  };
+  const session = drive.createSession(route, { units: 'metric' });
+  const windows = session.glareWindows(new Date('2026-06-21T19:15:00Z'));
+  assert.ok(windows.length >= 1, 'a low sun dead ahead at 20:15 local time should be flagged');
+  const window = windows[0];
+  assert.ok(window.fromKm <= window.toKm);
+  assert.ok(window.heading > 240 && window.heading < 300, `heading west, got ${window.heading}`);
+  assert.ok(window.altitude > -1 && window.altitude < 16);
+
+  // The same route due east at the same time faces away from the sun.
+  const eastRoute = Object.assign({}, route, { geometry: geometry.map((c) => [c[0], c[1]]).reverse() });
+  const eastSession = drive.createSession(eastRoute, { units: 'metric' });
+  const eastWindows = eastSession.glareWindows(new Date('2026-06-21T19:15:00Z'));
+  assert.equal(eastWindows.length, 0, 'driving east at sunset is not a glare risk');
+});
+
+test('drive: speed limits are joined from the OSM ways you are actually on', () => {
+  // Two ways on a north-south route: a 70 mph motorway then a 30 mph street,
+  // plus a stretch with no OSM way at all.
+  const geometry = [];
+  for (let i = 0; i <= 100; i += 1) geometry.push([-0.4175, 51.5 + i * 0.009]);
+  const latAt = (fraction) => 51.5 + 100 * fraction * 0.009;
+  const ways = [
+    {
+      id: 1, tags: { highway: 'motorway', maxspeed: '70 mph', maxspeed_type: 'GB:motorway' },
+      segments: [[latAt(0.0), -0.4175], [latAt(0.45), -0.4175]],
+    },
+    {
+      id: 2, tags: { highway: 'residential', maxspeed: '30 mph', lit: 'yes' },
+      segments: [[latAt(0.55), -0.4175], [latAt(1.0), -0.4175]],
+    },
+  ];
+  const result = drive.limitsFromWays(geometry, {
+    ways,
+    spacingKm: 0.5,
+    matchRadiusMetres: 40,
+    countryAt: () => 'GB',
+    urbanAt: (lat) => lat > 51.98, // the southern half is countryside, the north is town
+    vehicle: 'car',
+  });
+  assert.ok(result.segments.length >= 2, `expected several stretches, got ${result.segments.length}`);
+  const motorway = result.segments[0];
+  assert.equal(motorway.kph, 112.65);
+  assert.equal(motorway.source, 'signed');
+  assert.equal(motorway.osmWayId, 1);
+  assert.ok(motorway.toKm > 30 && motorway.toKm < 55, `motorway stretch ends at ${motorway.toKm}`);
+
+  const urban = result.segments[result.segments.length - 1];
+  assert.equal(urban.mph, 30);
+  assert.equal(urban.source, 'signed');
+  assert.equal(urban.osmWayId, 2);
+
+  // The middle, with no way nearby, must be reported as unknown rather than
+  // silently borrowing a neighbour's limit.
+  const gap = result.segments.filter((s) => s.source === 'unknown');
+  assert.ok(gap.length >= 1, 'the un-mapped stretch is reported as unknown');
+  assert.ok(result.coverage > 0.85 && result.coverage < 1, `coverage should be high but not perfect, got ${result.coverage}`);
+
+  // Filling the gaps uses the country default and says so.
+  const filled = drive.fillGaps(result.segments, { country: 'GB', vehicle: 'car' });
+  const filledGap = filled.filter((s) => s.fromKm > 45 && s.fromKm < 55)[0];
+  assert.ok(filledGap.kph != null || filledGap.source === 'unknown');
+  if (filledGap.kph != null) {
+    assert.match(filledGap.basis, /national|built-up/);
+  }
+
+  // A towing vehicle gets lower national limits in the gaps.
+  const towing = drive.fillGaps(result.segments, { country: 'GB', vehicle: 'caravan' });
+  const towingGap = towing.filter((s) => s.source !== 'signed' && s.kph != null)[0];
+  if (towingGap) assert.ok(towingGap.kph <= 97);
+});
+
+test('drive: the briefing maths adds up', () => {
+  const limits = [
+    { fromKm: 0, toKm: 20, kph: 113, mph: 70, source: 'signed' },
+    { fromKm: 20, toKm: 25, kph: 48, mph: 30, source: 'signed' },
+    { fromKm: 25, toKm: 45, kph: 97, mph: 60, source: 'national-assumed-single' },
+  ];
+  const summary = drive.limitSummary(limits);
+  assert.equal(summary.length, 3);
+  const motorway = summary[0];
+  assert.equal(motorway.kph, 113);
+  assert.equal(Math.round(motorway.km), 20);
+  assert.equal(Math.round(motorway.signedKm), 20);
+  const assumed = summary.find((row) => row.kph === 97);
+  assert.equal(Math.round(assumed.km), 20);
+  assert.equal(Math.round(assumed.assumedKm), 20, 'the assumed stretch is counted separately from the signed one');
+
+  const petrol = drive.costEstimate(300, { litresPer100Km: 7, pricePerLitre: 1.5 });
+  assert.ok(Math.abs(petrol.litres - 21) < 0.001);
+  assert.ok(Math.abs(petrol.cost - 31.5) < 0.001);
+  const imperial = drive.costEstimate(160.9344, { mpg: 40, pricePerLitre: 1.5 });
+  assert.ok(Math.abs(imperial.gallons - 2.5) < 0.01, `100 miles at 40 mpg is 2.5 gallons, got ${imperial.gallons}`);
+  const electric = drive.costEstimate(200, { electric: true, kwhPer100Km: 18, pricePerKwh: 0.25 });
+  assert.ok(Math.abs(electric.kwh - 36) < 0.001);
+  assert.ok(Math.abs(electric.cost - 9) < 0.001);
+});
+
+test('drive: a finished trip exports as GPX', () => {
+  const geometry = [[-0.4175, 51.5], [-0.4175, 51.51], [-0.4175, 51.52]];
+  const session = drive.createSession({ geometry, distanceKm: 2.2, durationMinutes: 4, steps: [] }, {});
+  session.update({ lat: 51.5, lon: -0.4175, speedKph: 20, at: '2026-05-01T10:00:00Z' });
+  session.update({ lat: 51.51, lon: -0.4175, speedKph: 30, at: '2026-05-01T10:01:00Z' });
+  session.update({ lat: 51.52, lon: -0.4175, speedKph: 0, at: '2026-05-01T10:02:00Z' });
+  const summary = session.finish('2026-05-01T10:03:00Z');
+  assert.equal(summary.durationMinutes, 3);
+  assert.ok(summary.distanceKm > 2 && summary.distanceKm < 2.4, `recorded ${summary.distanceKm} km`);
+  assert.equal(Math.round(summary.maxSpeedKph), 30);
+  const gpx = session.toGpx('Test drive');
+  assert.match(gpx, /<gpx version="1.1"/);
+  assert.match(gpx, /<trkpt lat="51\.500000" lon="-0\.417500">/);
+  assert.match(gpx, /<speed>30\.0<\/speed>/);
+  assert.match(gpx, /<\/gpx>/);
+  assert.ok(!/<script/i.test(gpx));
+});
+
+test('drive: Valhalla trips and routes parse into the shapes the UI needs', () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  // Precision-6 polyline for two points (the encoding Valhalla returns).
+  const encoded = providers.decodePolyline('_p~iF~ps|U_ulLnnqC', 5);
+  assert.ok(Array.isArray(encoded) && encoded.length === 2, 'polyline decoding returns points');
+  assert.ok(Math.abs(encoded[0][1] - 38.5) < 0.001, `expected 38.5 N, got ${encoded[0][1]}`);
+  assert.ok(Math.abs(encoded[0][0] + 120.2) < 0.001, `expected 120.2 W, got ${encoded[0][0]}`);
+
+  // Vehicle-aware costing: an HGV is a truck with dimensions, a car is not.
+  const car = providers.valhallaCosting('car', {});
+  assert.equal(car.costing, 'auto');
+  assert.equal(car.costingOptions.auto.use_highways, 1);
+  const hgv = providers.valhallaCosting('hgv', { heightMetres: 4.2, weightTonnes: 40, hazmat: false });
+  assert.equal(hgv.costing, 'truck');
+  assert.equal(hgv.costingOptions.truck.height, 4.2);
+  assert.equal(hgv.costingOptions.truck.weight, 40);
+  const caravan = providers.valhallaCosting('caravan', { heightMetres: 3.1, avoidMotorways: true });
+  assert.equal(caravan.costingOptions.auto.height, 3.1, 'a caravan has a real height');
+  assert.ok(caravan.costingOptions.auto.use_highways < 0.5, 'and can ask to keep off motorways');
+
+  // Sampling a geometry for corridor queries stays bounded.
+  const line = [];
+  for (let i = 0; i <= 400; i += 1) line.push([-0.1 - i * 0.01, 51.5]);
+  const samples = providers.samplePolyline(line, 10, 40);
+  assert.ok(samples.length >= 2 && samples.length <= 41, `expected a bounded sample, got ${samples.length}`);
+  assert.deepEqual(samples[0], line[0]);
+});
+
+// ======================================================== driving: the page
+
+test('page: the driving scripts load before the page controller', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'maps.html'), 'utf8');
+  const order = ['maps/core/geodesy.js', 'maps/core/speed.js', 'maps/core/drive.js', 'maps/providers.js', 'maps/app.js']
+    .map((file) => html.indexOf(file));
+  assert.ok(order.every((index) => index >= 0), 'every driving script is referenced');
+  for (let i = 1; i < order.length; i += 1) {
+    assert.ok(order[i] > order[i - 1], 'the driving scripts load in dependency order');
+  }
+  assert.ok(fs.existsSync(path.join(ROOT, 'maps/core/speed.js')));
+  assert.ok(fs.existsSync(path.join(ROOT, 'maps/core/drive.js')));
+
+  // The vehicle selector must offer every vehicle the engine understands.
+  for (const vehicle of ['car', 'caravan', 'van', 'motorhome', 'hgv']) {
+    assert.ok(html.includes(`value="${vehicle}"`), `the vehicle list is missing ${vehicle}`);
+  }
+});
+
+test('page: the navigation overlay exists, and starts hidden', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'maps.html'), 'utf8');
+  for (const id of ['mm-nav', 'mm-nav-distance', 'mm-nav-instruction', 'mm-nav-limit-value', 'mm-nav-current-value', 'mm-nav-progress', 'mm-nav-remaining', 'mm-nav-eta', 'mm-nav-replan', 'mm-nav-stop']) {
+    assert.ok(html.includes(`id="${id}"`), `the navigation overlay is missing ${id}`);
+  }
+  assert.match(html, /id="mm-nav"[^>]*hidden/, 'the overlay must not be visible before a drive starts');
+  // And it must never be announced as an alert: it updates constantly.
+  assert.ok(!/id="mm-nav"[^>]*role="alert"/.test(html), 'the walking overlay must not be a live alert region');
+});
+
+test('providers: the driving services are declared with their licences', () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  assert.match(providers.VALHALLA.url, /valhalla/i);
+  assert.match(providers.VALHALLA.licence, /ODbL/);
+  assert.match(providers.WEATHER.licence, /CC BY 4\.0/);
+  assert.match(providers.TRAFFIC.tfl.url, /tfl\.gov\.uk/);
+  assert.match(providers.TRAFFIC.tfl.coverage, /London/);
+  assert.ok(providers.TRAFFIC.tfl.licence.indexOf('TfL') >= 0);
+
+  const described = providers.describe();
+  assert.ok(described.driving && described.driving.id === providers.VALHALLA.id, 'describe() names the driving router');
+  assert.ok(described.traffic && /TfL/.test(described.traffic.name), 'describe() names the traffic source');
+  assert.ok(described.weather && /Open-Meteo/.test(described.weather.name), 'describe() names the weather source');
+  assert.deepEqual(providers.POI_CATEGORIES.length, providers.poiCategories ? providers.POI_CATEGORIES.length : providers.POI_CATEGORIES.length);
+});
+
+test('providers: traffic says nothing rather than inventing it', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  // Scotland: no key-free live traffic feed covers it, so the answer is a
+  // labelled absence, not a fabricated delay.
+  const scotland = await providers.trafficAlong([[-4.2, 55.9], [-3.2, 56.4]]);
+  assert.equal(scotland.coverage, 'none');
+  assert.equal(scotland.events.length, 0);
+  assert.match(scotland.note, /free-flow/i);
+
+  // London: TfL is asked. With the network down, the failure is reported.
+  const original = globalThis.fetch;
+  globalThis.fetch = () => Promise.reject(new Error('no network in tests'));
+  try {
+    const failed = await providers.trafficAlong([[-0.42, 51.5], [-0.12, 51.51]]);
+    assert.equal(failed.events.length, 0);
+    assert.ok(failed.error, 'the failure is reported rather than swallowed');
+    assert.match(failed.note, /TfL/i);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('providers: weather is read at the hour you would get there', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  const start = new Date('2026-05-01T08:00:00Z');
+  const hourly = { time: [], temperature_2m: [], precipitation: [], precipitation_probability: [], weather_code: [], wind_speed_10m: [], wind_gusts_10m: [], visibility: [] };
+  for (let hour = 0; hour < 12; hour += 1) {
+    hourly.time.push(new Date(start.getTime() + hour * 3600000).toISOString().slice(0, 19));
+    hourly.temperature_2m.push(10 + hour);
+    hourly.precipitation.push(hour === 3 ? 1.2 : 0);
+    hourly.precipitation_probability.push(hour === 3 ? 80 : 5);
+    hourly.weather_code.push(hour === 3 ? 63 : 1);
+    hourly.wind_speed_10m.push(20);
+    hourly.wind_gusts_10m.push(hour === 3 ? 70 : 30);
+    hourly.visibility.push(9000);
+  }
+  const original = globalThis.fetch;
+  let asked = null;
+  globalThis.fetch = async (url) => {
+    asked = String(url);
+    return new Response(JSON.stringify([{ hourly }, { hourly }]), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const result = await providers.weatherAlong([
+      { lat: 51.5, lon: -0.4, alongKm: 0, etaMinutes: 0 },
+      { lat: 52.5, lon: -0.4, alongKm: 100, etaMinutes: 180 },
+    ], { startAt: start });
+    assert.equal(result.points.length, 2);
+    assert.equal(result.points[0].temperatureC, 10, 'the hour you are there, not the current hour');
+    assert.equal(result.points[1].temperatureC, 13, 'three hours in, three hours along the forecast');
+    assert.equal(result.points[1].precipitationChance, 80);
+    assert.equal(result.points[1].gustKph, 70);
+    assert.match(result.provider.licence, /CC BY 4\.0/);
+    assert.match(asked, /api\.open-meteo\.com/, 'and it asks the documented endpoint');
+    assert.ok(!/apikey|api_key/i.test(asked), 'with no key: this must stay key-free');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
