@@ -1,0 +1,182 @@
+<h2 id="wbp-title" style="margin-top:0;color:var(--accent);">💒 Wedding Budget Planner</h2>
+
+<form aria-describedby="wbp-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="wbp-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Set the total you are actually willing to spend, choose your guest count, and get a per-category breakdown
+    with sensible starting percentages you can push around. The cost-per-guest number keeps everyone honest.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="wbp-total" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Total budget (£)</label>
+      <input id="wbp-total" type="number" min="0" step="500" value="18000" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="wbp-guests" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Guests</label>
+      <input id="wbp-guests" type="number" min="0" step="1" value="70" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="wbp-preset" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Start from</label>
+      <select id="wbp-preset" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="classic" selected>Classic split (~50% venue &amp; food)</option>
+        <option value="foodie">Food &amp; party first</option>
+        <option value="minimal">Registry office + knees-up</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="small" style="color:rgba(230,250,255,0.6);margin-bottom:8px;">Adjust the split — percentages auto-normalise to 100.</div>
+  <div id="wbp-sliders" style="margin-bottom:12px;"></div>
+
+  <button type="button" id="wbp-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">Break it down</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="wbp-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Rule of thumb: every guest costs the food-and-drink share of your venue budget. Ten fewer guests is usually a
+    four-figure saving.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Method, where budgets actually blow up, and the food maths</summary>
+  <p style="margin-top:8px;">
+    <strong>Method.</strong> Total £ × normalised category %. The starting splits follow the shape of typical UK
+    wedding-spend surveys: venue and catering together take close to half; photography, attire, flowers, music and
+    the long tail share the rest; 8&ndash;10% contingency is not optional — something always costs more than quoted.
+  </p>
+  <p>
+    <strong>Where budgets blow up.</strong> Venues quote &ldquo;from&rdquo; prices for a Tuesday in February; the
+    Saturday-in-July price is the real one. Drinks packages multiply by actual consumption, not expectation. And
+    &ldquo;guests we must invite&rdquo; grows the list by 20 — each one costing the per-head catering you chose.
+  </p>
+  <p>
+    <strong>The food maths.</strong> If catering is £85 a head, a party of 70 costs £5,950 before a single canapé
+    upgrade. This is why the guest list is the budget: cutting ten people funds the photographer upgrade, and
+    nobody remembers chair covers.
+  </p>
+  <p>
+    <strong>Edge cases.</strong> The planner prices GB pounds and assumes one event day; multi-day, destination or
+    split-ceremony weddings need the same categories multiplied per day. Deposits cluster 6&ndash;12 months out —
+    track them monthly, not in one scary January.
+  </p>
+  <p style="font-size:0.78rem;opacity:0.75;">Method: percentage allocation with normalisation; splits are planning guidance, not quotes. Not financial advice. Last reviewed 2026-09-21.</p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var CATS = [
+    ['venue', 'Venue hire & catering'],
+    ['photo', 'Photography & video'],
+    ['attire', 'Outfits, hair & beauty'],
+    ['flowers', 'Flowers & decor'],
+    ['music', 'Music & entertainment'],
+    ['cake', 'Cake'],
+    ['stat', 'Stationery'],
+    ['trans', 'Transport'],
+    ['rings', 'Rings'],
+    ['gifts', 'Favours & gifts'],
+    ['fees', 'Ceremony fees & licence'],
+    ['cont', 'Contingency']
+  ];
+  var PRESETS = {
+    classic: { venue: 44, photo: 10, attire: 9, flowers: 8, music: 6, cake: 2, stat: 2, trans: 2, rings: 3, gifts: 2, fees: 1, cont: 11 },
+    foodie:  { venue: 52, photo: 8, attire: 7, flowers: 6, music: 8, cake: 3, stat: 1, trans: 2, rings: 3, gifts: 2, fees: 1, cont: 7 },
+    minimal: { venue: 38, photo: 6, attire: 10, flowers: 3, music: 5, cake: 2, stat: 1, trans: 3, rings: 6, gifts: 1, fees: 12, cont: 13 }
+  };
+  var vals = {};
+
+  function gbp(n) {
+    return '£' + Math.round(n).toLocaleString('en-GB');
+  }
+
+  function buildSliders() {
+    var box = $('wbp-sliders');
+    box.innerHTML = '';
+    CATS.forEach(function (c) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 130px 52px;gap:8px;align-items:center;margin-bottom:6px;font-size:0.84rem;';
+      var lab = document.createElement('span');
+      lab.style.color = 'rgba(230,250,255,0.75)';
+      lab.textContent = c[1];
+      var inp = document.createElement('input');
+      inp.type = 'range'; inp.min = '0'; inp.max = '60'; inp.step = '1'; inp.value = String(vals[c[0]]);
+      inp.id = 'wbp-s-' + c[0];
+      inp.setAttribute('aria-label', c[1] + ' percentage');
+      inp.style.cssText = 'width:100%;accent-color:#2dd4ff;';
+      var out = document.createElement('span');
+      out.id = 'wbp-v-' + c[0];
+      out.style.cssText = 'text-align:right;color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;';
+      inp.addEventListener('input', function () { vals[c[0]] = parseInt(inp.value, 10) || 0; update(); });
+      row.appendChild(lab); row.appendChild(inp); row.appendChild(out);
+      box.appendChild(row);
+    });
+    update();
+  }
+
+  function update() {
+    CATS.forEach(function (c) { $('wbp-v-' + c[0]).textContent = vals[c[0]] + '%'; });
+  }
+
+  function breakdown() {
+    var total = parseFloat($('wbp-total').value) || 0;
+    var guests = Math.max(0, parseInt($('wbp-guests').value, 10) || 0);
+    var sum = CATS.reduce(function (s, c) { return s + (vals[c[0]] || 0); }, 0) || 1;
+
+    var variable = (total * (vals.venue / sum) || 0); // venue & catering is the per-guest line
+    var perGuest = guests > 0 ? total / guests : 0;
+
+    var html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">' +
+      '<div style="flex:1;min-width:150px;padding:12px;background:rgba(45,212,255,0.07);border:1px solid rgba(45,212,255,0.22);border-radius:8px;text-align:center;"><div style="font-size:0.72rem;color:rgba(230,250,255,0.55);">TOTAL</div><div style="color:var(--accent);font-weight:800;font-size:1.35rem;">' + gbp(total) + '</div></div>' +
+      '<div style="flex:1;min-width:150px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;text-align:center;"><div style="font-size:0.72rem;color:rgba(230,250,255,0.55);">COST PER GUEST' + (guests ? ' (' + guests + ')' : '') + '</div><div style="color:rgba(230,250,255,0.9);font-weight:800;font-size:1.35rem;">' + (guests ? gbp(perGuest) : '—') + '</div></div>' +
+      '<div style="flex:1;min-width:150px;padding:12px;background:rgba(255,180,84,0.07);border:1px solid rgba(255,180,84,0.22);border-radius:8px;text-align:center;"><div style="font-size:0.72rem;color:rgba(230,250,255,0.55);">HELD BACK (contingency)</div><div style="color:#ffb454;font-weight:800;font-size:1.35rem;">' + gbp(total * vals.cont / sum) + '</div></div></div>';
+
+    html += '<table style="width:100%;border-collapse:collapse;font-size:0.86rem;margin-bottom:10px;"><tbody>';
+    CATS.forEach(function (c) {
+      var amt = total * (vals[c[0]] / sum);
+      if (amt < 1 && vals[c[0]] === 0) return;
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px 4px;color:rgba(230,250,255,0.8);">' + c[1] + '</td>' +
+        '<td style="padding:6px 4px;text-align:right;color:rgba(230,250,255,0.5);font-size:0.8rem;">' + Math.round(vals[c[0]] / sum * 100) + '%</td>' +
+        '<td style="padding:6px 4px;text-align:right;color:var(--accent);font-weight:700;">' + gbp(amt) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    if (guests > 0) {
+      var foodPerHead = variable / guests;
+      html += '<div style="padding:10px 12px;background:rgba(57,255,20,0.05);border:1px solid rgba(57,255,20,0.15);border-radius:8px;font-size:0.84rem;color:rgba(230,250,255,0.75);">' +
+        'Venue &amp; catering works out at <strong style="color:#39ff14;">' + gbp(foodPerHead) + ' per guest</strong>. ' +
+        'Ten guests fewer frees about ' + gbp(foodPerHead * 10) + ' — the guest list is the budget.</div>';
+    }
+    $('wbp-out').innerHTML = html;
+  }
+
+  function applyPreset() {
+    var p = PRESETS[$('wbp-preset').value];
+    CATS.forEach(function (c) {
+      vals[c[0]] = p[c[0]];
+      var s = $('wbp-s-' + c[0]);
+      if (s) s.value = String(p[c[0]]);
+    });
+    update();
+    breakdown();
+  }
+
+  CATS.forEach(function (c) { vals[c[0]] = PRESETS.classic[c[0]]; });
+  buildSliders();
+
+  $('wbp-go').addEventListener('click', breakdown);
+  $('wbp-total').addEventListener('input', breakdown);
+  $('wbp-guests').addEventListener('input', breakdown);
+  $('wbp-preset').addEventListener('change', applyPreset);
+  $('wbp-sliders').addEventListener('input', function () { /* individual handler updates vals */ });
+  CATS.forEach(function (c) {
+    $('wbp-s-' + c[0]).addEventListener('change', breakdown);
+  });
+  $('wbp-sliders').addEventListener('mouseup', breakdown);
+  $('wbp-sliders').addEventListener('touchend', breakdown);
+  breakdown();
+})();
+</script>
