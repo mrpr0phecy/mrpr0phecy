@@ -553,7 +553,11 @@ test('geo: offline country lookup finds the right country', () => {
   // Decode the vendored TopoJSON with the vendored topojson-client — the same
   // two files the page uses offline, so this also guards the vendor bundle.
   const topojson = require(path.join(ROOT, 'maps/vendor/topojson-client.min.js'));
-  globalThis.MM.topojson = topojson;
+  // geo.js must work with the global the vendored script sets, without anyone
+  // remembering to copy it onto MM — that wiring bug once left the offline
+  // world map blank in every card.
+  globalThis.topojson = topojson;
+  delete globalThis.MM.topojson;
   const topo = JSON.parse(fs.readFileSync(path.join(ROOT, 'maps/data/countries-110m.json'), 'utf8'));
   const collection = geo.fromTopology(topo, 'countries');
   assert.ok(collection.features.length > 150, 'every country decodes');

@@ -124,7 +124,9 @@
 
   /** Decode a TopoJSON topology into GeoJSON using the injected topojson-client. */
   function fromTopology(topology, objectName) {
-    var client = MM.topojson;
+    // The vendored topojson-client is loaded as a plain script, so it lands on
+    // the global first; accept either that or an explicit MM.topojson.
+    var client = MM.topojson || (root && root.topojson) || null;
     if (!client) throw new Error('geo.fromTopology needs MM.topojson (maps/vendor/topojson-client.min.js)');
     var name = objectName || 'countries';
     var object = topology.objects[name];

@@ -167,6 +167,7 @@
       locateButton: $('mm-locate'), railToggle: $('mm-rail-toggle'),
     };
 
+    if (root.topojson) MM.topojson = root.topojson;
     applyUrlState();
     buildMap();
     buildStatusChips();
@@ -1022,7 +1023,6 @@
       }
       renderMeasure();
       renderNearby();
-      els.placeBodyCleared = true;
       var body = els.place; clear(body);
       body.appendChild(make('p', 'mm-muted', 'Cleared. Search or click the map to start again.'));
       toast('Cleared');

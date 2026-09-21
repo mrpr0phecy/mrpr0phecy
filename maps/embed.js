@@ -56,10 +56,11 @@
     if (MMversion()) return Promise.resolve();
     if (corePromise) return corePromise;
     corePromise = loadScript(BASE + 'vendor/topojson-client.min.js').then(function () {
-      if (root.topojson && root.MM) root.MM.topojson = root.topojson;
       return Promise.all(CORE.map(function (file) { return loadScript(BASE + file); }));
     }).then(function () {
       if (!root.MM || !root.MM.geodesy) throw new Error('MostUsefulMaps engine failed to initialise');
+      // MM exists now: hand it the topology decoder for the offline world map.
+      if (root.topojson) root.MM.topojson = root.topojson;
     });
     return corePromise;
   }
@@ -120,9 +121,7 @@
         return Promise.all([fetchJson(BASE + 'data/gazetteer.json'), loadCountryFacts()]);
       })
       .then(function (results) {
-        var gazetteer = root.MM.gazetteer.create(results[0]).setCountries(results[1]);
-        gazetteer.cities.byIso3 = null;
-        return gazetteer;
+        return root.MM.gazetteer.create(results[0]).setCountries(results[1]);
       })
       .catch(function (error) {
         gazetteerPromise = null;
@@ -163,8 +162,13 @@
     if (el.getAttribute('data-mm-mounted') === 'true' && el.__mostUsefulMaps) {
       return Promise.resolve(el.__mostUsefulMaps);
     }
-    el.classList.add('mm-map');
+    // The card owns its own box. `.mm-map` in the product stylesheet means
+    // "fill the parent" (absolute inset:0), which is right for the full page
+    // and wrong inside a card that shares one DOM with 1,205 others.
+    if (!el.style.position || el.style.position === 'static') el.style.position = 'relative';
+    el.style.overflow = 'hidden';
     if (opts.height && !el.style.height) el.style.height = (typeof opts.height === 'number' ? opts.height + 'px' : opts.height);
+    if (!el.style.height) el.style.height = '220px';
     if (opts.className) el.classList.add(opts.className);
 
     var centre = normaliseCentre(opts.center) || { lat: 20, lon: 0 };
