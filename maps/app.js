@@ -81,6 +81,18 @@
 
   function $(id) { return doc.getElementById(id); }
 
+  /**
+   * The OS grid reference as text, or null outside the National Grid.
+   * MM.gridref.fromWgs84() answers with the whole working — easting, northing,
+   * the OSGB36 point, the datum shift — and the grid reference is the
+   * `gridRef` field of that. Reading it through one helper is what keeps
+   * "[object Object]" out of the interface.
+   */
+  function gridRefText(lat, lon) {
+    if (!MM.gridref.coveredBy(lat, lon)) return null;
+    return MM.gridref.fromWgs84(lat, lon, 5).gridRef;
+  }
+
   function make(tag, className, text) {
     var node = doc.createElement(tag);
     if (className) node.className = className;
@@ -625,7 +637,7 @@
     var dl = make('dl', 'mm-kv');
     kvRow(dl, 'Coordinates', MM.geodesy.formatLatLon(row.lat, row.lon, 5), 'Coordinates');
     kvRow(dl, 'Plus Code', MM.olc.encode(row.lat, row.lon), 'Plus Code');
-    var grid = MM.gridref.coveredBy(row.lat, row.lon) ? MM.gridref.fromWgs84(row.lat, row.lon, 5) : null;
+    var grid = gridRefText(row.lat, row.lon);
     if (grid) kvRow(dl, 'OS grid ref', grid, 'OS grid reference');
     body.appendChild(dl);
 
@@ -1903,6 +1915,10 @@
         renderLimits(limits, result);
         paintDriveMarkers();
         return limits;
+      }).catch(function (error) {
+        if (!current) return;
+        clear(current);
+        current.appendChild(make('p', 'mm-note warn', 'The speed-limit check failed: ' + error.message + '. The route, the guidance and the maths below are unaffected — and no limit is invented to fill the gap.'));
       });
     }
 
@@ -1911,6 +1927,8 @@
         drive.layers.traffic = traffic;
         renderTraffic(traffic);
         paintDriveMarkers();
+      }).catch(function (error) {
+        renderTraffic({ events: [], error: error.message });
       });
     } else {
       renderTraffic(null);
@@ -1921,6 +1939,8 @@
       MM.providers.weatherAlong(samples, { startAt: new Date() }).then(function (weather) {
         drive.layers.weather = weather;
         renderWeather(weather, route);
+      }).catch(function (error) {
+        renderWeather({ points: [], error: error.message }, route);
       });
     } else {
       renderWeather(null, route);
@@ -1931,6 +1951,8 @@
         drive.layers.stops = stops;
         renderStops(stops);
         paintDriveMarkers();
+      }).catch(function (error) {
+        renderStops({ stops: [], error: error.message });
       });
     } else {
       renderStops(null);
@@ -1941,6 +1963,8 @@
         drive.layers.cameras = cameras;
         renderCameras(cameras);
         paintDriveMarkers();
+      }).catch(function (error) {
+        renderCameras({ cameras: [], error: error.message });
       });
     } else if (wants.cameras !== false) {
       renderCameras(null, true);
@@ -1972,10 +1996,9 @@
 
   /** Country at a point, from the offline gazetteer's nearest town. */
   function countryGuessAt(lat, lon) {
-    if (!gazetteer || !gazetteer.cities || !gazetteer.cities.length) return null;
-    var nearest = MM.gazetteer.nearest({ lat: lat, lon: lon });
-    if (!nearest || nearest.km > 120) return null;
-    return nearest.row[3] || null;
+    var near = nearestTown(lat, lon, 0);
+    if (!near || near.km > 120) return null;
+    return near.cc || null;
   }
 
   /**
@@ -1984,13 +2007,19 @@
    * it is used to justify a 20 or 30 mph default.
    */
   function urbanGuessAt(lat, lon) {
-    if (!gazetteer || !gazetteer.cities || !gazetteer.cities.length) return false;
-    var nearby = MM.gazetteer.inBBox({ north: lat + 0.06, south: lat - 0.06, east: lon + 0.09, west: lon - 0.09 }, { minPopulation: 5000 });
-    if (!nearby || !nearby.length) return false;
-    for (var i = 0; i < nearby.length; i += 1) {
-      if (nearby[i].km != null && nearby[i].km < 6) return true;
-    }
-    return false;
+    var near = nearestTown(lat, lon, 5000);
+    return !!(near && near.km < 6);
+  }
+
+  /**
+   * The nearest town the offline gazetteer knows about, or null when it has
+   * not loaded. `nearest` is a method on the loaded Gazetteer instance, which
+   * is why every caller goes through here rather than the namespace.
+   */
+  function nearestTown(lat, lon, minPopulation) {
+    if (!gazetteer || typeof gazetteer.nearest !== 'function' || !gazetteer.cities.length) return null;
+    var rows = gazetteer.nearest({ lat: lat, lon: lon }, 1, minPopulation ? { minPop: minPopulation } : null);
+    return rows && rows.length ? rows[0] : null;
   }
 
   function scotlandOrNIAt(lat, lon) {
@@ -2577,7 +2606,7 @@
 
   function updateHud() {
     var center = state.center;
-    var grid = MM.gridref.coveredBy(center.lat, center.lon) ? MM.gridref.fromWgs84(center.lat, center.lon, 5) : null;
+    var grid = gridRefText(center.lat, center.lon);
     var time = localTimeAt(center);
     clear(els.coord);
     var row1 = make('div', 'mm-coord-row');
@@ -2594,7 +2623,7 @@
     var row1 = make('div', 'mm-coord-row');
     row1.appendChild(make('b', null, MM.geodesy.formatLatLon(hover, null, 5)));
     els.coord.appendChild(row1);
-    var grid = MM.gridref.coveredBy(hover.lat, hover.lon) ? MM.gridref.fromWgs84(hover.lat, hover.lon, 5) : null;
+    var grid = gridRefText(hover.lat, hover.lon);
     els.coord.appendChild(make('div', 'mm-coord-row', MM.olc.encode(hover.lat, hover.lon) + (grid ? '  ·  ' + grid : '')));
   }
 

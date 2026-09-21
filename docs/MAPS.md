@@ -222,6 +222,13 @@ makes the feature testable in CI and usable on a desktop.
 `openInFullMap(state)`, plus `mount()` → an instance with `setCenter`,
 `setMarkers`, `setPath`, `destroy()`.
 
+`plusCode(lat, lon)` and `gridReference(lat, lon)` both answer with **text**
+(`gridReference` is null outside the National Grid), so a card can put the
+result straight into the page. For the workings behind a grid reference —
+easting, northing, the OSGB36 point and the datum shift it moved by — load
+`maps/core/gridref.js` and call `MM.gridref.fromWgs84(lat, lon, 5)`, which
+returns the object `gridReference` reads `gridRef` from.
+
 Everything is loaded lazily and relative to the site root, so a card that never
 touches a map pays nothing for it. Cards reach it with a relative path
 (`maps/embed.js`) — never an absolute URL, which is what `check-links.py` and

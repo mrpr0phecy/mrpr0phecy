@@ -1162,3 +1162,82 @@ test('providers: weather is read at the hour you would get there', async () => {
     globalThis.fetch = original;
   }
 });
+
+test('page: a grid reference is rendered as text, never as an object', () => {
+  // MM.gridref.fromWgs84() returns the whole working — easting, northing, the
+  // OSGB36 point, the datum shift — and the grid reference is its `gridRef`
+  // field. Passing the object into text produced "[object Object]" in the HUD
+  // on the live site, so this pins the shape of every call site.
+  const codeLines = (text) => text
+    .split('\n')
+    .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line)) // ignore comments
+    .join('\n');
+
+  for (const file of ['maps/app.js', 'maps/embed.js']) {
+    const code = codeLines(fs.readFileSync(path.join(ROOT, file), 'utf8'));
+    const calls = [...code.matchAll(/fromWgs84\(/g)];
+    const reads = [...code.matchAll(/\.gridRef\b/g)];
+    assert.ok(calls.length >= 1, `${file} should read the grid reference`);
+    assert.equal(
+      reads.length, calls.length,
+      `${file} calls fromWgs84 ${calls.length} time(s) but only reads .gridRef ${reads.length} time(s) — a rule of thumb: read it through one helper and never concatenate the object`
+    );
+  }
+
+  // The engine keeps the full object: callers who want the datum shift need it.
+  const gridref = require(path.join(ROOT, 'maps/core/gridref.js'));
+  const result = gridref.fromWgs84(51.8797, -0.4175, 5);
+  assert.equal(typeof result.gridRef, 'string');
+  assert.match(result.gridRef, /^TL \d{5} \d{5}$/);
+  assert.equal(typeof result.easting, 'number');
+  assert.equal(typeof result.northing, 'number');
+  assert.equal(result.gridRef, gridref.gridRef(result.easting, result.northing, 5));
+
+  // And the embed API hands a card text, so it can go straight into the page.
+  const embed = fs.readFileSync(path.join(ROOT, 'maps/embed.js'), 'utf8');
+  assert.match(embed, /gridReference[\s\S]{0,240}?\.gridRef/, 'MostUsefulMaps.gridReference must resolve to a string');
+  assert.ok(!/gridReference[\s\S]{0,240}?fromWgs84\(lat, lon, 5\)\s*;/.test(embed), 'and must not hand back the object');
+});
+
+test('page: every MM.<namespace>.<member> the page calls actually exists', () => {
+  // This is the test that would have caught MM.gazetteer.nearest: `nearest` is
+  // a method on a loaded Gazetteer *instance*, not on the namespace, so the
+  // call threw as soon as the gazetteer finished loading — leaving the Drive
+  // tab's speed-limit panel stuck on "Checking…" for every real visitor.
+  const modules = {
+    geodesy: 'maps/core/geodesy.js',
+    olc: 'maps/core/olc.js',
+    solar: 'maps/core/solar.js',
+    gridref: 'maps/core/gridref.js',
+    speed: 'maps/core/speed.js',
+    drive: 'maps/core/drive.js',
+    gazetteer: 'maps/core/gazetteer.js',
+    providers: 'maps/providers.js',
+  };
+  for (const file of Object.values(modules)) require(path.join(ROOT, file));
+  // These are not core modules: app.js assigns MM.topojson and MM.app itself,
+  // and the two renderers are loaded by the page as classes.
+  const assignedByThePage = new Set(['app', 'topojson', 'LocalMap', 'livemap']);
+
+  const withoutComments = (text) => text
+    .split('\n')
+    .filter((line) => !/^\s*(\*|\/\/|\/\*)/.test(line))
+    .join('\n');
+
+  let checked = 0;
+  for (const file of ['maps/app.js', 'maps/embed.js', 'cards/mostusefulmaps.html']) {
+    const source = withoutComments(fs.readFileSync(path.join(ROOT, file), 'utf8'));
+    for (const match of source.matchAll(/MM\.([A-Za-z]+)\.([A-Za-z_$][\w$]*)/g)) {
+      const [, namespace, member] = match;
+      if (assignedByThePage.has(namespace)) continue;
+      const module = globalThis.MM[namespace];
+      assert.ok(module, `${file} calls MM.${namespace}.${member}, but there is no MM.${namespace} module`);
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(module, member),
+        `${file} calls MM.${namespace}.${member}, which does not exist on ${modules[namespace] || 'that module'}`
+      );
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 60, `expected the page to use the engine in many places, checked only ${checked}`);
+});
