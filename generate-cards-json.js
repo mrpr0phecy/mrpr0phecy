@@ -182,6 +182,20 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-21 — ten everyday gap fills chosen by keyword audit against all 1,220 existing
+  // cards: the highest-intent utilities the catalogue still lacked (a picker wheel, team
+  // splitter, plain notepad and to-do list, meme maker, image eyedropper, device check,
+  // reflex tests, a sound machine and plain hours-and-minutes arithmetic).
+  'spin-the-wheel-random-picker': 'Productivity & Lifestyle',
+  'random-team-generator': 'Productivity & Lifestyle',
+  'online-notepad-autosave': 'Productivity & Lifestyle',
+  'simple-todo-list': 'Productivity & Lifestyle',
+  'meme-generator': 'Productivity & Lifestyle',
+  'time-duration-calculator': 'Productivity & Lifestyle',
+  'image-color-picker-palette-extractor': 'Algorithms & Computer Science',
+  'mic-speaker-webcam-test': 'Algorithms & Computer Science',
+  'reaction-time-click-speed-test': 'Sports',
+  'white-noise-sleep-sound-generator': 'Lucid Dreaming & Sleep',
   // 2026-09-21 — fourteen "most useful" gap fills: everyday, high-intent tools the
   // catalogue did not have (audited against all 1,209 existing cards). Kitchen timers,
   // money savers, health motivation, and the classic moving/candle/compost calculators.
