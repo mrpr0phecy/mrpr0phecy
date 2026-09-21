@@ -182,6 +182,18 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-21 — ten trucking tools (new Trucking & Freight category): everything a driver
+  // needs between the loading dock and the scale house.
+  'truck-duty-clock-planner': 'Trucking & Freight',
+  'truck-axle-weight-bridge-formula': 'Trucking & Freight',
+  'truck-tyre-load-pressure-selector': 'Trucking & Freight',
+  'truck-load-planner': 'Trucking & Freight',
+  'truck-stopping-distance': 'Trucking & Freight',
+  'truck-grade-descent-speed': 'Trucking & Freight',
+  'truck-cost-per-mile': 'Trucking & Freight',
+  'truck-load-offer-decider': 'Trucking & Freight',
+  'truck-pretrip-inspection': 'Trucking & Freight',
+  'truck-breakdown-triage': 'Trucking & Freight',
   'police-legal-jargon-decoder': 'Wellbeing & Community',
   // Added 2026-09-14 — five gap-fill tools (no kitchen-conversion, world-clock,
   // event-countdown, group-expense or affordability tool existed in the catalogue).

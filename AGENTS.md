@@ -11,7 +11,7 @@ actually hurt the site, the owner's income or a visitor.
 
 Two products that never mix:
 
-- **Product A** — `themostusefulsiteintheworld.com`: 1195 offline browser
+- **Product A** — `themostusefulsiteintheworld.com`: 1205 offline browser
   tools, each one a fragment in `cards/`, loaded into one shared DOM by
   `index.html` / `tool.html`. Plus `ai.html` (Lantern, the on-site AI).
 - **Product B** — the music pages (`listen.html`, `artists.html`, the hreflang
@@ -80,7 +80,7 @@ shared DOM, runs the gate, commits and pushes. By hand: write
 the slug, the JS in an IIFE, no network calls — add the slug to its category
 list in `generate-cards-json.js`, then `npm run build` and
 `npm run verify:deep`. Check `tool.html?card=<slug>` and
-`...&embed=1` at 1195 px. A YMYL tool (Health & Fitness, Finance & Money) also
+`...&embed=1` at 1205 px. A YMYL tool (Health & Fitness, Finance & Money) also
 needs the `docs/TRUST.md` checklist — methodology, primary source, worked
 example, edge cases, disclaimer, last-reviewed date — in the fragment or,
 better, in a `tools/<slug>.html` deep page rendered from
@@ -93,8 +93,8 @@ or make a change that cannot read as a duplicate in another language.
 files are all owned by `npm run build`: `cards/cards*.json`, `sitemap.xml`,
 `sitemap.html`, `tools.html`, `tools-index.{json,html}`, `categories/`,
 `related.json`, `embed.html`, `api/tools*.json`, `tools/*.html`, `llms.txt`,
-`llms-full.txt`, `index.html`'s HOME-FAST-PATH / HOME-PRERENDER blocks and
-every published tool count.
+`llms-full.txt`, `index.html`'s HOME-FEATURED / HOME-TRENDING /
+HOME-CATEGORIES blocks and every published tool count.
 
 **There is no site brain any more.** `local-ai-knowledge.json` (4.5 MB), its
 857-line builder, its evaluator and `learning/` were deleted on 2026-09-20.

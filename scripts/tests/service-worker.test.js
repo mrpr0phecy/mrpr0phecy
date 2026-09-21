@@ -189,7 +189,7 @@ const body = (res) => res.text();
   }
 
   // ------------------------------------------------------- offline page assets
-  // A first visit fetches home.css / home-app.js before the worker controls
+  // A first visit fetches home.css / home-core.js before the worker controls
   // anything, so nothing had stored them: the next visit offline served the
   // cached index.html and then 503'd its own stylesheet and script — an
   // unstyled page with no cards. They are precached into the store the handler
@@ -198,14 +198,16 @@ const body = (res) => res.text();
     const version = CACHE_VERSION.split('-')[0].replace(/^v/, '');
     const w = makeWorker();
     for (const [name, text] of [['/home.css', 'CACHED CSS'], ['/home-deferred.css', 'CACHED DEFERRED CSS'],
-                                ['/home-app.js', 'CACHED APP'], ['/home-features.js', 'CACHED FEATURES'],
-                                ['/risk-notices.js', 'CACHED NOTICES']]) {
+                                ['/risk-notices.js', 'CACHED NOTICES'], ['/explore.css', 'CACHED LIST CSS'],
+                                ['/explore.js', 'CACHED LIST'], ['/toolbox.js', 'CACHED TOOLBOX'],
+                                ['/home-core.js', 'CACHED CORE']]) {
       await w.put(STATIC, `${name}?v=${version}`, text, 0);
     }
     w.setNetwork(() => Promise.reject(new Error('offline')));
     for (const [name, text] of [['/home.css', 'CACHED CSS'], ['/home-deferred.css', 'CACHED DEFERRED CSS'],
-                                ['/home-app.js', 'CACHED APP'], ['/home-features.js', 'CACHED FEATURES'],
-                                ['/risk-notices.js', 'CACHED NOTICES']]) {
+                                ['/risk-notices.js', 'CACHED NOTICES'], ['/explore.css', 'CACHED LIST CSS'],
+                                ['/explore.js', 'CACHED LIST'], ['/toolbox.js', 'CACHED TOOLBOX'],
+                                ['/home-core.js', 'CACHED CORE']]) {
       const res = await w.dispatch(`${name}?v=${version}`);
       assert.strictEqual(res.status, 200, `${name} must be served offline from the precache`);
       assert.strictEqual(await body(res), text, `${name} offline body came from the wrong store`);
@@ -219,7 +221,12 @@ const body = (res) => res.text();
   {
     const paths = [...((SRC.match(/const PAGE_ASSET_PATHS = \[([^\]]*)\]/) || [])[1] || '')
       .matchAll(/'([^']+)'/g)].map((m) => m[1]);
-    assert.strictEqual(paths.length, 5, `expected 5 page assets, found ${paths.length}`);
+    // Seven: two stylesheets, the risk notices, and the four files that make
+    // the list layer work (explore.css / explore.js / toolbox.js / home-core.js).
+    // This count is the tripwire for exactly the change of 2026-09-21 — the
+    // assets a page loads and the assets the worker precaches have to be the
+    // same set, or a returning visitor gets a 503 for their own toolbox.
+    assert.strictEqual(paths.length, 7, `expected 7 page assets, found ${paths.length}`);
     assert.ok(SRC.includes("const PAGE_VERSION = CACHE_VERSION.split('-')[0]"),
       'PAGE_VERSION must be derived from CACHE_VERSION, or a deploy serves the old version');
     for (const name of paths) {

@@ -132,6 +132,44 @@ for real numbers first.
 
 ---
 
+### Where the income surfaces live in the list architecture (2026-09-21)
+
+The home page stopped running tools and became a set of lists. That change was
+made for overheads, but it moves the money surfaces, so here is where they are
+now — all of them unchanged in kind, none of them new in number:
+
+- **One sponsorship position per page, and it is enforced.** Every list page
+  (`index.html`, `tools.html`, `tools-index.html`, the 28 category pages)
+  carries exactly one invitation block, `.xp-sponsor`, written as an invitation
+  and *not* as a fake placement. `scripts/check-finance.js` now counts those
+  blocks alongside the `SPONSOR-SLOT` comments in card fragments and fails the
+  build at two per page. The reader-facing promise ("rarely, labelled, never
+  more than 5% of the page") is the sales argument: scarcity is what a sponsor
+  is buying.
+- **The toolbox carries the donation line, once.** The panel's footer is the
+  only place on the site that asks: *"free and account-free forever. If it
+  earns its keep: buy the site a coffee · sponsor a category."* It is shown
+  when the toolbox is empty and when it is full, and nowhere else. A tool that
+  a visitor personally chose to keep is the most qualified audience on the
+  site — and it is the only moment the ask is not an interruption.
+- **The share link is the growth loop.** `?toolbox=<base64url slugs>` turns a
+  personal shortlist into a link someone sends to a colleague. That is free
+  distribution into exactly the audience the sponsorship is sold to, and it
+  costs the visitor nothing (no account, nothing uploaded). It is also the one
+  feature of the new toolbox that a competitor's tool grid cannot copy.
+- **What did NOT change:** £1,000 custom-tool offer, donate.html/support.html,
+  embed licensing, sync licensing, YouTube. No ads, no paywalls, no
+  third-party scripts on any list page — the sponsors' own promise on
+  `sponsor.html` still holds, because a tracking pixel in a sponsorship
+  placement would remove the reason to pay for it.
+
+The traffic logic is unchanged and worth repeating: donations convert at
+0.01–0.1% and sponsorships need a number to quote, so **the list pages are
+larger traffic surfaces than the old home grid was** — they are the pages that
+rank (the index, the directory, 28 category hubs) and the pages a visitor can
+land on from a search result. Making them better lists is the traffic work;
+this section is only where the money sits inside it.
+
 ## Route 4 — Sync licensing (best £/hour, genuinely underused)
 
 **This is the most undervalued asset you have.**

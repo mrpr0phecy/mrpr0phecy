@@ -11,8 +11,8 @@
  *
  * This module extracts that engine and evaluates it in a vm context with stub
  * browser globals, so a test or a benchmark can drive the shipped code exactly
- * as the browser does — the same pattern scripts/tests/home-fast-path.test.js
- * and scripts/tests/tool-shell.test.js already use for index.html and tool.html.
+ * as the browser does — the same pattern scripts/tests/tool-shell.test.js
+ * already uses for tool.html.
  * Nothing here reimplements Lantern. If ai.html changes and breaks retrieval,
  * arithmetic or a guard, these callers break too.
  *

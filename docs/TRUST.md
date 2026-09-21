@@ -55,8 +55,8 @@ this catalogue".
   each must be a verifiable human.
 * **Freshness** — homepage and tools pages carry `<meta name="last-reviewed"
   content="2026-09-19">`; updated on content edits. Build stamp `APP_VERSION`
-  in `home-app.js` / `discovery-app.js` is deploy metadata, not content
-  freshness.
+  in `home-core.js` (and the `?v=` on every asset it loads) is deploy metadata,
+  not content freshness.
 
 ## What to do next (pointer #1 → #5 loop)
 

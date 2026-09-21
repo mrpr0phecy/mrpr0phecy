@@ -48,6 +48,48 @@ from discovery_catalogue import ROOT, load_catalogue  # noqa: E402
 
 PAGE = os.path.join(ROOT, "tools.html")
 
+def asset_version() -> str:
+    """The ?v=N every generated list page must use, read from the worker.
+
+    This number has exactly one home — CACHE_VERSION in sw.js — because the
+    failure it prevents is silent: on 2026-09-21 index.html moved to ?v=16
+    while tools.html and the 28 category pages were still serving
+    explore.css?v=1, so a returning visitor's browser would mix the new
+    markup with the previous deploy's list engine. Hard-coding the number in
+    three generators is how that happened; reading it from sw.js is how it
+    cannot happen again.
+    """
+    with open(os.path.join(ROOT, "sw.js"), encoding="utf-8") as fh:
+        match = re.search(r"CACHE_VERSION\s*=\s*'v(\d+)-", fh.read())
+    if not match:
+        raise SystemExit("sw.js has no CACHE_VERSION = 'vN-<date>' — cannot version page assets")
+    return match.group(1)
+
+
+def version_head(head: str) -> str:
+    """Point the head's list-layer links at the current version.
+
+    Idempotent: it adds the links if they are missing (a page generated before
+    the layer existed) and corrects the version if they are stale.
+    """
+    version = asset_version()
+    if "explore.css" not in head:
+        head = head.replace(
+            "</head>",
+            f'  <link rel="stylesheet" href="explore.css?v={version}">\n'
+            f'  <script defer src="toolbox.js?v={version}"></script>\n'
+            f'  <script defer src="explore.js?v={version}"></script>\n'
+            "</head>",
+        )
+    for asset in ("explore.css", "toolbox.js", "explore.js"):
+        head = re.sub(
+            rf'({re.escape(asset)})\?v=\d+',
+            rf"\g<1>?v={version}",
+            head,
+        )
+    return head
+
+
 BODY_START = "<body>"
 MAIN_START = '<main class="wrap">'
 MAIN_END = "</main>"
@@ -93,20 +135,55 @@ def render_toc(categories) -> str:
 
 
 def render_main(categories) -> str:
+    """Every tool as an explore row, grouped by category.
+
+    The row markup is the same component the home page renders from
+    tools-index.json and the category pages render from cards.json, so the
+    toolbar, the ＋ buttons, the keyboard and the density toggle behave
+    identically on all three surfaces. The rows are real links in the served
+    HTML: with JavaScript off this page is the complete index it claims to be,
+    and explore.js only *adds* to it.
+
+    `data-xp-group` marks a category section so the filter can hide a heading
+    whose rows have all been filtered out (an empty heading on a filtered page
+    reads as "this category has no tools").
+    """
     lines = [MAIN_START]
+    lines.append('<div class="explore-head">')
+    lines.append('  <p class="explore-lede">Filter it, sort it, or press <kbd>/</kbd> to jump to the box. '
+                 'Every row opens a tool on its own page, and the ＋ keeps it in your toolbox for next time.</p>')
+    lines.append('  <div class="xp-sponsor" role="note">')
+    lines.append('    <span><b>Sponsorship · one slot on this page</b> Sponsors are always labelled, '
+                 'and a sponsor&rsquo;s own placement carries no tracking scripts, never takes more than '
+                 '5% of the page and never changes what a tool does. Ask for the real traffic numbers '
+                 'before you buy.</span>')
+    lines.append('    <a href="sponsor.html">Sponsor this index →</a>')
+    lines.append('  </div>')
+    lines.append('</div>')
+    lines.append('<div id="explore" data-explore="static">')
     for cat in categories:
+        lines.append(f'<section class="cat-block" data-xp-group="{esc(cat.name)}" aria-labelledby="cat-{cat.slug}">')
         lines.append(
             f'<h2 id="cat-{cat.slug}">{esc(cat.name)} '
             f'<span class="count">{len(cat.tools)} tools</span></h2>'
         )
-        lines.append('<div class="tool-list">')
+        lines.append('<ul class="xp-list">')
         for tool in cat.tools:
-            lines.append(f'<a class="tool-item" href="{tool.url}">')
-            lines.append(f'<div class="ti-title">{esc(tool.title)}</div>')
+            slug = tool.url.split("card=")[-1]
+            # Only the slug is repeated per row: the category is on the
+            # enclosing section, and a title attribute would duplicate the
+            # visible title 1,205 times for no reader's benefit.
+            lines.append(f'<li class="xp-row" data-slug="{esc(slug)}">')
+            lines.append(
+                f'<a class="xp-open" href="{tool.url}">'
+                f'<span class="xp-title">{esc(tool.title)}</span></a>'
+            )
             if tool.description:
-                lines.append(f'<div class="ti-desc">{esc(tool.description)}</div>')
-            lines.append("</a>")
-        lines.append("</div>")
+                lines.append(f'<p class="xp-desc">{esc(tool.description)}</p>')
+            lines.append('</li>')
+        lines.append('</ul>')
+        lines.append('</section>')
+    lines.append('</div>')
     lines.append(MAIN_END)
     return "\n".join(lines)
 
@@ -115,7 +192,7 @@ def render_hero(total: int, cat_count: int) -> str:
     return (
         '<header class="hero"><div class="wrap">\n'
         f'<div class="eyebrow">Complete index · {total} tools · {cat_count} categories</div>\n'
-        "<h1>Every tool, by category</h1>\n"
+        "<h1>Every tool, filterable</h1>\n"
         f"<p>The full list of {total} free browser tools — open the category you need, "
         "or jump straight to a specific tool. No sign-ups, no display ads, no accounts.</p>\n"
         "</div></header>"
@@ -131,6 +208,11 @@ def build() -> str:
 
     head, body = current.split(BODY_START, 1)
     head = head + BODY_START
+
+    # The shared list layer: one stylesheet and two scripts, the same files the
+    # home page and the category pages load. Added once, idempotently, so this
+    # generator can be re-run without stacking duplicates.
+    head = version_head(head)
 
     # Keep the design, replace the data. Each block is located by its own
     # markup so a restyle never silently loses a section.

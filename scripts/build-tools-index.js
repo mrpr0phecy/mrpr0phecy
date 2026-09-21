@@ -47,6 +47,7 @@ const CATEGORY_ORDER = [
   ['Productivity & Lifestyle', '⚡'],
   ['Virtual Worlds & Gaming', '🎮'],
   ['Museum & Collection', '🏛️'],
+  ['Trucking & Freight', '🚚'],
 ];
 
 const CAT_ICON_MAP = Object.fromEntries(CATEGORY_ORDER);

@@ -16,10 +16,14 @@ paint can show. This guard enforces the properties the split depends on:
      would silently restore the serial 19 KB that this change removed;
   2. home.css is linked render-blocking, home-deferred.css is linked without
      blocking (media="print" + onload swap) with a <noscript> fallback;
-  3. the asset version is the same in all three places that decide it —
-     index.html's ?v=, APP_VERSION in home-app.js (which builds
-     home-features.js?v=<it>) and CACHE_VERSION in sw.js — so a page can never
-     be served against another deploy's CSS or JS;
+  3. the asset version is the same in every place that decides it —
+     index.html's ?v= on all seven of its own assets, APP_VERSION in
+     home-core.js (the page's script) and CACHE_VERSION in sw.js — so a page can
+     never be served against another deploy's CSS or JS. The home page's own
+     asset list changed on 2026-09-21 (home-app.js + home-features.js out;
+     home-core.js + the shared list layer explore.css / explore.js /
+     toolbox.js in), which is exactly the kind of change that ships a stale
+     script if the three owners are not compared;
   4. every selector in home-deferred.css is confined to a container that is
      hidden at first paint (the HIDDEN list below) — anything else, e.g. a
      moved `.card` or `.main-header` rule, fails loudly;
@@ -50,8 +54,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "index.html")
 HOME_CSS = os.path.join(ROOT, "home.css")
-APP = os.path.join(ROOT, "home-app.js")
-FEATURES = os.path.join(ROOT, "home-features.js")
+APP = os.path.join(ROOT, "home-core.js")
 DEFERRED_CSS = os.path.join(ROOT, "home-deferred.css")
 SW = os.path.join(ROOT, "sw.js")
 
@@ -241,21 +244,26 @@ def main() -> int:
     if not cache_version:
         problems.append("sw.js: CACHE_VERSION is not in the 'vN-date' form")
     if not app:
-        problems.append("home-app.js: const APP_VERSION is missing — the on-demand "
-                        "bundle is requested with home-features.js?v=<APP_VERSION>")
+        problems.append("home-core.js: const APP_VERSION is missing — it is the page's "
+                        "own script and its version has to be comparable with the "
+                        "?v= on the page and CACHE_VERSION in sw.js")
     if cache_version and app and linked != {cache_version.group(1)} | {app.group(1)}:
         problems.append(
             f"version mismatch: index.html links ?v={sorted(linked) or 'nothing'}, "
-            f"home-app.js APP_VERSION={app.group(1)}, sw.js CACHE_VERSION=v"
+            f"home-core.js APP_VERSION={app.group(1)}, sw.js CACHE_VERSION=v"
             f"{cache_version.group(1)} — bump them together so a page can never run "
             f"against another deploy's assets")
-    if app and f'home-features.js?v=${{APP_VERSION}}' not in read(APP):
-        problems.append("home-app.js must request the bundle as "
-                        "home-features.js?v=${APP_VERSION} — a bare home-features.js "
-                        "would be served from a previous deploy's cache")
-    if not os.path.exists(FEATURES):
-        problems.append("home-features.js is missing — home-app.js delegates the "
-                        "panels, toolbox, modal and directory view to it")
+    # The page must load its list layer with the same ?v= as everything else:
+    # a bare explore.js would be served from a previous deploy's cache and the
+    # toolbox would silently be last deploy's toolbox.
+    for asset in ("explore.css", "explore.js", "toolbox.js"):
+        if f"{asset}?v=" not in index:
+            problems.append(f"index.html must load {asset} with a ?v= — an unversioned "
+                            f"{asset} can be served from another deploy's cache")
+    for asset in ("explore.css", "explore.js", "toolbox.js", "home-core.js"):
+        if not os.path.exists(os.path.join(ROOT, asset)):
+            problems.append(f"{asset} is missing — the home page and every list page "
+                            f"load it")
 
     # 4 — nothing the first paint can show may be styled by the deferred file
     tokens = [token for token, _why, _sel, _decl in HIDDEN]

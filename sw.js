@@ -43,6 +43,15 @@
 // responses are network-first so the HTML is always fresh, but JS is
 // stale-while-revalidate — without a version bump a returning visitor's first
 // paint could pair the new HTML with the previous JS.
+// v16: the home page stopped running tools. The live-grid apparatus
+// (home-app.js 195 KB + home-features.js 42 KB, the head bootstrap, the card
+// shells in #dashboard) is gone; the page now ships a small core plus the
+// shared list layer (explore.js / explore.css / toolbox.js), which tools.html
+// and all 28 category pages use too. The precache list follows the scripts —
+// leave it alone and a returning visitor gets a 404 for the toolbox on the
+// first load after this deploy, which is exactly the bug this constant exists
+// to prevent.
+//
 // v7: the app is split. The first screen no longer contains the panels, the
 // toolbox, the maximise modal or the directory view — those live in
 // home-features.js and are fetched at idle — so a version bump is what makes
@@ -52,7 +61,7 @@
 // a first visit followed by an offline visit rendered an unstyled page with no
 // cards. Every one of those URLs carries a ?v= derived from this constant, so a
 // deploy is a new URL and a stale entry is impossible.
-const CACHE_VERSION = 'v15-2026-09-20';
+const CACHE_VERSION = 'v16-2026-09-21';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -69,15 +78,15 @@ const PRECACHE_URLS = [
     './cards/cards-lite.json'
 ];
 
-// The page's own code and stylesheets — including home-features.js, which
-// home-app.js fetches at idle (it is the on-demand UI: panels, toolbox, modal,
-// directory view) — cached in the same store the fetch handler serves them
-// from, WITHOUT cache:'reload'. They are the reason a
+// The page's own code and stylesheets — the two home sheets, the risk notices,
+// and the four files the list layer is made of (explore.css, explore.js,
+// toolbox.js, home-core.js) — cached in the same store the fetch handler
+// serves them from, WITHOUT cache:'reload'. They are the reason a
 // first visit followed by an offline visit used to render an unstyled page
 // with no cards: the browser fetched them before the worker controlled the
 // page, so nothing had stored them for the worker to serve.
 //
-// Two details make this free rather than another ~260 KB per install:
+// Two details make this free rather than another ~200 KB per install:
 //   * the URLs carry ?v=, derived from CACHE_VERSION, so a new deploy is a new
 //     URL — there is no such thing as a stale entry under them, which is the
 //     only reason cache:'reload' exists above; and
@@ -90,13 +99,15 @@ const PAGE_VERSION = CACHE_VERSION.split('-')[0].replace(/^v/, '');
 const PRECACHE_ASSETS = [
     `./home.css?v=${PAGE_VERSION}`,
     `./home-deferred.css?v=${PAGE_VERSION}`,
-    `./home-app.js?v=${PAGE_VERSION}`,
-    `./home-features.js?v=${PAGE_VERSION}`,
-    `./risk-notices.js?v=${PAGE_VERSION}`
+    `./risk-notices.js?v=${PAGE_VERSION}`,
+    `./explore.css?v=${PAGE_VERSION}`,
+    `./explore.js?v=${PAGE_VERSION}`,
+    `./toolbox.js?v=${PAGE_VERSION}`,
+    `./home-core.js?v=${PAGE_VERSION}`
 ];
 // Pathnames the handler must serve from STATIC_CACHE, where they are precached.
-const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/home-app.js',
-                          '/home-features.js', '/risk-notices.js'];
+const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/risk-notices.js',
+                          '/explore.css', '/explore.js', '/toolbox.js', '/home-core.js'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.
@@ -211,8 +222,8 @@ self.addEventListener('fetch', (event) => {
     // Scripts / styles / JSON: freshFast — never pin code to the version a
     // visitor first saw (v4 note), and never serve the version from before the
     // deploy either (v5 note). Inside the 10-minute window a repeat visit
-    // still costs no request at all; home-app.js and risk-notices.js are
-    // small enough that revalidating them is noise.
+    // still costs no request at all; explore.js, toolbox.js and
+    // risk-notices.js are small enough that revalidating them is noise.
     if (/\.(js|css|json)$/.test(url.pathname)) {
         event.respondWith(freshFast(req, RUNTIME_CACHE));
         return;
