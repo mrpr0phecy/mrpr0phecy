@@ -1,4 +1,4 @@
-<h2>Evolution AI Walker</h2>
+<h2 id="evolution-walker-title">Evolution AI Walker</h2>
 <p class="description">Watch AI creatures evolve to walk, survive disasters, find food, and adapt! 10 terrain types, random events, food chains, achievements, and deep genetics. Creatures improve through natural selection.</p>
 
 <form class="tool-form">
@@ -279,6 +279,12 @@
   </div>
 </details>
 
+<!-- Three.js (UMD global THREE). This card cannot run without it: the old
+     markup referenced THREE with no external script tag anywhere, so every
+     load died with "THREE is not defined". tool.html injects src scripts
+     asynchronously, so init below waits for window.THREE instead of
+     assuming it. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /* Evolution AI Walker - Major Enhancement */
 (function() {
@@ -1467,6 +1473,7 @@ class Creature {
 
 /* ===== GLOBAL FUNCTIONS ===== */
 function startEvolution() {
+  if (typeof THREE === 'undefined') { evoShowLibError(); return; }
   if (!walker) walker = new EvolutionWalker();
   walker.start();
 }
@@ -1507,12 +1514,32 @@ function saveEvolution() {
 }
 
 /* ===== INIT ===== */
+function evoShowLibError() {
+  const container = document.getElementById('evo-canvas-container');
+  if (container) {
+    container.innerHTML = '<div style="padding:32px;text-align:center;color:rgba(230,250,255,0.7);">' +
+      'Could not load the Three.js 3D library (network blocked or offline). ' +
+      'Check your connection and reload to run the Evolution Walker.</div>';
+  }
+}
 document.addEventListener('DOMContentLoaded', function() {
-  walker = new EvolutionWalker();
-  const slider = document.getElementById('evo-mutation-slider');
-  slider.addEventListener('input', function() {
-    document.getElementById('evo-mutation-value').textContent = this.value + '%';
-  });
+  // The Three.js <script src> above loads asynchronously once injected, so
+  // poll for it briefly instead of throwing "THREE is not defined".
+  let attempts = 0;
+  const timer = setInterval(function() {
+    attempts++;
+    if (typeof THREE !== 'undefined') {
+      clearInterval(timer);
+      walker = new EvolutionWalker();
+      const slider = document.getElementById('evo-mutation-slider');
+      slider.addEventListener('input', function() {
+        document.getElementById('evo-mutation-value').textContent = this.value + '%';
+      });
+    } else if (attempts >= 100) {
+      clearInterval(timer);
+      evoShowLibError();
+    }
+  }, 100);
 });
 
 })();

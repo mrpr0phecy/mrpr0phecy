@@ -200,7 +200,7 @@
 
   /* -------------------------------------------------------------- toolbar */
   function toolbarHTML() {
-    var sorts = state.mode === 'json' ? ['az', 'popular', 'newest', 'category'] : ['az', 'za'];
+    var sorts = state.mode === 'json' ? ['az', 'za', 'popular', 'newest', 'category'] : ['az', 'za'];
     var catOptions = '<option value="">All categories</option>' + categoryCounts.map(function (c) {
       return '<option value="' + esc(c.name) + '">' + esc(c.name) + ' (' + c.count + ')</option>';
     }).join('');
@@ -219,7 +219,7 @@
       '<button type="button" class="xp-btn" data-xp-density="comfortable" aria-pressed="false" title="Comfortable rows">Comfortable</button>' +
       '<button type="button" class="xp-btn" data-xp-density="compact" aria-pressed="false" title="Compact rows">Compact</button>' +
       '</div>' +
-      '<span class="xp-count" id="xp-count"></span>' +
+      '<span class="xp-count" id="xp-count" role="status" aria-live="polite" aria-atomic="true"></span>' +
       '<button type="button" class="xp-btn xp-gold" data-tb-open title="Open your toolbox (t)">🧰 My toolbox<span class="tb-badge" data-toolbox-count></span></button>' +
       '<p class="xp-hint">Keyboard: <kbd>/</kbd> search · <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>x</kbd> details · <kbd>b</kbd> add to toolbox · <kbd>Enter</kbd> open · <kbd>t</kbd> toolbox</p>';
   }
@@ -281,6 +281,7 @@
     if (els.input && els.input.value !== state.q) els.input.value = state.q;
     if (els.field) els.field.classList.toggle('xp-has-value', !!state.q);
     if (els.facets) els.facets.innerHTML = facetHTML();
+    syncCatSelect();
     state.current = -1;
     syncToolboxButtons();
   }
@@ -352,6 +353,7 @@
     }
     if (els.input && els.input.value !== state.q) els.input.value = state.q;
     if (els.field) els.field.classList.toggle('xp-has-value', !!state.q);
+    syncCatSelect();
     state.current = -1;
     syncToolboxButtons();
   }
@@ -364,15 +366,19 @@
   function orderStatic() {
     var buckets = [];
     state.staticRows.forEach(function (item) {
-      var group = (item.el.closest && item.el.closest('[data-xp-group]')) || els.container;
+      // Bucket by the row's own list, not its group section: re-appending a
+      // row to the section rips the <li> out of its <ul> (invalid HTML, and
+      // the list styling breaks with it). Each group's rows share one list,
+      // so the grouping the TOC points at is preserved either way.
+      var list = item.el.parentNode || els.container;
       var bucket = null;
-      for (var i = 0; i < buckets.length; i++) if (buckets[i].group === group) bucket = buckets[i];
-      if (!bucket) { bucket = { group: group, items: [] }; buckets.push(bucket); }
+      for (var i = 0; i < buckets.length; i++) if (buckets[i].list === list) bucket = buckets[i];
+      if (!bucket) { bucket = { list: list, items: [] }; buckets.push(bucket); }
       bucket.items.push(item);
     });
     buckets.forEach(function (bucket) {
       bucket.items.sort(function (a, b) { return byTitle(a.row.title, b.row.title, state.sort); });
-      bucket.items.forEach(function (item) { bucket.group.appendChild(item.el); });
+      bucket.items.forEach(function (item) { bucket.list.appendChild(item.el); });
     });
     state.appliedSort = state.sort;
   }
@@ -402,29 +408,64 @@
     try {
       var params = new URLSearchParams(location.search);
       if (params.get('q')) state.q = params.get('q');
-      if (params.get('cat')) state.cat = params.get('cat');
+      if (params.get('cat')) state.cat = resolveCategory(params.get('cat'));
       if (params.get('sort') && SORTS[params.get('sort')]) state.sort = params.get('sort');
     } catch (e) {}
   }
 
   /* ------------------------------------------------------------- behaviour */
+  function smoothScroll(el, block) {
+    if (!el || !el.scrollIntoView) return;
+    var reduced = false;
+    try { reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+    try { el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: block || 'start' }); }
+    catch (e) { try { el.scrollIntoView(); } catch (e2) {} }
+  }
+
   function setQuery(q, opts) {
     state.q = String(q || '');
     state.shown = PAGE_SIZE;
     if (opts && opts.silent !== true) logSearch(state.q.trim(), visible().length);
     render();
     syncOtherInputs(state.q);
-    if (opts && opts.scroll && els.wrap && els.wrap.scrollIntoView) {
-      try { els.wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
-    }
+    if (opts && opts.scroll) smoothScroll(els.wrap, 'start');
     pushState();
   }
 
+  // Category links from other pages carry the slug (?cat=home-and-diy) while
+  // rows carry the display name ("Home & DIY"); resolve either to the name, so
+  // a slug never filters the list down to nothing.
+  function resolveCategory(name) {
+    if (!name) return '';
+    for (var i = 0; i < categoryCounts.length; i++) {
+      if (categoryCounts[i].name === name) return name;
+    }
+    var slug = String(name).toLowerCase();
+    for (var j = 0; j < categoryCounts.length; j++) {
+      if (categoryCounts[j].slug === slug) return categoryCounts[j].name;
+    }
+    return name;
+  }
+
   function setCategory(name) {
-    state.cat = name || '';
+    state.cat = resolveCategory(name);
     state.shown = PAGE_SIZE;
     render();
     pushState();
+  }
+
+  // The facets re-render from state on every render(); the <select> is built
+  // once, so it needs syncing by hand — otherwise a ?cat= URL filters the
+  // list while the dropdown claims "All categories".
+  function syncCatSelect() {
+    if (!els.bar) return;
+    var select = els.bar.querySelector('#xp-cat');
+    if (!select || select.value === state.cat) return;
+    var known = state.cat === '';
+    for (var o = 0; o < select.options.length; o++) {
+      if (select.options[o].value === state.cat) { known = true; break; }
+    }
+    if (known) select.value = state.cat;
   }
 
   function syncOtherInputs(value) {
@@ -466,7 +507,7 @@
     rows.forEach(function (r) { r.classList.remove('xp-current'); });
     var row = rows[state.current];
     row.classList.add('xp-current');
-    if (row.scrollIntoView) { try { row.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {} }
+    smoothScroll(row, 'nearest');
   }
 
   function currentRow() {
@@ -500,6 +541,14 @@
       btn.setAttribute('aria-pressed', String(btn.getAttribute('data-xp-density') === kind));
     });
     try { localStorage.setItem('density', kind); } catch (e) {}
+  }
+
+  // Reading localStorage can itself throw (blocked cookies, private mode in
+  // some browsers) — and both call sites run before the first render, so an
+  // unguarded read here would kill the whole list.
+  function savedDensity() {
+    try { return localStorage.getItem('density') === 'compact' ? 'compact' : 'comfortable'; }
+    catch (e) { return 'comfortable'; }
   }
 
   function wire() {
@@ -633,7 +682,7 @@
         .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
         .then(function (data) {
           state.rows = data.tools.map(rowFromTool);
-          categoryCounts = data.categories.map(function (c) { return { name: c.name, count: c.count }; });
+          categoryCounts = data.categories.map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
           bar.innerHTML = toolbarHTML();
           els.input = bar.querySelector('#xp-input');
           els.field = bar.querySelector('.xp-field');
@@ -641,7 +690,7 @@
           els.facets.innerHTML = facetHTML();
           applyFromUrl();
           wire();
-          setDensity(localStorage.getItem('density') === 'compact' ? 'compact' : 'comfortable');
+          setDensity(savedDensity());
           render();
           if (state.q) logSearch(state.q.trim(), visible().length);
           syncOtherInputs(state.q);
@@ -662,6 +711,9 @@
     // the details toggle) and then filters by hiding rows.
     var rows = [];
     var catName = container.getAttribute('data-cat-name') || '';
+    // The generator once stringified an object here ("[object Object]"); never
+    // let a bad attribute become every row's category again.
+    if (catName === '[object Object]') catName = '';
     container.querySelectorAll('.xp-row[data-slug]').forEach(function (el) {
       var row = rowFromElement(el, catName);
       if (row) rows.push({ el: el, row: row });
@@ -678,12 +730,12 @@
     els.count = bar.querySelector('#xp-count');
     applyFromUrl();
     wire();
-    setDensity(localStorage.getItem('density') === 'compact' ? 'compact' : 'comfortable');
+    setDensity(savedDensity());
 
     // Decorate the served rows in place. Everything here is additive: the row
     // is already a working link, so a visitor whose script failed still has the
     // full index.
-    rows.forEach(function (item) {
+    rows.forEach(function (item, idx) {
       var li = item.el;
       var a = li.querySelector('a[href]');
       /* A category chip says which category a row belongs to — useful on the
@@ -705,7 +757,7 @@
           '<button type="button" class="xp-icon" data-toolbox-add="' + esc(item.row.slug) + '" aria-pressed="false" title="Add to my toolbox" aria-label="Add ' + esc(item.row.title) + ' to your toolbox">＋</button>';
         li.appendChild(actions);
       }
-      li.setAttribute('data-index', String(state.rows.indexOf(item.row)));
+      li.setAttribute('data-index', String(idx));
     });
     render();
     document.dispatchEvent(new CustomEvent('mp:explore-ready'));
@@ -721,7 +773,9 @@
   }
 
   window.mpExplore = {
-    filter: function (q) { setQuery(q, { scroll: true }); },
+    // opts.quiet filters without scrolling: the home page's hero box filters
+    // on every keystroke, and scrolling there would yank the box away mid-word.
+    filter: function (q, opts) { setQuery(q, { scroll: !(opts && opts.quiet) }); },
     setCategory: setCategory,
     focusInput: focusInput,
     clear: clear,

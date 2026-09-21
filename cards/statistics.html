@@ -226,6 +226,34 @@ const statisticsTtState = {
 };
 
 // Data parsing and validation
+// Toast notifications. Called throughout this card (including during the
+// example-data load at startup) but never defined — the missing function threw
+// and aborted init. The toast element is created on demand: this card has no
+// toast markup of its own.
+function showNotification(message, type) {
+    let toast = document.getElementById('stats-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'stats-toast';
+        toast.setAttribute('role', 'status');
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);' +
+            'padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:1000;' +
+            'opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;' +
+            'background:#141e28;border:1px solid #2dd4ff;color:#e6faff;max-width:min(90vw,420px);text-align:center;';
+        document.body.appendChild(toast);
+    }
+    const colors = { success: '#39ff14', error: '#ff4d4d', warning: '#ffb700', info: '#2dd4ff' };
+    toast.style.borderColor = colors[type] || '#2dd4ff';
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toast._hide);
+    toast._hide = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 2500);
+}
+
 function ttParseData() {
     const input = document.getElementById('tt-data-input').value;
     
@@ -389,11 +417,14 @@ function updateTabContent() {
 function ttShowTab(tabId) {
     statisticsTtState.currentTab = tabId;
     
-    // Update tab buttons
+    // Update tab buttons. Matched by tab id, NOT via the bare `event` global:
+    // ttShowTab is also called programmatically (ttParseData at load), where
+    // `event` is undefined and `event.target` threw — and Firefox never
+    // provides window.event, so tab clicks threw there too.
     document.querySelectorAll('.tab-button').forEach(btn => {
-        btn.classList.remove('active');
+        const target = (btn.getAttribute('onclick') || '').includes(`'${tabId}'`);
+        btn.classList.toggle('active', target);
     });
-    event.target.classList.add('active');
     
     updateTabContent();
 }

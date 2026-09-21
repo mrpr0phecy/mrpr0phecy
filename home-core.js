@@ -18,8 +18,11 @@
      - the sticky command bar showing on scroll
      - the search box handing its query to the list engine (explore.js)
      - the contributions panel's close button and its sponsor details toggle
+     - popover accessibility sync + a fallback for browsers without popovers
      - deep links (?card=, #card=) forwarded to the tool's own page, so every
        link ever shared still lands somewhere real
+     - the manifest's installed-app entries (?toolbox=open, ?action=search,
+       the share target) doing what they promised
      - service worker registration (offline first-visit caching)
    The list itself — filtering, sorting, facets, rows, the toolbox — lives in
    explore.js and toolbox.js, which every list page shares.
@@ -84,17 +87,23 @@
       savedAccent = localStorage.getItem('accent') || savedAccent;
       savedTheme = localStorage.getItem('theme') || savedTheme;
     } catch (e) {}
+    // localStorage is user-writable: a tampered value must fall back to the
+    // default, not break the accent site-wide (or feed hueOf() a NaN).
+    if (!/^#[0-9a-fA-F]{6}$/.test(savedAccent)) savedAccent = '#2dd4ff';
     document.documentElement.style.setProperty('--accent', savedAccent);
     document.documentElement.style.setProperty('--accent-hue', String(hueOf(savedAccent)));
     applyTheme(savedTheme);
 
     document.querySelectorAll('.palette-color').forEach(function (btn) {
-      btn.classList.toggle('active', btn.dataset.accent === savedAccent);
+      var isActive = btn.dataset.accent === savedAccent;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
       btn.addEventListener('click', function () {
         var color = btn.dataset.accent;
         withTransition(function () {
-          document.querySelectorAll('.palette-color').forEach(function (b) { b.classList.remove('active'); });
+          document.querySelectorAll('.palette-color').forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
           btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
           document.documentElement.style.setProperty('--accent', color);
           document.documentElement.style.setProperty('--accent-hue', String(hueOf(color)));
           try { localStorage.setItem('accent', color); } catch (e) {}
@@ -104,12 +113,15 @@
     });
 
     document.querySelectorAll('.theme-btn').forEach(function (btn) {
-      btn.classList.toggle('active', btn.dataset.theme === savedTheme);
+      var isActive = btn.dataset.theme === savedTheme;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', String(isActive));
       btn.addEventListener('click', function () {
         var name = btn.dataset.theme;
         withTransition(function () {
-          document.querySelectorAll('.theme-btn').forEach(function (b) { b.classList.remove('active'); });
+          document.querySelectorAll('.theme-btn').forEach(function (b) { b.classList.remove('active'); b.setAttribute('aria-pressed', 'false'); });
           btn.classList.add('active');
+          btn.setAttribute('aria-pressed', 'true');
           applyTheme(name);
         });
         notify('Theme: ' + name.replace('deep-', '').replace('-', ' '));
@@ -139,14 +151,12 @@
     var clearBtn = document.getElementById('mainSearchClear');
     if (!boxes.length) return;
 
+    // Typing filters quietly: scrolling the page to the list on every keystroke
+    // yanks the hero box out from under the visitor mid-word. Only an explicit
+    // Enter (or a prefilled/shared query) scrolls to the results.
     var apply = function (value, scroll) {
       if (window.mpExplore) {
-        if (scroll) window.mpExplore.filter(value);
-        else {
-          var input = document.getElementById('xp-input');
-          if (input) { input.value = value; window.mpExplore.filter(value); }
-          else window.mpExplore.filter(value);
-        }
+        window.mpExplore.filter(value, { quiet: !scroll });
       } else {
         // No engine (script blocked): the honest answer is the plain index,
         // pre-filtered by nothing — never a filter that silently does nothing.
@@ -170,17 +180,23 @@
         var value = box.value.trim();
         if (!value) return;
         // Enter on a single unambiguous match goes straight to the tool; that is
-        // the whole point of a launcher.
+        // the whole point of a launcher. Filter first: rows() reflects the
+        // last debounced keystroke, not what was just typed.
         if (window.mpExplore) {
+          window.mpExplore.filter(value);
           var rows = window.mpExplore.rows();
           if (rows.length === 1) { location.href = rows[0].url; return; }
-          if (rows.length && rows.length <= 8) {
-            window.mpExplore.filter(value);
-            notify(rows.length + ' matches — press j then Enter, or pick a row');
-            return;
+          // j/k navigation only works outside a text box, so with matches on
+          // screen, hand focus over instead of telling the visitor to press a
+          // key that would just type into this box. With no matches, stay put
+          // so they can keep typing.
+          if (rows.length > 1) {
+            box.blur();
+            if (rows.length <= 8) notify(rows.length + ' matches below — j/k to move, Enter to open');
           }
+          return;
         }
-        window.mpExplore ? window.mpExplore.filter(value) : apply(value, true);
+        apply(value, true);
       });
     });
 
@@ -192,13 +208,64 @@
     });
   }
 
+  /* ------------------------------------------- popovers: a11y sync + fallback */
+  // A native popover never touches aria-hidden itself: without this listener,
+  // a screen reader is told every panel is hidden even while it is open.
+  function syncPopoverA11y() {
+    ['toolbox', 'palettePanel', 'contributionsPanel'].forEach(function (id) {
+      var panel = document.getElementById(id);
+      if (!panel || typeof panel.showPopover !== 'function' || !panel.hasAttribute('popover')) return;
+      panel.addEventListener('toggle', function () {
+        var open = false;
+        try { open = panel.matches(':popover-open'); } catch (e) { open = false; }
+        panel.setAttribute('aria-hidden', String(!open));
+      });
+    });
+  }
+
+  // Browsers without the Popover API (pre-2024) ignore popover/popoverTarget
+  // entirely, which would leave the toolbox, palette and support panels with
+  // no way to open at all. The fallback replays the .open-class mechanism the
+  // stylesheets kept for exactly this (see home.css's note).
+  function popoverFallback() {
+    var supported = typeof HTMLElement !== 'undefined' && HTMLElement.prototype &&
+      typeof HTMLElement.prototype.showPopover === 'function';
+    if (supported) return;
+    var panels = document.querySelectorAll('[data-popover-fallback]');
+    panels.forEach(function (panel) {
+      panel.removeAttribute('popover');
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
+    var closeAll = function (except) {
+      panels.forEach(function (panel) {
+        if (panel === except || !panel.classList.contains('open')) return;
+        panel.classList.remove('open');
+        panel.setAttribute('aria-hidden', 'true');
+      });
+    };
+    document.querySelectorAll('[popovertarget]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var panel = document.getElementById(btn.getAttribute('popovertarget'));
+        if (!panel) return;
+        var willOpen = !panel.classList.contains('open');
+        closeAll(panel);
+        panel.classList.toggle('open', willOpen);
+        panel.setAttribute('aria-hidden', String(!willOpen));
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeAll(null);
+    });
+  }
+
   /* --------------------------------------------------------------- panels */
   function setupPanels() {
     var close = document.getElementById('contributionsClose');
     if (close) close.addEventListener('click', function () {
       var panel = document.getElementById('contributionsPanel');
-      if (panel && typeof panel.hidePopover === 'function') { try { panel.hidePopover(); } catch (e) {} }
-      else if (panel) { panel.style.display = 'none'; panel.setAttribute('aria-hidden', 'true'); }
+      if (panel && typeof panel.hidePopover === 'function' && panel.hasAttribute('popover')) { try { panel.hidePopover(); } catch (e) {} }
+      else if (panel) { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); }
     });
 
     // The £1,000 sponsor-a-tool card expands in place; it is one of the two
@@ -238,16 +305,47 @@
 
   /* ----------------------------------------------------------- deep links */
   // Every share link ever posted points at the home page's old live view:
-  // ?card=slug, ?t=slug or #card=slug. They still have to work, so they are
-  // forwarded to the tool's own page, query and hash intact.
+  // ?card=slug, ?t=slug, ?tool=slug (the PWA protocol handler) or #card=slug.
+  // They still have to work, so the slug alone is forwarded to the tool's own
+  // page; anything else in the URL belongs to this page, not the tool.
   function forwardDeepLinks() {
     var params = new URLSearchParams(location.search);
-    var slug = params.get('card') || params.get('t') || (/^#card=/.test(location.hash) ? location.hash.slice(6) : '');
-    if (!slug) return false;
-    slug = decodeURIComponent(slug).replace(/[^a-z0-9-]/gi, '');
+    var raw = params.get('card') || params.get('t') || params.get('tool') ||
+      (/^#card=/.test(location.hash) ? location.hash.slice(6) : '');
+    if (!raw) return false;
+    // A protocol-handler value is a whole URL (web+useful:slug); a plain slug
+    // has no separators, so taking the last segment is a no-op for it.
+    var slug = decodeURIComponent(String(raw)).split(/[:/?#]/).pop().replace(/[^a-z0-9-]/gi, '');
     if (!slug) return false;
     location.replace('tool.html?card=' + encodeURIComponent(slug));
     return true;
+  }
+
+  /* ------------------------------------------------------- installed-app entry */
+  // The manifest lands three shortcuts and a share target here. Each must do
+  // what it promised: open the toolbox, focus the search, or prefill it with
+  // the shared text — never a landing that silently ignores why it was opened.
+  function handleAppEntry() {
+    var params;
+    try { params = new URLSearchParams(location.search); } catch (e) { return; }
+    if (params.get('toolbox') === 'open') {
+      if (window.mpToolbox) window.mpToolbox.open();
+      return;
+    }
+    if (params.get('action') === 'search') {
+      var box = document.getElementById('tool-search');
+      if (box) box.focus();
+    }
+    var shared = params.get('text') || params.get('title') || params.get('url');
+    if (shared) {
+      var hero = document.getElementById('tool-search');
+      var sticky = document.getElementById('stickySearchInput');
+      if (hero) hero.value = shared;
+      if (sticky) sticky.value = shared;
+      var clear = document.getElementById('mainSearchClear');
+      if (clear) clear.style.display = 'block';
+      if (window.mpExplore) window.mpExplore.filter(shared);
+    }
   }
 
   /* ------------------------------------------------------- service worker */
@@ -268,6 +366,9 @@
     setupStickyBar();
     setupSearch();
     setupPanels();
+    syncPopoverA11y();
+    popoverFallback();
+    handleAppEntry();
     registerServiceWorker();
   }
 

@@ -64,6 +64,12 @@ TARGETS_TOP = [
     "index.html", "404.html", "tool.html", "donate.html", "sponsor.html",
     "README.md", "AGENTS.md", "ARCHITECTURE.md", "INCOME.md", "agents.html",
     "CONTRIBUTING.md",
+    # The PWA manifest names the count four times (name, description, the
+    # screenshot label, the search shortcut). It drifted to 1194 unnoticed
+    # because nothing owned it — the CLAIM pattern already matches every one
+    # of its "<number> [words] tools" phrases, and the rewrite stays inside
+    # the JSON strings so the file remains valid.
+    "manifest.tools.json",
     # Content and AI-facing pages salvaged from arena/01a05fea + 01a078f8.
     # changelog.html is deliberately absent: its entries are past-tense
     # history ("+10 tools, 23 categories, 562 total") and rewriting them

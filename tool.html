@@ -19,9 +19,29 @@
     <meta name="theme-color" content="#0a0f14">
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "Tool Viewer | The Most Useful Site in the World", "url": "https://www.themostusefulsiteintheworld.com/tool.html", "description": "Opens any of the 1206 free tools from The Most Useful Site in the World in a single focused view, with share and embed options. No sign-ups, no ads.", "applicationCategory": "UtilitiesApplication", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "GBP"}}</script>
     <meta name="description" content="Free online tool from The Most Useful Site in the World. No sign-ups, no friction.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Inter is self-hosted (fonts/, SIL OFL 1.1), exactly as on the home page.
+         The old Google-Fonts stylesheet was render-blocking on every tool view:
+         a slow fonts.gstatic.com left visitors staring at a blank page — no
+         loader, no content — until the font chain resolved or timed out. -->
+    <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <style>
+    @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 900;
+        src: url(fonts/inter-latin-ext.woff2) format('woff2-variations');
+        unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+    }
+    @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 900;
+        src: url(fonts/inter-latin.woff2) format('woff2-variations');
+        unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+    }
+    </style>
     <link rel="stylesheet" href="cards/card.css">
     <style>
         html {
@@ -444,7 +464,9 @@
         body.embed-mode .main-wrapper { padding: 6px 0 0; }
         body.embed-mode .tool-card-box { margin-bottom: 0; }
     </style>
-    <script src="risk-notices.js"></script>
+    <!-- defer: parser-blocking today, but only needed after the card
+         fragment arrives over the network, so deferred execution is safe. -->
+    <script src="risk-notices.js" defer></script>
 </head>
 <body>
 <h1 style="position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0">Tool Viewer</h1>
@@ -658,6 +680,15 @@
                 }
             }
 
+            // The fragment URL is deterministic — every cards.json entry maps
+            // name -> cards/<name>.html (verified: 0 non-standard paths) — so
+            // its fetch fires NOW and runs in parallel with the catalogue
+            // fetch below instead of after it. The old sequential waterfall
+            // (catalogue first, fragment second) stacked seconds of loader
+            // time on slow connections, which is what looked like cards
+            // stalling when clicked.
+            const fragPromise = fetchWithTimeout(`cards/${cardName}.html`, 15000);
+
             // Try lite catalogue (110KB) then full (548KB) — faster, works offline
             const catalogueSources = ['cards/cards-lite.json', 'cards/cards.json'];
             for (const src of catalogueSources) {
@@ -694,7 +725,13 @@
             }
 
             try {
-                const res = await fetchWithTimeout(toolUrl, 15000);
+                // The fragment fetch started before the catalogue loop, so this
+                // await usually resolves instantly. (If a future catalogue ever
+                // carries a non-standard path, fetch that URL instead.)
+                let res = await fragPromise;
+                if (toolUrl !== `cards/${cardName}.html`) {
+                    res = await fetchWithTimeout(toolUrl, 15000);
+                }
                 if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'network error'}`);
                 const html = await res.text();
                 if (!html || html.trim().length === 0) throw new Error('Empty response');
@@ -720,8 +757,18 @@
                 const styles = Array.from(doc.querySelectorAll('style'));
                 styles.forEach(s => s.remove());
 
-                // Append body content
+                // Append body content. The wrapper carries class="card" ON PURPOSE:
+                // hundreds of cards scope themselves via
+                // document.currentScript.closest('.card') / btn.closest('.card'),
+                // and tool.html is the only surface that injects fragments — so
+                // without a .card ancestor here, those lookups return null and
+                // the cards' init and click handlers silently bail (the "card
+                // stalls when clicked" reports). .card has no styles anywhere
+                // (card.css only defines .card-wrap; fragments scope .card
+                // rules under their own #*-root ids), so this is purely a JS
+                // scope hook with zero visual effect.
                 const contentDiv = document.createElement('div');
+                contentDiv.className = 'card';
                 while (doc.body.firstChild) {
                     contentDiv.appendChild(doc.body.firstChild);
                 }
@@ -731,16 +778,18 @@
                 styles.forEach(s => {
                     const newStyle = document.createElement('style');
                     newStyle.textContent = s.textContent;
-                    container.appendChild(newStyle);
+                    contentDiv.appendChild(newStyle);
                 });
 
-                // Append scripts to execute
+                // Append scripts to execute. They go INSIDE the .card wrapper
+                // (not on the container) so document.currentScript.closest(
+                // '.card') resolves while they run.
                 scripts.forEach(s => {
                     try {
                         const newScript = document.createElement('script');
                         Array.from(s.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
                         newScript.textContent = s.textContent;
-                        container.appendChild(newScript);
+                        contentDiv.appendChild(newScript);
                     } catch (err) {
                         console.warn('Script error:', err);
                     }

@@ -15,7 +15,13 @@
     <meta property="og:description" content="Free online calculators, converters, generators and simulators that run in your browser. No ads, no sign-ups, no paywalls — pick a tool and get your answer.">
     <meta property="og:url" content="https://www.themostusefulsiteintheworld.com/">
     <meta property="og:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The Most Useful Site in the World — browse the free tool catalogue">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Most Useful Site in the World | Free Online Tools">
+    <meta name="twitter:description" content="Free online calculators, converters, generators and simulators that run in your browser. No ads, no sign-ups, no paywalls — pick a tool and get your answer.">
+    <meta name="twitter:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
     <meta name="theme-color" content="#0a0f14" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
     <meta name="color-scheme" content="dark light">
@@ -25,8 +31,9 @@
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="apple-touch-icon" href="icon-192.png">
     <!-- Deferred, not preloaded: fetch() here is same-origin, and a preload
-         with mismatched credentials downloads the file twice on a miss. -->
-    <link rel="modulepreload" href="sw.js" fetchpriority="low">
+         with mismatched credentials downloads the file twice on a miss.
+         (The service worker is registered at idle by home-core.js; it must
+         not be preloaded — a preload would fetch it twice.) -->
     <link rel="stylesheet" href="explore.css?v=16">
     <script defer src="toolbox.js?v=16"></script>
     <script defer src="explore.js?v=16"></script>
@@ -54,32 +61,25 @@
     </style>
     
     
-    <!-- MODERN: Import Map for future ES modules (no 404 if unused) -->
-    <script type="importmap">
-    {
-        "imports": {
-            "idb": "https://cdn.jsdelivr.net/npm/idb@8/+esm",
-            "fuse": "https://cdn.jsdelivr.net/npm/fuse.js@7/dist/fuse.mjs"
-        }
-    }
-    </script>
-    <!-- Speculation rules: conservative on purpose (a prerender runs the whole
-         standalone page). updateSpeculationRules() rewrites this at runtime. -->
+    <!-- Speculation rules: prerendering a tool link runs the whole standalone
+         page, so prerendering waits for a hover (moderate) and prefetching
+         waits for a near-certain navigation (conservative). The selectors
+         match this page's actual rows and category hubs. -->
     <script type="speculationrules" id="speculation-rules">
     {
         "prerender": [
             {
-                "where": { "selector_matches": ".card a.card-maximize-btn" },
+                "where": { "selector_matches": ".xp-row .xp-open" },
                 "eagerness": "moderate"
             },
             {
-                "where": { "href_matches": "*/tool.html?card=*" },
+                "where": { "href_matches": "/tool.html?card=*" },
                 "eagerness": "moderate"
             }
         ],
         "prefetch": [
             {
-                "where": { "selector_matches": ".directory-open-link" },
+                "where": { "selector_matches": ".cat-card" },
                 "eagerness": "conservative"
             }
         ]
@@ -132,13 +132,13 @@
         
         <!-- Action buttons on the same thin line -->
         <div class="sticky-actions">
-            <button class="sticky-action-btn" id="stickyToolboxToggle" title="My toolbox (t)" aria-label="My toolbox" popovertarget="toolbox" popovertargetaction="toggle" data-xp-toolbox>
+            <button type="button" class="sticky-action-btn" id="stickyToolboxToggle" title="My toolbox (t)" aria-label="My toolbox" popovertarget="toolbox" popovertargetaction="toggle" data-xp-toolbox>
                 🧰<span class="tb-badge" data-toolbox-count></span>
             </button>
-            <button class="sticky-action-btn palette" id="stickyPaletteToggle" title="Themes and colours" aria-label="Themes and colours" popovertarget="palettePanel" popovertargetaction="toggle">
+            <button type="button" class="sticky-action-btn palette" id="stickyPaletteToggle" title="Themes and colours" aria-label="Themes and colours" popovertarget="palettePanel" popovertargetaction="toggle">
                 🎨
             </button>
-            <button class="sticky-action-btn contribute" id="stickyContributionsToggle" title="Support Us (Ctrl+D)" aria-label="Support this site" popovertarget="contributionsPanel" popovertargetaction="toggle">
+            <button type="button" class="sticky-action-btn contribute" id="stickyContributionsToggle" title="Support Us" aria-label="Support this site" popovertarget="contributionsPanel" popovertargetaction="toggle">
                 💜
             </button>
             <a href="music.html" class="sticky-action-btn" title="Listen to Music by MrProphecy" aria-label="Listen to music by MrProphecy" style="text-decoration:none;display:flex;align-items:center;justify-content:center;">
@@ -152,7 +152,7 @@
     
     <!-- ===== TOOLBOX ===== -->
     <!-- ===== MY TOOLBOX (a saved list, not a running grid) ===== -->
-    <div id="toolbox" class="toolbox panel" aria-hidden="true" popover="manual" data-popover-fallback data-tool-base>
+    <div id="toolbox" class="toolbox panel" role="dialog" aria-label="My toolbox" aria-hidden="true" popover="manual" data-popover-fallback data-tool-base="tool.html?card=">
         <div class="titlebar">
             <div class="toolbox-title">
                 <span>🧰</span>
@@ -160,7 +160,7 @@
                 <span style="font-size:12px;color:var(--text-secondary)" id="toolboxCardCount">0 tools</span>
             </div>
             <div class="toolbox-controls">
-                <button id="toolboxClose" class="toolbox-btn" title="Close (Esc)" aria-label="Close toolbox">✕</button>
+                <button type="button" id="toolboxClose" class="toolbox-btn" title="Close (Esc)" aria-label="Close toolbox">✕</button>
             </div>
         </div>
         <div class="content" id="toolboxContent" aria-live="polite">
@@ -169,40 +169,40 @@
     </div>
 
     <!-- ===== PALETTE PANEL ===== -->
-    <div id="palettePanel" class="palette-panel panel" aria-hidden="true" popover="auto" data-popover-fallback>
+    <div id="palettePanel" class="palette-panel panel" role="dialog" aria-label="Themes and colours" aria-hidden="true" popover="auto" data-popover-fallback>
         <div class="palette-section">
             <div class="palette-title">🎨 Accent Colors</div>
-            <div class="palette-grid">
-                <div class="palette-color active" data-accent="#2dd4ff" style="background:#2dd4ff" title="Cyan - Default"></div>
-                <div class="palette-color" data-accent="#ff2d55" style="background:#ff2d55" title="Pink - Vibrant"></div>
-                <div class="palette-color" data-accent="#00ff99" style="background:#00ff99" title="Emerald - Fresh"></div>
-                <div class="palette-color" data-accent="#ffcc00" style="background:#ffcc00" title="Gold - Warm"></div>
-                <div class="palette-color" data-accent="#9d4edd" style="background:#9d4edd" title="Purple - Royal"></div>
-                <div class="palette-color" data-accent="#00e5ff" style="background:#00e5ff" title="Sky Blue - Bright"></div>
-                <div class="palette-color" data-accent="#ff6b35" style="background:#ff6b35" title="Orange - Energetic"></div>
+            <div class="palette-grid" role="group" aria-label="Accent colour">
+                <button type="button" class="palette-color active" data-accent="#2dd4ff" style="background:#2dd4ff" title="Cyan - Default" aria-label="Cyan accent" aria-pressed="true"></button>
+                <button type="button" class="palette-color" data-accent="#ff2d55" style="background:#ff2d55" title="Pink - Vibrant" aria-label="Pink accent" aria-pressed="false"></button>
+                <button type="button" class="palette-color" data-accent="#00ff99" style="background:#00ff99" title="Emerald - Fresh" aria-label="Emerald accent" aria-pressed="false"></button>
+                <button type="button" class="palette-color" data-accent="#ffcc00" style="background:#ffcc00" title="Gold - Warm" aria-label="Gold accent" aria-pressed="false"></button>
+                <button type="button" class="palette-color" data-accent="#9d4edd" style="background:#9d4edd" title="Purple - Royal" aria-label="Purple accent" aria-pressed="false"></button>
+                <button type="button" class="palette-color" data-accent="#00e5ff" style="background:#00e5ff" title="Sky Blue - Bright" aria-label="Sky blue accent" aria-pressed="false"></button>
+                <button type="button" class="palette-color" data-accent="#ff6b35" style="background:#ff6b35" title="Orange - Energetic" aria-label="Orange accent" aria-pressed="false"></button>
             </div>
         </div>
         
         <div class="palette-section">
             <div class="palette-title">🌅 Background Themes</div>
-            <div class="palette-grid">
-                <button class="theme-btn active" data-theme="default" style="background:linear-gradient(135deg, #0a0f14, #141e28)" title="Midnight"></button>
-                <button class="theme-btn" data-theme="deep-blue" style="background:linear-gradient(135deg, #05080c, #0f151f)" title="Abyss"></button>
-                <button class="theme-btn" data-theme="deep-purple" style="background:linear-gradient(135deg, #12081a, #1f1229)" title="Twilight"></button>
-                <button class="theme-btn" data-theme="deep-teal" style="background:linear-gradient(135deg, #061616, #0f2525)" title="Ocean Depth"></button>
-                <button class="theme-btn" data-theme="deep-red" style="background:linear-gradient(135deg, #160606, #251010)" title="Crimson"></button>
-                <button class="theme-btn" data-theme="deep-forest" style="background:linear-gradient(135deg, #081408, #152015)" title="Forest"></button>
-                <button class="theme-btn" data-theme="deep-space" style="background:linear-gradient(135deg, #000814, #1a1a2e)" title="Deep Space"></button>
+            <div class="palette-grid" role="group" aria-label="Background theme">
+                <button type="button" class="theme-btn active" data-theme="default" style="background:linear-gradient(135deg, #0a0f14, #141e28)" title="Midnight" aria-label="Midnight theme" aria-pressed="true"></button>
+                <button type="button" class="theme-btn" data-theme="deep-blue" style="background:linear-gradient(135deg, #05080c, #0f151f)" title="Abyss" aria-label="Abyss theme" aria-pressed="false"></button>
+                <button type="button" class="theme-btn" data-theme="deep-purple" style="background:linear-gradient(135deg, #12081a, #1f1229)" title="Twilight" aria-label="Twilight theme" aria-pressed="false"></button>
+                <button type="button" class="theme-btn" data-theme="deep-teal" style="background:linear-gradient(135deg, #061616, #0f2525)" title="Ocean Depth" aria-label="Ocean depth theme" aria-pressed="false"></button>
+                <button type="button" class="theme-btn" data-theme="deep-red" style="background:linear-gradient(135deg, #160606, #251010)" title="Crimson" aria-label="Crimson theme" aria-pressed="false"></button>
+                <button type="button" class="theme-btn" data-theme="deep-forest" style="background:linear-gradient(135deg, #081408, #152015)" title="Forest" aria-label="Forest theme" aria-pressed="false"></button>
+                <button type="button" class="theme-btn" data-theme="deep-space" style="background:linear-gradient(135deg, #000814, #1a1a2e)" title="Deep Space" aria-label="Deep space theme" aria-pressed="false"></button>
             </div>
         </div>
     </div>
     
     <!-- ===== CONTRIBUTIONS PANEL ===== -->
-    <div id="contributionsPanel" class="contributions-panel panel" aria-hidden="true" popover="auto" data-popover-fallback>
+    <div id="contributionsPanel" class="contributions-panel panel" role="dialog" aria-label="Support and contribute" aria-hidden="true" popover="auto" data-popover-fallback>
         <div class="contributions-header">
             <div class="contributions-title">
                 <span>💜 Support & Contribute</span>
-                <button id="contributionsClose" class="contributions-close">✕</button>
+                <button type="button" id="contributionsClose" class="contributions-close">✕</button>
             </div>
         </div>
         
@@ -769,11 +769,12 @@
                 <a href="sponsor.html">Sponsor this list →</a>
             </div>
 
-            <div data-explore="json" id="all-tools" aria-live="polite"></div>
+            <div data-explore="json" id="all-tools"></div>
+            <noscript><p class="explore-lede">The filterable list needs JavaScript — the featured tools, trending tools and category hubs above all work without it. <a href="tools-index.html" style="color:var(--accent,#2dd4ff);">Or browse the plain A–Z directory →</a></p></noscript>
         </section>
     </main>
     
-     (auto-counts cards) ===== -->
+    <!-- ===== FOOTER (auto-counts cards) ===== -->
     <footer class="site-footer">
         <div class="site-footer-inner">
             <div class="footer-stat">
