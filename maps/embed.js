@@ -14,6 +14,10 @@
  *   MostUsefulMaps.distance([51.5, -0.12], [48.85, 2.35])   → 343.5 km (WGS84)
  *   MostUsefulMaps.parse('TL 09 21')                        → { lat, lon, kind }
  *   MostUsefulMaps.plusCode(51.8797, -0.4175)               → '9C3XVCH8+…'
+ *   MostUsefulMaps.geohash(51.8797, -0.4175, 9)             → 'gcpxnkrvp'
+ *   MostUsefulMaps.maidenhead(51.5074, -0.1278)             → 'IO91WM'
+ *   MostUsefulMaps.utm(43.6425667, -79.387139)              → '17T 630084 4833439'
+ *   MostUsefulMaps.locationCodes(51.8797, -0.4175)          → every code, as rows
  *   MostUsefulMaps.sunTimes(new Date(), 51.5, -0.12)        → sunrise/sunset/twilight
  *
  * Why it is built this way, in a repository where all 1,205 cards share one
@@ -49,7 +53,7 @@
     return loaded[url];
   }
 
-  var CORE = ['core/geodesy.js', 'core/geo.js', 'core/olc.js', 'core/solar.js', 'core/gridref.js', 'core/gazetteer.js'];
+  var CORE = ['core/geodesy.js', 'core/geo.js', 'core/olc.js', 'core/solar.js', 'core/gridref.js', 'core/locators.js', 'core/gazetteer.js'];
 
   var corePromise = null;
   function ensureCore() {
@@ -384,6 +388,26 @@
         if (!root.MM.gridref.coveredBy(lat, lon)) return null;
         return root.MM.gridref.fromWgs84(lat, lon, 5).gridRef;
       });
+    },
+    /** The geohash as text, to whatever depth the caller wants (1–12). */
+    geohash: function (lat, lon, precision) {
+      return ensureCore().then(function () { return root.MM.locators.geohash(lat, lon, precision); });
+    },
+    /** The Maidenhead locator as text — 2 to 5 pairs, three by default. */
+    maidenhead: function (lat, lon, pairs) {
+      return ensureCore().then(function () { return root.MM.locators.maidenhead(lat, lon, pairs); });
+    },
+    /** The UTM string as text: '17T 630084 4833438'. */
+    utm: function (lat, lon) {
+      return ensureCore().then(function () { return root.MM.locators.utmString(lat, lon); });
+    },
+    /** Every code at once, as rows a card can render: { id, label, value, note }. */
+    locationCodes: function (lat, lon, options) {
+      return ensureCore().then(function () { return root.MM.locators.formats(lat, lon, options); });
+    },
+    /** The same set as one block of text, ready for a clipboard. */
+    describeLocation: function (lat, lon, options) {
+      return ensureCore().then(function () { return root.MM.locators.describe(lat, lon, options); });
     },
     sunTimes: function (date, lat, lon) {
       return ensureCore().then(function () { return root.MM.solar.sunTimes(date, lat, lon); });

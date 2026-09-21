@@ -567,11 +567,23 @@
     suggestIndex = -1;
     var local = [];
     var interpretation = null;
-    try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null }); } catch (error) { interpretation = null; }
+    // Codes with no place-name-shaped competition first: Plus Codes, OS grid
+    // references, UTM and three-pair Maidenhead locators. Two things are
+    // deliberately left out of this pass, because each of them has a
+    // doppelgänger that a person is more likely to have typed:
+    //   * a geohash, which is letters and digits like a word ("exeter",
+    //     "sun" and "thunder" are all valid geohashes);
+    //   * a two-pair Maidenhead locator, which has the shape of a UK postcode
+    //     district ("CF10", "HP12", "AB10").
+    // Both wait for the place index to come up empty and are then offered as
+    // labelled suggestions rather than jumped to.
+    try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null, geohash: false, maidenheadMin: 3 }); } catch (error) { interpretation = null; }
 
     if (interpretation && interpretation.kind !== 'place' && interpretation.kind !== 'unknown') {
       selectPlace({
-        name: interpretation.label, detail: 'Read from what you typed', kind: interpretation.kind,
+        name: interpretation.label,
+        detail: interpretation.note || 'Read from what you typed',
+        kind: interpretation.kind,
         lat: interpretation.point.lat, lon: interpretation.point.lon, offline: true,
       });
       return;
@@ -583,6 +595,19 @@
       suggestions = local.map(function (row) {
         return { name: row.name, detail: row.country, lat: row.lat, lon: row.lon, kind: 'place', pop: row.pop, offline: true };
       });
+      if (!local.length) {
+        // Nothing on Earth is called that — but it might be a geohash, or a
+        // two-pair Maidenhead locator. Either is offered as a suggestion
+        // rather than jumped to, so a typo never teleports the map, and the
+        // row says exactly what it would do.
+        var code = MM.locators ? MM.locators.interpret(text, { geohash: true, geohashMin: 5 }) : null;
+        if (code && (code.kind === 'geohash' || code.kind === 'maidenhead')) {
+          suggestions = [{
+            name: code.label, detail: code.note, kind: code.kind,
+            lat: code.point.lat, lon: code.point.lon, offline: true,
+          }];
+        }
+      }
       renderSuggest();
       if (jump && local.length) { selectPlace(suggestions[0]); return; }
     }).catch(function () {});
@@ -606,6 +631,17 @@
     });
   }
 
+  /** One glyph per way of naming a place, so a result's kind is visible at a glance. */
+  function suggestIcon(kind) {
+    if (kind === 'plus-code') return '🔢';
+    if (kind === 'coordinates') return '📍';
+    if (kind === 'grid-reference') return '🗺️';
+    if (kind === 'utm') return '🧭';
+    if (kind === 'maidenhead') return '📻';
+    if (kind === 'geohash') return '⌗';
+    return '🏙️';
+  }
+
   function renderSuggest() {
     clear(els.suggest);
     if (!suggestions.length) {
@@ -619,7 +655,7 @@
       var li = make('li');
       li.setAttribute('role', 'option');
       li.setAttribute('aria-selected', String(index === suggestIndex));
-      li.appendChild(make('span', 'mm-suggest-kind', row.kind === 'plus-code' ? '🔢' : row.kind === 'coordinates' ? '📍' : row.kind === 'grid-reference' ? '🗺️' : '🏙️'));
+      li.appendChild(make('span', 'mm-suggest-kind', suggestIcon(row.kind)));
       var body = make('span');
       body.appendChild(make('span', 'mm-suggest-name', row.name));
       if (row.detail) body.appendChild(make('span', 'mm-suggest-detail', row.detail));
@@ -707,6 +743,53 @@
 
   var placeRenderToken = 0;
 
+  /**
+   * Every other code for a point, one tap behind a summary.
+   *
+   * The headline rows above this already give the two codes an ordinary
+   * visitor came for (coordinates and a Plus Code, plus the OS grid reference
+   * in Great Britain). This adds the rest of the set — geohash, Maidenhead,
+   * UTM, degrees/minutes/seconds and a Plus Code shortened against the map
+   * centre — computed by maps/core/locators.js with no service involved, and
+   * folded away so the panel stays three rows long for everyone else.
+   */
+  function renderLocatorCodes(host, row) {
+    if (!MM.locators) return;
+    var reference = { lat: state.center.lat, lon: state.center.lon };
+    var options = { plusCodeReference: reference };
+    var rows = MM.locators.formats(row.lat, row.lon, options).filter(function (entry) {
+      // Already on show above, in the visitor's own units and format.
+      return entry.id !== 'decimal' && entry.id !== 'plus-code' && entry.id !== 'os-grid';
+    });
+    if (!rows.length) return;
+
+    var details = make('details', 'mm-details mm-codes');
+    details.appendChild(make('summary', null, 'Other codes for this point (' + rows.length + ')'));
+
+    var table = make('dl', 'mm-kv');
+    rows.forEach(function (entry) {
+      var dd = kvRow(table, entry.label, entry.value, entry.label);
+      if (entry.note) dd.appendChild(make('span', 'mm-code-note', entry.note));
+    });
+    details.appendChild(table);
+
+    details.appendChild(make('p', 'mm-source-line',
+      'Computed on this device by the page’s own locator engine — nothing is sent anywhere for any of them. '
+      + 'A geohash or a Maidenhead locator names an area, not a point: the code is the centre of its cell. '
+      + 'UTM is metres east and north on WGS84'
+      + (row.lat < 0 ? ', with 10,000,000 m added in the southern hemisphere.' : '.')));
+
+    var actions = make('div', 'mm-btn-row');
+    var copyAll = make('button', 'mm-btn ghost small', 'Copy all as text');
+    copyAll.type = 'button';
+    copyAll.addEventListener('click', function () {
+      copyText(MM.locators.describe(row.lat, row.lon, options), 'Location codes');
+    });
+    actions.appendChild(copyAll);
+    details.appendChild(actions);
+    host.appendChild(details);
+  }
+
   function renderPlace() {
     var body = els.place;
     var renderToken = ++placeRenderToken;
@@ -790,6 +873,7 @@
     var grid = gridRefText(row.lat, row.lon);
     if (grid) kvRow(dl, 'OS grid ref', grid, 'OS grid reference');
     body.appendChild(dl);
+    renderLocatorCodes(body, row);
 
     var stats = make('div', 'mm-grid3');
     stats.appendChild(statCard('Straight line', fmtKm(km), km < 0.01 ? 'at map centre' : 'from previous centre'));
@@ -881,7 +965,7 @@
       body.appendChild(enrichment);
       renderPlaceEnrichment(row, enrichment, renderToken);
     } else {
-      body.appendChild(make('p', 'mm-muted', 'Offline: showing coordinates, Plus Code, grid reference and country facts from the data shipped with this page.'));
+      body.appendChild(make('p', 'mm-muted', 'Offline: showing coordinates, Plus Code, grid reference and country facts from the data shipped with this page. Every locator — geohash, Maidenhead and UTM — is computed here too.'));
     }
 
     var nearest = lastNearest;
@@ -1240,18 +1324,30 @@
     var parsed = MM.geodesy.parseLatLon(value);
     if (parsed) return Promise.resolve(parsed);
     try {
-      var interpreted = MM.gazetteer.interpret(value, { gazetteer: null });
+      // Three-pair Maidenhead locators are read here, two-pair ones are not:
+      // "CF10" is a postcode district, and a route that starts in the North
+      // Atlantic is worse than a route that starts with the geocoder.
+      var interpreted = MM.gazetteer.interpret(value, { gazetteer: null, maidenheadMin: 3 });
       if (interpreted && interpreted.point) return Promise.resolve(interpreted.point);
     } catch (error) { /* fall through */ }
+    // Nothing on Earth is called that, and the geocoder has nothing either:
+    // the last thing to try is a geohash, the same place-first order the
+    // search box uses.
+    var lastResort = function () {
+      if (!MM.locators) return null;
+      var code = MM.locators.interpret(value, { geohash: true, geohashMin: 5 });
+      return code && code.kind === 'geohash' ? { lat: code.point.lat, lon: code.point.lon, name: code.label } : null;
+    };
     return ensureGazetteer().then(function (gaz) {
       var offline = gaz.search(value, { limit: 1, near: state.center })[0];
-      if (state.offline) return offline || null;
+      if (offline) return offline;
+      if (state.offline) return lastResort();
       return MM.providers.geocode(value, { near: state.center }).then(function (result) {
         if (result.results && result.results.length) {
           var first = result.results[0];
           return { lat: first.lat, lon: first.lon, name: first.name };
         }
-        return offline || null;
+        return lastResort();
       });
     });
   }
@@ -1264,7 +1360,7 @@
       var from = points[0], to = points[1];
       if (!from || !to) {
         clear(body);
-        body.appendChild(make('p', 'mm-note warn', 'I could not work out one of those places. Try a town name, a postcode, “51.5074, -0.1278”, a Plus Code or an OS grid reference.'));
+        body.appendChild(make('p', 'mm-note warn', 'I could not work out one of those places. Try a town name, a postcode, “51.5074, -0.1278”, a Plus Code, an OS grid reference, a UTM coordinate, a Maidenhead locator or a geohash.'));
         return;
       }
       lastRoutePoints = { from: from, to: to };
@@ -1828,7 +1924,7 @@
     var box = $('mm-info-body');
     if (!box) return;
     clear(box);
-    box.appendChild(make('p', null, 'MostUsefulMaps is part of The Most Useful Site in the World. It is free, needs no account, and shows no ads. The maths — distances, bearings, area, Plus Codes, OS grid references, sun times, time zones — runs on your device and works with the network off.'));
+    box.appendChild(make('p', null, 'MostUsefulMaps is part of The Most Useful Site in the World. It is free, needs no account, and shows no ads. The maths — distances, bearings, area, Plus Codes, OS grid references, geohash, Maidenhead locators, UTM, sun times, time zones — runs on your device and works with the network off.'));
 
     box.appendChild(make('h2', null, 'Where the data comes from'));
     var providers = MM.providers.describe();
@@ -1930,7 +2026,7 @@
       ['Pan and zoom the world', 'Natural Earth boundaries, shipped with the page'],
       ['Find towns and cities', '19,686 places from GeoNames, offline'],
       ['Distance, bearing, area, length', 'WGS84 geodesics on your device'],
-      ['Plus Codes and OS grid references', 'full encoder and decoder, on your device'],
+      ['Plus Codes, OS grid refs, geohash, Maidenhead, UTM', 'full encoders and decoders, on your device'],
       ['Sunrise, sunset, twilight, moon', 'NOAA solar algorithm, on your device'],
       ['Time zone and local time', 'tz-lookup data, on your device'],
       ['Speed limits while driving', 'every limit loaded along the route, kept on the device'],
@@ -2225,7 +2321,7 @@
       var to = points[1];
       if (!from || !to) {
         clear(body);
-        body.appendChild(make('p', 'mm-note warn', 'I could not work out one of those places. Try a town name, a postcode, “51.5074, -0.1278”, a Plus Code or an OS grid reference.'));
+        body.appendChild(make('p', 'mm-note warn', 'I could not work out one of those places. Try a town name, a postcode, “51.5074, -0.1278”, a Plus Code, an OS grid reference, a UTM coordinate, a Maidenhead locator or a geohash.'));
         return;
       }
       drive.from = from;

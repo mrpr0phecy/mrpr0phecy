@@ -135,6 +135,17 @@ test('geodesy: formatting is human and unit-correct', () => {
   assert.equal(geodesy.formatDuration(45), '45 min');
   assert.equal(geodesy.formatDuration(150), '2 h 30 min');
   assert.equal(geodesy.formatLatLon(LONDON, 'dms'), '51°30\'26.6"N 0°07\'40.1"W');
+
+  // Both call shapes the page writes must produce coordinates, not the
+  // placeholder: formatLatLon(lat, lon, digits) silently returned '—' once,
+  // which blanked the Place panel's coordinate row and every measuring step.
+  assert.equal(geodesy.formatLatLon(51.8797, -0.4175, 5), '51.87970°, -0.41750°');
+  assert.equal(geodesy.formatLatLon(51.8797, -0.4175, 4), '51.8797°, -0.4175°');
+  assert.equal(geodesy.formatLatLon(51.8797, -0.4175, 4), geodesy.formatLatLon({ lat: 51.8797, lon: -0.4175 }, null, 4),
+    'the two call shapes must agree');
+  assert.equal(geodesy.formatLatLon(91, 0, 5), '—', 'an impossible latitude is still refused');
+  assert.equal(geodesy.formatLatLon(51.5, 181, 5), '—', 'so is an impossible longitude');
+  assert.equal(geodesy.formatLatLon(null, 0), '—');
 });
 
 test('geodesy: Web Mercator projection round-trips', () => {
@@ -420,6 +431,286 @@ test('gridref: coverage is honest about Northern Ireland', () => {
   assert.equal(gridref.coveredBy(48.8566, 2.3522), false, 'Paris has no OS grid reference');
 });
 
+// ------------------------------------------------------------- locator codes
+
+const locators = require(path.join(ROOT, 'maps/core/locators.js'));
+
+test('geohash: matches the reference encoder and decoder', () => {
+  // Wikipedia / geohash.org: 57.64911, 10.40744 → u4pruydqqvj.
+  assert.equal(locators.geohash(57.64911, 10.40744, 11), 'u4pruydqqvj');
+  // …and the canonical decode example, including the cell's own bounds.
+  const cell = locators.decodeGeohash('ezs42');
+  assert.equal(cell.lat, 42.60498046875);
+  assert.equal(cell.lon, -5.60302734375);
+  assert.equal(cell.bbox.south, 42.5830078125);
+  assert.equal(cell.bbox.north, 42.626953125);
+  assert.equal(cell.bbox.west, -5.625);
+  assert.equal(cell.bbox.east, -5.5810546875);
+  assert.equal(locators.geohash(42.6, -5.6, 5), 'ezs42', 'the shorter code covers the point too');
+  // A prefix is a bigger cell in the same place: dropping characters cannot move you out of the cell.
+  for (const length of [1, 2, 3, 4, 5]) {
+    const shorter = locators.decodeGeohash('u4pruydqqvj'.slice(0, length));
+    assert.ok(shorter.bbox.west <= 10.40744 && shorter.bbox.east > 10.40744, `length ${length} contains the point`);
+    assert.ok(shorter.bbox.south <= 57.64911 && shorter.bbox.north > 57.64911, `length ${length} contains the point`);
+  }
+  assert.equal(locators.geohash(0, 180, 6), locators.geohash(0, -180, 6), 'the antimeridian is one seam, not two');
+  assert.equal(locators.geohash(91, 0), null);
+  assert.equal(locators.geohash(0, 181), null);
+  assert.equal(locators.geohash(0, 0, 13), null, '12 characters is the deepest meaningful cell');
+});
+
+test('geohash: isGeohash() rejects the codes that belong to other systems', () => {
+  assert.equal(locators.isGeohash('u4pruydqqvj'), true);
+  for (const other of ['london', 'paris', 'io91', 'route', 'gallery', 'TL 09 21', '9C3XVCHJ+Q2', '51.5,-0.1']) {
+    assert.equal(locators.isGeohash(other), false, `${other} should not read as a geohash`);
+  }
+  // Some words and some Plus Codes genuinely are valid geohashes — the
+  // alphabet is most of the letters and all the digits. That is exactly why
+  // maps/core/gazetteer.js only reaches for a geohash after a place search
+  // has found nothing, and why the label always says which way it was read.
+  for (const word of ['thunder', 'sun', 'exeter', '9c3x']) {
+    assert.equal(locators.isGeohash(word), true, `${word} is genuinely a valid geohash`);
+  }
+});
+
+test('geohash: neighbours tile the cell, wrap the seam and stop at the pole', () => {
+  for (const cell of ['ezs42', 'u4pruydqqvj'.slice(0, 6), 'gcpvj0', '9q8yy']) {
+    const centre = locators.decodeGeohash(cell);
+    const size = { lat: centre.bbox.north - centre.bbox.south, lon: centre.bbox.east - centre.bbox.west };
+    const neighbours = locators.geohashNeighbours(cell);
+    const seen = new Set();
+    for (const name of ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']) {
+      const other = locators.decodeGeohash(neighbours[name]);
+      assert.equal(other.precision, centre.precision, 'a neighbour is the same size');
+      assert.ok(Math.abs((other.bbox.north - other.bbox.south) - size.lat) < 1e-9);
+      assert.ok(Math.abs((other.bbox.east - other.bbox.west) - size.lon) < 1e-9);
+      // It must touch: the two cells overlap or share an edge on both axes.
+      assert.ok(centre.bbox.south <= other.bbox.north + 1e-9 && other.bbox.south <= centre.bbox.north + 1e-9, `${name} touches on latitude`);
+      assert.ok(centre.bbox.west <= other.bbox.east + 1e-9 && other.bbox.west <= centre.bbox.east + 1e-9, `${name} touches on longitude`);
+      assert.ok(!seen.has(neighbours[name]), 'the eight neighbours are distinct');
+      seen.add(neighbours[name]);
+      // And the relationship is symmetric, which a border table gets wrong.
+      const back = locators.geohashNeighbours(neighbours[name]);
+      assert.ok(Object.values(back).includes(cell), `${neighbours[name]} lists ${cell} as a neighbour`);
+    }
+  }
+  // The far north: three neighbours do not exist, and saying so beats wrapping.
+  const polar = locators.geohashNeighbours('b');
+  assert.equal(polar.n, null);
+  assert.equal(polar.ne, null);
+  assert.equal(polar.nw, null);
+  assert.equal(typeof polar.e, 'string');
+  assert.equal(polar.w, 'z', 'west of the first cell is the last cell, across the antimeridian');
+});
+
+test('maidenhead: matches the published locators and cell sizes', () => {
+  // Central London is IO91wm in every reference implementation and on every
+  // radio operator's wall map.
+  assert.equal(locators.maidenhead(51.5074, -0.1278, 3), 'IO91WM');
+  assert.equal(locators.normaliseMaidenhead('io91 wm'), 'IO91WM');
+  const cell = locators.decodeMaidenhead('IO91WM');
+  assert.ok(Math.abs(cell.lat - 51.5208333) < 1e-5, `centre latitude was ${cell.lat}`);
+  assert.ok(Math.abs(cell.lon - -0.125) < 1e-5, `centre longitude was ${cell.lon}`);
+  // A subsquare is 5′ of longitude by 2.5′ of latitude.
+  assert.ok(Math.abs((cell.bbox.east - cell.bbox.west) - 5 / 60) < 1e-9);
+  assert.ok(Math.abs((cell.bbox.north - cell.bbox.south) - 2.5 / 60) < 1e-9);
+  assert.ok(geodesy.distanceKm(LONDON, cell) < 4, 'the cell centre is a few kilometres from the point');
+
+  // Field, square, subsquare and both extensions, in order.
+  assert.equal(locators.maidenhead(51.5074, -0.1278, 1), 'IO');
+  assert.equal(locators.maidenhead(51.5074, -0.1278, 2), 'IO91');
+  assert.equal(locators.decodeMaidenhead('IO91').pairs, 2);
+  // The fourth pair splits the subsquare into tenths: 30″ of longitude by
+  // 15″ of latitude, so the extended locator must still contain the point and
+  // be exactly that much smaller.
+  const extended = locators.maidenhead(51.5074, -0.1278, 4);
+  assert.equal(extended, 'IO91WM41');
+  const extendedCell = locators.decodeMaidenhead(extended);
+  assert.equal(extendedCell.pairs, 4);
+  assert.ok(extendedCell.bbox.west <= -0.1278 && extendedCell.bbox.east > -0.1278, 'still contains the point');
+  assert.ok(extendedCell.bbox.south <= 51.5074 && extendedCell.bbox.north > 51.5074, 'still contains the point');
+  assert.ok(extendedCell.bbox.west >= cell.bbox.west && extendedCell.bbox.north <= cell.bbox.north,
+    'an extension never leaves the cell it extends');
+  assert.ok(Math.abs((extendedCell.bbox.east - extendedCell.bbox.west) - (5 / 60) / 10) < 1e-9);
+  assert.ok(Math.abs((extendedCell.bbox.north - extendedCell.bbox.south) - (2.5 / 60) / 10) < 1e-9);
+
+  // New York is FN30 in the ARRL's own examples; the four-character square
+  // must contain the point and be about 2° × 1°.
+  const ny = locators.maidenhead(40.7128, -74.0060, 2);
+  assert.equal(ny, 'FN20', 'New York City');
+  const nyCell = locators.decodeMaidenhead(ny);
+  assert.ok(nyCell.bbox.west <= -74.006 && nyCell.bbox.east > -74.006);
+  assert.ok(nyCell.bbox.south <= 40.7128 && nyCell.bbox.north > 40.7128);
+
+  assert.equal(locators.maidenhead(0, 0, 2), 'JJ00', 'the null island');
+  assert.equal(locators.maidenhead(-90, -180, 1), 'AA', 'the south-west corner of the world');
+  assert.equal(locators.maidenhead(90, -180 + 359.999, 1), 'RR');
+  assert.equal(locators.maidenhead(51.5, -0.1, 6), null, 'five pairs is the deepest locator');
+});
+
+test('maidenhead: isMaidenhead() accepts what people write and nothing else', () => {
+  for (const good of ['IO91', 'io91wm', 'IO91 WM', 'JN58td', 'FN20XR', 'RR99XX99XX']) {
+    assert.equal(locators.isMaidenhead(good), true, `${good} should parse`);
+  }
+  for (const bad of ['IO9', 'IO91W', 'IO91WMX', 'ZZ00', 'IO91wm3', 'Luton', '51.5,-0.1', '']) {
+    assert.equal(locators.isMaidenhead(bad), false, `${bad} should not parse`);
+  }
+});
+
+test('utm: matches the published worked example and the zone exceptions', () => {
+  // Wikipedia's own example: the CN Tower, 43°38′33.24″N 79°23′13.7″W, is
+  // UTM zone 17T at 630084 m east, 4833438 m north.
+  const tower = locators.utm(43.6425667, -79.387139);
+  assert.equal(tower.zone, 17);
+  assert.equal(tower.band, 'T');
+  assert.equal(tower.hemisphere, 'N');
+  assert.ok(Math.abs(tower.easting - 630084) < 1, `easting was ${tower.easting.toFixed(2)}`);
+  assert.ok(Math.abs(tower.northing - 4833438) < 2, `northing was ${tower.northing.toFixed(2)}`);
+  assert.equal(locators.utmString(43.6425667, -79.387139), '17T 630084 4833439');
+
+  // The exceptions are part of the standard: south-west Norway sits in a
+  // widened 32V, and Svalbard has no 32X, 34X or 36X.
+  assert.equal(locators.utmZone(60.3913, 5.3221), 32, 'Bergen is 32V');
+  assert.equal(locators.utmZone(59.9139, 10.7522), 32, 'Oslo is 32V');
+  assert.equal(locators.utmZone(78.2232, 15.6469), 33, 'Longyearbyen is 33X');
+  assert.equal(locators.utmZone(78.2232, 25), 35, 'east Svalbard is 35X');
+  assert.equal(locators.utmZone(64.5, 5.3), 31, 'the exception stops at 64°N');
+  assert.equal(locators.utmZone(51.5074, -0.1278), 30, 'London is zone 30');
+  assert.equal(locators.utmZone(0, 180), 60, '180°E is zone 60, not zone 61');
+  assert.equal(locators.utmZone(-33.8688, 151.2093), 56, 'Sydney is zone 56');
+
+  // The central meridian is the false easting, exactly.
+  const oxford = locators.utm(51.7520, -1.2577);
+  assert.equal(locators.zoneCentralMeridian(30), -3);
+  assert.equal(locators.zoneCentralMeridian(1), -177);
+  assert.ok(Math.abs(oxford.easting - 500000) > 1, 'this is not on the meridian, so it must not read 500000');
+  const onMeridian = locators.utm(51.0, -3);
+  assert.ok(Math.abs(onMeridian.easting - 500000) < 0.05, `on the meridian easting was ${onMeridian.easting}`);
+  // Grid convergence is zero on the central meridian and grows with longitude.
+  assert.ok(Math.abs(onMeridian.convergenceDegrees) < 0.001);
+  assert.ok(Math.abs(tower.convergenceDegrees) > 0.5);
+});
+
+test('utm: a round trip returns the same place, north and south', () => {
+  const points = [
+    { lat: 51.8797, lon: -0.4175 }, // Luton
+    { lat: -33.8688, lon: 151.2093 }, // Sydney
+    { lat: 0, lon: -177 }, // on a zone boundary, on the equator
+    { lat: 43.6425667, lon: -79.387139 }, // CN Tower
+    { lat: -54.8019, lon: -68.3030 }, // Ushuaia
+    { lat: 64.1466, lon: -21.9426 }, // Reykjavík
+    { lat: 27.9881, lon: 86.9250 }, // Everest
+    { lat: 35.6762, lon: 139.6503 }, // Tokyo
+  ];
+  const projections = require(path.join(ROOT, 'maps/core/locators.js'));
+  for (const point of points) {
+    const projected = locators.utm(point.lat, point.lon);
+    const back = locators.fromUtm(projected);
+    const errorMetres = projections.utmZone
+      ? geodesy.distanceKm(point, back) * 1000
+      : Infinity;
+    assert.ok(errorMetres < 0.5, `${point.lat},${point.lon} round-tripped ${errorMetres.toFixed(3)} m away`);
+    assert.equal(locators.utmString(point.lat, point.lon).split(' ')[0],
+      projected.zone + projected.band, 'the written zone and band come from the projection');
+  }
+  // Southern hemisphere northings sit above the 10 000 000 m false northing
+  // near the equator and below it further south — never negative.
+  const sydney = locators.utm(-33.8688, 151.2093);
+  assert.equal(sydney.hemisphere, 'S');
+  assert.ok(sydney.northing > 6000000 && sydney.northing < 6400000, `Sydney northing was ${sydney.northing}`);
+  assert.ok(sydney.easting > 300000 && sydney.easting < 350000, 'Sydney easting is six figures');
+});
+
+test('utm: parseUtm() reads the spellings people and GPS units use', () => {
+  const want = { lat: 43.6425667, lon: -79.387139 };
+  for (const text of [
+    '17T 630084 4833438', '17T 630084E 4833438N', '17 T 630084 4833438',
+    '17N 630084 4833438', 'zone 17T 630084 4833438', '17T 630084, 4833438',
+    '630084E 4833438N 17T',
+  ]) {
+    const parsed = locators.parseUtm(text);
+    assert.ok(parsed, `${text} should parse`);
+    assert.ok(geodesy.distanceKm(want, parsed) < 0.01, `${text} landed ${(geodesy.distanceKm(want, parsed) * 1000).toFixed(1)} m away`);
+    assert.equal(parsed.warnings.length, 0, `${text} needs no warning`);
+  }
+  // A bare hemisphere letter is read as one, and the E/N suffixes swap the order.
+  const suffixed = locators.parseUtm('17T 4833438N 630084E');
+  assert.ok(Math.abs(suffixed.easting - 630084) < 1);
+  // No band letter: northern hemisphere is assumed, and said out loud.
+  const bare = locators.parseUtm('17 630084 4833438');
+  assert.equal(bare.warnings.length, 1);
+  assert.match(bare.warnings[0], /northern hemisphere/);
+  // Southern hemisphere, where the band letter is the only signal.
+  const south = locators.parseUtm('56H 334369 6250948');
+  assert.equal(south.hemisphere, 'S');
+  assert.ok(geodesy.distanceKm({ lat: -33.8688, lon: 151.2093 }, south) < 0.01, 'Sydney round-trips from its UTM string');
+  // A point written in the wrong zone is flagged rather than silently wrong.
+  const stretched = locators.parseUtm('30U 900000 5700000');
+  assert.equal(stretched.warnings.length, 1);
+  assert.match(stretched.warnings[0], /outside the zone/);
+  // And nonsense is refused rather than guessed at.
+  for (const bad of ['', 'Luton', '51.5, -0.1', '61T 630084 4833438', '17T 630084', '17T 630084 20000000', 'IO91WM']) {
+    assert.equal(locators.parseUtm(bad), null, `${bad} should not parse as UTM`);
+  }
+});
+
+test('locators: one front door reads UTM, Maidenhead and geohash in that order', () => {
+  // Maidenhead before geohash, because FM07 and IO91 are both.
+  assert.equal(locators.interpret('IO91WM').kind, 'maidenhead');
+  assert.equal(locators.interpret('FM07').kind, 'maidenhead');
+  assert.equal(locators.interpret('30U 512345 5690123').kind, 'utm');
+  // Two pairs is two characters too few to be sure: "IO91" is a locator, but
+  // "CF10" is a postcode district that happens to parse as one, so a caller
+  // with a place index raises the bar to three pairs and offers the two-pair
+  // reading as a suggestion.
+  assert.equal(locators.interpret('IO91').kind, 'maidenhead');
+  assert.equal(locators.interpret('IO91', { maidenheadMin: 3 }), null, 'a two-pair locator is not a first-pass answer');
+  assert.equal(locators.interpret('IO91WM', { maidenheadMin: 3 }).kind, 'maidenhead', 'three pairs always is');
+  assert.equal(locators.interpret('CF10', { geohash: false, maidenheadMin: 3 }), null, 'the postcode district survives the first pass');
+  assert.equal(locators.interpret('gcpvj0').kind, 'geohash', 'geohash is allowed by default');
+  // …and not at all when the caller has not asked for it, which is what keeps
+  // a place search in front of it.
+  assert.equal(locators.interpret('gcpvj0', { geohash: false }), null);
+  assert.equal(locators.interpret('gcpvj0', { geohashMin: 8 }), null, 'a minimum length raises the bar');
+  assert.equal(locators.interpret('Luton'), null);
+  assert.equal(locators.interpret('51.5074, -0.1278'), null, 'plain coordinates are geodesy’s job, not ours');
+  assert.equal(locators.interpret('9C3XVCHJ+Q2'), null, 'so are Plus Codes');
+  assert.equal(locators.interpret('TL 09 21'), null, 'and OS grid references');
+  // The note tells the reader what it decided, rather than quietly guessing.
+  assert.match(locators.interpret('IO91WM').note, /Maidenhead/);
+  assert.match(locators.interpret('30U 512345 5690123').note, /metres east and north/);
+  assert.match(locators.interpret('gcpvj0').note, /geohash/);
+});
+
+test('locators: formats() describes a point the same way everywhere', () => {
+  const rows = locators.formats(51.8797, -0.4175);
+  const byId = {};
+  for (const row of rows) byId[row.id] = row;
+  assert.ok(rows.length >= 6, `expected the full set of codes, got ${rows.length}`);
+  for (const id of ['decimal', 'dms', 'plus-code', 'geohash', 'maidenhead', 'utm', 'os-grid']) {
+    assert.ok(byId[id], `formats() is missing ${id}`);
+    assert.equal(typeof byId[id].label, 'string');
+    assert.ok(byId[id].value && byId[id].value.length, `${id} has no value`);
+    assert.ok(!/undefined|NaN|—/.test(byId[id].value), `${id} produced "${byId[id].value}"`);
+  }
+  assert.equal(byId['os-grid'].value, 'TL 09027 21309');
+  assert.equal(byId.geohash.value, locators.geohash(51.8797, -0.4175, 9));
+  assert.equal(byId.maidenhead.value, 'IO91SV');
+  // Numbers in every note, never an empty promise.
+  assert.match(byId.geohash.note, /about \d/);
+  assert.match(byId.maidenhead.note, /about \d+ × \d+ km/);
+  assert.match(byId.utm.note, /Zone 30U, northern hemisphere/);
+  // Outside the National Grid the OS row is absent rather than wrong.
+  const paris = locators.formats(48.8566, 2.3522).map((row) => row.id);
+  assert.ok(!paris.includes('os-grid'), 'Paris has no OS grid reference');
+  assert.ok(paris.includes('utm') && paris.includes('maidenhead'), 'but it has the others');
+  // And the one-line version a clipboard wants.
+  const text = locators.describe(51.8797, -0.4175);
+  assert.equal(text.split('\n')[0], 'Decimal degrees: 51.87970°, -0.41750°');
+  assert.match(text, /UTM: 30U \d{6} \d{7}/);
+  assert.equal(locators.formats(91, 0).length, 0, 'an impossible point has no formats');
+});
+
 // ------------------------------------------------- offline search data files
 
 test('maps data: the shipped gazetteer and country facts are intact and usable', () => {
@@ -542,6 +833,40 @@ test('gazetteer: interpret() recognises every way people give a location', () =>
   const place = gazModule.interpret('Luton', { gazetteer: gaz });
   assert.equal(place.kind, 'place');
   assert.equal(place.results[0].name, 'Luton');
+
+  // The locator codes the page reads with maps/core/locators.js: a UTM
+  // coordinate and a Maidenhead locator name a place no index can.
+  const utm = gazModule.interpret('30U 677751 5750811', { gazetteer: gaz });
+  assert.equal(utm.kind, 'utm');
+  assert.ok(geodesy.distanceKm(LUTON, utm.point) < 0.5, 'a UTM string for Luton lands on Luton');
+  assert.equal(utm.label, '30U 677751 5750811');
+
+  const maidenhead = gazModule.interpret('IO91WM', { gazetteer: gaz });
+  assert.equal(maidenhead.kind, 'maidenhead');
+  assert.ok(geodesy.distanceKm(LONDON, maidenhead.point) < 5);
+
+  // A two-pair locator shares its shape with a UK postcode district, so the
+  // page asks this pass for three pairs and offers two pairs as a suggestion
+  // later instead. "CF10", "HP12" and "AB10" are all postcode districts and
+  // all valid locators; only one of the two readings is worth a jump.
+  assert.equal(gazModule.interpret('CF10', { gazetteer: gaz, geohash: false, maidenheadMin: 3 }).kind, 'unknown');
+  assert.equal(gazModule.interpret('IO91', { gazetteer: gaz, geohash: false, maidenheadMin: 3 }).kind, 'unknown');
+  assert.equal(gazModule.interpret('IO91', { gazetteer: gaz, geohash: false }).kind, 'maidenhead');
+  assert.equal(gazModule.interpret('IO91WM', { gazetteer: gaz, geohash: false, maidenheadMin: 3 }).kind, 'maidenhead');
+
+  // A geohash is letters and digits like a word, so it is only read when the
+  // caller asks. That is the whole reason the page can offer geohashes at all:
+  // "exeter", "sun" and "thunder" are all valid geohashes, so the first pass
+  // asks for geohash: false and the word "Exeter" is still looked up as a
+  // place. The second pass — after the index came up empty — asks for it.
+  const firstPass = gazModule.interpret('exeter', { gazetteer: gaz, geohash: false });
+  assert.equal(firstPass.kind, 'place');
+  assert.equal(firstPass.results[0].name, 'Exeter');
+  assert.equal(gazModule.interpret('gcpvj0', { gazetteer: gaz }).kind, 'unknown', 'not on the first pass');
+  const hash = gazModule.interpret('gcpvj0', { gazetteer: gaz, geohash: true });
+  assert.equal(hash.kind, 'geohash');
+  assert.ok(geodesy.distanceKm(LONDON, hash.point) < 2, 'this is a London geohash');
+  assert.match(hash.note, /geohash/, 'and the answer says which way it was read');
 
   assert.equal(gazModule.interpret('', { gazetteer: gaz }).kind, 'empty');
   assert.equal(gazModule.interpret('qwertyuiopzxcv', { gazetteer: gaz }).kind, 'unknown');
@@ -699,7 +1024,7 @@ const vm = require('node:vm');
 test('page: every MostUsefulMaps script parses', () => {
   const files = [
     'maps/core/geodesy.js', 'maps/core/geo.js', 'maps/core/olc.js', 'maps/core/solar.js',
-    'maps/core/gridref.js', 'maps/core/gazetteer.js', 'maps/localmap.js', 'maps/providers.js',
+    'maps/core/gridref.js', 'maps/core/locators.js', 'maps/core/gazetteer.js', 'maps/localmap.js', 'maps/providers.js',
     'maps/livemap.js', 'maps/embed.js', 'maps/app.js',
   ];
   const failures = [];
@@ -756,7 +1081,7 @@ test('page: every element maps/app.js looks up exists in maps.html', () => {
 
 test('page: the embed API a card would use is documented and present', () => {
   const embed = fs.readFileSync(path.join(ROOT, 'maps/embed.js'), 'utf8');
-  for (const method of ['mount', 'openInFullMap', 'loadGazetteer', 'searchPlaces', 'plusCode', 'sunTimes', 'destroyAll']) {
+  for (const method of ['mount', 'openInFullMap', 'loadGazetteer', 'searchPlaces', 'plusCode', 'gridReference', 'geohash', 'maidenhead', 'utm', 'locationCodes', 'sunTimes', 'destroyAll']) {
     assert.ok(new RegExp(`\\b${method}\\b`).test(embed), `MostUsefulMaps.${method} is missing`);
   }
   // Cards reach the engine with a relative path from the site root.
@@ -1074,7 +1399,7 @@ test('drive: Valhalla trips and routes parse into the shapes the UI needs', () =
 
 test('page: the driving scripts load before the page controller', () => {
   const html = fs.readFileSync(path.join(ROOT, 'maps.html'), 'utf8');
-  const order = ['maps/core/geodesy.js', 'maps/core/speed.js', 'maps/core/drive.js', 'maps/providers.js', 'maps/app.js']
+  const order = ['maps/core/geodesy.js', 'maps/core/locators.js', 'maps/core/gazetteer.js', 'maps/core/speed.js', 'maps/core/drive.js', 'maps/providers.js', 'maps/app.js']
     .map((file) => html.indexOf(file));
   assert.ok(order.every((index) => index >= 0), 'every driving script is referenced');
   for (let i = 1; i < order.length; i += 1) {
@@ -1344,6 +1669,7 @@ test('page: every MM.<namespace>.<member> the page calls actually exists', () =>
     olc: 'maps/core/olc.js',
     solar: 'maps/core/solar.js',
     gridref: 'maps/core/gridref.js',
+    locators: 'maps/core/locators.js',
     speed: 'maps/core/speed.js',
     drive: 'maps/core/drive.js',
     gazetteer: 'maps/core/gazetteer.js',

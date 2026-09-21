@@ -432,8 +432,20 @@
     return d + '°' + pad2(m) + "'" + s.toFixed(1) + '"' + hemi;
   }
 
-  /** Formatted coordinate pair. format: 'dd' | 'dms' (default 'dd'). */
+  /**
+   * Formatted coordinate pair. format: 'dd' | 'dms' (default 'dd').
+   *
+   * Two call shapes, because both are natural to write and the page uses both:
+   * formatLatLon({lat, lon}, 'dms') and formatLatLon(lat, lon, 4). The second
+   * one used to fall through to '—' — the Place panel's
+   * coordinate row and every measuring step were blank for want of it.
+   */
   function formatLatLon(a, format, digits) {
+    if (typeof a === 'number' && typeof format === 'number') {
+      // formatLatLon(lat, lon, digits)
+      var pair = validLat(a) && validLon(format) ? { lat: a, lon: format } : null;
+      return pair ? formatLatLon(pair, 'dd', digits) : '—';
+    }
     var p = point(a);
     if (!p) return '—';
     var d = digits == null ? 5 : digits;

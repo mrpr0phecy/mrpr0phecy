@@ -2,8 +2,8 @@
 
 <form id="mum-form" aria-describedby="mostusefulmaps-desc" onsubmit="event.preventDefault();">
   <p id="mostusefulmaps-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
-    The site's own map, right here in the card. Drop two points — a town name, a coordinate pair, a Plus Code or a UK grid reference — and get the
-    <em>geodesic</em> distance on the WGS84 ellipsoid, the initial bearing, the Plus Code of each end and the nearest town to each. Everything is computed
+    The site's own map, right here in the card. Drop two points — a town name, a coordinate pair, a Plus Code, a UK grid reference, a UTM coordinate, a Maidenhead locator or a geohash — and get the
+    <em>geodesic</em> distance on the WGS84 ellipsoid, the initial bearing, and the codes for each end: the Plus Code, the geohash, the Maidenhead locator and the UTM coordinate. Everything is computed
     on your device from data shipped with the page, so it works with the network switched off. The full map adds live OpenStreetMap streets, vehicle-aware driving
     routes with the signed speed limits along them, live traffic where a free feed exists, weather at the time you will
     be there, turn-by-turn guidance that keeps working with no signal, measuring, elevation and sun times.
@@ -15,7 +15,7 @@
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
     <div>
-      <label for="mum-from" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">From — place, coordinates, Plus Code or grid reference</label>
+      <label for="mum-from" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">From — place, coordinates, Plus Code, grid ref, UTM, Maidenhead or geohash</label>
       <input id="mum-from" type="text" placeholder="Luton" autocomplete="off" spellcheck="false"
              style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
     </div>
@@ -36,7 +36,8 @@
   <div id="mum-out" role="status" aria-live="polite" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;text-align:center;font-size:0.75rem;"></div>
 
   <div id="mum-notes" style="background:rgba(45,212,255,.06);border:1px solid rgba(45,212,255,.2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-secondary);line-height:1.6;">
-    Distances are geodesic (Vincenty on WGS84) — the same figure a surveyor's GNSS software reports, not a flat-map approximation. Road distance, live
+    Distances are geodesic (Vincenty on WGS84) — the same figure a surveyor's GNSS software reports, not a flat-map approximation. Geohash, Maidenhead locators and UTM are worked out on your device too — the full map shows them for any
+    point you click, with the OS grid reference and every other format. Road distance, live
     streets and turn-by-turn directions are on <a href="maps.html" style="color:var(--accent);">MostUsefulMaps</a>, built on OpenStreetMap data with no
     API keys and no account. Offline map: Natural Earth (public domain). Places: GeoNames (CC BY 4.0). Coordinate maths: on this device.
   </div>
@@ -123,24 +124,46 @@
     notes.insertAdjacentText('afterbegin', '');
   });
 
-  /** Anything a person might paste: a name, "lat, lon", a Plus Code, a grid ref. */
+  /** A code the engine read straight out of the text, or null. */
+  function asPoint(interpreted, value) {
+    if (interpreted && interpreted.kind !== 'place' && interpreted.kind !== 'unknown' && interpreted.point) {
+      return { lat: interpreted.point.lat, lon: interpreted.point.lon, name: interpreted.label || value };
+    }
+    return null;
+  }
+
+  function findPlace(value) {
+    return api.searchPlaces(value, { limit: 1 }).then(function (rows) {
+      if (!rows || !rows.length) return null;
+      var row = rows[0];
+      return { lat: row.lat, lon: row.lon, name: row.name + (row.country ? ', ' + row.country : '') };
+    });
+  }
+
+  /**
+   * Anything a person might paste: a name, "lat, lon", a Plus Code, a grid
+   * reference, a UTM coordinate, a Maidenhead locator, a geohash.
+   *
+   * A geohash is asked for last, after the place index has come up empty —
+   * "exeter" and "thunder" are both valid geohashes, and a place name must
+   * never lose to a code. This is the same order the full page uses.
+   *
+   * Maidenhead takes three pairs here, not two: "CF10" is a UK postcode
+   * district, and the card has no geocoder to fall back on, so a two-pair
+   * locator is not worth the risk of dropping a pin in the ocean. The full
+   * page offers that reading as a labelled suggestion instead.
+   */
   function resolve(text) {
     var value = String(text || '').trim();
     if (!value) return Promise.resolve(null);
-    return api.parse(value, { gazetteer: false }).then(function (interpreted) {
-      if (interpreted && interpreted.kind !== 'place' && interpreted.kind !== 'unknown' && interpreted.point) {
-        return { lat: interpreted.point.lat, lon: interpreted.point.lon, name: interpreted.label || value };
-      }
-      return api.searchPlaces(value, { limit: 1 }).then(function (rows) {
-        if (!rows || !rows.length) return null;
-        var row = rows[0];
-        return { lat: row.lat, lon: row.lon, name: row.name + (row.country ? ', ' + row.country : '') };
+    return api.parse(value, { gazetteer: false, maidenheadMin: 3 }).then(function (interpreted) {
+      return asPoint(interpreted, value) || findPlace(value).then(function (place) {
+        if (place) return place;
+        return api.parse(value, { gazetteer: false, geohash: true, maidenheadMin: 3 })
+          .then(function (code) { return asPoint(code, value); });
       });
     }).catch(function () {
-      return api.searchPlaces(value, { limit: 1 }).then(function (rows) {
-        if (!rows || !rows.length) return null;
-        return { lat: rows[0].lat, lon: rows[0].lon, name: rows[0].name };
-      }).catch(function () { return null; });
+      return findPlace(value).catch(function () { return null; });
     });
   }
 
@@ -160,9 +183,15 @@
     }
   }
 
+  // Like the full page: the last thing typed wins. Without this, two quick
+  // edits can resolve out of order and paint their stats over each other.
+  var renderToken = 0;
+
   function compute() {
     if (!api) return;
+    var token = ++renderToken;
     Promise.all([resolve(fromInput.value), resolve(toInput.value)]).then(function (points) {
+      if (token !== renderToken) return;
       markers.from = points[0];
       markers.to = points[1];
       draw();
@@ -178,6 +207,7 @@
         api.plusCode(a.lat, a.lon),
         api.plusCode(b.lat, b.lon),
       ]).then(function (result) {
+        if (token !== renderToken) return;
         var measurement = result[0];
         clearOut();
         var km = measurement.km;
@@ -187,11 +217,22 @@
         stat('Initial bearing', Math.round(measurement.initialBearing) + '°', compass(measurement.initialBearing));
         stat('From', a.name, result[1]);
         stat('To', b.name, result[2]);
+        // Before the codes, not after: the codes are a returned promise, so a
+        // stat written below one never runs.
         if (measurement.method && measurement.method !== 'vincenty-wgs84') {
           stat('Method', 'Haversine fallback', 'near-antipodal points');
         }
+        return Promise.all([
+          api.geohash(a.lat, a.lon, 9), api.maidenhead(a.lat, a.lon), api.utm(a.lat, a.lon),
+          api.geohash(b.lat, b.lon, 9), api.maidenhead(b.lat, b.lon), api.utm(b.lat, b.lon),
+        ]).then(function (codes) {
+          if (token !== renderToken || !codes[0]) return;
+          stat('From codes', codes[0], codes[1] + ' · ' + codes[2]);
+          stat('To codes', codes[3], codes[4] + ' · ' + codes[5]);
+        });
       });
     }).catch(function (error) {
+      if (token !== renderToken) return;
       say('Could not work that out: ' + error.message);
     });
   }
