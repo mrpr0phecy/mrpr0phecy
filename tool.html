@@ -663,6 +663,24 @@
             const cardName = /^[a-z0-9-]{1,80}$/.test(String(rawCard).toLowerCase()) ? String(rawCard).toLowerCase() : 'bmi';
             const embedMode = toolApplyEmbedMode(params.get('embed') === '1');
 
+            // Watchdog — the loader must never be the last thing standing.
+            // Every fetch below is bounded by fetchWithTimeout, but a response
+            // BODY can still stall after its headers arrive (await res.text()
+            // has no natural timeout), which is the "card hangs on the loader
+            // forever" report. If the loader is still in the box when this
+            // fires, swap it for the retry UI instead of an infinite waveform.
+            // 25 s: fragment fetch (15 s cap) runs in parallel with the
+            // catalogue walk (2 × 10 s), plus parse/render margin.
+            const LOADER_WATCHDOG_MS = 25000;
+            const loaderWatchdog = setTimeout(() => {
+                const box = document.getElementById('toolContainer');
+                if (box && box.querySelector('.cool-loader')) {
+                    box.innerHTML = '';
+                    box.appendChild(toolBuildError(cardName,
+                        'The tool did not load in time — the connection may have stalled mid-download.'));
+                }
+            }, LOADER_WATCHDOG_MS);
+
             let allCards = [];
             let currentMeta = null;
 
@@ -738,6 +756,7 @@
 
                 const container = document.getElementById('toolContainer');
                 container.innerHTML = '';
+                clearTimeout(loaderWatchdog);
 
                 // Shell-level risk notice (one shared mapping: risk-notices.js)
                 if (window.SiteRiskNotices) {
@@ -800,6 +819,7 @@
                 } catch (e) {}
 
             } catch (err) {
+                clearTimeout(loaderWatchdog);
                 const container = document.getElementById('toolContainer');
                 container.innerHTML = '';
                 // DOM-built with textContent: cardName/err.message are

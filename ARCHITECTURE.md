@@ -345,9 +345,14 @@ What lives here instead of in the head:
   head → Google CSS (1 RTT) → woff2 (1 RTT) → ~700 ms of font-swap delay on
   slow 4G. `unicode-range` keeps the latin-ext file unfetched unless a glyph
   needs it, and `font-display: swap` paints in the system stack meanwhile.
-- **Why the speculation rules are `conservative`.** Prerendering a tool page
-  runs its scripts; hovering across a list used to start page loads the visitor
-  had not asked for.
+- **Why the speculation rules prefetch but do not prerender.** Prerendering a
+  tool page runs its whole standalone page on hover — heavy, and it gave us a
+  real bug (2026-09-21): a prerender that wedged behind the service worker
+  meant a click could land on a dead second document, hanging the tab instead
+  of opening the tool. The rules now prefetch the tool responses (`moderate`)
+  and category hubs (`conservative`): nothing to activate, nothing to wedge,
+  and the click is still near-instant because the response — and the service
+  worker's runtime-cache entry — is already warm.
 
 ### Where the main page's CSS lives
 ### Where the CSS lives

@@ -43,6 +43,14 @@ assert(/embedCode = `<iframe src="\$\{window\.location\.origin\}\/tool\.html\?ca
 // The CSS side of the contract must exist.
 assert(/body\.embed-mode \.top-nav[\s\S]*display: none !important/.test(html),
   'embed-mode CSS does not hide the page chrome');
+// The loader watchdog: every fetch in init() is bounded by fetchWithTimeout,
+// but a response BODY can stall after its headers arrive (await res.text()
+// has no natural timeout) — the reported "card hangs on the loader forever".
+// The shell must retire the loader itself instead of waving indefinitely.
+assert(/const loaderWatchdog = setTimeout\(/.test(html),
+  'the loader watchdog is missing from tool.html — a stalled body hangs the loader forever again');
+assert((html.match(/clearTimeout\(loaderWatchdog\)/g) || []).length >= 2,
+  'the loader watchdog must be cleared on BOTH the success and the error path');
 
 // ---- 2. run the shipped functions in a stub DOM ----------------------------
 function stubEl(tag) {

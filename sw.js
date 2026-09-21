@@ -66,7 +66,17 @@
 // a first visit followed by an offline visit rendered an unstyled page with no
 // cards. Every one of those URLs carries a ?v= derived from this constant, so a
 // deploy is a new URL and a stale entry is impossible.
-const CACHE_VERSION = 'v18-2026-09-21';
+//
+// v19: navigations got the patience every other resource already had.
+// Reported: click a tool on the home page, go back, click a tool again — the
+// tab hung. The tool.html handler (networkFirst) and the generic navigate
+// branch both awaited fetch() with NO bound: a stalled socket held the
+// navigation hostage forever even though the worker already had a usable
+// copy of the page. tool.html now rides the same handler as every other
+// navigation: network-first, but a cached copy answers after
+// NETWORK_PATIENCE_MS, an offline navigation falls back to the cached index,
+// and the network fetch keeps running to refresh the entry for next time.
+const CACHE_VERSION = 'v19-2026-09-21';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -209,9 +219,22 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Tool standalone: tool.html?card=*
-    if (url.pathname.endsWith('tool.html')) {
-        event.respondWith(networkFirst(req, RUNTIME_CACHE));
+    // Navigations — every page the visitor opens, tool.html?card=* included.
+    // Two ways a navigation used to die here, both reported as "the second
+    // click on a tool hangs":
+    //   * tool.html had its own branch (networkFirst) that awaited fetch()
+    //     with NO bound — a stalled socket held the page hostage forever even
+    //     though a cached copy sat in RUNTIME_CACHE;
+    //   * the generic branch waited on fetch() unbounded too before it ever
+    //     considered the cache.
+    // One handler now covers both: network-first (fresh HTML, the v6 rule),
+    // but when a cached copy exists the network only gets NETWORK_PATIENCE_MS
+    // — then the cache answers and the fetch keeps running to refresh the
+    // entry for next time. Offline falls back to the cached page, then to the
+    // cached index. tool.html therefore no longer needs its own branch.
+    if (req.mode === 'navigate') {
+        const preload = event.preloadResponse ? event.preloadResponse.catch(() => null) : null;
+        event.respondWith(navigateFast(req, preload));
         return;
     }
 
@@ -237,32 +260,6 @@ self.addEventListener('fetch', (event) => {
     // Immutable-ish binaries: images and fonts — cache-first.
     if (/\.(png|jpg|jpeg|webp|svg|ico|woff2?)$/.test(url.pathname)) {
         event.respondWith(cacheFirst(req, RUNTIME_CACHE));
-        return;
-    }
-
-    // Navigation requests — network first, fallback to cache, then index.html
-    if (req.mode === 'navigate') {
-        event.respondWith(
-            (async () => {
-                try {
-                    const preload = await event.preloadResponse;
-                    if (preload) return preload;
-                    const net = await fetch(req);
-                    // Cache successful navigations
-                    const cache = await caches.open(RUNTIME_CACHE);
-                    cache.put(req, net.clone());
-                    return net;
-                } catch {
-                    const cache = await caches.open(STATIC_CACHE);
-                    const cached = await cache.match(req);
-                    if (cached) return cached;
-                    // Fallback to index
-                    const index = await cache.match('./index.html') || await cache.match('/');
-                    if (index) return index;
-                    return new Response('Offline', { status: 503, statusText: 'Offline' });
-                }
-            })()
-        );
         return;
     }
 
@@ -297,16 +294,49 @@ async function cacheFirst(request, cacheName, maxAge) {
     }
 }
 
-async function networkFirst(request, cacheName) {
-    const cache = await caches.open(cacheName);
-    try {
-        const net = await fetch(request);
-        if (net.ok) cache.put(request, net.clone());
-        return net;
-    } catch {
-        const cached = await cache.match(request);
-        return cached || new Response('Offline', { status: 503 });
+// Navigations: network-first with the catalogue's patience. The browser's
+// navigation-preload response (when the worker has one) is preferred as the
+// network source — it is already in flight when the event fires — and the
+// cache is allowed to answer only after NETWORK_PATIENCE_MS, or instantly
+// when the network has already failed. Either way the in-flight fetch keeps
+// running so the stored copy is fresh for the visit after this one.
+//
+// The unbounded version of this handler is what hung the second click on a
+// tool (see the v19 note at the top): with a cached copy available, a stalled
+// socket now costs 2.5 seconds, not the rest of the session.
+async function navigateFast(request, preload) {
+    const cache = await caches.open(RUNTIME_CACHE);
+    const cached = await cache.match(request);
+    const network = (preload || Promise.resolve(null))
+        .then((p) => p || fetch(request))
+        .then((res) => {
+            if (res && res.ok) cache.put(request, res.clone()).catch(() => {});
+            return res || null;
+        })
+        .catch(() => null);
+
+    if (!cached) {
+        // Nothing cached: the network is the only honest answer (a 404 must
+        // pass through untouched — falling back to the index here would show
+        // the home page at a dead URL). Only a failed fetch falls back, and
+        // then to the offline index the visitor can actually navigate.
+        const net = await network;
+        if (net) return net;
+        const staticCache = await caches.open(STATIC_CACHE);
+        // The install handler requests './index.html', which the Cache API
+        // stores resolved against the worker's URL — '/index.html'. Try the
+        // absolute form first, then the literal ones, then '/'.
+        const index = await staticCache.match('/index.html')
+            || await staticCache.match('./index.html')
+            || await staticCache.match('/');
+        return index || new Response('Offline', { status: 503, statusText: 'Offline' });
     }
+
+    const winner = await Promise.race([
+        network,
+        new Promise((resolve) => setTimeout(() => resolve(null), NETWORK_PATIENCE_MS))
+    ]);
+    return winner || cached;
 }
 
 // How old the stored copy is, in ms. GitHub Pages sends Date (and Age when a
