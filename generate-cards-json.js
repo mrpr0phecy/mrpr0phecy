@@ -182,6 +182,23 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-21 — ten clinician-facing tools. A keyword audit of all 1,230 existing cards
+  // (slug + title + description) found zero coverage of clinical decision support: the whole
+  // Health & Fitness category is consumer wellness (BMI, BMR, macros, sleep), and the only
+  // clinician-adjacent cards were MAP, QTc, BSA, HbA1c and blood-pressure categories. These
+  // fill the highest-frequency arithmetic a doctor or nurse does by hand or on a phone app:
+  // renal function and dosing, infusion rates, weight-based doses, fluids, gases,
+  // electrolytes and the four scores used most often at the bedside.
+  'egfr-creatinine-clearance-calculator': 'Health & Fitness',
+  'iv-drip-rate-infusion-calculator': 'Health & Fitness',
+  'weight-based-dose-calculator': 'Health & Fitness',
+  'clinical-fluid-requirements-calculator': 'Health & Fitness',
+  'abg-blood-gas-interpreter': 'Health & Fitness',
+  'anion-gap-electrolyte-corrector': 'Health & Fitness',
+  'glasgow-coma-scale-calculator': 'Health & Fitness',
+  'news2-early-warning-score': 'Health & Fitness',
+  'apgar-score-calculator': 'Health & Fitness',
+  'chads2vasc-hasbled-calculator': 'Health & Fitness',
   // 2026-09-21 — ten everyday gap fills chosen by keyword audit against all 1,220 existing
   // cards: the highest-intent utilities the catalogue still lacked (a picker wheel, team
   // splitter, plain notepad and to-do list, meme maker, image eyedropper, device check,
