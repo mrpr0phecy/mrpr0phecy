@@ -38,7 +38,11 @@ function makeWorker() {
     const m = stores.get(name);
     return {
       match: async (req) => {
-        const hit = m.get(keyOf(req));
+        // The real Cache API resolves a relative match() URL against the
+        // worker's location; do the same so the worker's absolute-path
+        // lookups ('/index.html') find Request-keyed entries.
+        const k = keyOf(req);
+        const hit = m.get(k) || (k.startsWith('/') ? m.get(ORIGIN + k) : undefined);
         return hit ? hit.clone() : undefined;
       },
       put: async (req, res) => { m.set(keyOf(req), res); },
@@ -92,7 +96,13 @@ function makeWorker() {
   vm.runInContext(SRC, sandbox, { filename: 'sw.js' });
 
   const dispatch = (url, { mode = 'no-cors' } = {}) => {
-    const request = new Request(ORIGIN + url, { method: 'GET', mode });
+    // Node's Request constructor rejects mode:'navigate' (script cannot mint
+    // navigation requests) — but that is exactly the mode every real page
+    // navigation arrives in, so navigations are dispatched as the plain
+    // request-like object the fetch handler actually consumes.
+    const request = mode === 'navigate'
+      ? { url: ORIGIN + url, method: 'GET', mode }
+      : new Request(ORIGIN + url, { method: 'GET', mode });
     let responded = null;
     listeners.fetch({ request, preloadResponse: Promise.resolve(undefined), respondWith: (p) => { responded = p; } });
     assert(responded, `the fetch handler did not respond for ${url}`);
@@ -173,6 +183,53 @@ const body = (res) => res.text();
     const res = await w3.dispatch('/cards/never-seen.html');
     assert.strictEqual(res.status, 503, 'an uncached card with no network must 503');
     console.log('  ok   offline: cached cards serve, uncached ones 503');
+  }
+
+  // ------------------------------------------------------------- routing 2b
+  // The "second click hangs" report (2026-09-21): open a tool from the home
+  // page, go back, click a tool again — the tab hung. The tool page's
+  // navigation had NO patience: a stalled socket held it hostage forever even
+  // though the worker had a usable copy of tool.html in RUNTIME_CACHE. Every
+  // navigation is now bounded — with a cached copy, the network gets
+  // NETWORK_PATIENCE_MS and then the cache answers.
+  {
+    // A cached tool page must answer when the network never will. The worker's
+    // own timeout is 2.5 s (scaled to ~30 ms in this harness); give the stall
+    // ten times that before declaring the navigation hung.
+    const w = makeWorker();
+    await w.put(RUNTIME, '/tool.html?card=bmi', 'CACHED TOOL PAGE', STALE_MS);
+    w.setNetwork(() => new Promise(() => {}));            // never settles: the hang
+    const raced = await Promise.race([
+      w.dispatch('/tool.html?card=bmi', { mode: 'navigate' }).then((r) => r.text()),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 300)),
+    ]);
+    assert.strictEqual(raced, 'CACHED TOOL PAGE',
+      'a stalled network hung the second click on a tool instead of serving the cached page');
+    console.log('  ok   second click: a stalled network falls back to the cached tool page');
+
+    // ...and the same guarantee for every other navigation (index, categories):
+    const w2 = makeWorker();
+    await w2.put(RUNTIME, '/about.html', 'CACHED ABOUT', STALE_MS);
+    w2.setNetwork(() => new Promise(() => {}));
+    const raced2 = await Promise.race([
+      w2.dispatch('/about.html', { mode: 'navigate' }).then((r) => r.text()),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 300)),
+    ]);
+    assert.strictEqual(raced2, 'CACHED ABOUT',
+      'a stalled network hung a plain navigation instead of serving the cached page');
+    console.log('  ok   second click: plain navigations are bounded the same way');
+
+    // Offline (network rejects, nothing cached): the cached index is the
+    // fallback so the visitor still has somewhere to be — never a bare 503.
+    // (The install handler asks for './index.html', which the Cache API
+    // resolves against the worker URL and stores as '/index.html'.)
+    const w3 = makeWorker();
+    await w3.put(STATIC, '/index.html', 'OFFLINE INDEX', STALE_MS);
+    w3.setNetwork(() => Promise.reject(new Error('offline')));
+    const res3 = await w3.dispatch('/tool.html?card=never-seen', { mode: 'navigate' });
+    assert.strictEqual(await body(res3), 'OFFLINE INDEX',
+      'an offline, uncached tool URL must fall back to the cached index');
+    console.log('  ok   offline navigation: the cached index answers');
   }
 
   // ------------------------------------------------------------- routing 3
