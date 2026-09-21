@@ -114,6 +114,9 @@ establish *which* site first.
 ├── robots.txt              Allows all, points at the sitemap
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
+├── brand/                  the mark's source: mark.py (geometry + rasteriser),
+│                           gen_assets.py (writes every asset below),
+│                           check-mark.py, measure.py — see brand/README.md
 ├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
 │   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
 │                           home screen, Android and iOS (§5)
@@ -810,17 +813,23 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   "Every tool you need, already in your browser.", `clamp(1.6rem,6.4vw,3.35rem)`,
   26ch, two balanced lines at every width), `.hero-subtitle`, the search field,
   the popular chips, then `.hero-facts` (a pulsing dot, the live tool count,
-  the promise) and `.hero-keys`. The headline no longer animates
-  (`titleSheen` was removed with the badge) and the last 👁️ were deleted: the
-  no-JS `.noscript-warning` banner went too, for the same reason.
-- **The one icon system**: every emoji on the page sits in the same rounded
-  chip — `.section-emoji` (30px, 9px radius) on section headings, `.cat-icon`
-  (32-36px, 10px radius) on the 28 category tiles. Flat emoji beside a flat
-  heading is what makes a page look assembled rather than designed.
-- **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, whose
-  geometry is byte-for-byte the favicon's (only the tile's corner radius
-  differs at raster scale — the rasters round the corners themselves). Change
-  the mark in `gen_assets.py`'s geometry table and every size follows.
+  the promise) and `.hero-keys`. The badge, its sheen animation (`titleSheen`)
+  and the 🔍 glyph that used to sit in the search field are gone — the icon
+  there is now an inline SVG that takes the accent colour. The catalogue's own
+  emoji are untouched: a tool's emoji belongs to the tool.
+- **One chip per emoji, in the hero and the section headings**: `.section-emoji`
+  (30px, 9px radius) on the headings, `.cat-icon` (32-36px, 10px radius) on the
+  28 category tiles. Flat emoji beside a flat heading is what makes a page look
+  assembled rather than designed. The sticky-bar buttons, the panels and the
+  tool rows keep their own emoji deliberately — those are controls and content,
+  not headings.
+- **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, and it is the
+  same drawing as the favicon, the PWA icons and the social card: one geometry
+  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`), six
+  shipped files. `logo-mark.svg` and `favicon.svg` are byte-identical — one
+  file, two names — and `python3 brand/check-mark.py` (standard library only)
+  fails if the vector and the rasters ever disagree about a radius, a gradient,
+  a stroke or the spark's curve. Edit the mark in `brand/`, never in the SVG.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.
