@@ -64,7 +64,7 @@ went wrong" state.
 | Place search | Photon (`photon.komoot.io`), then Nominatim | OpenStreetMap, ODbL | when you search, if online |
 | Road routing (Route tab) | FOSSGIS (`routing.openstreetmap.de`), then the OSRM demo server | OpenStreetMap, ODbL | when you ask for a route |
 | Driving routes (Drive tab) | FOSSGIS Valhalla (`valhalla1.openstreetmap.de`), then the above | OpenStreetMap, ODbL | when you plan a drive or replan |
-| Speed limits along a route | Overpass API (`overpass-api.de`) | OpenStreetMap, ODbL | when you plan a drive (chunked, ≤400 sampled points per query) |
+| Speed limits along a route | Overpass API (`overpass-api.de`) | OpenStreetMap, ODbL | when you plan a drive (a query per ~80 km, ≤40 sampled points each, 40 m corridor) |
 | Live traffic | TfL Unified API (`api.tfl.gov.uk`), road disruptions | TfL Open Data | when a drive touches Greater London |
 | Weather at arrival time | Open-Meteo (`api.open-meteo.com`) | CC BY 4.0 | when you plan a drive (≤40 sampled points, one call) |
 | Nearby places | Overpass API (`overpass-api.de`, then `overpass.kumi.systems`) | OpenStreetMap, ODbL | when you press Find nearby |

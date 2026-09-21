@@ -684,11 +684,15 @@
    */
   function speedLimitWays(geometry, options) {
     var opts = options || {};
-    var chunkKm = opts.chunkKm || 60;
     var totalKm = MM.geodesy.pathLengthKm(geometry.map(function (c) { return { lat: c[1], lon: c[0] }; }));
-    var chunks = Math.max(1, Math.ceil(totalKm / chunkKm));
-    var perChunk = Math.max(8, Math.ceil(samplePolyline(geometry, chunkKm).length / chunks));
-    var samples = samplePolyline(geometry, Math.max(1.5, totalKm / (perChunk * chunks)), 400);
+    // Sample every 2.5 km or so (capped at 240 points, about one query per
+    // 80 km) with a 40 m corridor: dense enough that a limit change is not
+    // jumped over, and still a handful of small queries rather than one huge
+    // one — Overpass is run by volunteers.
+    var spacingKm = Math.min(10, Math.max(2.5, totalKm / 240));
+    var samples = samplePolyline(geometry, spacingKm, 240);
+    var chunks = Math.max(1, Math.ceil(totalKm / (opts.chunkKm || 80)));
+    var perChunk = Math.max(6, Math.ceil(samples.length / chunks));
     var groups = [];
     for (var i = 0; i < samples.length; i += perChunk) groups.push(samples.slice(i, i + perChunk));
 
@@ -699,8 +703,8 @@
     return groups.reduce(function (chain, group, index) {
       return chain.then(function () {
         if (opts.onProgress) opts.onProgress({ done: index, total: groups.length });
-        var query = '[out:json][timeout:25];(way(around:' + (opts.radiusMetres || 30) + ','
-          + aroundClause(group, opts.radiusMetres || 30) + ')[highway][maxspeed];);out geom;';
+        var query = '[out:json][timeout:25];(way(around:' + (opts.radiusMetres || 40) + ','
+          + aroundClause(group, opts.radiusMetres || 40) + ')[highway][maxspeed];);out geom;';
         return fetchJson(POIS.endpoints[0] + '?data=' + encodeURIComponent(query), {
           id: 'overpass', timeoutMs: POIS.timeoutMs, minIntervalMs: POIS.minIntervalMs,
         }).then(function (data) {
