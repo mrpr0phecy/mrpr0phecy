@@ -568,10 +568,16 @@
     var local = [];
     var interpretation = null;
     // Codes with no place-name-shaped competition first: Plus Codes, OS grid
-    // references, UTM and Maidenhead. A geohash is deliberately not read here
-    // — it is letters and digits like a word, so it waits until the place
-    // index has had its say (see the gazetteer callback below).
-    try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null, geohash: false }); } catch (error) { interpretation = null; }
+    // references, UTM and three-pair Maidenhead locators. Two things are
+    // deliberately left out of this pass, because each of them has a
+    // doppelgänger that a person is more likely to have typed:
+    //   * a geohash, which is letters and digits like a word ("exeter",
+    //     "sun" and "thunder" are all valid geohashes);
+    //   * a two-pair Maidenhead locator, which has the shape of a UK postcode
+    //     district ("CF10", "HP12", "AB10").
+    // Both wait for the place index to come up empty and are then offered as
+    // labelled suggestions rather than jumped to.
+    try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null, geohash: false, maidenheadMin: 3 }); } catch (error) { interpretation = null; }
 
     if (interpretation && interpretation.kind !== 'place' && interpretation.kind !== 'unknown') {
       selectPlace({
@@ -590,13 +596,14 @@
         return { name: row.name, detail: row.country, lat: row.lat, lon: row.lon, kind: 'place', pop: row.pop, offline: true };
       });
       if (!local.length) {
-        // Nothing on Earth is called that — but it might be a geohash. It is
-        // offered as a suggestion rather than jumped to, so a typo never
-        // teleports the map, and the row says exactly what it would do.
+        // Nothing on Earth is called that — but it might be a geohash, or a
+        // two-pair Maidenhead locator. Either is offered as a suggestion
+        // rather than jumped to, so a typo never teleports the map, and the
+        // row says exactly what it would do.
         var code = MM.locators ? MM.locators.interpret(text, { geohash: true, geohashMin: 5 }) : null;
-        if (code && code.kind === 'geohash') {
+        if (code && (code.kind === 'geohash' || code.kind === 'maidenhead')) {
           suggestions = [{
-            name: code.label, detail: code.note, kind: 'geohash',
+            name: code.label, detail: code.note, kind: code.kind,
             lat: code.point.lat, lon: code.point.lon, offline: true,
           }];
         }
@@ -1317,18 +1324,30 @@
     var parsed = MM.geodesy.parseLatLon(value);
     if (parsed) return Promise.resolve(parsed);
     try {
-      var interpreted = MM.gazetteer.interpret(value, { gazetteer: null });
+      // Three-pair Maidenhead locators are read here, two-pair ones are not:
+      // "CF10" is a postcode district, and a route that starts in the North
+      // Atlantic is worse than a route that starts with the geocoder.
+      var interpreted = MM.gazetteer.interpret(value, { gazetteer: null, maidenheadMin: 3 });
       if (interpreted && interpreted.point) return Promise.resolve(interpreted.point);
     } catch (error) { /* fall through */ }
+    // Nothing on Earth is called that, and the geocoder has nothing either:
+    // the last thing to try is a geohash, the same place-first order the
+    // search box uses.
+    var lastResort = function () {
+      if (!MM.locators) return null;
+      var code = MM.locators.interpret(value, { geohash: true, geohashMin: 5 });
+      return code && code.kind === 'geohash' ? { lat: code.point.lat, lon: code.point.lon, name: code.label } : null;
+    };
     return ensureGazetteer().then(function (gaz) {
       var offline = gaz.search(value, { limit: 1, near: state.center })[0];
-      if (state.offline) return offline || null;
+      if (offline) return offline;
+      if (state.offline) return lastResort();
       return MM.providers.geocode(value, { near: state.center }).then(function (result) {
         if (result.results && result.results.length) {
           var first = result.results[0];
           return { lat: first.lat, lon: first.lon, name: first.name };
         }
-        return offline || null;
+        return lastResort();
       });
     });
   }

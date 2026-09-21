@@ -2,7 +2,7 @@
 
 <form id="mum-form" aria-describedby="mostusefulmaps-desc" onsubmit="event.preventDefault();">
   <p id="mostusefulmaps-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
-    The site's own map, right here in the card. Drop two points — a town name, a coordinate pair, a Plus Code, a UK grid reference, a UTM coordinate or a Maidenhead locator — and get the
+    The site's own map, right here in the card. Drop two points — a town name, a coordinate pair, a Plus Code, a UK grid reference, a UTM coordinate, a Maidenhead locator or a geohash — and get the
     <em>geodesic</em> distance on the WGS84 ellipsoid, the initial bearing, and the codes for each end: the Plus Code, the geohash, the Maidenhead locator and the UTM coordinate. Everything is computed
     on your device from data shipped with the page, so it works with the network switched off. The full map adds live OpenStreetMap streets, vehicle-aware driving
     routes with the signed speed limits along them, live traffic where a free feed exists, weather at the time you will
@@ -15,7 +15,7 @@
 
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px;">
     <div>
-      <label for="mum-from" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">From — place, coordinates, Plus Code, grid reference, UTM or Maidenhead locator</label>
+      <label for="mum-from" style="display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:4px;">From — place, coordinates, Plus Code, grid ref, UTM, Maidenhead or geohash</label>
       <input id="mum-from" type="text" placeholder="Luton" autocomplete="off" spellcheck="false"
              style="width:100%;padding:9px 12px;border-radius:8px;background:rgba(20,30,40,.8);border:1px solid rgba(45,212,255,.25);color:inherit;font-size:0.85rem;">
     </div>
@@ -147,14 +147,19 @@
    * A geohash is asked for last, after the place index has come up empty —
    * "exeter" and "thunder" are both valid geohashes, and a place name must
    * never lose to a code. This is the same order the full page uses.
+   *
+   * Maidenhead takes three pairs here, not two: "CF10" is a UK postcode
+   * district, and the card has no geocoder to fall back on, so a two-pair
+   * locator is not worth the risk of dropping a pin in the ocean. The full
+   * page offers that reading as a labelled suggestion instead.
    */
   function resolve(text) {
     var value = String(text || '').trim();
     if (!value) return Promise.resolve(null);
-    return api.parse(value, { gazetteer: false }).then(function (interpreted) {
+    return api.parse(value, { gazetteer: false, maidenheadMin: 3 }).then(function (interpreted) {
       return asPoint(interpreted, value) || findPlace(value).then(function (place) {
         if (place) return place;
-        return api.parse(value, { gazetteer: false, geohash: true })
+        return api.parse(value, { gazetteer: false, geohash: true, maidenheadMin: 3 })
           .then(function (code) { return asPoint(code, value); });
       });
     }).catch(function () {

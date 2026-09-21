@@ -616,6 +616,14 @@
    * when the caller allows it — geohash, which is the one that can collide
    * with a word. Callers that can also try a place search pass
    * { geohash: true } *after* the search comes up empty.
+   *
+   * `maidenheadMin` is the number of pairs a caller will accept as an answer,
+   * 2 by default. There is a second collision besides words: a two-pair
+   * locator ("IO91") has the same shape as a UK postcode district ("CF10",
+   * "HP12", "AB10"), and reading one as the other drops a pin in the ocean.
+   * A caller with a place index therefore asks for three pairs first and
+   * offers a two-pair locator as a suggestion — the same treatment geohash
+   * gets, and for the same reason.
    */
   function interpret(text, options) {
     var opts = options || {};
@@ -638,7 +646,8 @@
     }
 
     var maiden = decodeMaidenhead(trimmed);
-    if (!maiden.error) {
+    var maidenheadMin = opts.maidenheadMin == null ? 2 : opts.maidenheadMin;
+    if (!maiden.error && maiden.pairs >= maidenheadMin) {
       return {
         kind: 'maidenhead',
         point: { lat: maiden.lat, lon: maiden.lon },

@@ -214,7 +214,14 @@
     // pairs: "30U 512345 5690123" and "IO91WM" cannot be a latitude and a
     // longitude, and reading them as one would land in the wrong hemisphere.
     if (MM.locators) {
-      var located = MM.locators.interpret(text, { geohash: opts.geohash === true });
+      var located = MM.locators.interpret(text, {
+        geohash: opts.geohash === true,
+        geohashMin: opts.geohashMin,
+        // Two-pair locators share their shape with UK postcode districts
+        // ("CF10"), so a caller with a place index asks for three pairs and
+        // takes a two-pair locator as a suggestion instead.
+        maidenheadMin: opts.maidenheadMin,
+      });
       if (located) return located;
     }
 

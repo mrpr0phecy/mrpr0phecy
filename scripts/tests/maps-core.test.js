@@ -659,6 +659,14 @@ test('locators: one front door reads UTM, Maidenhead and geohash in that order',
   assert.equal(locators.interpret('IO91WM').kind, 'maidenhead');
   assert.equal(locators.interpret('FM07').kind, 'maidenhead');
   assert.equal(locators.interpret('30U 512345 5690123').kind, 'utm');
+  // Two pairs is two characters too few to be sure: "IO91" is a locator, but
+  // "CF10" is a postcode district that happens to parse as one, so a caller
+  // with a place index raises the bar to three pairs and offers the two-pair
+  // reading as a suggestion.
+  assert.equal(locators.interpret('IO91').kind, 'maidenhead');
+  assert.equal(locators.interpret('IO91', { maidenheadMin: 3 }), null, 'a two-pair locator is not a first-pass answer');
+  assert.equal(locators.interpret('IO91WM', { maidenheadMin: 3 }).kind, 'maidenhead', 'three pairs always is');
+  assert.equal(locators.interpret('CF10', { geohash: false, maidenheadMin: 3 }), null, 'the postcode district survives the first pass');
   assert.equal(locators.interpret('gcpvj0').kind, 'geohash', 'geohash is allowed by default');
   // …and not at all when the caller has not asked for it, which is what keeps
   // a place search in front of it.
@@ -836,6 +844,15 @@ test('gazetteer: interpret() recognises every way people give a location', () =>
   const maidenhead = gazModule.interpret('IO91WM', { gazetteer: gaz });
   assert.equal(maidenhead.kind, 'maidenhead');
   assert.ok(geodesy.distanceKm(LONDON, maidenhead.point) < 5);
+
+  // A two-pair locator shares its shape with a UK postcode district, so the
+  // page asks this pass for three pairs and offers two pairs as a suggestion
+  // later instead. "CF10", "HP12" and "AB10" are all postcode districts and
+  // all valid locators; only one of the two readings is worth a jump.
+  assert.equal(gazModule.interpret('CF10', { gazetteer: gaz, geohash: false, maidenheadMin: 3 }).kind, 'unknown');
+  assert.equal(gazModule.interpret('IO91', { gazetteer: gaz, geohash: false, maidenheadMin: 3 }).kind, 'unknown');
+  assert.equal(gazModule.interpret('IO91', { gazetteer: gaz, geohash: false }).kind, 'maidenhead');
+  assert.equal(gazModule.interpret('IO91WM', { gazetteer: gaz, geohash: false, maidenheadMin: 3 }).kind, 'maidenhead');
 
   // A geohash is letters and digits like a word, so it is only read when the
   // caller asks. That is the whole reason the page can offer geohashes at all:

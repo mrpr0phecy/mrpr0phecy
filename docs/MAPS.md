@@ -105,8 +105,12 @@ the codes:
 
 1. a Plus Code (`8FVC9G8F+6W`), then an OS grid reference (`TL 09 21`) — both
    have shapes no place name has, so they are safe to check first;
-2. a UTM coordinate (`30U 677751 5750811`) and a Maidenhead locator (`IO91WM`),
-   for the same reason;
+2. a UTM coordinate (`30U 677751 5750811`) and a **three-pair** Maidenhead
+   locator (`IO91WM`) — the same reason. A two-pair locator (`IO91`) is a
+   different case: it has the shape of a UK postcode district (`CF10`, `HP12`,
+   `AB10`), so the first pass asks for three pairs and a two-pair locator is
+   offered as a suggestion, next to the geocoder's postcode answer rather than
+   in front of it;
 3. a plain latitude and longitude (`51.5074, -0.1278`);
 4. a place name, offline first and then the geocoder;
 5. **and only then a geohash** — because a geohash is letters and digits like a
@@ -116,7 +120,9 @@ the codes:
    it is about to do.
 
 Everything in steps 1–3 and 5 is computed on the device: no service is
-contacted for any code, and none of them needs the network.
+contacted for any code, and none of them needs the network. The Route and
+Drive endpoint fields are resolved in the same order — a geohash works there
+too, once both the place index and the geocoder have come up empty.
 
 **Route choices and active guidance.** The Route tab supports driving, cycling
 and walking profiles, with fastest, shortest and quieter choices, explicit avoid
@@ -283,7 +289,11 @@ do. `locationCodes(lat, lon, options)` returns the whole set as rows
 `describeLocation` returns the same thing as one block of text for a clipboard.
 `options.plusCodeReference` is the point a shortened Plus Code should be
 resolved against; `options.geohashPrecision` and `options.maidenheadPairs` set
-the depth. For the objects behind the text, load `maps/core/locators.js` and
+the depth. `parse(text, options)` reads the same codes the search box does, in
+the same order, and takes the same opt-outs: `{ geohash: true }` allows a
+geohash, and `{ maidenheadMin: 3 }` refuses the two-pair locators that share
+their shape with UK postcode districts — which is what the catalogue card
+passes, since a card has no geocoder to fall back on. For the objects behind the text, load `maps/core/locators.js` and
 call `MM.locators.decodeGeohash`, `MM.locators.decodeMaidenhead`,
 `MM.locators.utm` or `MM.locators.parseUtm`: they return the cell's bounds and
 its size in kilometres, the latitude band, grid convergence, and any warning
