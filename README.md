@@ -1,16 +1,13 @@
 # The Most Useful Site in the World + MrProphecy
 
-One GitHub Pages site serving two separate products from the same domain:
+**1,206 free tools that run entirely in your browser — no backend, no signup, no tracking, no ads.**
 
-- **The Most Useful Site In The World** — 1206 free, self-contained browser
-  tools. Entry point: [`index.html`](index.html)
-- **MrProphecy** — UK hip hop and animated soundscapes from Luton.
-  Entry point: [`listen.html`](listen.html)
+Live: **<https://www.themostusefulsiteintheworld.com>** — one static domain, two deliberately separate products that never cross-promote.
 
-The two are kept deliberately separate. See the architecture guide before
-mixing them.
+- **The Most Useful Site in the World** — 1,206 self-contained tools across **28 categories** (calculators, converters, generators, health, finance, STEM, productivity …). Every tool is a fragment in [`cards/`](cards/) that runs offline in the page; the catalogue at [`index.html`](index.html) → `tool.html?card=` is the entry point. Also [`ai.html`](ai.html) **Lantern** — private, on-device AI that answers from *your* documents and memory, with an optional WebGPU model. Nothing leaves the browser.
+- **MrProphecy** — UK hip hop and animated soundscapes from **Luton** — 233 videos, 1,360+ subscribers. Entry point: [`listen.html`](listen.html) → `radio.html` / `youtubepromo.html`.
 
-Live: <https://www.themostusefulsiteintheworld.com>
+Zero framework, zero build step in production, zero runtime dependencies. `main` *is* the deploy — GitHub Pages serves it in ~60 s. The repo is mature and stable: tool count is derived from `cards/cards.json`, not a growth target.
 
 ---
 
@@ -88,11 +85,15 @@ money-related.
 
 | | |
 |---|---|
-| Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
-| Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tool inventory | Derived from `cards/cards.json`; not a growth target |
-| Add a tool | Follow ARCHITECTURE.md; generate the index, then re-sync the derived artefacts (`scripts/sync-counts.py`, `scripts/build-sitemap.py`, `scripts/build-home-prerender.py`) and verify |
-| Operations | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage, rollback and fix-forward. `node scripts/check-production.js` checks the *live* site against this repository; it also runs after every deploy and every 6 hours, raising one alert issue that closes itself on recovery |
+| **Live** | <https://www.themostusefulsiteintheworld.com> · <https://www.mrprophecy.com> (same repo, `CNAME`) |
+| **Stack** | Static HTML/CSS/JS — **no build step in production, no framework, no dependencies, no backend**. All 1,206 tools are fragments in `cards/` |
+| **Catalogue** | **1,206 tools · 28 categories · 67 top-level pages** — everything derived from `cards/cards.json` via `npm run build`. Tool count is not a growth target |
+| **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
+| **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
+| **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
+| **Quality gate** | `npm run verify` (7 checks, ~3 s) after every edit · `npm run verify:deep` before push · CI runs `--deep` + production monitor |
+| **Operations** | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage / rollback / fix-forward. `node scripts/check-production.js` probes the *live* site after every deploy and every 6 h (self-closing alert issue) |
+| **Add a tool** | `bash scripts/add-tool.sh <slug> \"<Category>\" \"<msg>\"` or follow `ARCHITECTURE.md` §4 then `npm run build && npm run verify:deep` |
 
 ## Local preview
 
