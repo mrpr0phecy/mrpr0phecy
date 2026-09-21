@@ -172,7 +172,17 @@
 
   /**
    * Everything a search box should accept, in the order a person expects:
-   * a place name, a coordinate pair, a Plus Code, a UK grid reference.
+   * a place name, a coordinate pair, a Plus Code, a UK grid reference, a UTM
+   * coordinate, a Maidenhead locator, a geohash.
+   *
+   * The order is deliberate and it is the whole design. Plus Codes, grid
+   * references, UTM and Maidenhead are shapes no place name has, so they are
+   * safe to check first — but a geohash is just letters and digits, and
+   * "thunder", "exeter" and "9c3x" are all valid geohashes. A geohash is
+   * therefore only considered when the caller passes `geohash: true`, which
+   * maps/app.js does on the pass *after* the place index has come up empty,
+   * so a place can never be beaten to the answer by a code.
+   *
    * Returns { kind, …, results } so the UI can explain what it matched.
    */
   function interpret(query, options) {
@@ -198,6 +208,14 @@
           label: text.toUpperCase().replace(/\s+/g, ' '), results: [],
         };
       }
+    }
+
+    // UTM, Maidenhead and (only when asked) geohash, before plain coordinate
+    // pairs: "30U 512345 5690123" and "IO91WM" cannot be a latitude and a
+    // longitude, and reading them as one would land in the wrong hemisphere.
+    if (MM.locators) {
+      var located = MM.locators.interpret(text, { geohash: opts.geohash === true });
+      if (located) return located;
     }
 
     if (MM.geodesy) {

@@ -202,43 +202,14 @@ function build() {
   return { index, specs };
 }
 
-function main() {
-  const isCheck = process.argv.includes('--check');
-  const { index, specs } = build();
+/** The bytes of one spec file. One writer, used by both build and --check. */
+function specText(spec) {
+  return JSON.stringify(spec, null, 2) + '\n';
+}
 
-  if (isCheck) {
-    if (!fs.existsSync(OUT_MANIFEST)) {
-      console.error('FAIL: api/tools.json missing — run: node scripts/build-tool-specs.js');
-      process.exit(1);
-    }
-    const current = readJson(OUT_MANIFEST);
-    const expectedCount = specs.length;
-    if (current.count !== expectedCount) {
-      console.error(`FAIL: api/tools.json count ${current.count} != ${expectedCount} — run: node scripts/build-tool-specs.js`);
-      process.exit(1);
-    }
-    // Spot-check one file exists
-    const probe = path.join(OUT_DIR, 'bmi.json');
-    if (!fs.existsSync(probe)) {
-      console.error('FAIL: api/tools/bmi.json missing — run: node scripts/build-tool-specs.js');
-      process.exit(1);
-    }
-    // Ensure slugs sorted
-    console.log(`api/tools specs OK (${specs.length} specs, ${index.categories.length} categories)`);
-    return;
-  }
-
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.mkdirSync(path.dirname(OUT_MANIFEST), { recursive: true });
-
-  // Write per-tool
-  for (const spec of specs) {
-    const p = path.join(OUT_DIR, spec.slug + '.json');
-    fs.writeFileSync(p, JSON.stringify(spec, null, 2) + '\n', 'utf8');
-  }
-
-  // Manifest
-  const manifest = {
+/** The bytes of the manifest. One writer, used by both build and --check. */
+function manifestText(index, specs) {
+  return JSON.stringify({
     version: index.version || '2026-09-19',
     count: specs.length,
     categories: index.categories,
@@ -260,12 +231,60 @@ function main() {
       featured: s.featured,
       updated: s.updated,
     })),
-  };
-  fs.writeFileSync(OUT_MANIFEST, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  }, null, 2) + '\n';
+}
+
+function main() {
+  const isCheck = process.argv.includes('--check');
+  const { index, specs } = build();
+
+  if (isCheck) {
+    if (!fs.existsSync(OUT_MANIFEST)) {
+      console.error('FAIL: api/tools.json missing — run: node scripts/build-tool-specs.js');
+      process.exit(1);
+    }
+    const current = readJson(OUT_MANIFEST);
+    if (current.count !== specs.length) {
+      console.error(`FAIL: api/tools.json count ${current.count} != ${specs.length} — run: node scripts/build-tool-specs.js`);
+      process.exit(1);
+    }
+    // Content, not just the count. This check used to compare the number of
+    // tools and the existence of api/tools/bmi.json and nothing else, so eight
+    // per-tool specs (sleep, earthing-calculator, therapy-values-time-gap and
+    // five others) sat stale in the repository: their committed "formula" and
+    // "outputs" disagreed with the fragments they are generated from, and the
+    // gate still said OK. A spec guarded only by a spot-check is not guarded.
+    const drifted = [];
+    if (fs.readFileSync(OUT_MANIFEST, 'utf8') !== manifestText(index, specs)) drifted.push('api/tools.json');
+    for (const spec of specs) {
+      const file = path.join(OUT_DIR, spec.slug + '.json');
+      let actual = null;
+      try { actual = fs.readFileSync(file, 'utf8'); } catch (error) { drifted.push('api/tools/' + spec.slug + '.json (missing)'); continue; }
+      if (actual !== specText(spec)) drifted.push('api/tools/' + spec.slug + '.json');
+    }
+    if (drifted.length) {
+      console.error(`FAIL: ${drifted.length} per-tool spec(s) drift from the cards — run: node scripts/build-tool-specs.js`);
+      console.error('      ' + drifted.slice(0, 10).join('\n      '));
+      process.exit(1);
+    }
+    console.log(`api/tools specs OK (${specs.length} specs, ${index.categories.length} categories, content matches)`);
+    return;
+  }
+
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(OUT_MANIFEST), { recursive: true });
+
+  // Write per-tool
+  for (const spec of specs) {
+    fs.writeFileSync(path.join(OUT_DIR, spec.slug + '.json'), specText(spec), 'utf8');
+  }
+
+  fs.writeFileSync(OUT_MANIFEST, manifestText(index, specs), 'utf8');
 
   // Count
-  const gz = require('zlib').gzipSync(Buffer.from(JSON.stringify(manifest))).length;
-  console.log(`✔ api/tools.json written (${manifest.count} specs, ${index.categories.length} categories, ~${Math.round(gz/1024)}KB gzip)`);
+  const manifest = manifestText(index, specs);
+  const gz = require('zlib').gzipSync(Buffer.from(manifest)).length;
+  console.log(`✔ api/tools.json written (${specs.length} specs, ${index.categories.length} categories, ~${Math.round(gz/1024)}KB gzip)`);
   console.log(`✔ ${specs.length} per-tool specs written to api/tools/<slug>.json`);
 }
 

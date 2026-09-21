@@ -22,6 +22,8 @@ maps/core/geodesy.js          WGS84 geodesics, bearings, rhumb lines, area, bbox
                               formatting, coordinate parsing, Mercator projection
 maps/core/olc.js              Open Location Code (Plus Codes) encode/decode/shorten/recover
 maps/core/gridref.js          OS National Grid ↔ WGS84 (Helmert + Airy transverse Mercator)
+maps/core/locators.js         geohash, Maidenhead locators and UTM — the other three grids
+                              people give a location in, all arithmetic, no tables
 maps/core/solar.js            NOAA solar position, sunrise/sunset/twilight/golden hour, moon phase
 maps/core/geo.js              point-in-polygon, country lookup, graticule, drawing helpers
 maps/core/gazetteer.js        offline place search and the "what did you type?" classifier
@@ -95,6 +97,26 @@ small radius to the named sources, and they never poll in the background. If
 this page ever gets real traffic, self-host (Photon, OSRM, Overpass and
 OpenFreeMap are all self-hostable) rather than leaning harder on the
 volunteers.
+
+**What the search box reads, and in what order.** A place name is not the only
+thing that names a place, and the order the codes are tried in is the whole
+design — `maps/core/gazetteer.js` does it, and `maps/core/locators.js` supplies
+the codes:
+
+1. a Plus Code (`8FVC9G8F+6W`), then an OS grid reference (`TL 09 21`) — both
+   have shapes no place name has, so they are safe to check first;
+2. a UTM coordinate (`30U 677751 5750811`) and a Maidenhead locator (`IO91WM`),
+   for the same reason;
+3. a plain latitude and longitude (`51.5074, -0.1278`);
+4. a place name, offline first and then the geocoder;
+5. **and only then a geohash** — because a geohash is letters and digits like a
+   word, and "exeter", "sun" and "thunder" are all valid geohashes. The page
+   asks for one on the pass *after* the place index has come up empty, offers
+   it as a suggestion rather than jumping to it, and labels the row with what
+   it is about to do.
+
+Everything in steps 1–3 and 5 is computed on the device: no service is
+contacted for any code, and none of them needs the network.
 
 **Route choices and active guidance.** The Route tab supports driving, cycling
 and walking profiles, with fastest, shortest and quieter choices, explicit avoid
@@ -217,6 +239,9 @@ makes the feature testable in CI and usable on a desktop.
 | Distance, bearing, area, path length | WGS84 Vincenty on the device |
 | Plus Codes | full encoder/decoder, verified against the reference test vectors |
 | OS grid references | WGS84 ↔ OSGB36 ↔ National Grid, on the device |
+| Geohash (encode, decode, neighbours) | base-32 z-order bisection, on the device |
+| Maidenhead locators (2–5 pairs) | on the device |
+| UTM (zones, bands, both directions) | WGS84 transverse Mercator, on the device |
 | Sunrise/sunset/twilight/golden hour/moon | NOAA algorithms on the device |
 | Time zone and local time | tz-lookup on the device |
 | Route distance | straight-line fallback, labelled as a straight line |
@@ -246,9 +271,23 @@ makes the feature testable in CI and usable on a desktop.
 
 `MostUsefulMaps` also exposes the engine without a map:
 `distance`, `measure`, `pathLength`, `area`, `plusCode`, `gridReference`,
+`geohash`, `maidenhead`, `utm`, `locationCodes`, `describeLocation`,
 `sunTimes`, `parse`, `searchPlaces`, `loadGazetteer`, `loadCountryFacts`,
 `openInFullMap(state)`, plus `mount()` → an instance with `setCenter`,
 `setMarkers`, `setPath`, `destroy()`.
+
+`geohash(lat, lon, precision)`, `maidenhead(lat, lon, pairs)` and
+`utm(lat, lon)` answer with **text**, the way `plusCode` and `gridReference`
+do. `locationCodes(lat, lon, options)` returns the whole set as rows
+(`{ id, label, value, note }`) for a card that wants to render a table, and
+`describeLocation` returns the same thing as one block of text for a clipboard.
+`options.plusCodeReference` is the point a shortened Plus Code should be
+resolved against; `options.geohashPrecision` and `options.maidenheadPairs` set
+the depth. For the objects behind the text, load `maps/core/locators.js` and
+call `MM.locators.decodeGeohash`, `MM.locators.decodeMaidenhead`,
+`MM.locators.utm` or `MM.locators.parseUtm`: they return the cell's bounds and
+its size in kilometres, the latitude band, grid convergence, and any warning
+about a coordinate written outside the zone it claims.
 
 `plusCode(lat, lon)` and `gridReference(lat, lon)` both answer with **text**
 (`gridReference` is null outside the National Grid), so a card can put the
@@ -281,6 +320,15 @@ session are plain globals on `MM`, with no DOM and no fetching inside them.
   (`test_data/encoding.csv`, `decoding.csv`) plus the specification's
   shortening table;
 - OS grid reference worked examples;
+- the locator codes against published reference values: geohash
+  (`u4pruydqqvj`, and the canonical `ezs42` decode with its exact cell bounds),
+  Maidenhead (London is `IO91WM` in every implementation) and UTM (Wikipedia's
+  CN Tower worked example, `17T 630084 4833438`) — plus the invariants a border
+  lookup table would get wrong: geohash neighbours tile and are symmetric, UTM
+  round-trips to under half a metre north and south of the equator, and the
+  Norway and Svalbard zone exceptions hold;
+- the search order that keeps a word from being read as a code: "exeter" is
+  looked up as a place, `gcpvj0` is not;
 - sun times, phases and moon phase;
 - the offline gazetteer's ranking, folding and interpretation;
 - country lookup through the vendored TopoJSON;
@@ -318,6 +366,13 @@ every one of them degrades to an offline answer.
 - **Geocoding by postcode.** Free-form geocoders handle UK postcodes well
   enough, and a full postcode dataset is licensed, not open. `uk-postcode-formatter`
   covers the formatting side.
+- **MGRS and USNG.** UTM is here, and a full Military Grid Reference System
+  reference is UTM plus a 100 km square designator — but the lettering has
+  exceptions per zone that would have to be reproduced from memory rather than
+  checked against a reference value, and a wrong square letter is a wrong
+  place. UTM, the grid it is built on, is in.
+- **What3words.** Not open data: the addresses are a commercial dataset, so a
+  static page cannot resolve one and must not pretend to.
 - **A service worker.** `sw.js` is still unregistered site-wide; adding offline
   caching is a separate decision (see the open questions in CONSTRAINTS.md).
 
