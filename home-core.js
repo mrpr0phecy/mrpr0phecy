@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 16;
+  const APP_VERSION = 17;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -208,6 +208,44 @@
     });
   }
 
+  /* ------------------------------------------------------ popular chips */
+  // The hero's \"Popular: BMI, Loan, ...\" shortcuts look like buttons and are
+  // buttons — but until now they had no handler at all, so clicking one did
+  // nothing. A chip sets the search filter exactly as if the visitor had
+  // typed that word and pressed Enter; the list engine (explore.js) still owns
+  // the results, so this delegates there and only updates the two search boxes
+  // that already exist on the page.
+  function setupPopularChips() {
+    var chips = document.querySelectorAll('.popular-chip');
+    if (!chips.length) return;
+    var boxes = ['tool-search', 'stickySearchInput'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    var clearBtn = document.getElementById('mainSearchClear');
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var q = chip.getAttribute('data-query') || chip.textContent.trim();
+        if (!q) return;
+        boxes.forEach(function (b) { b.value = q; });
+        if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+        if (window.mpExplore) {
+          window.mpExplore.filter(q);
+          // The chip lives in the hero, above the browse chrome. After a
+          // filter the browse section hides itself (syncOtherInputs), but the
+          // viewport is still at the top — bring the results into view.
+          var section = document.getElementById('all-tools-section');
+          if (section && typeof section.scrollIntoView === 'function') {
+            try { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { try { section.scrollIntoView(); } catch (e2) {} }
+          }
+          if (typeof window.gtag === 'function') window.gtag('event', 'popular_chip', { query: q });
+        } else {
+          // No engine (script blocked or still loading): the honest answer is
+          // the full index, pre-filtered by the query, rather than a filter
+          // that silently does nothing.
+          location.href = 'tools.html?q=' + encodeURIComponent(q);
+        }
+      });
+    });
+  }
+
   /* ------------------------------------------- popovers: a11y sync + fallback */
   // A native popover never touches aria-hidden itself: without this listener,
   // a screen reader is told every panel is hidden even while it is open.
@@ -365,6 +403,7 @@
     setupTheme();
     setupStickyBar();
     setupSearch();
+    setupPopularChips();
     setupPanels();
     syncPopoverA11y();
     popoverFallback();

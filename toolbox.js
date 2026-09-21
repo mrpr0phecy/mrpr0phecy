@@ -141,7 +141,7 @@
        any future nesting. */
     var dir = document.body.getAttribute('data-cards-dir') ||
       (location.pathname.indexOf('/categories/') !== -1 ? '../' : '');
-    litePromise = fetch(dir + 'cards/cards-lite.json', { priority: 'low' })
+    litePromise = fetch(dir + 'cards/cards-lite.json')
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (list) {
         byslug = {};
