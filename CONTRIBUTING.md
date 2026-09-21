@@ -15,6 +15,6 @@ npm run verify:deep    # ~15 s — before you push (CI runs this on every push)
 
 Never hand-edit a tool count or any generated file. Never delete a tool or a
 page — that is the owner's call. Never mix the music pages with the tool
-catalogue. Element IDs are shared across all 1206 cards, so prefix every one
+catalogue. Element IDs are shared across all 1220 cards, so prefix every one
 with its slug. If you are unsure, ask the owner (`mrpr0phecy`) rather than
 guessing.

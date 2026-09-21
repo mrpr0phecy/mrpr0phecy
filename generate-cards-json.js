@@ -182,6 +182,23 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-21 — fourteen "most useful" gap fills: everyday, high-intent tools the
+  // catalogue did not have (audited against all 1,209 existing cards). Kitchen timers,
+  // money savers, health motivation, and the classic moving/candle/compost calculators.
+  'egg-timer-perfect-boiled-eggs': 'Culinary & Food Science',
+  'tea-brew-temperature-steep-guide': 'Culinary & Food Science',
+  'spice-blend-scaler': 'Culinary & Food Science',
+  'appliance-running-cost-calculator': 'Finance & Money',
+  'phone-contract-vs-sim-only-calculator': 'Finance & Money',
+  'wedding-budget-planner': 'Finance & Money',
+  'uk-prescription-prepayment-checker': 'Finance & Money',
+  'council-tax-band-checker': 'Finance & Money',
+  'smoking-cost-quit-savings-planner': 'Health & Fitness',
+  'twenty-twenty-twenty-eye-rest-timer': 'Health & Fitness',
+  'resignation-letter-generator': 'Writing & Language',
+  'moving-house-box-estimator': 'Home & DIY',
+  'compost-carbon-nitrogen-balancer': 'Home & DIY',
+  'candle-making-supplies-calculator': 'Productivity & Lifestyle',
   // 2026-09-21 — ten trucking tools (new Trucking & Freight category): everything a driver
   // needs between the loading dock and the scale house.
   'truck-duty-clock-planner': 'Trucking & Freight',
@@ -1139,6 +1156,21 @@ function decodeEntities(str) {
     .replace(/&mdash;/g, '\u2014')
     .replace(/&ndash;/g, '\u2013')
     .replace(/&hellip;/g, '\u2026')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&lsquo;|&rsquo;/g, '\u2019')
+    .replace(/&thinsp;/g, '\u2009')
+    .replace(/&times;/g, '\u00D7')
+    .replace(/&deg;/g, '\u00B0')
+    .replace(/&minus;/g, '\u2212')
+    .replace(/&plusmn;/g, '\u00B1')
+    .replace(/&frac12;/g, '\u00BD')
+    .replace(/&frac14;/g, '\u00BC')
+    .replace(/&frac34;/g, '\u00BE')
+    .replace(/&sup2;/g, '\u00B2')
+    .replace(/&sup3;/g, '\u00B3')
+    .replace(/&prime;/g, '\u2032')
+    .replace(/&Prime;/g, '\u2033')
     .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(parseInt(d, 10)))
     .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)));
 }
