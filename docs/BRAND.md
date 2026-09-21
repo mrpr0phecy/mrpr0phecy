@@ -43,7 +43,15 @@ MrProphecy (the maker)
 * No MrProphecy mascot inside Health & Fitness or Finance & Money deep
   pages — it undermines YMYL trust (see TRUST.md).
 * The favicon and `apple-touch-icon` belong to the product, not the
-  character.
+  character — and they are the same drawing as the hero's mark: one geometry,
+  six files (`favicon.svg`, `favicon.ico`, `icon-192.png`, `icon-512.png`,
+  `icon-maskable-512.png`, `apple-touch-icon.png`), regenerated together.
+* The mark is a magnifier whose lens holds a four-point spark: search is what
+  the product does, the spark is the answer it gives you. The tile is the
+  site's own accent gradient (`#2dd4ff` -> `#2f6bff`), so a page cannot drift
+  from its icon.
+* One emoji per heading, one per category tile, each inside the same rounded
+  chip — the ornament is a system, not decoration.
 
 ## Naming rules
 

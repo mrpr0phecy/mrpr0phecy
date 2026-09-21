@@ -114,11 +114,17 @@ establish *which* site first.
 ├── robots.txt              Allows all, points at the sitemap
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
-├── icon-192.png, icon-512.png, icon-maskable-512.png   (palette-optimised)
-├── logo.png (unreferenced by any page — kept deliberately)
+├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
+│   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
+│                           home screen, Android and iOS (§5)
+├── logo-mark.svg           the same mark, vector, at hero scale — linked by
+│                           index.html's lockup and its footer
+├── logo.png                1024² lockup (mark + wordmark). Unreferenced by any
+│                           page — kept deliberately, for press and profiles
 ├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
 ├── backgroundpic.jpg + backgroundpic.webp (the one the pages use)
-├── og-ai.jpg, og-tools.png, og-mp.png, luton-og.png, sonic-og.png (social cards)
+├── og-brand.png, og-tools.png, og-ai.jpg, og-mp.png, luton-og.png,
+│   sonic-og.png          social cards (og-brand.png is index.html's)
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
 ├── README.md               Short public-facing readme
 ├── CV.docx / CV.pdf / cv.pdf / latestcv.docx    Owner's CV files
@@ -798,9 +804,23 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   `setupMobileOptimizations`).
 - **`tool.html`**: `.tool-card-box` and its injected container are
   `min-width:0; max-width:100%` — the second half of the card-overflow fix.
-- **Hero**: `.futuristic-badge` text is `rgba(230,250,255,.85)` on a
-  `rgba(0,243,255,.08)` tint; `.main-search-bar` is 52px tall with a
-  full-height search button; `.futuristic-subtitle` uses `text-wrap:pretty`.
+- **Hero**: rebuilt 2026-09-21 around the brand, in this order — `.hero-brand`
+  (the mark plus `THE MOST USEFUL SITE IN THE WORLD` in 0.8rem/800 with 0.14em
+  of tracking), `h1.futuristic-title` (the promise, not the site's name:
+  "Every tool you need, already in your browser.", `clamp(1.6rem,6.4vw,3.35rem)`,
+  26ch, two balanced lines at every width), `.hero-subtitle`, the search field,
+  the popular chips, then `.hero-facts` (a pulsing dot, the live tool count,
+  the promise) and `.hero-keys`. The headline no longer animates
+  (`titleSheen` was removed with the badge) and the last 👁️ were deleted: the
+  no-JS `.noscript-warning` banner went too, for the same reason.
+- **The one icon system**: every emoji on the page sits in the same rounded
+  chip — `.section-emoji` (30px, 9px radius) on section headings, `.cat-icon`
+  (32-36px, 10px radius) on the 28 category tiles. Flat emoji beside a flat
+  heading is what makes a page look assembled rather than designed.
+- **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, whose
+  geometry is byte-for-byte the favicon's (only the tile's corner radius
+  differs at raster scale — the rasters round the corners themselves). Change
+  the mark in `gen_assets.py`'s geometry table and every size follows.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.
