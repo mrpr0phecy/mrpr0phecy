@@ -678,7 +678,7 @@
     }
 
     if (state.mode === 'json') {
-      return fetch('tools-index.json', { priority: 'low' })
+      return fetch('tools-index.json')
         .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
         .then(function (data) {
           state.rows = data.tools.map(rowFromTool);
@@ -782,6 +782,34 @@
     rows: function () { return visible(); },
     state: state
   };
+
+  // Popular chip fallback — the hero's \"Popular: BMI, Loan, …\" shortcuts are outside
+  // the explore container and historically had no handler at all. home-core.js now
+  // owns them on the home page; this delegated fallback keeps them working if that
+  // file is blocked or fails to load, and is harmless as a duplicate because
+  // filter() with the same query is idempotent.
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest && e.target.closest('.popular-chip');
+    if (!chip) return;
+    if (e.defaultPrevented) return;
+    var q = chip.getAttribute('data-query') || chip.textContent.trim();
+    if (!q) return;
+    if (window.mpExplore && window.mpExplore.state && window.mpExplore.state.q === q) return;
+    ['tool-search', 'stickySearchInput', 'xp-input'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = q;
+    });
+    var clear = document.getElementById('mainSearchClear');
+    if (clear) clear.style.display = q ? 'block' : 'none';
+    if (window.mpExplore) {
+      e.preventDefault();
+      window.mpExplore.filter(q);
+      var section = document.getElementById('all-tools-section');
+      if (section && typeof section.scrollIntoView === 'function') {
+        try { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (err) { try { section.scrollIntoView(); } catch (e2) {} }
+      }
+    }
+  });
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();

@@ -51,6 +51,11 @@
 // leave it alone and a returning visitor gets a 404 for the toolbox on the
 // first load after this deploy, which is exactly the bug this constant exists
 // to prevent.
+// v17: popular-chip buttons were dead clicks (no handler) and fetch() used
+// Chromium-only {priority:'low'} that could throw synchronously on
+// Safari/Firefox, falling back to only a „list could not load“ notice. Both
+// fixes live in home-core.js / explore.js / toolbox.js, so the precache
+// has to version them or a returning visitor keeps the broken script.
 //
 // v7: the app is split. The first screen no longer contains the panels, the
 // toolbox, the maximise modal or the directory view — those live in
@@ -61,7 +66,7 @@
 // a first visit followed by an offline visit rendered an unstyled page with no
 // cards. Every one of those URLs carries a ?v= derived from this constant, so a
 // deploy is a new URL and a stale entry is impossible.
-const CACHE_VERSION = 'v16-2026-09-21';
+const CACHE_VERSION = 'v17-2026-09-21';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
