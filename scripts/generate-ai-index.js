@@ -273,6 +273,8 @@ ${sections.join('\n\n')}
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <title>All ${total} Tools — Plain Directory | The Most Useful Site in the World</title>
   <meta name="description" content="Complete plain-HTML directory of all ${total} free browser tools on The Most Useful Site in the World. Works without JavaScript. Every tool opens in one click.">
   <link rel="canonical" href="${SITE}/tools-index.html">
