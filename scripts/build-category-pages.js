@@ -53,6 +53,7 @@ const CAT_BLURBS = {
   'Productivity & Lifestyle': 'Secure password generators, study timers, unit pricing comparators, time zone converters, and daily decision matrixes to streamline your life.',
   'Virtual Worlds & Gaming': 'Dice rollers, character stat sheets, procedural dungeon generators, virtual world coordinate converters, and retro gaming utilities.',
   'Museum & Collection': 'Collection inventory organizers, coin and stamp grade guides, artifact scale calculators, and archival reference tools for collectors.',
+  'Trucking & Freight': 'Hours-of-service clocks, axle-weight and bridge-formula checks, tyre load and pressure, load plans, stopping distances, grade descent, cost per mile, load-offer maths, pre-trip walkarounds and roadside breakdown triage. Written for drivers on both sides of the Atlantic — every tool carries US and EU/UK units, limits and rule references.',
 };
 
 function esc(str) {

@@ -23,7 +23,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 1195 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 1205 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -54,8 +54,8 @@ establish *which* site first.
 ├── home-app.js             Homepage application (external, `defer`-loaded)
 ├── cards/
 │   ├── cards-lite.json     Generated critical-path tier: name/title/category
-│   ├── cards.json          Generated full index of all 1195 tools (descriptions feed search)
-│   └── <tool-name>.html    1195 tool fragments (NOT full documents)
+│   ├── cards.json          Generated full index of all 1205 tools (descriptions feed search)
+│   └── <tool-name>.html    1205 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json + cards-lite.json from the cards/ directory
 ├── ai.html                 Lantern — standalone AI product. Chat answered on
 │                           the device from the visitor's own documents and
@@ -186,7 +186,7 @@ drifted in the HTML that crawlers and no-JS visitors read). `count-all` and
 `heroToolCount` belong to `sync-counts.py` — one number, one owner.
 
 And it writes a third block, **`HOME-CATEGORIES`** (inside `#categories`): the
-27 category hubs as real `<a href="categories/…">` links, in the same order and
+28 category hubs as real `<a href="categories/…">` links, in the same order and
 the same markup `renderCategories()` produces. Before it existed the home page
 reached the crawlable catalogue **only through JavaScript** — the tiles were
 rendered from `tools-index.json` (876 KB) after it landed, so a crawler or a
@@ -519,7 +519,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1195 cards.** They share one
+2. **Element IDs must be globally unique across all 1205 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -579,7 +579,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1195 tools)
+### Categories (1205 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
@@ -598,9 +598,9 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 | 35 | Astronomy & Space | | 10 | Dogs & Canine Care |
 | 35 | Music & Audio | | 10 | Natural Remedies & Herbs |
 | 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
-| 29 | MrProphecy Arcade | | | |
+| 29 | MrProphecy Arcade | | 10 | Trucking & Freight |
 
-Total: 1195 tools in 27 categories.
+Total: 1205 tools in 28 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -932,7 +932,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 1197 indexable pages (including 1195 cards). Build it
+`sitemap.xml` lists all 1197 indexable pages (including 1205 cards). Build it
 from git rather than the working tree, so a sparse checkout does not silently
 drop the card pages:
 
@@ -1049,7 +1049,7 @@ each other — `scripts/tests/home-search.test.js` pins all three:
 - **One owner for the results.** The two systems count matches over different
   fields (the grid: title + description + category + a fuzzy pass; discovery:
   title + description + category + tags), so two lists for one query disagree
-  — the shipped page said "Search Results: 7 tools" above "Showing all 1195
+  — the shipped page said "Search Results: 7 tools" above "Showing all 1205
   tools". `gridOwnsResults()` makes discovery hide the browse chrome and render
   nothing while the grid has a catalogue to filter
   (`window.__mpHome.state.allCards.length > 0`), and keep answering in full
@@ -1131,7 +1131,7 @@ and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip
 no pair, on purpose: it re-tiles a card whose error block is still the content, so
 there is no material delta, and the mount that follows is paired already.
 
-**ID collisions across cards.** All 1195 share one DOM. See §3. A parked subtree
+**ID collisions across cards.** All 1205 share one DOM. See §3. A parked subtree
 keeps its real ids — it is still in the document, which is exactly why
 `document.getElementById` inside a sleeping tool keeps working; moving content
 out of the grid is not moving it out of the page.
@@ -1166,7 +1166,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1195 cards):
+# Music work (skip images and the 1205 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -1245,7 +1245,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ## 9. Current state
 
-1195 tools in `cards/` across 27 categories, one shared DOM, every derived
+1205 tools in `cards/` across 28 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. The gate is `npm run verify` — seven
 checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
 which is also what CI runs on every push and PR.

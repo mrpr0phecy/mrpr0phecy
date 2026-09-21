@@ -69,6 +69,7 @@ const CATEGORY_ORDER = [
   ['Productivity & Lifestyle', '⚡'],
   ['Virtual Worlds & Gaming', '🎮'],
   ['Museum & Collection', '🏛️'],
+  ['Trucking & Freight', '🚚'],
 ];
 
 // One-line hub descriptions for tools-index.html sections. Plain, honest,
@@ -89,6 +90,7 @@ const CAT_BLURB = {
   'Algorithms & Computer Science': 'Regex, JSON, encodings, hashes and CS visualisers.',
   'SaaS & Business Killers': 'The tools subscriptions charge for: invoices, CSVs, favicons, mockups.',
   'Survival & Emergency Readiness': 'Checklists, pack planners and first-principles readiness.',
+  'Trucking & Freight': 'Hours-of-service clocks, axle weights, tyre loads, load plans, stopping distances, grade descent, cost per mile and roadside triage for drivers.',
   'Aquatics & Fishkeeping': 'Tank volumes, CO2, dosing and water-parameter maths.',
   'Anime & Otaku Culture': 'Trackers, quizzes and collection tools for fans.',
   'Finance & Money': 'Tax, mortgages, loans and investing, tested against the statute every April.',
