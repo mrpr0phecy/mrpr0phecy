@@ -3,54 +3,47 @@
  * test-card.js — smoke-test a card fragment the way tool.html loads it.
  *
  *   node scripts/test-card.js cards/my-tool.html [more cards...]
- *   node scripts/test-card.js --all               # every card
- *   node scripts/test-card.js --all --batch=40    # window batch size
- *   node scripts/test-card.js --leaks cards/*.html  # exact leftover audit
+ *   node scripts/test-card.js --all               # every card, ~2.5 minutes
  *
  * What it checks (each FAIL exits 1):
  *   - the file is a fragment (no doctype/html/head/body outside <script>)
  *   - an <h2 id="…-title"> and a <p id="…-desc"> exist (cards.json needs them)
  *   - every <script> block parses (node --check equivalent via new Function)
- *   - the fragment mounts into a shared DOM alongside the shell and its
- *     scripts execute with zero uncaught exceptions (jsdom; window.alert and
- *     console.error are captured, network calls are refused and reported)
+ *   - the fragment mounts into tool.html's shell and its scripts execute with
+ *     zero uncaught exceptions (jsdom; window.alert and console.error are
+ *     captured, network calls are refused and reported)
  *   - no element ids collide with ids already used by another card (a leak
  *     rather than a duplicate: only DOM outside the container outlives one)
  *   - every target=_blank link carries rel=noopener
  *   - the card makes no network request (fetch/XHR/Image/src=https)
  *
- * Mount efficiency: one jsdom window per card is ~1 s of pure boot cost, so a
- * full --all sweep used to take half an hour. With more than one file the
- * script hands several cards through a single window (--batch, default 40) —
- * but mounts them ONE AT A TIME, removing the previous card's container first,
- * because that is what tool.html does:
-
+ * How it mounts: one jsdom window per card — mount the fragment the way
+ * tool.html does, poke the UI, then clear the container and fire what follows a
+ * navigation. That second half is the point:
+ *
  *     container.innerHTML = ''      // tool.html, before every injection
  *     ...inject fragment, run scripts
  *     document.dispatchEvent(new Event('DOMContentLoaded'))
  *
- * The document, and everything a card leaves on it, outlives the container.
- * That is the point of batching: a classic inline script cannot undeclare a
+ * The document outlives the container, so the teardown half of the probe finds
+ * what a card leaves behind: a classic inline script cannot undeclare a
  * `let`/`const`/`class`, listeners on `document`/`window` are never removed,
- * and DOM appended outside the container is never cleaned up — so a card can
- * be hit by a card the visitor opened ten tools ago. A window is still created
- * per batch, never per card. Each card is probed for leftovers the way
- * tool.html navigates: its container is removed and DOMContentLoaded is
- * dispatched again, with nothing else mounted, so a handler that could not
- * cope with the card being gone is named and counted separately from a card
- * that fails to mount at all.
+ * and DOM appended outside the container is never cleaned up. Anything that
+ * throws there is reported as a LEAK and names the card that caused it.
  *
- * `--leaks` is the exact form of that question and uses one window per card:
- * mount, poke, clear the container, then dispatch the events that follow a
- * navigation (DOMContentLoaded, which tool.html re-dispatches, and the click /
- * keydown / input the visitor's next action produces). Nothing else has ever
- * been mounted in that window, so every error after the clear is this card's.
- * The batch path above answers the same question faster, by difference, and
- * can charge one card's leftover to another when the message varies — reach
- * for --leaks when the answer has to be exact.
+ * One window per card costs about what a window per batch of forty did — the
+ * card's own execution dominates, not the jsdom boot — and it is the only
+ * arrangement where every error is attributable. Attribution by "has this error
+ * string been seen already?" charged 24 innocent cards in one catalogue-wide
+ * run and never suspected 44 that were really leaking, because which cards
+ * share a window decides what a leftover listener hits.
  *
- * A full --all sweep mounts every card, so it needs more heap than node's
- * default — run it as: node --max-old-space-size=6144 scripts/test-card.js --all
+ * Cross-card global collisions are deliberately not this tool's job: nothing is
+ * co-mounted, so it cannot see them. scripts/check-card-collisions.py owns that
+ * class and fails the gate.
+ *
+ * A full --all sweep needs more heap than node's default:
+ *   node --max-old-space-size=6144 scripts/test-card.js --all
  *
  * Needs jsdom. Install it OUTSIDE the workspace (AGENTS.md §2):
  *   mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom
@@ -285,150 +278,72 @@ function mountCard(card, window, sink) {
   return { errors, container };
 }
 
-// ------------------------------------------------------- 7a. exact leftover audit
-if (args.includes('--leaks')) {
-  let leaking = 0;
-  for (const card of parsedCards) {
-    const errs = [];
-    const sink = { push: e => errs.push(e) };
-    const { window } = makeWindow(sink);
-    let container = null;
-    try {
-      container = mountCard(card, window, sink).container;
-    } catch (e) {
-      errs.push(`mount threw: ${e && e.message ? e.message : e}`);
-    }
-    if (container && container.isConnected) container.remove();
-    const mark = errs.length;
-    // What the visitor's next move produces in tool.html: the loader
-    // re-dispatches DOMContentLoaded for the incoming card, and then the
-    // visitor clicks and types somewhere else on the page.
-    const nextMove = [
-      () => window.document.dispatchEvent(new window.Event('DOMContentLoaded')),
-      () => window.document.dispatchEvent(new window.MouseEvent('click', { bubbles: true })),
-      () => window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'a', bubbles: true })),
-      () => window.document.dispatchEvent(new window.Event('input', { bubbles: true })),
-    ];
-    for (const fire of nextMove) {
-      try { fire(); } catch (e) { errs.push(`after teardown: ${e && e.message ? e.message : e}`); }
-    }
-    window.close();
-    const leftovers = [...new Set(errs.slice(mark))];
-    if (leftovers.length) {
-      leaking++;
-      console.log(`  LEAK ${card.rel}`);
-      leftovers.slice(0, 3).forEach(e => console.log(`       ${e.slice(0, 120)}`));
-    }
-  }
-  console.log(`\n${leaking} of ${parsedCards.length} card(s) still run code after their container ` +
-              `is cleared — tool.html cannot unregister a listener it did not add.`);
-  process.exit(leaking ? 1 : 0);
-}
-
 // ---------------------------------------------------------------- 7. mount + execute
-if (parsedCards.length === 1) {
-  // Single card: isolated window (the original behaviour, one for one).
-  const card = parsedCards[0];
+// One window per card: mount, poke, then clear the container and dispatch the
+// events that follow a navigation, exactly as tool.html does for the next tool
+// (`container.innerHTML = ''` and a fresh DOMContentLoaded). Nothing else has
+// ever been mounted in this document, so every error is attributable:
+//
+//   * errors before the teardown are the card's own mount/poke failures;
+//   * errors during the teardown probe are what the card leaves behind.
+//
+// A window per card costs about what a window per batch of forty did (the
+// card's own execution dominates, not the jsdom boot), and it removes the
+// guesswork: attribution by "is this error string new?" charged 24 innocent
+// cards in one catalogue-wide run and missed 44 real ones, because which cards
+// share a window decides what a leftover listener hits.
+//
+// Cross-card global collisions are deliberately NOT this tool's job any more —
+// nothing is co-mounted, so it cannot see them; scripts/check-card-collisions.py
+// owns that class, and it fails the gate.
+let leaking = 0;
+for (const card of parsedCards) {
   const perCard = [];
-  const { dom, window } = makeWindow({ push: e => perCard.push(e) });
-  mountCard(card, window, { push: e => perCard.push(e) });
+  const sink = { push: e => perCard.push(e) };
+  const { window } = makeWindow(sink);
+  let container = null;
+  try {
+    container = mountCard(card, window, sink).container;
+  } catch (e) {
+    perCard.push(`mount threw: ${e && e.message ? e.message : e}`);
+  }
+  const mountedErrors = [...new Set(perCard)];
+
+  // The visitor has opened another tool: the loader clears its container and
+  // dispatches DOMContentLoaded again, then clicks and types somewhere else.
+  if (container && container.isConnected) container.remove();
+  const mark = perCard.length;
+  const nextMove = [
+    () => window.document.dispatchEvent(new window.Event('DOMContentLoaded')),
+    () => window.document.dispatchEvent(new window.MouseEvent('click', { bubbles: true })),
+    () => window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'a', bubbles: true })),
+    () => window.document.dispatchEvent(new window.Event('input', { bubbles: true })),
+  ];
+  for (const fire of nextMove) {
+    try { fire(); } catch (e) { perCard.push(`after teardown: ${e && e.message ? e.message : e}`); }
+  }
   window.close();
-  const unique = [...new Set(perCard)];
-  if (unique.length) unique.slice(0, 6).forEach(e => fail(card.rel, e));
-  else console.log(`  ok   ${card.rel}`);
-} else {
-  // One window per batch (booting jsdom is the expensive part), ONE CARD
-  // MOUNTED AT A TIME inside it, and a teardown probe after each: remove the
-  // container and dispatch DOMContentLoaded again, exactly as tool.html does
-  // when the visitor opens the next tool.
-  //
-  // Attribution is by DIFFERENCE, because a window that has already held
-  // moving.html will keep hearing from it: an error string seen during an
-  // earlier card is not charged to this one, and a card is only FAILed once
-  // the same failure is reproduced with nothing else in the window. An error
-  // that shows up for the first time during a card's own teardown probe is
-  // that card's leftover, and is reported as such.
-  const leaks = [];
-  let inheritedOnly = 0;
-  for (let b = 0; b < parsedCards.length; b += batch) {
-    const group = parsedCards.slice(b, b + batch);
-    const errorsByCard = new Map(group.map(c => [c.rel, []]));
-    let current = group[0].rel;
-    const sink = { push: e => errorsByCard.get(current).push(e) };
-    const { dom, window } = makeWindow(sink);
-    const seen = new Set();        // mount/poke errors already explained here
-    const probeSeen = new Set();   // leftover errors already explained here
+  const leftovers = [...new Set(perCard.slice(mark))];
 
-    for (const card of group) {
-      current = card.rel;
-      let mounted = null;
-      try {
-        mounted = mountCard(card, window, sink).container;
-      } catch (e) {
-        errorsByCard.get(card.rel).push(`mount threw: ${e && e.message ? e.message : e}`);
-      }
-
-      // --- teardown probe: the visitor has opened another tool -------------
-      if (mounted && mounted.isConnected) mounted.remove();
-      const leftBehind = [];
-      const realPush = sink.push;
-      sink.push = e => leftBehind.push(e);
-      try {
-        window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
-      } catch (e) {
-        leftBehind.push(`dispatch threw: ${e && e.message ? e.message : e}`);
-      }
-      sink.push = realPush;
-
-      const freshProbe = [...new Set(leftBehind)].filter(e => !probeSeen.has(e));
-      leftBehind.forEach(e => probeSeen.add(e));
-      if (freshProbe.length) leaks.push({ rel: card.rel, count: freshProbe.length, first: freshProbe[0] });
-
-      // --- did this card actually fail, or is it standing in a shadow? -----
-      const observed = [...new Set(errorsByCard.get(card.rel))];
-      const fresh = observed.filter(e => !seen.has(e));
-      observed.forEach(e => seen.add(e));
-      if (!fresh.length) {
-        if (observed.length) inheritedOnly++;
-        console.log(`  ok   ${card.rel}`);
-        continue;
-      }
-      const isolated = [];
-      const solo = makeWindow({ push: e => isolated.push(e) });
-      try {
-        mountCard(card, solo.window, { push: e => isolated.push(e) });
-      } catch (e) {
-        isolated.push(`mount threw: ${e && e.message ? e.message : e}`);
-      }
-      solo.window.close();
-      const repro = [...new Set(isolated)].filter(e => fresh.includes(e));
-      if (repro.length) {
-        repro.slice(0, 6).forEach(e => fail(card.rel, e));
-      } else {
-        // Seen for the first time here, but the card is clean on its own: an
-        // earlier card in this window is throwing on its way to the next tool.
-        inheritedOnly++;
-        console.log(`  ok   ${card.rel}`);
-      }
-    }
-    window.close();
+  if (mountedErrors.length) {
+    mountedErrors.slice(0, 6).forEach(e => fail(card.rel, e));
+  } else if (!leftovers.length) {
+    console.log(`  ok   ${card.rel}`);
   }
-
-  if (inheritedOnly) {
-    console.log(`\n  ${inheritedOnly} card(s) mounted clean and were only ever hit by another ` +
-                `card's leftovers — not reported as failures`);
-  }
-  if (leaks.length) {
-    console.log(`\n${leaks.length} card(s) keep running after the next tool opens. tool.html ` +
-                `clears the container and dispatches DOMContentLoaded again, and it cannot ` +
-                `unregister a listener it did not add:`);
-    for (const l of leaks.slice(0, 300)) {
-      console.log(`  left behind ${l.rel} (${l.count} error${l.count === 1 ? '' : 's'}, first: ${l.first.slice(0, 90)})`);
-    }
-    if (leaks.length > 300) console.log(`  ... and ${leaks.length - 300} more`);
-    console.log('  Fix by bailing out of the handler when the card is gone — see the JS scope ' +
-                'rule in CONSTRAINTS.md.');
+  if (leftovers.length) {
+    leaking++;
+    console.log(`  LEAK ${card.rel} — still runs after the next tool opens:`);
+    leftovers.slice(0, 3).forEach(e => console.log(`       ${e.slice(0, 120)}`));
   }
 }
+
+if (leaking) {
+  console.log(`\n${leaking} of ${parsedCards.length} card(s) still run code after their container ` +
+              `is cleared. tool.html cannot unregister a listener it did not add, so a handler ` +
+              `bound to \`document\` fires in every tool opened afterwards — bail out when the ` +
+              `card is gone (CONSTRAINTS.md, "A listener on \`document\` runs in the next tool too").`);
+  fails += leaking;
+}
+
 console.log(fails === 0 ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})` : `\n${fails} problem(s)`);
 process.exit(fails === 0 ? 0 : 1);

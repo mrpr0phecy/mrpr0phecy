@@ -145,8 +145,9 @@ you must use `document`, bail out first:
 
 The `if (document.readyState === 'loading') … else init()` idiom is immune: in
 `tool.html` the document is already loaded, so the listener is never registered.
-`node scripts/test-card.js --leaks cards/*.html` proves it with one window per
-card; 108 cards failed it on 2026-09-22 and were fixed with this guard.
+`node scripts/test-card.js cards/*.html` proves it — it mounts each card in
+its own window, clears the container and fires the next navigation; 108 cards
+failed that on 2026-09-22 and were fixed with this guard.
 
 **A card's `<style>` is document-wide too.** The loader re-creates the
 fragment's `<style>` blocks inside `tool.html`'s own document, and a style
