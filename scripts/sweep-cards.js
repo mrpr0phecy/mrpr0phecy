@@ -91,14 +91,21 @@ function runChunk(cards, { verbose = true } = {}) {
       clearTimeout(timer);
       const seconds = (Date.now() - started) / 1000;
       const verdicts = new Map();
+      // "note" lines are the card answering a control the sweep pressed empty
+      // (a validation reply), reaching for a network this window does not have,
+      // or logging to console. They are collected rather than charged: the
+      // 1,250-card sweep is worth reading only if its FAIL count is defects.
+      const notes = new Map();
       for (const line of out.split('\n')) {
         const m = /^\s+(ok|FAIL|LEAK)\s+(cards\/\S+\.html)/.exec(line);
         if (m) verdicts.set(m[2], m[1]);
+        const n = /^\s+note\s+(cards\/\S+\.html):\s*(.+)$/.exec(line);
+        if (n) notes.set(n[1], [...(notes.get(n[1]) || []), n[2]]);
       }
       if (verbose) process.stdout.write(out.endsWith('\n') || !out ? out : out + '\n');
       const covered = cards.filter(c => verdicts.has(c));
       const hang = killed ? cards.find(c => !verdicts.has(c)) : null;
-      resolve({ cards, out, verdicts, hang, seconds, code, covered });
+      resolve({ cards, out, verdicts, notes, hang, seconds, code, covered });
     });
   });
 }
@@ -108,7 +115,10 @@ function runChunk(cards, { verbose = true } = {}) {
 async function handleChunk(cards, results) {
   const r = await runChunk(cards);
   if (!r.hang) {
-    for (const c of cards) results.set(c, { verdict: r.verdicts.get(c) || 'none', seconds: r.seconds / cards.length });
+    for (const c of cards) {
+      results.set(c, { verdict: r.verdicts.get(c) || 'none', seconds: r.seconds / cards.length,
+                       notes: r.notes.get(c) || [] });
+    }
     return;
   }
   if (cards.length === 1) {
@@ -151,6 +161,22 @@ async function handleChunk(cards, results) {
               (counts.none ? `, ${counts.none} unaccounted` : ''));
   for (const [card, v] of [...results].filter(([, v]) => v.verdict === 'HANG')) {
     console.log(`  HANG ${card}`);
+  }
+  const buckets = new Map();
+  let noted = 0;
+  for (const v of results.values()) {
+    if (!v.notes || !v.notes.length) continue;
+    noted += 1;
+    const kind = v.notes.some(n => n.startsWith('alert()')) ? 'validation reply (alert)'
+      : v.notes.some(n => /^fetch\(\) called|network request/.test(n)) ? 'network call'
+      : v.notes.some(n => n.startsWith('console.error')) ? 'console.error'
+      : 'other';
+    buckets.set(kind, (buckets.get(kind) || 0) + 1);
+  }
+  if (noted) {
+    console.log(`\n${noted} card(s) reported notes and no fault: ` +
+                [...buckets].map(([k, n]) => `${n} ${k}`).join(', ') +
+                `. Read them with --verbose; they are responses, not failures.`);
   }
   if (JSON_OUT) {
     const payload = { when: new Date().toISOString(), harness: PASSTHROUGH,

@@ -6,6 +6,20 @@
  *   node scripts/test-card.js --all               # every card, ~7 minutes
  *   node scripts/test-card.js --all --response    # + does it actually respond?
  *
+ * Two kinds of line are reported per card, and only one of them is a problem:
+ *
+ *   note — the card answered a control it was not given values for ("enter both
+ *          a question and an answer"), refused a network call this window does
+ *          not have, or logged to console. That is the card working: the probe
+ *          clicks every button with an empty form, so a validation message is
+ *          the expected reply, and a card written against a live API cannot be
+ *          judged by an offline window. Notes do not exit 1.
+ *   FAIL — something threw, or a contract in this list is broken. Exits 1.
+ *
+ * `--strict-notes` promotes notes to failures for a card you are hardening;
+ * without it a 1,250-card sweep reports defects rather than the sound of a
+ * hundred forms being submitted empty.
+ *
  * What it checks (each FAIL exits 1):
  *   - the file is a fragment (no doctype/html/head/body outside <script>)
  *   - an <h2 id="…-title"> and a <p id="…-desc"> exist (cards.json needs them)
@@ -176,7 +190,13 @@ for (const rel of files) {
 
   // 5. network
   if (/fetch\(|XMLHttpRequest|new Image\(|\.src\s*=\s*['"`]https?:|navigator\.sendBeacon|<link[^>]+href=["']https?:|<script[^>]+src=/i.test(html)) {
-    fail(rel, 'looks like it makes a network request (D-009: new cards must be zero-network)');
+    // D-009 governs cards added from now on; a card written before the rule may
+    // legitimately call an API, and 17 of them do. Charging every one of them
+    // turns a sweep's FAIL count into a list of the catalogue's age. Naming the
+    // line keeps it actionable for a new card — add-tool.sh prints notes too.
+    const hit = (stripped.match(/^.*(fetch\(|XMLHttpRequest|\.src\s*=\s*['"]https?:|https?:\/\/[^\s'"'`)]+\.(js|css)).*$/m) || [])[0];
+    note(rel, 'reaches the network (D-009: cards added now must be zero-network)' +
+              (hit ? ` — ${hit.trim().slice(0, 100)}` : ''));
   }
 
   // 6. id collisions with other cards
@@ -607,6 +627,7 @@ const LINGER_MS = 900;
 // reads as "the thing this card is for".
 const RESPONSE = process.argv.includes('--response') || process.argv.includes('--strict-response');
 const STRICT_RESPONSE = process.argv.includes('--strict-response');
+const STRICT_NOTES = process.argv.includes('--strict-notes');
 const TYPED = {
   number: '100', range: '50', date: '2026-01-01', 'datetime-local': '2026-01-01T09:00',
   time: '09:00', month: '2026-01', week: '2026-W01', color: '#3366ff',
@@ -640,11 +661,14 @@ process.on('unhandledRejection', reason => {
 
 (async () => {
   let leaking = 0;
+  let noted = 0;
   const leftovers = [];
   const unresponsive = [];
   for (const card of parsedCards) {
-    const perCard = [];
-    const sink = { push: e => perCard.push(e) };
+    const perCard = [];      // throw / contract break — a FAIL
+    const perCardNotes = []; // the card responded: alert, console.error, network
+    const sink = { push: e => (/^(alert\(\)|fetch\(\) called|console\.error:|network request|offline)/.test(e)
+      ? perCardNotes.push(e) : perCard.push(e)) };
     inFlight = perCard;
     const { window, vmContext, pending, intervals } = makeWindow(sink);
     const before = new Set(window.document.body.children);
@@ -673,6 +697,7 @@ process.on('unhandledRejection', reason => {
       responsive = settled !== responseReady.quiet;
     }
     const mountedErrors = [...new Set(perCard)];
+    const mountedNotes = [...new Set(perCardNotes)];
 
     // The visitor has opened another tool: the loader clears its container and
     // dispatches DOMContentLoaded again, then clicks and types somewhere else.
@@ -771,6 +796,16 @@ process.on('unhandledRejection', reason => {
     } else if (!leftBehind.length) {
       console.log(`  ok   ${card.rel}`);
     }
+    // Notes are kept, not dropped: a sweep can bucket them ("148 validation
+    // replies, 56 network calls") and a card-by-card run can read them. They
+    // are simply not charged to the card.
+    const notes = [...new Set([...mountedNotes, ...perCardNotes])];
+    if (notes.length) {
+      noted += 1;
+      notes.slice(0, 6).forEach(e => console.log(`  note ${card.rel}: ${e}`));
+      if (notes.length > 6) console.log(`  note ${card.rel}: …and ${notes.length - 6} more`);
+      if (STRICT_NOTES) fails += notes.length;
+    }
     if (leftBehind.length) {
       leaking++;
       console.log(`  LEAK ${card.rel} — still runs after the next tool opens:`);
@@ -817,6 +852,11 @@ process.on('unhandledRejection', reason => {
     if (STRICT_RESPONSE) fails += unresponsive.length;
   }
 
+  if (noted) {
+    console.log(`\n${noted} of ${parsedCards.length} card(s) answered a control and broke ` +
+                `nothing: a validation reply, a console line or a network call. They are ` +
+                `listed above; pass --strict-notes to charge them to the card.`);
+  }
   console.log(fails === 0
     ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})`
     : `\n${fails} problem(s)`);

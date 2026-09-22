@@ -596,19 +596,26 @@ function djLoadDeck(deck) {
   
   // Load video into player
   const deckObj = djState[`deck${deck.toUpperCase()}`];
-  if (deckObj.player) {
-    deckObj.player.loadVideoById(videoId);
-    deckObj.videoId = videoId;
-    deckObj.loaded = true;
-    deckObj.title = `Loading...`;
-    
-    // Update status
-    djUpdateDeckStatus(deck, 'Loading...');
-    djUpdateMixInfo(`Loading track to Deck ${deck.toUpperCase()}...`);
-    
-    // Reset EQ and volume
-    djResetDeckControls(deck);
+  // The player is created by the YouTube IFrame API's callback. Pressing Load
+  // before it answers used to do nothing at all: the guard had no else, so the
+  // button looked broken rather than blocked.
+  if (!deckObj.player) {
+    djUpdateMixInfo(`Deck ${deck.toUpperCase()} is not ready — the YouTube player could not load. Check your connection and reload.`);
+    djUpdateDeckStatus(deck, 'Player unavailable');
+    return;
   }
+
+  deckObj.player.loadVideoById(videoId);
+  deckObj.videoId = videoId;
+  deckObj.loaded = true;
+  deckObj.title = `Loading...`;
+
+  // Update status
+  djUpdateDeckStatus(deck, 'Loading...');
+  djUpdateMixInfo(`Loading track to Deck ${deck.toUpperCase()}...`);
+
+  // Reset EQ and volume
+  djResetDeckControls(deck);
 }
 
 // Extract YouTube video ID from URL
@@ -634,6 +641,13 @@ function djLoadExample(genre) {
   const examples = djExamples[genre];
   if (!examples || examples.length < 2) return;
   
+  // The player only exists once the YouTube IFrame API answers. Offline, or
+  // with the embed blocked, it never does — and this dereferenced null.
+  if (!djState.deckA.player || !djState.deckB.player) {
+    djUpdateMixInfo('YouTube player is not ready — it needs a connection to the embed API. Reload the page to retry.');
+    return;
+  }
+
   // Load to Deck A
   const deckAExample = examples[0];
   djState.deckA.player.loadVideoById(deckAExample.id);
