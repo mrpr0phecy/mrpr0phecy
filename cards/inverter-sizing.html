@@ -102,9 +102,9 @@
     <div style="margin-top:16px;">
       <div style="color:var(--muted);margin-bottom:6px;font-size:14px;">🔋 System Voltage</div>
       <div style="display:flex;gap:8px;">
-        <button type="button" onclick="setVoltage(12)" class="voltage-btn active">12V</button>
-        <button type="button" onclick="setVoltage(24)" class="voltage-btn">24V</button>
-        <button type="button" onclick="setVoltage(48)" class="voltage-btn">48V</button>
+        <button type="button" onclick="setVoltage(12), this)"" class="voltage-btn active">12V</button>
+        <button type="button" onclick="setVoltage(24), this)"" class="voltage-btn">24V</button>
+        <button type="button" onclick="setVoltage(48), this)"" class="voltage-btn">48V</button>
         <input type="number" id="inv-voltage" value="12" min="12" max="240" step="12" 
                style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;"
                oninput="updateVoltageDisplay()">
@@ -155,6 +155,19 @@
       </div>
     </div>
   </div>
+
+  <!-- SPECIFICATION REPORT -->
+  <!-- generateOutput() wrote the installer report into `#inv-output`, and
+       exportSpecs() reads it back — but the element never existed in the markup,
+       so every preset click and the Export button threw on a null. -->
+  <details style="margin-bottom:16px;">
+    <summary style="color:var(--accent);font-weight:500;cursor:pointer;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;display:flex;align-items:center;gap:8px;">
+      📋 Full Specification Report
+    </summary>
+    <textarea id="inv-output" readonly aria-label="Inverter specification report"
+      style="width:100%;min-height:220px;margin-top:12px;padding:14px;background:rgba(20,20,20,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--text);font-family:'Courier New',monospace;font-size:12px;line-height:1.5;resize:vertical;"
+      placeholder="Choose a setup preset or fill in your appliances to see the full specification."></textarea>
+  </details>
 
   <!-- INVERTER RECOMMENDATIONS -->
   <details style="margin-bottom:16px;">
@@ -422,7 +435,11 @@ function updateEfficiencyValue(slider) {
   calculateInverter();
 }
 
-function setVoltage(voltage) {
+  // This reached for the legacy global `event` to find the button that was
+  // clicked. Firefox has never had window.event, so the handler threw (or the
+  // `if (!event)` guard returned) and the button did nothing there. The element
+  // is passed in from the markup instead.
+function setVoltage(voltage, trigger) {
   isCurrentVoltage = voltage;
   document.querySelector('#inv-voltage').value = voltage;
   
@@ -430,7 +447,7 @@ function setVoltage(voltage) {
   document.querySelectorAll('.voltage-btn').forEach(btn => {
     btn.classList.remove('active');
   });
-  event.target.classList.add('active');
+  trigger && trigger.classList.add('active');
   
   updateVoltageDisplay();
   calculateInverter();
@@ -539,7 +556,8 @@ Inverter Efficiency: ${isEfficiency}%
 3. Consult licensed electrician for installation
 4. Consider 20% headroom for future expansion`;
 
-  document.querySelector('#inv-output').value = output;
+  const box = document.querySelector('#inv-output');
+  if (box) box.value = output;
 }
 
 function calculateCableSize(current) {
@@ -554,7 +572,7 @@ function calculateCableSize(current) {
 }
 
 function exportSpecs() {
-  const output = document.querySelector('#inv-output').value;
+  const output = (document.querySelector('#inv-output') || {}).value || '';
   
   if (navigator.share) {
     navigator.share({

@@ -240,7 +240,12 @@ function makeWindow(sink) {
     // jsdom's own gaps (confirm(), requestSubmit(), navigation) are not card
     // defects and are already visible in the harness source as stubs.
     if (/not implemented/i.test(message)) return;
-    sink.push(`uncaught in the window: ${message.slice(0, 160)}`);
+    // err.detail carries the original Error (or a string) for a throw jsdom
+    // caught; without its stack the report can only say WHAT threw, never
+    // which line of the card did it. locate() reads the filename off the stack.
+    const detail = err && (err.detail || err.cause);
+    const located = detail && detail.stack ? locate(detail, inFlightBlocks) : '';
+    sink.push(`uncaught in the window: ${message.slice(0, 160)}${located}`);
   });
 
   const pending = [];
@@ -466,6 +471,11 @@ async function mountCard(card, window, vmContext, sink) {
     }
   }
 
+  // locate() needs the block map the moment anything runs, and a click in the
+  // sweep below can throw: jsdom reports that synchronously through the error
+  // event, which arrived before this was set, so every such failure was reported
+  // without the card line that says where it threw.
+  window.__blocks = blocks;
   // Compile the card's inline handlers before anything is dispatched: an `on*`
   // attribute is inert in jsdom, so without this the click sweep (and the
   // --response probe) measure controls that are not wired to anything.
@@ -559,7 +569,6 @@ async function mountCard(card, window, vmContext, sink) {
   }
   // The wait for timers/promises happens in the caller, asynchronously; a spin
   // here would starve the very queue it is waiting on.
-  window.__blocks = blocks;  // for locate() from console.error and error events
   return { errors, container, blocks, responseReady };
 }
 
