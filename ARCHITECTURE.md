@@ -1088,12 +1088,15 @@ grep -oE '<a [^>]*target="_blank"[^>]*>' page.html | grep -v noopener
 # Validate the sitemap parses
 python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))"
 
-# The two hand-maintained surfaces no generator owns. `sync-counts.py` owns
-# every category *number*; these own the *lists* — agents.html's JSON samples
-# (the contract an outside agent parses) and the category enumerations in
-# index.html's JSON-LD and the table above.
+# The hand-maintained surfaces no generator owns. `sync-counts.py` owns every
+# category *number*; these own the *lists* — agents.html's JSON samples (the
+# contract an outside agent parses) and the category enumerations in
+# index.html's JSON-LD and the table above — and the *sizes* quoted in prose,
+# which are checked rather than derived: a bare figure has to be right, a
+# hedged one ("about 89 MB") may be 15% out.
 python3 scripts/check-agents-docs.py
 python3 scripts/build-category-lists.py --check
+python3 scripts/check-size-claims.py
 ```
 
 Headless browser checks (Playwright) are worth it for anything interactive:

@@ -116,6 +116,12 @@ TARGETS_GLOB = [
     # contributor to. They carried "1,205 tools" and "1194 tools" with
     # nothing deriving them.
     "docs/*.md",
+    # The launch kit's drafts — the copy that gets pasted into Show HN, a press
+    # email or Product Hunt — was the last place a hand-typed tool count lived,
+    # and all 43 of its claims said 562 against a catalogue of 1,250. They are
+    # claims, not history: the drafts are rewritten as the catalogue grows.
+    # (`launch/index.html`, the launch page itself, was already a target.)
+    "launch/*.md",
 ]
 # scripts/ is deliberately NOT a target, and adding it looks harmless until
 # you read what it proposes to rewrite: sync-counts.py's own docstring is
