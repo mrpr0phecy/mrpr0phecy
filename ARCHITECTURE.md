@@ -489,20 +489,21 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 195 | Science & Engineering | | 29 | Museum & Collection |
-| 142 | Productivity & Lifestyle | | 26 | Wellbeing & Community |
-| 79 | Finance & Money | | 22 | Culinary & Food Science |
-| 67 | Algorithms & Computer Science | | 21 | Virtual Worlds & Gaming |
-| 67 | Writing & Language | | 19 | AI & Autonomous Agents |
-| 54 | Sports | | 17 | Mind-Blowing Demos |
-| 53 | Mathematics | | 12 | Lucid Dreaming & Sleep |
-| 51 | Interactive Art & Living Worlds | | 10 | Anime & Otaku Culture |
-| 44 | SaaS & Business Killers | | 10 | Aquatics & Fishkeeping |
-| 37 | Home & DIY | | 10 | Birdwatching & Ornithology |
-| 35 | Astronomy & Space | | 10 | Dogs & Canine Care |
-| 35 | Music & Audio | | 10 | Natural Remedies & Herbs |
-| 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
-| 29 | MrProphecy Arcade | | 10 | Trucking & Freight |
+| 198 | Science & Engineering | | 29 | MrProphecy Arcade |
+| 159 | Productivity & Lifestyle | | 29 | Museum & Collection |
+| 90 | Finance & Money | | 21 | Virtual Worlds & Gaming |
+| 73 | SaaS & Business Killers | | 19 | AI & Autonomous Agents |
+| 70 | Writing & Language | | 17 | Mind-Blowing Demos |
+| 69 | Algorithms & Computer Science | | 13 | Lucid Dreaming & Sleep |
+| 55 | Sports | | 11 | Survival & Emergency Readiness |
+| 54 | Mathematics | | 10 | Anime & Otaku Culture |
+| 51 | Interactive Art & Living Worlds | | 10 | Aquatics & Fishkeeping |
+| 46 | Health & Fitness | | 10 | Birdwatching & Ornithology |
+| 41 | Home & DIY | | 10 | Dogs & Canine Care |
+| 40 | Music & Audio | | 10 | Fire & Rescue Service |
+| 35 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
+| 30 | Culinary & Food Science | | 10 | Trucking & Freight |
+| 30 | Wellbeing & Community | | | |
 
 Total: 1250 tools in 29 categories.
 ---
@@ -1085,6 +1086,13 @@ grep -oE '<a [^>]*target="_blank"[^>]*>' page.html | grep -v noopener
 
 # Validate the sitemap parses
 python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))"
+
+# The two hand-maintained surfaces no generator owns. `sync-counts.py` owns
+# every category *number*; these own the *lists* — agents.html's JSON samples
+# (the contract an outside agent parses) and the category enumerations in
+# index.html's JSON-LD and the table above.
+python3 scripts/check-agents-docs.py
+python3 scripts/build-category-lists.py --check
 ```
 
 Headless browser checks (Playwright) are worth it for anything interactive:

@@ -232,6 +232,17 @@ deep_generated() {
   expect "the homepage CSS split is still safe (deferred half styles nothing above the fold)" \
          "critical-CSS regression — see scripts/check-critical-css.py" \
          python3 scripts/check-critical-css.py
+  # agents.html is the contract an agent writes its parser from, and it is the
+  # one surface no generator owns: its JSON samples were showing a count from
+  # three catalogue-generations ago, a key name the files do not use, and three
+  # slugs that are not tools.
+  expect "agents.html's JSON samples match the files they describe" \
+         "agents.html documents a shape the files do not have — see scripts/check-agents-docs.py" \
+         python3 scripts/check-agents-docs.py
+  # sync-counts.py owns every category number; nothing owned a category list.
+  expect "index.html and ARCHITECTURE.md enumerate every category in the catalogue" \
+         "a category list drifted — run: python3 scripts/build-category-lists.py" \
+         python3 scripts/build-category-lists.py --check
 }
 
 deep_tests() {
