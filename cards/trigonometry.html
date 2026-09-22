@@ -434,6 +434,125 @@ function calculateTrigValues() {
   document.getElementById('resultDisplay').innerHTML = results;
 }
 
+// The Identity Verifier and Practice Problem buttons called these two names,
+// which were never written: both threw a ReferenceError and did nothing.
+// Verification is honest about what it is — a match against the identities the
+// card knows, not a proof.
+const TRIG_IDENTITIES = [
+  { text: 'sin^2(x)+cos^2(x)=1', name: 'Pythagorean identity' },
+  { text: '1+tan^2(x)=sec^2(x)', name: 'Pythagorean identity (tan/sec)' },
+  { text: '1+cot^2(x)=csc^2(x)', name: 'Pythagorean identity (cot/csc)' },
+  { text: 'tan(x)=sin(x)/cos(x)', name: 'Quotient identity' },
+  { text: 'cot(x)=cos(x)/sin(x)', name: 'Reciprocal quotient identity' },
+  { text: 'csc(x)=1/sin(x)', name: 'Reciprocal identity' },
+  { text: 'sec(x)=1/cos(x)', name: 'Reciprocal identity' },
+  { text: 'cot(x)=1/tan(x)', name: 'Reciprocal identity' },
+  { text: 'sin(-x)=-sin(x)', name: 'Odd function' },
+  { text: 'cos(-x)=cos(x)', name: 'Even function' },
+  { text: 'tan(-x)=-tan(x)', name: 'Odd function (tan)' },
+  { text: 'sin(2x)=2sin(x)cos(x)', name: 'Double-angle identity (sin)' },
+  { text: 'cos(2x)=cos^2(x)-sin^2(x)', name: 'Double-angle identity (cos)' },
+  { text: 'cos(2x)=1-2sin^2(x)', name: 'Double-angle identity (cos), alternate form' },
+  { text: 'sin(a+b)=sin(a)cos(b)+cos(a)sin(b)', name: 'Angle addition (sin)' },
+  { text: 'cos(a+b)=cos(a)cos(b)-sin(a)sin(b)', name: 'Angle addition (cos)' }
+];
+
+function trigNormalise(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[²]/g, '^2')
+    .replace(/θ|alpha|beta/g, 'x')
+    .replace(/[·×*]/g, '')
+    .replace(/\bpi\b/g, 'π')
+    // sin²(x) and sin²x are the same claim, so the grouping parentheses go
+    .replace(/[()]/g, '');
+}
+
+function verifyIdentity() {
+  const input = document.getElementById('identityInput');
+  const out = document.getElementById('verificationResult');
+  if (!input || !out) return;
+  const raw = input.value.trim();
+  if (!raw) {
+    out.innerHTML = '<span style="color:#ffcc00;">Enter an identity first, for example sin²x + cos²x = 1</span>';
+    return;
+  }
+  if (!raw.includes('=')) {
+    out.innerHTML = '<span style="color:#ffcc00;">An identity needs both sides — try sin²x + cos²x = 1</span>';
+    return;
+  }
+
+  // Both sides are normalised the same way, so formatting the visitor types
+  // (spaces, ², (x) or x, either way round) does not decide the answer.
+  const norm = trigNormalise(raw);
+  const parts = norm.split('=');
+  const mirrored = parts.length === 2 ? parts[1] + '=' + parts[0] : '';
+  const match = TRIG_IDENTITIES.find(id => {
+    const known = trigNormalise(id.text);
+    return known === norm || known === mirrored;
+  });
+
+  if (match) {
+    out.innerHTML = `<span style="color:#39ff14;">✅ Holds — this is the ${match.name}<br>` +
+      `<span style="color:rgba(230,250,255,0.7);font-size:0.9em;">${match.text} is true for every angle where both sides are defined.</span></span>`;
+  } else {
+    out.innerHTML = '<span style="color:#ffcc00;">Not one of the identities this card checks. ' +
+      'The set it knows: Pythagorean, quotient, reciprocal, odd/even, double-angle and angle-addition identities.' +
+      '<br><span style="color:rgba(230,250,255,0.7);font-size:0.9em;">It is not a general proof engine — check it against a known list or with a few test angles.</span></span>';
+  }
+}
+
+function generateProblem() {
+  const type = (document.getElementById('problemType') || {}).value || '';
+  const out = document.getElementById('generatedProblem');
+  if (!out) return;
+
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const deg = d => (d * Math.PI / 180);
+  let q, a;
+
+  if (type === 'Right Triangle') {
+    const opposite = pick([3, 5, 7, 8, 12]);
+    const adjacent = pick([4, 9, 5, 15, 16]);
+    const hyp = Math.sqrt(opposite * opposite + adjacent * adjacent);
+    q = `A right triangle has an opposite side of ${opposite} and an adjacent side of ${adjacent}. ` +
+        `Find the hypotenuse and the angle θ between the adjacent side and the hypotenuse.`;
+    a = `Hypotenuse = √(${opposite}² + ${adjacent}²) = ${hyp.toFixed(3)}; ` +
+        `θ = tan⁻¹(${opposite}/${adjacent}) = ${(Math.atan2(opposite, adjacent) * 180 / Math.PI).toFixed(2)}°`;
+  } else if (type === 'Simplify Expression') {
+    const k = pick([2, 3, 4]);
+    q = `Simplify: sin²(${k}x) + cos²(${k}x)`;
+    a = '1 — the Pythagorean identity holds for any angle, including multiples.';
+  } else if (type === 'Solve Equation') {
+    // Only exact special angles: "x = π/5" would be a lie.
+    const exact = pick([
+      { value: '1/2', first: 'π/6', second: '5π/6', degA: 30 },
+      { value: '√2/2', first: 'π/4', second: '3π/4', degA: 45 },
+      { value: '√3/2', first: 'π/3', second: '2π/3', degA: 60 },
+      { value: '-1/2', first: '7π/6', second: '11π/6', degA: 210 }
+    ]);
+    q = `Solve sin(x) = ${exact.value} for 0 ≤ x < 2π.`;
+    a = `x = ${exact.first} and x = ${exact.second} (${exact.degA}° and ${180 - exact.degA}°) — ` +
+        `sine takes that value in the ${exact.degA > 180 ? 'third and fourth' : 'first and second'} quadrants.`;
+  } else if (type === 'Graph Transformation') {
+    const amp = pick([2, 3, 4]), period = pick([1, 2, 3]);
+    q = `Describe how y = ${amp}sin(${period}x) is transformed from y = sin(x).`;
+    a = `Amplitude ${amp} (vertical stretch ×${amp}), period 2π/${period} = ${(2 * Math.PI / period).toFixed(3)} ` +
+        `(horizontal compression ×${period}). No phase or vertical shift.`;
+  } else {
+    out.innerHTML = '<span style="color:#ffcc00;">Choose a problem type first.</span>';
+    return;
+  }
+
+  out.innerHTML = `<div style="text-align:left;">` +
+    `<div style="color:var(--accent, #2dd4ff);font-weight:600;margin-bottom:6px;">${type}</div>` +
+    `<div style="margin-bottom:10px;">${q}</div>` +
+    `<button type="button" onclick="this.nextElementSibling.style.display='block';this.style.display='none';" ` +
+    `style="padding:6px 12px;border-radius:6px;border:1px solid rgba(57,255,20,0.3);background:rgba(57,255,20,0.1);color:#39ff14;cursor:pointer;font-family:inherit;">Show answer</button>` +
+    `<div style="display:none;color:#39ff14;padding-top:8px;">${a}</div></div>`;
+}
+
 function startTrigQuiz() {
   const questions = [
     "What is sin(π/6)?",
