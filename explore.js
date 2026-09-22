@@ -49,6 +49,13 @@
 
   var els = {};          // container, bar, list, facets, more, count
   var categoryCounts = [];
+  // JSON pages are not ready until tools-index.json lands. Static pages are.
+  var catalogueReady = true;
+  var queuedQuery = null;
+  var ensureCatalogue = function () {};
+  var paintKey = '';
+  var paintCount = -1;
+  var facetStamp = null;
 
   /* ------------------------------------------------------------ utilities */
   function esc(s) {
@@ -107,6 +114,14 @@
       try { cs = window.getComputedStyle(el); } catch (e) { continue; }
       if (cs.position !== 'sticky' && cs.position !== 'fixed') continue;
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      // The home command bar slides in with a transform. Measuring its box
+      // mid-animation reports a height of nothing and parks the list toolbar
+      // under the bar. Its layout height does not move with the transform.
+      if (el.id === 'stickyCommandBar') {
+        if (!el.classList.contains('visible')) continue;
+        if (el.offsetHeight > h) h = el.offsetHeight;
+        continue;
+      }
       var r = el.getBoundingClientRect();
       // Pinned near the top edge, actually painted, and not one of the
       // bottom-anchored floating buttons — those live at the other end.
@@ -135,7 +150,7 @@
     el.setAttribute('data-overflow', x <= 2 ? 'start' : (x >= max - 2 ? 'end' : 'middle'));
   }
 
-  var FADE_ROWS = '[data-xp-facets], .xp-facets, .popular-chips, .toc-inner, nav.toc';
+  var FADE_ROWS = '[data-xp-facets], .xp-facets, .popular-chips, .toc-inner, nav.toc, .hero-jumps, #featured, #trending';
 
   /* The floating toolbox button sits over the end of the page. On a phone it
      lands exactly on the footer's last links once you scroll to the bottom, so
@@ -177,15 +192,28 @@
   }
 
   function watchStickyOffset() {
+    /* Measuring chrome on every scroll frame forced layout for the whole
+       scroll. The offset only changes when the command bar shows or hides,
+       or when the viewport changes size — so the scroll path is a class
+       check, and getBoundingClientRect runs only when that signature moves. */
     var queued = false;
-    var schedule = function () {
-      if (queued) return;
+    var sig = '';
+    var schedule = function (force) {
+      if (queued && !force) return;
       queued = true;
-      requestAnimationFrame(function () { queued = false; measureStickyOffset(); syncOverflowFades(); });
+      requestAnimationFrame(function () {
+        queued = false;
+        var bar = document.getElementById('stickyCommandBar');
+        var next = (bar && bar.classList.contains('visible') ? '1' : '0') +
+          '|' + window.innerWidth + '|' + window.innerHeight;
+        if (!force && next === sig) return;
+        sig = next;
+        measureStickyOffset();
+      });
     };
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule, { passive: true });
-    measureStickyOffset();
+    window.addEventListener('scroll', function () { schedule(false); }, { passive: true });
+    window.addEventListener('resize', function () { schedule(true); }, { passive: true });
+    schedule(true);
     watchOverflowFades();
     return schedule;
   }
@@ -230,7 +258,7 @@
 
   /* ------------------------------------------------------------ row model */
   function rowFromTool(t) {
-    return {
+    var row = {
       slug: t.slug,
       title: t.title,
       desc: t.description || '',
@@ -242,6 +270,8 @@
       featured: !!t.featured,
       url: t.url || ('tool.html?card=' + encodeURIComponent(t.slug))
     };
+    row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
+    return row;
   }
 
   function rowFromElement(el, catName) {
@@ -279,8 +309,9 @@
   function matches(row, q) {
     if (!q) return true;
     // Every word has to appear somewhere: "truck weight" should not return
-    // every trucking tool plus every weight tool.
-    var hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
+    // every trucking tool plus every weight tool. _hay is filled once when the
+    // catalogue arrives; fixtures and static rows still build it here.
+    var hay = row._hay || norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
     var words = q.split(/\s+/).filter(Boolean);
     for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false;
     return true;
@@ -377,16 +408,28 @@
       '</li>';
   }
 
-  function render() {
+  function render(opts) {
     var list = visible();
     if (state.mode !== 'json' && state.staticRows) return renderStatic(list);
     var shown = Math.min(state.shown, list.length);
-    var html = '';
-    for (var i = 0; i < shown; i++) html += rowHTML(list[i], i);
-    els.list.innerHTML = html || '<li class="xp-row"><div class="xp-empty">' +
-      '<strong>Nothing matches that.</strong><br>Try a shorter word — “calculator”, “converter”, “planner” — or ' +
-      '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the plain directory</a>.' +
-      '</div></li>';
+    var key = state.sort + '\n' + state.cat + '\n' + norm(state.q).trim();
+    var append = !!(opts && opts.append && key === paintKey && shown > paintCount &&
+      els.list && els.list.querySelector('.xp-row[data-slug]'));
+    if (append) {
+      var extra = '';
+      for (var j = paintCount; j < shown; j++) extra += rowHTML(list[j], j);
+      if (extra) els.list.insertAdjacentHTML('beforeend', extra);
+    } else if (!(key === paintKey && shown === paintCount && els.list && els.list.children.length)) {
+      var html = '';
+      for (var i = 0; i < shown; i++) html += rowHTML(list[i], i);
+      els.list.innerHTML = html || '<li class="xp-row"><div class="xp-empty">' +
+        '<strong>Nothing matches that.</strong><br>Try a shorter word — “calculator”, “converter”, “planner” — or ' +
+        '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the plain directory</a>.' +
+        '</div></li>';
+      state.current = -1;
+    }
+    paintKey = key;
+    paintCount = shown;
     els.list.setAttribute('data-xp-total', String(list.length));
 
     if (els.count) {
@@ -402,10 +445,12 @@
     }
     if (els.input && els.input.value !== state.q) els.input.value = state.q;
     if (els.field) els.field.classList.toggle('xp-has-value', !!state.q);
-    if (els.facets) els.facets.innerHTML = facetHTML();
-    syncOverflowFades();
+    if (els.facets && facetStamp !== state.cat) {
+      els.facets.innerHTML = facetHTML();
+      facetStamp = state.cat;
+      syncOverflowFades();
+    }
     syncCatSelect();
-    state.current = -1;
     syncToolboxButtons();
   }
 
@@ -548,6 +593,20 @@
   function setQuery(q, opts) {
     state.q = String(q || '');
     state.shown = PAGE_SIZE;
+    if (state.mode === 'json' && !catalogueReady) {
+      queuedQuery = state.q;
+      syncOtherInputs(state.q);
+      if (els.list) {
+        els.list.innerHTML = '<li class="xp-row"><div class="xp-empty xp-pending">Searching the catalogue…</div></li>';
+      }
+      paintKey = '';
+      paintCount = -1;
+      var pending = ensureCatalogue();
+      if (opts && opts.scroll && pending && pending.then) {
+        pending.then(function () { if (els.wrap) smoothScroll(els.wrap, 'start'); });
+      }
+      return pending;
+    }
     if (opts && opts.silent !== true) logSearch(state.q.trim(), visible().length);
     render();
     syncOtherInputs(state.q);
@@ -573,6 +632,10 @@
   function setCategory(name) {
     state.cat = resolveCategory(name);
     state.shown = PAGE_SIZE;
+    if (state.mode === 'json' && !catalogueReady) {
+      ensureCatalogue();
+      return;
+    }
     render();
     pushState();
   }
@@ -606,10 +669,15 @@
   }
 
   function focusInput() {
-    if (els.input) { els.input.focus(); els.input.select(); }
+    if (els.input) { els.input.focus(); els.input.select(); return; }
+    // The list filter does not exist until the catalogue arrives. / still has
+    // to land somewhere, and the hero box is that somewhere.
+    var hero = document.getElementById('tool-search') || document.getElementById('stickySearchInput');
+    if (hero) hero.focus();
   }
 
   function clear() {
+    if (els.bar) clearTimeout(els.bar._qt);
     setQuery('');
     if (state.cat) setCategory('');
   }
@@ -630,7 +698,10 @@
     rows.forEach(function (r) { r.classList.remove('xp-current'); });
     var row = rows[state.current];
     row.classList.add('xp-current');
-    smoothScroll(row, 'nearest');
+    // Instant. Smooth scrolling on every j/k press queues animations and
+    // makes a launcher feel late.
+    try { row.scrollIntoView({ block: 'nearest', behavior: 'auto' }); }
+    catch (e) { try { row.scrollIntoView(); } catch (e2) {} }
   }
 
   function currentRow() {
@@ -678,7 +749,10 @@
     // Toolbar
     els.bar.addEventListener('input', function (e) {
       if (e.target.id !== 'xp-input') return;
-      setQuery(e.target.value);
+      var value = e.target.value;
+      if (els.field) els.field.classList.toggle('xp-has-value', !!value);
+      clearTimeout(els.bar._qt);
+      els.bar._qt = setTimeout(function () { setQuery(value); }, 80);
     });
     els.bar.addEventListener('change', function (e) {
       if (e.target.id === 'xp-sort') { state.sort = e.target.value; state.shown = PAGE_SIZE; render(); pushState(); }
@@ -709,14 +783,22 @@
 
     if (els.more) els.more.addEventListener('click', function () {
       state.shown += PAGE_SIZE;
-      render();
+      render({ append: true });
     });
 
     // Keyboard
     document.addEventListener('keydown', function (e) {
       if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       if (isTyping(e.target)) {
-        if (e.key === 'Escape' && e.target.id === 'xp-input') { clear(); e.target.blur(); }
+        if (e.target.id === 'xp-input' && (e.key === 'Escape' || e.key === 'Enter')) {
+          clearTimeout(els.bar && els.bar._qt);
+          if (e.key === 'Escape') { clear(); e.target.blur(); return; }
+          e.preventDefault();
+          setQuery(e.target.value);
+          var hits = visible();
+          if (hits.length === 1) { location.href = hits[0].url; return; }
+          if (hits.length > 1) { e.target.blur(); move(1); }
+        }
         return;
       }
       if (e.key === '/') { e.preventDefault(); focusInput(); return; }
@@ -807,32 +889,71 @@
     }
 
     if (state.mode === 'json') {
-      return fetch('tools-index.json')
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
-        .then(function (data) {
-          state.rows = data.tools.map(rowFromTool);
-          categoryCounts = data.categories.map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
-          bar.innerHTML = toolbarHTML();
-          els.input = bar.querySelector('#xp-input');
-          els.field = bar.querySelector('.xp-field');
-          els.count = bar.querySelector('#xp-count');
-          els.facets = bar.querySelector('[data-xp-facets]');
-          if (els.facets) els.facets.innerHTML = facetHTML();
-          applyFromUrl();
-          wire();
-          setDensity(savedDensity());
-          render();
-          if (state.q) logSearch(state.q.trim(), visible().length);
-          syncOtherInputs(state.q);
-          document.dispatchEvent(new CustomEvent('mp:explore-ready'));
-        })
-        .catch(function () {
-          // No JSON (offline, blocked, file://): the page's static fallback —
-          // the featured rows and the category chips — still works, and the
-          // plain directory is one link away.
-          bar.innerHTML = '<span class="xp-count">The full list could not load here. ' +
-            '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">Open the plain directory →</a></span>';
-        });
+      /* The catalogue is a few hundred kilobytes. It must not compete with
+         first paint. Load it when the visitor is about to need it: a deep
+         link, a search, the list scrolling into view, or the browser going
+         idle. A search that arrives first is queued, not dropped. */
+      catalogueReady = false;
+      var loading = null;
+      function wantsNow() {
+        try {
+          var params = new URLSearchParams(location.search);
+          return !!(params.get('q') || params.get('cat') || params.get('sort'));
+        } catch (e) { return false; }
+      }
+      function finish(data) {
+        catalogueReady = true;
+        state.rows = data.tools.map(rowFromTool);
+        categoryCounts = data.categories.map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
+        bar.innerHTML = toolbarHTML();
+        els.input = bar.querySelector('#xp-input');
+        els.field = bar.querySelector('.xp-field');
+        els.count = bar.querySelector('#xp-count');
+        els.facets = bar.querySelector('[data-xp-facets]');
+        facetStamp = null;
+        paintKey = '';
+        paintCount = -1;
+        if (queuedQuery == null) applyFromUrl();
+        else state.q = queuedQuery;
+        wire();
+        setDensity(savedDensity());
+        render();
+        if (state.q) logSearch(state.q.trim(), visible().length);
+        syncOtherInputs(state.q);
+        pushState();
+        document.dispatchEvent(new CustomEvent('mp:explore-ready'));
+      }
+      function fail() {
+        catalogueReady = true;
+        bar.innerHTML = '<span class="xp-count">The full list could not load here. ' +
+          '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">Open the plain directory →</a></span>';
+      }
+      function loadCatalogue() {
+        if (loading) return loading;
+        loading = fetch('tools-index.json')
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+          .then(finish)
+          .catch(fail);
+        return loading;
+      }
+      ensureCatalogue = loadCatalogue;
+      if (wantsNow()) return loadCatalogue();
+      bar.innerHTML = '<span class="xp-count">The full list loads as you reach it.</span>';
+      var section = document.getElementById('all-tools-section') || container;
+      if (window.IntersectionObserver) {
+        var io = new IntersectionObserver(function (entries) {
+          for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].isIntersecting) continue;
+            io.disconnect();
+            loadCatalogue();
+            return;
+          }
+        }, { rootMargin: '700px 0px' });
+        io.observe(section);
+      }
+      var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1400); };
+      idle(function () { loadCatalogue(); }, { timeout: 2200 });
+      return Promise.resolve();
     }
 
     // Static mode: the rows are already in the served HTML, so nothing is
@@ -906,7 +1027,7 @@
   window.mpExplore = {
     // opts.quiet filters without scrolling: the home page's hero box filters
     // on every keystroke, and scrolling there would yank the box away mid-word.
-    filter: function (q, opts) { setQuery(q, { scroll: !(opts && opts.quiet) }); },
+    filter: function (q, opts) { return setQuery(q, { scroll: !(opts && opts.quiet) }); },
     setCategory: setCategory,
     focusInput: focusInput,
     clear: clear,

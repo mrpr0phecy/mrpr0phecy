@@ -66,7 +66,10 @@ INLINE_BUDGET = 4_000
 # styled a card grid the main page no longer mounts. If a change trips these,
 # either trim the CSS or raise the number on purpose — do not let the
 # first-paint payload grow by accident.
-HOME_CSS_GZIP_BUDGET = 11_000
+# Raised from 11_000 on 2026-09-21: the launcher (command deck, jump row,
+# featured/trending shelves, coarse-pointer targets) is first-paint CSS and
+# measured 11,477 B gzip. 12_000 is the new ceiling, not a spare bucket.
+HOME_CSS_GZIP_BUDGET = 12_000
 DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 
