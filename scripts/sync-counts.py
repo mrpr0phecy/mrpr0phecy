@@ -112,7 +112,20 @@ TARGETS_TOP = [
 ]
 TARGETS_GLOB = [
     "guides/*.html", "blog/*.html", "launch/index.html", "tools/*.html",
+    # Agent-facing docs: the files AGENTS.md and ARCHITECTURE.md send a new
+    # contributor to. They carried "1,205 tools" and "1194 tools" with
+    # nothing deriving them.
+    "docs/*.md",
 ]
+# scripts/ is deliberately NOT a target, and adding it looks harmless until
+# you read what it proposes to rewrite: sync-counts.py's own docstring is
+# full of count examples ("708 free, ad-free browser tools", "1194 Browser
+# Tools") that document the patterns, and build-tools-page.py and
+# check-tool-graph.py carry dated post-mortems ("532 of 1,195 tools", "663
+# tools were missing"). A regex cannot tell a claim from a quotation of one.
+# The handful of genuine claims in scripts/ are fixed by hand and the two
+# that describe the CURRENT state carry no date, so they are easy to spot:
+# grep for the number in scripts/ rather than widening this list.
 # Anything matching these globs is excluded from rewriting: the changelog
 # records past releases, so its numbers are history rather than claims. Manual
 # `<!-- historical-count -->` markers cover one-off cases.

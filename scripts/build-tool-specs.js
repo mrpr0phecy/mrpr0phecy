@@ -12,7 +12,7 @@
  *  - No secrets, no network at runtime, CORS-open by being static.
  *
  * Sources: the two existing manifests are the single source of truth:
- *  - `tools-index.json`  — 1194 tools, categories, slugs, titles, descriptions
+ *  - `tools-index.json`  — 1250 tools, categories, slugs, titles, descriptions
  *  - `cards/cards.json`  — path field for fragment location
  *
  * Output:

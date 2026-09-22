@@ -281,9 +281,12 @@ The home page's list is the only place rows are built from data, and it builds
 - **60 rows is a screenful and a half.** Enough that scrolling never meets the
   bottom edge, small enough that the DOM stays in the low thousands of nodes
   once the visitor has opened a few pages of it.
-- **`display:none` subtrees skip layout.** On the static surfaces all 1,205 rows
+- **`display:none` subtrees skip layout.** On the static surfaces all 1,250 rows
   are in the document (crawlers, find-in-page, no-JS) but only the visible ones
-  are laid out, which is what keeps a 483 KB page feeling like a 60-row one.
+  are laid out, which is what keeps a half-megabyte page feeling like a 60-row
+  one. The row count is the catalogue's; the size is stated in round terms on
+  purpose — it grows with every tool, and a precise figure here went stale
+  (483 KB) without anyone noticing.
 
 The reveal is per group on grouped pages — see the list-layer section above —
 because a global "first 60" on a page with 28 category headings empties 27 of

@@ -11,7 +11,7 @@ ordering, `tools-index.json`) and all delimited by marker comments:
 
 1. `HOME-FEATURED`  (in `#featured`) — the twelve "start here" rows.
 2. `HOME-TRENDING`  (in `#trending`) — the eight most-used rows.
-3. `HOME-CATEGORIES` (in `#categories`) — all 28 category hubs as real links.
+3. `HOME-CATEGORIES` (in `#categories`) — all 29 category hubs as real links.
 
 What it used to generate, and why that stopped (2026-09-21)
 -----------------------------------------------------------
