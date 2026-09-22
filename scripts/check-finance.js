@@ -389,7 +389,11 @@ section('money tools — stale statutory figures');
   // Only user-visible labels count — a comment noting "frozen since 2021/22"
   // is a factual reference, not a stale label, so comment lines are skipped.
   const STALE = /(?:tax (?:year|bands?|rates?)|bands?|rates?|thresholds?)[^\n]{0,20}20(1\d|2[0-5])\s*[-/]\s*2?\d/gi;
-  const moneyCards = ['tax.html', 'salary.html', 'salarycompare.html', 'studentloan.html', 'retirement.html'];
+  // salarycompare.html and studentloan.html were merged into tax.html. Naming a
+  // card that is gone is not a no-op: the loop below skipped it, so this check
+  // covered three files while reading as though it covered five.
+  const moneyCards = ['tax.html', 'salary.html', 'retirement.html'];
+  const gone = moneyCards.filter(f => !fs.existsSync(path.join(ROOT, 'cards', f)));
   let stale = [];
   for (const f of moneyCards) {
     const p = path.join(ROOT, 'cards', f);
@@ -401,7 +405,8 @@ section('money tools — stale statutory figures');
     const hits = (body.match(STALE) || []);
     if (hits.length) stale.push(`${f}: ${[...new Set(hits)].join(', ')}`);
   }
-  if (stale.length === 0) pass('no stale tax-year labels in the money cards');
+  if (gone.length) fail(`money-card list names cards that are not in the repository: ${gone.join(', ')} — update the list; a merged card otherwise shrinks this check in silence`);
+  else if (stale.length === 0) pass('no stale tax-year labels in the money cards');
   else fail(`stale tax-year labels — ${stale.join(' | ')}`);
 }
 
@@ -812,7 +817,8 @@ section('money tools — advice disclaimer present');
   // Anything that outputs a monetary decision needs to say it is not advice.
   // This is both good practice and, for regulated-adjacent topics, prudent.
   const needDisclaimer = ['tax.html', 'mortgage.html', 'retirement.html', 'investment.html',
-                          'fire-financial-independence-calc.html', 'debtpayoff.html', 'studentloan.html'];
+                          'fire-financial-independence-calc.html', 'debtpayoff.html'];
+  const gone = needDisclaimer.filter(f => !fs.existsSync(path.join(ROOT, 'cards', f)));
   let missing = [];
   for (const f of needDisclaimer) {
     const p = path.join(ROOT, 'cards', f);
@@ -821,7 +827,8 @@ section('money tools — advice disclaimer present');
     const ok = /not (financial |tax |investment )?advice|estimate|guidance only|consult a|professional advice|indicative/.test(txt);
     if (!ok) missing.push(f);
   }
-  if (missing.length === 0) pass('all checked money tools carry an estimate/advice caveat');
+  if (gone.length) fail(`disclaimer list names cards that are not in the repository: ${gone.join(', ')} — update the list; a merged card otherwise shrinks this check in silence`);
+  else if (missing.length === 0) pass('all checked money tools carry an estimate/advice caveat');
   else fail(`no advice caveat found in: ${missing.join(', ')}`);
 }
 

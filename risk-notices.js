@@ -1,14 +1,17 @@
 /*!
  * risk-notices.js — shell-level risk notices for The Most Useful Site.
  *
- * ONE mapping used by BOTH index.html (cards rendered inline) and tool.html
- * (standalone tool pages), replacing hand-written per-card warnings that were
- * inconsistent and easy to forget (ROADMAP "Now": "Add risk notices at shell
- * level — one mapping used by both shells for medical, financial, engineering
- * and legal tools").
+ * ONE mapping used by the shell that renders cards: tool.html, which shows the
+ * notice for a tool ABOVE its content, replacing hand-written per-card warnings
+ * that were inconsistent and easy to forget (ROADMAP "Now": "Add risk notices at
+ * shell level — one mapping used by both shells for medical, financial,
+ * engineering and legal tools").
  *
- * Shells show the notice for a tool ABOVE its content; the tool's own copy is
- * untouched, so existing in-card caveats keep working (belt and braces).
+ * Until 2026-09-21 index.html rendered cards inline and this file served both
+ * surfaces. The home page is a launcher now: it still links this file at the
+ * same ?v= as its other assets, but nothing there calls into it, so tool.html is
+ * the only caller. The tool's own copy is untouched, so existing in-card caveats
+ * keep working (belt and braces).
  *
  * Contract (tested by scripts/tests/risk-notices.test.js):
  *   SiteRiskNotices.noticeFor({ name, category }) -> { icon, kind, text } | null
