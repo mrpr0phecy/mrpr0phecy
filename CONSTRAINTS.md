@@ -131,6 +131,18 @@ Prefix every id and every top-level name; IIFE-wrap anything you touch.
 summarises the remaining soft `var`/`function` overwrites — run it rather than
 trusting a number written here, because the count moves with the catalogue.
 
+**A card's `<style>` is document-wide too.** The loader re-creates the
+fragment's `<style>` blocks inside `tool.html`'s own document, and a style
+element's rules apply to the whole document wherever it sits. A bare
+`.nav-btn { … }` therefore restyles the page's own nav, related grid, footer
+and risk notice while the card itself still looks right — nothing on screen
+points at the rule doing it (`punctuation-guide.html` shipped exactly that).
+Scope every rule under the card's own id, as `#slug-root .thing { … }`.
+`scripts/scope-card-css.py <slug>` rewrites a fragment that already leaks, and
+`scripts/check-card-css-leaks.py` fails the build when a bare selector can match
+a class `tool.html` renders — the class list is read from `tool.html`, so it
+cannot drift away from what the shell actually ships.
+
 **Never interpolate untrusted input into `innerHTML`.** URL params,
 `error.message` and `cards.json` strings go in via `textContent` or DOM APIs.
 `tool.html` shipped a reflected XSS through `?card=` exactly this way.

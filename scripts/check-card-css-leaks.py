@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
-"""check-card-css-leaks.py — a card's CSS must not restyle the host page.
+"""check-card-css-leaks.py — a card's CSS must not restyle the shell page.
 
-Every card is a fragment injected into ONE shared document on index.html,
-and its <style> blocks are appended as-is. A fragment that ships a bare
+tool.html injects one card fragment into its own document and re-creates the
+fragment's <style> blocks inside it (see the mount code there). A <style>
+element's rules apply to the whole document wherever the element sits, so a
+fragment that ships a bare
 
-    .card { background: white; max-width: 500px }
-    .card-header { … }   body { … }   .dashboard .card { … }
+    .nav-btn:hover { … }   body { … }   .related-card { … }
 
-therefore restyles every one of the ~1,200 host cards around it the moment
-it scrolls into view — white grids, collapsed headers, cards that "vanish"
-— with no error in any console. tool.html (one card per document) hides
-it, which is how it gets past review. This guard fails on selectors that
-target the host shell's own class names or the document itself unless
-they are scoped under an id.
+restyles the page's own chrome — the Share/Embed nav, the related-tools grid,
+the footer, the risk notice — with no error in any console. The card itself
+still looks right, which is why it survives review: nothing points at the
+rule that is doing it. This guard fails on selectors that target the shell's
+own class names or the document itself unless they are scoped under an id.
+
+The guarded class names are READ OUT OF tool.html — its markup, its
+className/classList calls and its own <style> preludes — not curated here.
+They used to be a hardcoded list written for the home-page card grid, which
+was deleted on 2026-09-21; by 2026-09-22 eighteen of the twenty-five names
+matched no shipped surface, while every class the live shell actually renders
+(.nav-btn, .top-nav, .related-card, .risk-notice, .page-footer, …) went
+unguarded. punctuation-guide.html was restyling tool.html's nav button with a
+bare `.nav-btn:hover` throughout that time. A list of live names cannot be
+maintained by hand; it is derived, and a derivation that comes back too small
+is a hard failure rather than a quietly weaker guard.
 
 Selectors that legitimately live in a card's own namespace (`#slug-root
 .card`, `#card-slug .card-header`) pass. @keyframes / @font-face bodies are
@@ -40,16 +51,38 @@ COMMENT_RE = re.compile(r"/\*[\s\S]*?\*/")
 # cards were still restyling the host grid this way when this was added.
 INJECT_RE = re.compile(r"textContent\s*=\s*(`[^`]*`|'[^']*'|\"[^\"]*\")", re.S)
 
-# Host classes from index.html's card shell + page chrome. A bare rule on
-# any of these rewrites the whole grid.
-HOST_CLASSES = {
-    "card", "card-header", "card-header-info", "card-content", "card-actions",
-    "card-action-btn", "card-maximize-btn", "card-footer", "card-sandbox",
-    "card-sandbox-content", "card-skeleton", "card-cat-badge", "card-pending",
-    "card-parked", "parked-tool",
-    "dashboard", "main-header", "sticky-command-bar", "cat-pill", "toolbox",
-    "cool-loader", "rating-btn", "embed-btn", "loaded", "visible",
-}
+# The pages that inject card fragments. tool.html is the only one — the home
+# page stopped mounting the catalogue on 2026-09-21, and nothing else fetches a
+# card into a live document.
+SHELL_PAGES = ("tool.html",)
+# Classes the shell creates in script rather than writing in markup or CSS.
+# Kept deliberately tiny: anything readable from the page is read from the page.
+SHELL_EXTRA = {"card"}      # contentDiv.className = 'card' (JS scope hook)
+# Below this, the derivation is broken (file moved? markup rewritten?) and a
+# guard that silently guards nothing is worse than no guard.
+SHELL_MIN = 15
+
+
+def shell_classes() -> set:
+    """Class names tool.html renders, derived from the page itself."""
+    found = set(SHELL_EXTRA)
+    for name in SHELL_PAGES:
+        path = os.path.join(ROOT, name)
+        if not os.path.exists(path):
+            continue
+        src = open(path, encoding="utf-8").read()
+        for m in re.finditer(r'class="([^"]*)"', src):
+            found.update(m.group(1).split())
+        for m in re.finditer(r"className\s*=\s*['\"]([^'\"]+)[\'\"]", src):
+            found.update(m.group(1).split())
+        for m in re.finditer(r"classList\.(?:add|toggle|remove)\(([^)]*)\)", src):
+            found.update(re.findall(r"['\"]([\w-]+)['\"]", m.group(1)))
+        for _, css in css_sources(src):
+            for prelude, _body in rules(css):
+                found.update(re.findall(r"\.([\w-]+)", prelude))
+    return {c for c in found if re.fullmatch(r"[A-Za-z][\w-]*", c or "")}
+
+
 # Document-level selectors: a fragment has no body/html of its own.
 DOC_RE = re.compile(r"^(html|body|:root)(?![\w-])")
 NO_SCAN_AT = ("@keyframes", "@-webkit-keyframes", "@font-face", "@property",
@@ -96,10 +129,16 @@ def leaking_selectors(selector_list: str):
         if DOC_RE.match(s):
             out.append(s)
             continue
-        # first compound selector: anything before a combinator
+        # First compound selector: anything before a combinator. A rule leaks
+        # only if that compound can match an element of the shell, so EVERY
+        # class in it has to be a shell class. `.ig-btn.gold` is a card
+        # decorating its own button; `.nav-btn.gold` is rewriting the shell's
+        # tip link, which carries both names. Intersecting (any class matches)
+        # flags the first one too, and a guard that cries wolf gets switched
+        # off — the two are one class apart and only one of them is a bug.
         first = re.split(r"[\s>+~]", s, 1)[0]
         classes = set(re.findall(r"\.([\w-]+)", first))
-        if classes & HOST_CLASSES:
+        if classes and classes <= HOST_CLASSES:
             out.append(s)
     return out
 
@@ -122,7 +161,17 @@ def css_sources(src: str):
             yield "script-injected", css
 
 
+# Derived once, after the CSS helpers it needs. leaking_selectors() reads it at
+# call time, so the definition order is only a readability question.
+HOST_CLASSES = shell_classes()
+
+
 def main() -> int:
+    if len(HOST_CLASSES) < SHELL_MIN:
+        print(f"CARD CSS CHECK BROKEN — deriving tool.html's classes found only "
+              f"{len(HOST_CLASSES)} (expected >= {SHELL_MIN}). The guard would "
+              f"pass everything; fix the derivation instead of trusting this run.")
+        return 1
     verbose = "--verbose" in sys.argv
     bad = {}
     for f in sorted(os.listdir(CARDS)):
@@ -139,7 +188,8 @@ def main() -> int:
         print("CARD CSS OK — no fragment restyles the host shell (.card, body, …), "
               "in a <style> block or injected from script")
         return 0
-    print(f"CARD CSS LEAKS in {len(bad)} card(s) — these rules restyle the whole home page:")
+    print(f"CARD CSS LEAKS in {len(bad)} card(s) — these rules restyle the "
+          f"shell page (tool.html), not just the card:")
     kinds = set()
     for f, items in bad.items():
         print(f"  {f}")
