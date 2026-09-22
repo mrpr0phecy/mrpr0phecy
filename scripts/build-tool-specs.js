@@ -61,6 +61,10 @@ const BASE = 'https://www.themostusefulsiteintheworld.com';
 
 function readJson(p) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
 
+// Cards whose fragment scan threw: filled in by the per-card builder below and
+// reported by main() instead of being swallowed by an empty catch.
+const scanFailures = [];
+
 function inferSpec(tool, cardEntry, standalonePaths) {
   const slug = tool.slug;
   const category = tool.category;
@@ -77,11 +81,31 @@ function inferSpec(tool, cardEntry, standalonePaths) {
   const standalonePath = standalonePaths.get(slug);
   const standaloneUrl = standalonePath ? `${BASE}/${standalonePath}` : null;
 
+  // HTML entities a formula is allowed to need. Without these the published
+  // text says `&radic;` and `&pi;` where the curated formulas above say ÷ and −.
+  const ENTITIES = {
+    divide: '÷', times: '×', minus: '−', nbsp: ' ', amp: '&', lt: '<', gt: '>',
+    le: '≤', ge: '≥', ne: '≠', plusmn: '±', deg: '°', sup2: '²', sup3: '³',
+    pi: 'π', radic: '√', alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', theta: 'θ',
+    lambda: 'λ', mu: 'μ', omega: 'ω', sigma: 'σ', sum: '∑', infin: '∞', asymp: '≈',
+    middot: '·', permil: '‰', prime: '′', Prime: '″', laquo: '«', raquo: '»',
+  };
+  const VULGAR_FRACTION = {
+    12: '½', 13: '⅓', 23: '⅔', 14: '¼', 34: '¾', 15: '⅕', 25: '⅖', 35: '⅗', 45: '⅘',
+    16: '⅙', 56: '⅚', 18: '⅛', 38: '⅜', 58: '⅝', 78: '⅞',
+  };
+
+  // Cards whose fragment scan threw: collected here, reported by main() at the
+  // end rather than swallowed. This catch used to be empty and it hid a
+  // ReferenceError that blanked every formula and source on the cards whose
+  // text contains an HTML entity — the specs were regenerated twice before
+  // anyone noticed. A scan must never fail quietly.
   // Best-effort input/output sniff from fragment HTML (if present).
   let inputs = [];
   let outputs = [];
   let formula = null;
   let sources = [];
+  let scanError = null;
   try {
     const fragPath = path.join(ROOT, cardEntry && cardEntry.path ? cardEntry.path : `cards/${slug}.html`);
     if (fs.existsSync(fragPath)) {
@@ -125,8 +149,32 @@ function inferSpec(tool, cardEntry, standalonePaths) {
         }
       }
       outputs = outputs.slice(0, 8);
-      // Formula hint: first line containing "=" and a plausible operator
-      const formulaM = html.match(/[A-Z][^<]{0,60}=[^<]{0,80}(?:÷|×|\*|\/|\+|−)/);
+      // Formula hint: first line containing "=" and a plausible operator —
+      // read from the page a VISITOR can see. Scanning the raw file also
+      // scanned the card's <script>, and `[A-Z]…=` matches JS assignments
+      // happily: on 2026-09-22 this published `ElementById(id);}; var
+      // TAU=Math.PI*` as the formula of 3d-spirograph-nebula, `Date());};
+      // to.value=iso(new Date())` as age-calculator's, and JS source as the
+      // `formula` of 1,017 of the 1,250 tools — a field agents.html tells
+      // outside agents is "one tool's formula".
+      // Tags and attributes go too: `[^<]` still lets a match run from a text
+      // node into `style="width:100%;"` or a placeholder attribute, which is
+      // how `Request approval for Q2 marketing budget" style="width:100%;" /`
+      // became a formula.
+      const visible = html
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        // Inline handlers first: `onclick="…if (i > 0)…"` hides a `>` inside a
+        // quoted attribute, which ends the tag regex early and leaks the JS
+        // out as text — that is how `Each(function(block){var ans=parseInt(…)`
+        // was still being published after the script blocks were removed.
+        .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, ' ')
+        .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+        .replace(/&frac(\d)(\d);/g, (_, a, b) => VULGAR_FRACTION[a + b] || a + '/' + b)
+        .replace(/&([a-z]+);/gi, (whole, e) => ENTITIES[e] || ENTITIES[e.toLowerCase()] || whole);
+      const formulaM = visible.match(/[A-Z][^<]{0,60}=[^<]{0,80}(?:÷|×|\*|\/|\+|−)/);
       if (formulaM) formula = formulaM[0].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0, 180);
       // Sources: href to who/nih/irs/nhs/fca/gov
       const hrefRe = /href=["'](https?:\/\/[^"']+)["']/gi;
@@ -136,7 +184,14 @@ function inferSpec(tool, cardEntry, standalonePaths) {
       }
       sources = sources.slice(0, 4);
     }
-  } catch {}
+  } catch (e) {
+    // This catch used to be empty; it swallowed a ReferenceError that silently
+    // blanked every formula and source on cards whose text contained an HTML
+    // entity, and the specs were regenerated twice before anyone noticed. Never
+    // let a scan fail quietly.
+    scanError = (e && e.message) || String(e);
+    scanFailures.push({ slug, message: scanError });
+  }
 
   // Curated formulas for the deepest YMYL tools (prevents the regex grabbing `let x =` assignments).
   const CURATED_FORMULA = {
@@ -286,6 +341,12 @@ function main() {
   const gz = require('zlib').gzipSync(Buffer.from(manifest)).length;
   console.log(`✔ api/tools.json written (${specs.length} specs, ${index.categories.length} categories, ~${Math.round(gz/1024)}KB gzip)`);
   console.log(`✔ ${specs.length} per-tool specs written to api/tools/<slug>.json`);
+  if (scanFailures.length) {
+    console.warn(`\n⚠ ${scanFailures.length} card(s) fell back to defaults because their fragment ` +
+                 `scan threw — the outputs above are still written, but those specs carry less:`);
+    for (const f of scanFailures.slice(0, 10)) console.warn(`    ${f.slug}: ${f.message}`);
+    if (scanFailures.length > 10) console.warn(`    ... and ${scanFailures.length - 10} more`);
+  }
 }
 
 main();
