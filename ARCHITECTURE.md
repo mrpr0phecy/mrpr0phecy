@@ -314,11 +314,12 @@ with one job and none of them large:
 
 | file | size | when it runs |
 | --- | --- | --- |
-| `home.css` + `home-deferred.css` | 102 KB / 40 KB (19.7 KB gzip combined) | stylesheets: critical rules blocking, the hidden-container rules after first paint |
-| `explore.css` | 18 KB | the list layer's styles, shared with the four other page types |
-| `toolbox.js` | 22 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none) |
-| `explore.js` | 27 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
-| `home-core.js` | 15 KB | theme/accent, panels, the search bridge, deep links, service worker |
+| `home.css` | about 43 KB | first-paint rules — render-blocking on purpose |
+| `home-deferred.css` | about 9 KB | rules for containers hidden at first paint; applied after it (13 KB gzip for the pair) |
+| `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
+| `toolbox.js` | about 27 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none) |
+| `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
+| `home-core.js` | about 22 KB | theme/accent, panels, the search bridge, deep links, service worker |
 
 `scripts/check-critical-css.py` holds the two rules that make this safe: the
 first paint's stylesheet must not depend on the deferred one, and every asset
@@ -969,12 +970,12 @@ list. Two rules, both learned the hard way:
   in agreement with the list; a query filters the list and the browse sections
   (featured/trending/categories) step aside while it is on.
 
-**`tools-index.json` is 876 KB and it is every list's data.** The home page
+**`tools-index.json` is about 900 KB and it is every list's data.** The home page
 fetches it when the visitor reaches the list (not at parse time), and
 `tools.html` / `tools-index.html` / the category pages *contain* its output
 already, so they never fetch it at all. It duplicates the
-title/description/category the full catalogue tier carries (~144 KB gzip of the
-~188 KB); de-duplicating it means a new generated signals file plus a drift
+title/description/category the full catalogue tier carries (about 194 KB gzip
+against the catalogue tier's 149 KB); de-duplicating it means a new signals file plus a drift
 gate — worth doing deliberately or not at all, never half-way.
 
 **The layout numbers live in one place now.** The geometry contract between JS

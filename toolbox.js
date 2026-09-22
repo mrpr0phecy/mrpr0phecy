@@ -129,8 +129,8 @@
   }
 
   /* ------------------------------------------------------------ tool lookup */
-  // cards-lite.json is 111 KB and name/title/category only, so the panel can
-  // name a saved tool without pulling the 389 KB index.
+  // cards-lite.json is about 120 KB and name/title/category only, so the panel
+  // can name a saved tool without pulling the about 900 KB index.
   function lite() {
     if (byslug) return Promise.resolve(byslug);
     if (litePromise) return litePromise;

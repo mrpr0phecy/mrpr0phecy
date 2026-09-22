@@ -243,6 +243,11 @@ deep_generated() {
   expect "index.html and ARCHITECTURE.md enumerate every category in the catalogue" \
          "a category list drifted — run: python3 scripts/build-category-lists.py" \
          python3 scripts/build-category-lists.py --check
+  # sync-counts owns every count; nothing owned a size. explore.js was described
+  # as 27 KB in the architecture document while being 47.9 KB on disk.
+  expect "prose that says how big a file is matches the file" \
+         "a size claim drifted — see scripts/check-size-claims.py" \
+         python3 scripts/check-size-claims.py
 }
 
 deep_tests() {

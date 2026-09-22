@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """check-critical-css.py — the main page's stylesheet split must stay safe.
 
-index.html used to carry ~118 KB of CSS inline in one <style> block: every
-navigation re-transferred ~19 KB gzip of it and the browser had to receive all
-of it before it could paint. The styles now live in two cached files:
+index.html used to carry its whole stylesheet inline in one <style> block: every
+navigation re-transferred it and the browser had to receive all of it before it
+could paint. No size is quoted for the old block — the 118 KB once written here
+cannot be checked against anything now, and the next person to read it would
+have no way to know whether to trust it. The styles now live in two cached
+files:
 
     home.css            first-paint rules — render-blocking on purpose
     home-deferred.css   rules for containers that are hidden at first paint —
