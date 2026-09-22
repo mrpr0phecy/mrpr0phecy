@@ -3,6 +3,7 @@
  * handler-check.js — find controls whose inline handler cannot run.
  *
  *   node scripts/handler-check.js cards/some-tool.html [more cards...]
+ *   node scripts/handler-check.js --changed   # cards touched vs HEAD (fast)
  *   node scripts/handler-check.js --all
  *
  * Why this exists next to test-card.js. That harness clicks every control it
@@ -48,6 +49,30 @@ try {
 
 const ROOT = path.join(__dirname, '..');
 const CARDS = path.join(ROOT, 'cards');
+
+/**
+ * Cards modified, staged or newly added against HEAD — the same set
+ * check-card-js.py guards, so "the changed cards" means one thing across the
+ * gate. A new card that has not been `git add`ed yet must still be checked, or
+ * the newest code in the repository is the least covered.
+ */
+function changedCards() {
+  const run = args => {
+    try {
+      return require('child_process').execFileSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+    } catch (e) { return ''; }
+  };
+  const names = new Set();
+  for (const line of [
+    ...run(['diff', '--name-only', 'HEAD', '--', 'cards/']).split('\n'),
+    ...run(['diff', '--name-only', '--cached', '--', 'cards/']).split('\n'),
+    ...run(['ls-files', '--others', '--exclude-standard', '--', 'cards/']).split('\n'),
+  ]) {
+    const name = line.trim();
+    if (name.endsWith('.html')) names.add(name);
+  }
+  return [...names].sort();
+}
 
 // Keywords that look like a call but are syntax. `if (` / `for (` / `while (`
 // and friends are followed by a paren just like a call is.
@@ -306,12 +331,21 @@ function main() {
   const args = process.argv.slice(2);
   const JSON_OUT = args.includes('--json');
   const ALL = args.includes('--all');
+  const CHANGED = args.includes('--changed');
   let files = args.filter(a => !a.startsWith('--'));
+  if (CHANGED) {
+    files = changedCards();
+    if (!files.length) {
+      console.log('no cards changed vs HEAD — nothing to check');
+      process.exit(0);
+    }
+    console.log(`checking ${files.length} card(s) changed vs HEAD`);
+  }
   if (ALL) {
     files = fs.readdirSync(CARDS).filter(f => f.endsWith('.html')).sort().map(f => `cards/${f}`);
   }
   if (!files.length) {
-    console.error('usage: node scripts/handler-check.js cards/x.html [more] | --all [--json]');
+    console.error('usage: node scripts/handler-check.js cards/x.html [more] | --changed | --all [--json]');
     process.exit(2);
   }
   let cards = 0, handlersSeen = 0, failed = 0;

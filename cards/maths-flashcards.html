@@ -679,17 +679,42 @@ function mfGenerate(btn) {
 }
 
 // Display flashcards in container
+/**
+ * The empty state is the container's placeholder, so anything that clears the
+ * container deletes it. This puts it back, in the same shape the markup had,
+ * so callers can always write to it.
+ */
+function mfEnsureEmptyState(card) {
+  const container = card.querySelector('#mf-flashcards-container');
+  if (!container) return null;
+  let emptyState = card.querySelector('#mf-empty-state');
+  if (!emptyState) {
+    emptyState = document.createElement('div');
+    emptyState.id = 'mf-empty-state';
+    emptyState.setAttribute('style', 'grid-column:1/-1;text-align:center;padding:40px 20px;color:rgba(230,250,255,0.5);border:2px dashed rgba(255,255,255,0.1);border-radius:10px;');
+    emptyState.innerHTML =
+      '<div style="font-size:48px;margin-bottom:16px;">🧮</div>' +
+      '<div style="font-weight:500;margin-bottom:8px;color:var(--accent);">No flashcards yet</div>' +
+      '<div style="font-size:14px;color:rgba(230,250,255,0.7);">Click "Generate New Set" to create your first flashcards!</div>';
+    container.appendChild(emptyState);
+  }
+  return emptyState;
+}
+
 function mfDisplayFlashcards(card) {
   const container = card.querySelector('#mf-flashcards-container');
-  const emptyState = card.querySelector('#mf-empty-state');
+  // The empty state lives inside the container, so clearing the container took
+  // it with it — and the next render, or Reset, wrote to a null.
+  const emptyState = mfEnsureEmptyState(card);
   
   if (mfState.flashcards.length === 0) {
-    emptyState.style.display = 'block';
+    if (emptyState) emptyState.style.display = 'block';
     return;
   }
   
-  emptyState.style.display = 'none';
-  container.innerHTML = '';
+  if (emptyState) emptyState.style.display = 'none';
+  // Clear the flashcards that are there, not the whole container.
+  container.querySelectorAll('.flashcard').forEach(el => el.remove());
   
   mfState.flashcards.forEach((fc, index) => {
     const cardEl = document.createElement('div');
@@ -854,7 +879,18 @@ function mfCheckAnswer() {
   const userAnswer = card.querySelector('#mf-user-answer').value.trim();
   const currentCard = mfState.practiceStats.currentSet[mfState.currentCardIndex];
   const feedbackEl = card.querySelector('#mf-answer-feedback');
-  
+
+  // Nothing in the practice set: there is no answer to compare with. This ran
+  // from the Check button and from the Enter key, and read .answer off
+  // undefined whichever way it was reached.
+  if (!currentCard) {
+    if (!feedbackEl) return;
+    feedbackEl.style.display = 'block';
+    feedbackEl.innerHTML = '⚠️ Start a practice session first';
+    feedbackEl.style.color = '#ffcc00';
+    return;
+  }
+
   if (!userAnswer) {
     feedbackEl.innerHTML = '⚠️ Please enter an answer';
     feedbackEl.style.display = 'block';
@@ -1083,12 +1119,11 @@ function mfReset(btn) {
   mfState.practiceMode = false;
   
   // Clear UI. The empty state lives inside the container being cleared, so it
-  // has to be taken out first: `innerHTML = ''` removed it and the next line
-  // threw on a null, leaving Reset half done.
+  // has to survive it — mfEnsureEmptyState puts it back if a clear took it.
   const container = card.querySelector('#mf-flashcards-container');
-  const emptyState = card.querySelector('#mf-empty-state');
-  container.innerHTML = '';
-  if (emptyState) { container.appendChild(emptyState); emptyState.style.display = 'block'; }
+  if (container) container.querySelectorAll('.flashcard').forEach(el => el.remove());
+  const emptyState = mfEnsureEmptyState(card);
+  if (emptyState) emptyState.style.display = 'block';
   card.querySelector('#mf-practice-nav').style.display = 'none';
   card.querySelector('#mf-answer-input-container').style.display = 'none';
   card.querySelector('#mf-progress').textContent = '0';

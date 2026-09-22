@@ -24,7 +24,8 @@
 #
 #   1. hygiene    no token, no placeholder ID, no unsafe target=_blank
 #   2. catalogue  cards/ and cards.json agree about what exists
-#   3. card JS    the JavaScript in every changed card parses
+#   3. card JS    the JavaScript in every changed card parses, and every
+#                 inline handler it ships resolves in window scope
 #   4. links      every internal href/src resolves to a shipped file
 #   5. counts     every published tool count is re-derived, never hand-edited
 #   6. SEO        no top-level page is missing a <title>
@@ -127,6 +128,21 @@ card_js() {
     expect "the changed cards' JavaScript parses (--deep for the full sweep)" \
            "a card would be dead in production — fix the syntax error above" \
            python3 scripts/check-card-js.py
+  fi
+  # Parsing is not the same as being reachable. An inline on*="…" handler runs
+  # in the window scope, so a card that defines its controls inside an IIFE —
+  # or calls a function that was never written — ships a button that throws
+  # ReferenceError. Clicking catches the ones the card renders; this reads the
+  # source, so a handler in generated markup is covered too. Changed cards only
+  # in the gate; `node scripts/handler-check.js --all` before a big push.
+  if [ "$DEEP" = "1" ]; then
+    expect "every card's inline handler resolves (full sweep)" \
+           "an inline handler would throw ReferenceError when pressed — see above" \
+           node scripts/handler-check.js --all
+  else
+    expect "the changed cards' inline handlers resolve" \
+           "an inline handler would throw ReferenceError when pressed — see above" \
+           node scripts/handler-check.js --changed
   fi
 }
 

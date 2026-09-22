@@ -433,7 +433,7 @@ function makeWindow(sink) {
           configurable: true,
           value: {
             digest: (algo, data) => Promise.resolve(fakeDigest(data)),
-            importKey: () => Promise.resolve({ type: 'secret', algorithm: algo }),
+            importKey: (algo) => Promise.resolve({ type: 'secret', algorithm: algo }),
             deriveKey: () => Promise.resolve({ type: 'secret' }),
             deriveBits: (o) => Promise.resolve(fakeDigest(o && o.salt || '').slice(0, (o && o.length || 256) / 8)),
             encrypt: (a, k, data) => Promise.resolve(fakeDigest(data)),
