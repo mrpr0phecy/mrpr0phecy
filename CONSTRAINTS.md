@@ -149,6 +149,28 @@ The `if (document.readyState === 'loading') … else init()` idiom is immune: in
 its own window, clears the container and fires the next navigation; 108 cards
 failed that on 2026-09-22 and were fixed with this guard.
 
+**Anything a card deferred must re-check the DOM before it uses it.** The same
+navigation takes the markup away between the moment a callback is scheduled and
+the moment it runs. Every one of these was live on 2026-09-22 and threw on the
+next tool the visitor opened:
+
+    setTimeout(() => document.getElementById('x').focus(), 200)   // 200 ms later
+    updateTimer = setTimeout(ttUpdate, 200)                        // debounce
+    setInterval(function () { $('timer').textContent = … }, 250)   // never cleared
+    setInterval(draw, 50)                                          // no handle at all
+    an async function that awaits, then writes to the DOM
+
+Check, and for an interval stop it rather than letting it tick on:
+
+    setInterval(function () {
+      if (!document.getElementById('your-element')) { clearInterval(handle); return; }
+      …
+    }, 250);
+
+`test-card.js` settles asynchronously and then probes the teardown, so a
+deferred throw shows up as a LEAK naming the card — 34 cards were fixed this
+way, including two self-repeating `setInterval`s that had no handle to clear.
+
 **A card's `<style>` is document-wide too.** The loader re-creates the
 fragment's `<style>` blocks inside `tool.html`'s own document, and a style
 element's rules apply to the whole document wherever it sits. A bare
