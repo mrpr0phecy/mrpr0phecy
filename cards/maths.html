@@ -290,6 +290,9 @@ let mhHistory = [];
 
 // Main solve function
 function mhSolve(btn) {
+  // tool.html clears the card's container on the next navigation and
+  // cannot cancel this timer: bail out rather than write to what is gone.
+  if (!document.querySelector('#mh-input')) return;
   const card = btn.closest('.card') || document;
   const expr = card.querySelector('#mh-input').value.trim();
   const precision = card.querySelector('#mh-precision').value;
@@ -315,7 +318,11 @@ function mhSolve(btn) {
     };
     
     // Use Function constructor but with limited scope
-    const result = Function('"use strict";return (' + safeExpr + ')').call(context);
+    // mhParseExpression rewrote the card's helpers to `mhMathFunctions.x(`, and a
+    // Function body only sees globals — the object goes in as a parameter, not
+    // as `this`, or the rewrite resolves to nothing.
+    const result =
+      Function('mhMathFunctions', '"use strict";return (' + safeExpr + ')').call(context, mhMathFunctions);
     
     // Format result
     const formattedResult = mhFormatNumber(result, displayMode, precision);

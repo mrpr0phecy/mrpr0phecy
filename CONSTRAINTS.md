@@ -158,7 +158,9 @@ next tool the visitor opened:
     updateTimer = setTimeout(ttUpdate, 200)                        // debounce
     setInterval(function () { $('timer').textContent = … }, 250)   // never cleared
     setInterval(draw, 50)                                          // no handle at all
+    setTimeout(() => { label.textContent = 'Save'; }, 1600)        // button label
     an async function that awaits, then writes to the DOM
+    an appended CDN <script> whose onload runs after the visitor left
 
 Check, and for an interval stop it rather than letting it tick on:
 
@@ -167,9 +169,22 @@ Check, and for an interval stop it rather than letting it tick on:
       …
     }, 250);
 
-`test-card.js` settles asynchronously and then probes the teardown, so a
-deferred throw shows up as a LEAK naming the card — 34 cards were fixed this
-way, including two self-repeating `setInterval`s that had no handle to clear.
+`test-card.js` is what proves it, and its timing is not something to work
+around: it settles asynchronously, then **fast-forwards every timer the card
+still had pending when its container was cleared**, and fires the `load`/`error`
+of any `<script>` the card appended itself (jsdom never fetches one). So the
+delay does not decide whether the callback is caught — 1.6 s or 200 ms, it runs.
+A callback that catches its own throw is reported through the `console.error` it
+writes, named with the card line that threw it, so a swallowed error is still
+visible.
+
+61 sites across 57 cards were live on 2026-09-22; the guard goes at the top of
+whatever the timer calls:
+
+    function recalc() {
+      if (!document.getElementById('your-input')) return;   // card is gone
+      …
+    }
 
 **A card's `<style>` is document-wide too.** The loader re-creates the
 fragment's `<style>` blocks inside `tool.html`'s own document, and a style
