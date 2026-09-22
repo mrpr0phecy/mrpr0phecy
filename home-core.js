@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 19;
+  const APP_VERSION = 20;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -130,16 +130,73 @@
   }
 
   /* ------------------------------------------------------ sticky command bar */
+  // The bar used to appear after a hard 220 px, which was wrong the moment the
+  // hero grew or shrank. It now appears when the hero search itself has left
+  // the viewport, and it publishes its real height so the list toolbar does
+  // not sit underneath it. The search position is measured on load and resize
+  // only — never on the scroll path.
   function setupStickyBar() {
     var bar = document.getElementById('stickyCommandBar');
     if (!bar) return;
-    var onScroll = function () {
-      var show = window.scrollY > 220;
+    var limit = 220;
+    var shown = null;
+    function measureLimit() {
+      var search = document.getElementById('tool-search');
+      if (!search) return;
+      var r = search.getBoundingClientRect();
+      if (r.height < 8) return;
+      limit = Math.max(0, Math.round(window.scrollY + r.bottom - 8));
+    }
+    function publish(show) {
+      var reserve = bar.offsetHeight || 56;
+      document.documentElement.style.setProperty('--xp-bar-reserve', Math.round(reserve) + 'px');
+      document.documentElement.style.setProperty('--xp-sticky-h', show ? Math.round(reserve) + 'px' : '0px');
+    }
+    function onScroll() {
+      var show = window.scrollY > limit;
+      if (show === shown) return;
+      shown = show;
       bar.classList.toggle('visible', show);
       bar.setAttribute('aria-hidden', String(!show));
-    };
+      publish(show);
+    }
+    function relayout() {
+      measureLimit();
+      shown = null;
+      onScroll();
+    }
+    // In-page jumps happen before the bar is visible, so the browser's own
+    // scroll-margin (which reads --xp-sticky-h, still 0) lands the heading
+    // under the bar that then appears. Offset by the bar's real height.
+    function jumpTo(id, smooth) {
+      var target = document.getElementById(id);
+      if (!target) return;
+      var reserve = bar.offsetHeight || 64;
+      var top = target.getBoundingClientRect().top + window.scrollY - reserve - 10;
+      var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: Math.max(0, top), behavior: (smooth && !reduced) ? 'smooth' : 'auto' });
+    }
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[href^="#"]');
+      if (!a) return;
+      var id = (a.getAttribute('href') || '').slice(1);
+      var target = id && document.getElementById(id);
+      if (!id || !target) return;
+      e.preventDefault();
+      jumpTo(id, true);
+      try { history.pushState(null, '', '#' + id); } catch (err) {}
+      if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+      try { target.focus({ preventScroll: true }); } catch (err2) { try { target.focus(); } catch (err3) {} }
+    });
+    measureLimit();
     window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', relayout, { passive: true });
+    window.addEventListener('load', relayout);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
     onScroll();
+    if (location.hash.length > 1) {
+      window.addEventListener('load', function () { jumpTo(location.hash.slice(1), false); });
+    }
   }
 
   /* ---------------------------------------------------------------- search */
@@ -154,9 +211,21 @@
     // Typing filters quietly: scrolling the page to the list on every keystroke
     // yanks the hero box out from under the visitor mid-word. Only an explicit
     // Enter (or a prefilled/shared query) scrolls to the results.
+    var status = document.getElementById('heroSearchStatus');
+    function report(value) {
+      if (!status) return;
+      if (!value) { status.textContent = ''; return; }
+      if (!window.mpExplore) return;
+      var n = window.mpExplore.rows().length;
+      status.textContent = n
+        ? (n === 1 ? '1 match — Enter to open it' : n + ' matches — Enter to see them')
+        : 'No matches — try a shorter word';
+    }
     var apply = function (value, scroll) {
       if (window.mpExplore) {
-        window.mpExplore.filter(value, { quiet: !scroll });
+        var pending = window.mpExplore.filter(value, { quiet: !scroll });
+        if (pending && typeof pending.then === 'function') pending.then(function () { report(value); });
+        else report(value);
       } else {
         // No engine (script blocked): the honest answer is the plain index,
         // pre-filtered by nothing — never a filter that silently does nothing.
@@ -183,17 +252,21 @@
         // the whole point of a launcher. Filter first: rows() reflects the
         // last debounced keystroke, not what was just typed.
         if (window.mpExplore) {
-          window.mpExplore.filter(value);
-          var rows = window.mpExplore.rows();
-          if (rows.length === 1) { location.href = rows[0].url; return; }
-          // j/k navigation only works outside a text box, so with matches on
-          // screen, hand focus over instead of telling the visitor to press a
-          // key that would just type into this box. With no matches, stay put
-          // so they can keep typing.
-          if (rows.length > 1) {
-            box.blur();
-            if (rows.length <= 8) notify(rows.length + ' matches below — j/k to move, Enter to open');
-          }
+          var pending = window.mpExplore.filter(value);
+          var openMatch = function () {
+            var rows = window.mpExplore.rows();
+            if (rows.length === 1) { location.href = rows[0].url; return; }
+            // j/k navigation only works outside a text box, so with matches on
+            // screen, hand focus over instead of telling the visitor to press a
+            // key that would just type into this box. With no matches, stay put
+            // so they can keep typing.
+            if (rows.length > 1) {
+              box.blur();
+              if (rows.length <= 8) notify(rows.length + ' matches below — j/k to move, Enter to open');
+            }
+          };
+          if (pending && typeof pending.then === 'function') pending.then(function () { report(value); openMatch(); });
+          else { report(value); openMatch(); }
           return;
         }
         apply(value, true);
@@ -203,6 +276,7 @@
     if (clearBtn) clearBtn.addEventListener('click', function () {
       boxes.forEach(function (b) { b.value = ''; });
       if (window.mpExplore) window.mpExplore.clear();
+      if (status) status.textContent = '';
       clearBtn.style.display = 'none';
       boxes[0].focus();
     });
@@ -221,9 +295,10 @@
     var boxes = ['tool-search', 'stickySearchInput'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
     var clearBtn = document.getElementById('mainSearchClear');
     chips.forEach(function (chip) {
-      chip.addEventListener('click', function () {
+      chip.addEventListener('click', function (e) {
         var q = chip.getAttribute('data-query') || chip.textContent.trim();
         if (!q) return;
+        e.preventDefault();
         boxes.forEach(function (b) { b.value = q; });
         if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
         if (window.mpExplore) {

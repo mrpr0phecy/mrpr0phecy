@@ -76,7 +76,12 @@
 // navigation: network-first, but a cached copy answers after
 // NETWORK_PATIENCE_MS, an offline navigation falls back to the cached index,
 // and the network fetch keeps running to refresh the entry for next time.
-const CACHE_VERSION = 'v19-2026-09-21';
+// v20: the home page is a launcher. The sticky bar follows the hero search
+// instead of a hard pixel threshold, the catalogue waits until a search, a
+// deep link, the list, or idle, and scrolling no longer measures chrome on
+// every frame. Those fixes live in home-core.js / explore.js / home.css, so
+// the precache has to move with them or a returning visitor keeps the old pair.
+const CACHE_VERSION = 'v20-2026-09-21';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
