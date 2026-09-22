@@ -35,7 +35,18 @@ python3 -m venv /tmp/brandenv
 /tmp/brandenv/bin/python brand/gen_assets.py     # rewrites the assets
 python3 brand/check-mark.py                      # stdlib only — must pass
 python3 brand/measure.py                         # needs fonttools
+python3 brand/measure.py --strings               # no fonttools: show what it measures
+python3 brand/measure.py --check                 # no fonttools: assert it still reads it
 ```
+
+`measure.py` reads the hero copy — wordmark, headline, subtitle, facts row,
+keyboard hints, placeholder — **out of `index.html`** rather than holding its
+own copies. It used to hold copies, and two of them went stale (`1220 tools`
+against a page that said 1250), which meant it measured a hero the site did not
+have and reported widths for it. If the page is restructured so a string cannot
+be found, it exits non-zero and says which one: fix the tool, do not paste the
+string back. `--check` is the fonttools-free version of that assertion, and
+`verify.sh --deep` runs it.
 
 `gen_assets.py` writes these into the repository root, next to the pages that
 link them:

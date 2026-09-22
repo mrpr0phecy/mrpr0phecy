@@ -258,6 +258,15 @@ deep_floors() {
   expect "finance surfaces keep their disclaimers and sources" \
          "finance regression — see scripts/check-finance.js" \
          node scripts/check-finance.js
+  # brand/measure.py answers "does the hero fit at 360 px?" without a browser,
+  # and it measures strings READ OUT OF index.html. When those were six
+  # constants in the tool, two silently went stale and it spent months
+  # measuring "Search 1220 tools…" against a page that said 1250. This asserts
+  # it can still find the copy, so going stale is a failed check rather than
+  # a plausible-looking table of widths.
+  expect "brand/measure.py still points at copy index.html carries" \
+         "measure.py is measuring copy the site does not have — see brand/measure.py" \
+         python3 brand/measure.py --check
 }
 
 live() {
