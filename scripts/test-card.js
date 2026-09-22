@@ -83,6 +83,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..');
 let JSDOM, VirtualConsole;
@@ -333,6 +334,51 @@ function makeWindow(sink) {
       // cleanup that follows — which then looks like a leak the card does not
       // have. Browsers still have it; a stub keeps the harness honest.
       window.document.execCommand = () => true;
+      // jsdom implements no `innerText` at all (spec-wise it is a rendering
+      // concept), so `element.innerText.trim()` throws "Cannot read properties
+      // of undefined" in a card that works in every browser. textContent is the
+      // same string for the cases cards use it for: reading output to copy or
+      // export, and setting text.
+      if (!('innerText' in window.HTMLElement.prototype)) {
+        Object.defineProperty(window.HTMLElement.prototype, 'innerText', {
+          configurable: true,
+          get() { return this.textContent; },
+          set(v) { this.textContent = v; },
+        });
+      }
+      // jsdom has no DataTransfer either, and `input.files = dt.files` is the
+      // only way a script can fake a file drop. Cards that self-test their own
+      // upload path use it (hash-checker loads a generated file that way), and
+      // in the harness the ReferenceError looked like the card's bug.
+      if (!window.DataTransfer) {
+        const makeFileList = files => {
+          // jsdom's `files` setter refuses anything that is not a real
+          // FileList, and FileList has no public constructor — so borrow the
+          // prototype (which satisfies the brand check) and fill it in.
+          const list = Object.create(window.FileList.prototype);
+          Object.defineProperty(list, 'length', { value: files.length });
+          files.forEach((f, i) => Object.defineProperty(list, String(i), { value: f }));
+          Object.defineProperty(list, 'item', { value: i => files[i] || null });
+          return list;
+        };
+        // The setter is shadowed for the same reason (it brand-checks too), and
+        // the getter has to keep jsdom's meaning for "nothing chosen": an EMPTY
+        // FileList, not null. Returning null made every card that guards with
+        // `if (input.files.length)` look broken.
+        const emptyFileList = () => makeFileList([]);
+        Object.defineProperty(window.HTMLInputElement.prototype, 'files', {
+          configurable: true,
+          get() { return this.__files || emptyFileList(); },
+          set(v) { this.__files = v && v.length !== undefined && !v.item ? makeFileList(Array.from(v)) : v; },
+        });
+        window.DataTransfer = function DataTransfer() {
+          const items = { _f: [], add(f) { this._f.push(f); }, clear() { this._f = []; }, get length() { return this._f.length; } };
+          this.items = items;
+          Object.defineProperty(this, 'files', { get: () => makeFileList(items._f) });
+          this.setData = () => {}; this.getData = () => ''; this.clearData = () => {}; this.types = [];
+          this.effectAllowed = 'all'; this.dropEffect = 'none';
+        };
+      }
       const store = {};
       const ls = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; }, clear: () => { for (const k in store) delete store[k]; }, key: i => Object.keys(store)[i] || null, get length() { return Object.keys(store).length; } };
       Object.defineProperty(window, 'localStorage', { value: ls, configurable: true });
@@ -342,6 +388,9 @@ function makeWindow(sink) {
     },
   });
   const { window } = dom;
+  // The card's scripts are run as real scripts against this context (see the
+  // block loop) so their top-level bindings behave as they do in a browser.
+  const vmContext = dom.getInternalVMContext();
   // A card that catches its own deferred throw leaves only the log line, so the
   // log has to carry the location too — otherwise "Calculation error: TypeError"
   // is all a sweep can say about it.
@@ -356,12 +405,12 @@ function makeWindow(sink) {
     sink.push(`uncaught: ${e.message}` + (e.error ? locate(e.error, window.__blocks) : ''));
   });
   window.console.error = logged;
-  return { dom, window, pending, intervals };
+  return { dom, window, vmContext, pending, intervals };
 }
 
 // Mount one card into a container inside window, run its scripts, fire
 // DOMContentLoaded/load, poke the UI, settle. Returns the error list.
-async function mountCard(card, window, sink) {
+async function mountCard(card, window, vmContext, sink) {
   const { rel, base, html } = card;
   const errors = [];
   const doc = window.document;
@@ -400,9 +449,17 @@ async function mountCard(card, window, sink) {
     container.appendChild(el);
     try {
       Object.defineProperty(doc, 'currentScript', { value: el, configurable: true });
-      // The sourceURL names the block in the stack, which is how locate() tells
-      // a line in block 3 from the same line number in block 1.
-      window.eval(s.textContent + `\n//# sourceURL=card-block-${blockIndex + 1}.js`);
+      // Run the block as a SCRIPT, not as an eval. A top-level `let`/`const` in
+      // a classic script lands in the global lexical environment — shared with
+      // the next script block and with `new Function` bodies, which is exactly
+      // how an inline `onclick="someConst.doThing()"` resolves in a browser.
+      // eval code keeps those bindings to itself, so the harness used to report
+      // working cards as broken (and two blocks could not share a const).
+      const script = new vm.Script(s.textContent, {
+        filename: `card-block-${blockIndex + 1}.js`,
+        displayErrors: true,
+      });
+      script.runInContext(vmContext);
     } catch (e) {
       errors.push(`threw during execution: ${e && e.message ? e.message : e}` +
                   locate(e, blocks));
@@ -580,7 +637,7 @@ process.on('unhandledRejection', reason => {
     const perCard = [];
     const sink = { push: e => perCard.push(e) };
     inFlight = perCard;
-    const { window, pending, intervals } = makeWindow(sink);
+    const { window, vmContext, pending, intervals } = makeWindow(sink);
     const before = new Set(window.document.body.children);
     const beforeHead = new Set(window.document.head.children);
     let container = null;
@@ -588,7 +645,7 @@ process.on('unhandledRejection', reason => {
     let responseReady = null;
     inFlightBlocks = null;
     try {
-      const mounted = await mountCard(card, window, sink);
+      const mounted = await mountCard(card, window, vmContext, sink);
       container = mounted.container;
       blocks = mounted.blocks;
       responseReady = mounted.responseReady;
