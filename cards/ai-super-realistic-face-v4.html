@@ -111,9 +111,18 @@
         this.eyeTarget.x=(this.mouse.x-0.5)*12; this.eyeTarget.y=(this.mouse.y-0.5)*8;
       });
       this.canvas.addEventListener('mouseleave', ()=>{ this.eyeTarget={x:0,y:0}; });
-      setInterval(()=>{ if(Math.random()<0.14 && this.blink===0) this.triggerBlink(); }, 160);
-      setInterval(()=>{ if(Math.random()<0.45){ this.microSaccade.x=(Math.random()-0.5)*3.5; this.microSaccade.y=(Math.random()-0.5)*2.5; this.microSaccade.next=performance.now()+300+Math.random()*400; } }, 200);
-      setInterval(()=>{ if(Math.random()<0.08) this.triggerMicro(['surprise','contempt','disgust','fear'][Math.floor(Math.random()*4)]); }, 400);
+      // Three ambient loops, one card. tool.html cannot cancel a timer it did
+      // not create, so each one stops itself (and its siblings) on the first
+      // tick that finds the canvas gone, instead of animating nothing for the
+      // rest of the visitor's session.
+      this.ambient=()=>{
+        clearInterval(this.blinkTimer); clearInterval(this.saccadeTimer); clearInterval(this.microTimer);
+        this.blinkTimer=this.saccadeTimer=this.microTimer=null;
+      };
+      const alive=()=>document.getElementById('asrf-canvas');
+      this.blinkTimer=setInterval(()=>{ if(!alive()) return this.ambient(); if(Math.random()<0.14 && this.blink===0) this.triggerBlink(); }, 160);
+      this.saccadeTimer=setInterval(()=>{ if(!alive()) return this.ambient(); if(Math.random()<0.45){ this.microSaccade.x=(Math.random()-0.5)*3.5; this.microSaccade.y=(Math.random()-0.5)*2.5; this.microSaccade.next=performance.now()+300+Math.random()*400; } }, 200);
+      this.microTimer=setInterval(()=>{ if(!alive()) return this.ambient(); if(Math.random()<0.08) this.triggerMicro(['surprise','contempt','disgust','fear'][Math.floor(Math.random()*4)]); }, 400);
       this.animate();
     }
     triggerBlink(){ this.blinkTarget=1; setTimeout(()=>this.blinkTarget=0, 140); }

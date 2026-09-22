@@ -415,6 +415,10 @@ if (document.readyState === 'loading') {
 
 // Load timeline from localStorage
 function htLoadTimeline() {
+  // Reached from DOMContentLoaded, which tool.html dispatches again for every
+  // tool the visitor opens after this one: the renders below would write to a
+  // container that has been cleared. Bail out instead.
+  if (!document.getElementById('ht-timeline-container')) return;
   const saved = localStorage.getItem('ht-timeline');
   if (saved) {
     try {
@@ -496,6 +500,9 @@ function htClearForm() {
 
 // Show timeline container
 function htShowTimelineContainer() {
+  // tool.html clears the card on the next navigation and cannot cancel
+  // this callback: bail out rather than write to a DOM that is gone.
+  if (!document.getElementById('ht-timeline-container')) return;
   document.getElementById('ht-timeline-container').style.display = 'block';
   document.getElementById('ht-statistics-container').style.display = 'block';
 }
@@ -513,6 +520,9 @@ function htRenderTimeline() {
   
   // Apply filters
   let filteredEvents = [...htEvents];
+  // tool.html clears the card on the next navigation and cannot cancel
+  // this callback: bail out rather than write to a DOM that is gone.
+  if (!document.getElementById('ht-filter-category')) return;
   const categoryFilter = document.getElementById('ht-filter-category').value;
   const sortBy = document.getElementById('ht-sort-by').value;
   const rangeStart = parseInt(document.getElementById('ht-range-start').value);
@@ -847,6 +857,10 @@ function htUpdateStatistics() {
   }
   
   // Total events
+  // The visitor can open another tool at any time and tool.html clears this card's container on the next navigation. This
+  // callback outlives it, so bail out rather than write to a
+  // DOM that is gone.
+  if (!document.getElementById('ht-total-events')) return;
   document.getElementById('ht-total-events').textContent = htEvents.length;
   
   // Time span
@@ -1239,6 +1253,67 @@ function htGenerateSummary() {
   const modal = document.createElement('div');
   modal.className = 'ht-summary-modal';
   modal.innerHTML = summaryHtml;
+  document.body.appendChild(modal);
+}
+
+// Relationship map — the button existed and called this name, but the function
+// was never written: "Show Relationships" threw a ReferenceError and did
+// nothing. Pairs are events that share a category or a region and sit within
+// 25 years of each other, strongest link first.
+function htGenerateRelationships() {
+  if (htEvents.length < 2) {
+    htShowMessage('Add at least 2 events to map relationships', 'error');
+    return;
+  }
+
+  const sorted = [...htEvents].sort((a, b) => a.year - b.year);
+  const links = [];
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const gap = Math.abs(sorted[j].year - sorted[i].year);
+      if (gap > 25) break;                       // sorted: every later pair is further apart
+      const sameCategory = sorted[i].category === sorted[j].category;
+      const sameRegion = sorted[i].region === sorted[j].region;
+      if (!sameCategory && !sameRegion) continue;
+      links.push({
+        a: sorted[i], b: sorted[j], gap,
+        strength: (sameCategory ? 2 : 0) + (sameRegion ? 1 : 0) + (25 - gap) / 25,
+        why: sameCategory && sameRegion ? 'same category and region'
+           : sameCategory ? 'same category' : 'same region'
+      });
+    }
+  }
+  links.sort((x, y) => y.strength - x.strength || x.gap - y.gap);
+
+  const yearText = e => e.year < 0 ? `${Math.abs(e.year)} BCE` : `${e.year} CE`;
+  const linkHtml = links.slice(0, 40).map(l => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;margin-bottom:8px;">
+      <div style="flex:1;">
+        <div style="color:white;font-size:13px;">${l.a.event} <span style="color:var(--muted);">→</span> ${l.b.event}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">${yearText(l.a)} → ${yearText(l.b)} · ${l.gap} year${l.gap === 1 ? '' : 's'} apart · ${l.why}</div>
+      </div>
+      <div style="font-size:11px;padding:3px 8px;background:${htGetCategoryColor(l.a.category)}20;color:${htGetCategoryColor(l.a.category)};border-radius:6px;">${htGetCategoryName(l.a.category)}</div>
+    </div>`).join('');
+
+  const modalHtml = `
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+      <div style="background:var(--panel);border-radius:12px;padding:24px;max-width:640px;width:90%;max-height:80vh;overflow-y:auto;border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-weight:600;color:var(--accent);font-size:18px;">🔗 Relationship Map</div>
+          <button onclick="document.querySelector('.ht-relations-modal').remove()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:20px;">×</button>
+        </div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+          ${links.length} connection${links.length === 1 ? '' : 's'} across ${htEvents.length} events —
+          pairs that share a category or a region and are within 25 years of each other.
+        </div>
+        ${links.length ? linkHtml : '<div style="color:var(--muted);font-size:13px;">No two of your events share a category or a region within 25 years. Add related events to see links.</div>'}
+        <button onclick="document.querySelector('.ht-relations-modal').remove()" style="width:100%;margin-top:16px;padding:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">Close</button>
+      </div>
+    </div>`;
+
+  const modal = document.createElement('div');
+  modal.className = 'ht-relations-modal';
+  modal.innerHTML = modalHtml;
   document.body.appendChild(modal);
 }
 

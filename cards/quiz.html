@@ -312,13 +312,12 @@ function qgToggleQuestionType() {
     
     // If multiple choice, ensure at least 2 options
     if (type === 'multiple-choice') {
-        const options = document.querySelectorAll('.option-item');
-        if (options.length < 2) {
-            // Add default options if needed
-            while (document.querySelectorAll('.option-item').length < 2) {
-                qgAddOption();
-            }
-        }
+        const optionsContainer = document.getElementById('qg-options-container');
+        const have = optionsContainer.querySelectorAll('.option-item').length;
+        // Add default options if needed. qgAddOption() refuses past six (and
+        // alerts), so a `while` that waits for the count to reach two can never
+        // finish once the container is full — ask for what is missing, once.
+        for (let i = have; i < 2; i++) qgAddOption();
     }
 }
 
@@ -466,11 +465,13 @@ function qgClearCurrent() {
     
     // Reset multiple choice options to 2
     const container = document.getElementById('qg-options-container');
-    const options = container.querySelectorAll('.option-item');
-    
-    // Remove extra options beyond 2
+    // `querySelectorAll` hands back a STATIC list: its length never changes as
+    // nodes are removed, so the loop below used to call remove() on the same
+    // (already detached) node for ever. Adding a third option and pressing
+    // Clear froze the tab. Walk a copy and shrink it, or re-query every pass.
+    const options = Array.from(container.querySelectorAll('.option-item'));
     while (options.length > 2) {
-        options[options.length - 1].remove();
+        options.pop().remove();
     }
     
     // Clear option text
