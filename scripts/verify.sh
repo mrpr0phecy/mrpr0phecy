@@ -24,8 +24,9 @@
 #
 #   1. hygiene    no token, no placeholder ID, no unsafe target=_blank
 #   2. catalogue  cards/ and cards.json agree about what exists
-#   3. card JS    the JavaScript in every changed card parses, and every
-#                 inline handler it ships resolves in window scope
+#   3. card JS    the JavaScript in every changed card parses, every inline
+#                 handler it ships resolves in window scope, and no card
+#                 indexes parallel arrays of different lengths
 #   4. links      every internal href/src resolves to a shipped file
 #   5. counts     every published tool count is re-derived, never hand-edited
 #   6. SEO        no top-level page is missing a <title>
@@ -33,8 +34,9 @@
 #
 # --deep adds the audits that only matter once, before a push: egress
 # classification, accessibility, cross-card name collisions, CSS leaks, every
-# generated surface's drift check, the full card JS sweep, the product test
-# suite and the measured quality floors. They were cut from the gate because
+# generated surface's drift check, the full card JS sweep (syntax, inline
+# handlers, parallel arrays), the product test suite and the measured quality
+# floors. They were cut from the gate because
 # they cost ~20 s and change nothing about an edit in progress — not because
 # they are wrong. Run them before pushing; CI runs them on every push and PR.
 #
@@ -143,6 +145,20 @@ card_js() {
     expect "the changed cards' inline handlers resolve" \
            "an inline handler would throw ReferenceError when pressed — see above" \
            node scripts/handler-check.js --changed
+  fi
+  # Parsing and reachability still do not say the card has the data it indexes.
+  # creative-writing.html drew one index from 12 plot titles and used it on 8
+  # descriptions and 8 structures: four clicks in ten read undefined and the
+  # generator threw. Only a check that compares array LENGTHS sees that, so it
+  # runs here on every changed card and over cards/ on --deep.
+  if [ "$DEEP" = "1" ]; then
+    expect "no card indexes parallel arrays of different lengths (full sweep)" \
+           "a card picks one index into arrays that are not the same length — see above" \
+           node scripts/check-parallel-arrays.js --all
+  else
+    expect "the changed cards' parallel arrays agree" \
+           "a card picks one index into arrays that are not the same length — see above" \
+           node scripts/check-parallel-arrays.js --changed
   fi
 }
 

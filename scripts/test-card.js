@@ -67,6 +67,20 @@
  * takes a quiet reading and a settled reading and calls a card responsive only
  * when the press is what moved something.
  *
+ * Pressing once is not the whole test. Six of the defects a full response
+ * sweep found were only reachable on the NEXT interaction: a card re-renders
+ * its markup on the first click and the second click writes into a node the
+ * first removed (maths-flashcards cleared the placeholder it later rebuilt),
+ * a status line is deleted by its own 2 s timer and the next click still writes
+ * to it (xmas-gift-budget), a prompt is read once at mount and is gone by the
+ * time a clipboard promise lands (pcb-trace-width), and every draw of a
+ * 12-title/8-description pair crashes only sometimes (creative-writing, four
+ * times in ten). So after the card has had its timers, the whole click sweep
+ * runs a SECOND time — against whatever the first round left behind — and any
+ * control in generated markup is wired up before it is pressed. A throw there
+ * is reported as `on a second press`, which is a different bug from a card that
+ * never mounted: the card worked once.
+ *
  * jsdom does not fetch external resources, so a card that appends a CDN
  * <script> and waits for it never gets its callback here. That path is poked by
  * hand once the container is gone — `load` and `error` both — because on a slow
@@ -465,6 +479,18 @@ function makeWindow(sink) {
     sink.push(`uncaught: ${e.message}` + (e.error ? locate(e.error, window.__blocks) : ''));
   });
   window.console.error = logged;
+  // Named for mountCard, which runs the card's OPENING timers with the card
+  // mounted and every field still empty (see the flush there).
+  window.__flushPending = (onError) => {
+    let ran = 0;
+    for (let wave = 0; wave < 2 && pending.length; wave++) {
+      for (const t of pending.splice(0, pending.length)) {
+        ran += 1;
+        try { t.fn(...t.rest); } catch (e) { if (onError) onError(e); }
+      }
+    }
+    return ran;
+  };
   return { dom, window, vmContext, pending, intervals };
 }
 
@@ -546,14 +572,52 @@ async function mountCard(card, window, vmContext, sink) {
     }
   };
   window.__compileInline = compileInline;
-  for (const el of Array.from(container.querySelectorAll('*'))) {
-    for (const attr of Array.from(el.attributes)) compileInline(el, attr.name, attr.value);
-  }
+  // Only compile each attribute once. A card that re-renders a row on every
+  // click would otherwise have its handler rebuilt on every pass, and a
+  // `let counter = 0` style attribute would be re-extracted each time — the
+  // compile is idempotent for a static attribute and destructive for a mutated
+  // one, so it is done once per element.
+  const compiled = new WeakSet();
+  window.__compiled = compiled;
+  const compileTree = (root) => {
+    for (const el of Array.from(root.querySelectorAll('*'))) {
+      if (compiled.has(el)) continue;
+      compiled.add(el);
+      for (const attr of Array.from(el.attributes)) compileInline(el, attr.name, attr.value);
+    }
+  };
+  window.__compileTree = compileTree;
+  compileTree(container);
   if (inlineHandlers) card.inlineHandlers = inlineHandlers;
 
   // fire DOMContentLoaded/load handlers registered by the card, then poke the UI
   try { doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true })); } catch (e) { errors.push('DOMContentLoaded handler threw: ' + e.message); }
   try { window.dispatchEvent(new window.Event('load')); } catch (e) { errors.push('load handler threw: ' + e.message); }
+
+  // Now the card's opening timers — the visitor's first 300 ms, with the card
+  // mounted and every field still empty.
+  //
+  // This has to happen HERE, before the response probe fills anything, and
+  // long before the teardown flush. Two failures taught both halves:
+  //
+  //   * the response probe types into every field first, search boxes
+  //     included, so a card whose timer renders a list is already showing
+  //     "no results" and returns early — the one path that draws the tool is
+  //     skipped, and the card looks fine;
+  //   * by the teardown flush the card's own guard ("is my markup still
+  //     here?") sends the callback home early, for the same result.
+  //
+  // second-life-surnames-guide did its whole render on a 300 ms "simulate
+  // loading" timer and threw a ReferenceError inside it: the tool opened on a
+  // spinner and stayed there for every visitor, while every probe here said ok.
+  let earlyRan = 0;
+  if (window.__flushPending) {
+    earlyRan = window.__flushPending((e) => {
+      errors.push(`deferred while the card was open (timer): ` +
+                  `${e && e.message ? e.message : e}` + locate(e, blocks));
+    });
+  }
+  if (earlyRan) await delay(SETTLE_MS);
 
   // --response: give the card something to work with, then press its own
   // primary control. Done before the blind click sweep, which then runs with
@@ -653,6 +717,55 @@ async function mountCard(card, window, vmContext, sink) {
 // leftover probe used a spin to "wait" three seconds.
 const SETTLE_MS = 120;
 
+/**
+ * The second interaction: the same sweep of clicks and keystrokes, run after
+ * the card has had time to act on the first one.
+ *
+ * Round one presses every control once against the card's opening state. That
+ * is the state a maintainer tests by hand — open the tool, press the button,
+ * see the answer — and it is blind to anything a card does to itself on the
+ * way: markup rebuilt with `innerHTML =`, a status node deleted by its own
+ * 2 s timer, a listener resolved once at mount against an element that is gone
+ * by the second press, an array indexed past its end on four draws in ten.
+ *
+ * Round two re-reads the container (so controls the card GENERATED are pressed
+ * too — the round-one list was fixed at mount), wires up any inline handler
+ * that appeared with them, and presses the lot again. Errors are tagged
+ * `on a second press`, because "broke on the next click" and "never worked"
+ * want different fixes.
+ *
+ * Returns the errors it caused, deduplicated: a card with a stale reference
+ * throws the same message from every control, and a list of forty copies says
+ * nothing that the first line did not.
+ */
+function secondPass(container, window) {
+  const errors = [];
+  const label = c => ((c.textContent || c.value || c.getAttribute('aria-label') || '') + '').trim().slice(0, 30);
+  const press = (c, what) => {
+    if (!c.isConnected) return;
+    try { c.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true })); }
+    catch (e) { errors.push(`on a second press, "${label(c)}" threw: ${e && e.message ? e.message : e}`); }
+  };
+  try {
+    if (window.__compileTree) window.__compileTree(container);
+  } catch (e) {
+    errors.push(`on a second press, a generated inline handler would not compile: ${e && e.message ? e.message : e}`);
+  }
+  for (const c of Array.from(container.querySelectorAll('button, [role=button]')).slice(0, 60)) press(c);
+  for (const i of Array.from(container.querySelectorAll('input, select, textarea')).slice(0, 60)) {
+    if (!i.isConnected) continue;
+    try {
+      i.dispatchEvent(new window.Event('input', { bubbles: true }));
+      i.dispatchEvent(new window.Event('change', { bubbles: true }));
+    } catch (e) {
+      errors.push(`on a second entry in "${i.id || i.name || i.type}", the card threw: ${e && e.message ? e.message : e}`);
+    }
+  }
+  // A card whose own control leaves the document (a mode toggle that rebuilds
+  // the card) is exercised on what is there, not on what the first pass saw.
+  return [...new Set(errors)];
+}
+
 // How long a leftover gets to prove it is temporary. Several cards remove the
 // anchor or toast they appended on a 400-500 ms timer; only a second look can
 // tell those from a node that is never coming back.
@@ -712,18 +825,53 @@ process.on('unhandledRejection', reason => {
     let blocks = null;
     let responseReady = null;
     inFlightBlocks = null;
+    const markForSecondRound = perCard.length;
     try {
       const mounted = await mountCard(card, window, vmContext, sink);
       container = mounted.container;
       blocks = mounted.blocks;
       responseReady = mounted.responseReady;
       inFlightBlocks = blocks;
+      // mountCard's own error list is the only place three kinds of failure
+      // appear: an inline handler that will not compile, a throw from the
+      // card's OPENING timers (they are flushed there, before the response
+      // probe fills a field), and a click whose listener swallowed its own
+      // exception into a log line. The list was returned and then dropped on
+      // the floor, so the mount printed `ok` while the card had thrown.
+      for (const e of mounted.errors || []) perCard.push(e);
     } catch (e) {
       perCard.push(`mount threw: ${e && e.message ? e.message : e}`);
     }
     // Let the card's own timers, promises and animation frames run: that is
     // when a deferred throw surfaces, and it belongs to this card.
     await delay(SETTLE_MS);
+    // Run the card's own deferred work with the card STILL MOUNTED.
+    //
+    // A card that "simulates loading" on a 300 ms timer is doing its most
+    // important work three times later than this probe's settle wait, and the
+    // teardown flush cannot stand in for it: by then the card's own guard
+    // ("is my markup still here?") has sent the callback home early, so the one
+    // path that renders the tool is never executed. second-life-surnames-guide
+    // was exactly this — a ReferenceError inside that timer meant the list
+    // never drew, the card opened on a spinner and stayed there, and every
+    // sweep called it ok.
+    //
+    // Two bounded waves, the same as the teardown flush, so a timer that
+    // re-arms itself cannot run for ever.
+    let deferredRan = 0;
+    for (let wave = 0; wave < 2 && pending.length; wave++) {
+      for (const t of pending.splice(0, pending.length)) {
+        deferredRan += 1;
+        try { t.fn(...t.rest); }
+        catch (e) {
+          perCard.push(`deferred while the card was open (timer): ` +
+                       `${e && e.message ? e.message : e}` + locate(e, blocks));
+        }
+      }
+      await delay(0);
+    }
+    if (deferredRan) await delay(SETTLE_MS);
+
     // --response: the settled reading. A press that only queues a debounce has
     // changed nothing yet; this is the second chance for it to show itself.
     let responsive = null;
@@ -733,6 +881,18 @@ process.on('unhandledRejection', reason => {
     }
     const mountedErrors = [...new Set(perCard)];
     const mountedNotes = [...new Set(perCardNotes)];
+
+    // Round two. Everything after this point is the teardown probe, so the
+    // card must still be mounted — and the timers the first round armed have
+    // already had their SETTLE_MS above to run.
+    let secondErrors = [];
+    if (container && container.isConnected) {
+      secondErrors = secondPass(container, window);
+      // Same reason as the first settle: a click that only schedules work has
+      // not thrown yet, and a deferred throw belongs to the card that queued it.
+      await delay(SETTLE_MS);
+      secondErrors = [...new Set([...secondErrors, ...perCard.slice(markForSecondRound)])];
+    }
 
     // The visitor has opened another tool: the loader clears its container and
     // dispatches DOMContentLoaded again, then clicks and types somewhere else.
@@ -831,9 +991,19 @@ process.on('unhandledRejection', reason => {
     } else if (!leftBehind.length) {
       console.log(`  ok   ${card.rel}`);
     }
+    // A card that survived mounting and then broke on its own second
+    // interaction is a FAIL with its own words: the first press worked, so the
+    // fix is in what the card does to itself, not in whether it loaded.
+    if (secondErrors.length) {
+      secondErrors.slice(0, 4).forEach(e => fail(card.rel, e));
+      console.log(`  (${card.rel} responded to the first press and threw on the next one — ` +
+                  `look at the state the first click left, not at load time)`);
+    }
     // Notes are kept, not dropped: a sweep can bucket them ("148 validation
     // replies, 56 network calls") and a card-by-card run can read them. They
     // are simply not charged to the card.
+    // Notes carry no round label: the card answered a control, which is the
+    // same fact whichever press it was.
     const notes = [...new Set([...mountedNotes, ...perCardNotes])];
     if (notes.length) {
       noted += 1;

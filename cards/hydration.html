@@ -391,10 +391,15 @@ function hydrationCalc(btn = null) {
   // Calculate hourly intake (assuming 16 waking hours)
   const hourlyIntake = intakeLiters / 16;
   
-  // Update display
-  card.querySelector('#hydration-res').textContent = intakeLiters.toFixed(2) + " L";
-  card.querySelector('#hydration-hourly').textContent = hourlyIntake.toFixed(2) + " L";
-  card.querySelector('#hydration-target').textContent = intakeLiters.toFixed(1);
+  // Update display. #hydration-target lives inside the line hydrationCelebrate()
+  // replaces for three seconds, so it is checked rather than assumed — the
+  // redraw a few lines down (hydrationUpdateProgress) restores it regardless.
+  const res = card.querySelector('#hydration-res');
+  if (res) res.textContent = intakeLiters.toFixed(2) + " L";
+  const hourly = card.querySelector('#hydration-hourly');
+  if (hourly) hourly.textContent = hourlyIntake.toFixed(2) + " L";
+  const target = card.querySelector('#hydration-target');
+  if (target) target.textContent = intakeLiters.toFixed(1);
   
   // Generate personalized recommendations
   hydrationGenerateRecommendations(card, weight, activity, climate, intakeLiters);
@@ -488,6 +493,21 @@ function hydrationAddWater(amount) {
   }
 }
 
+// Draw the progress line: the emoji prefix and the two live values, ids intact.
+// This is the only place that writes the line, because hydrationCelebrate()
+// replaces the line's contents for three seconds and takes #hydration-current
+// and #hydration-target with it. Patching those two spans in place (as this
+// used to) throws the moment a visitor logs a drink inside that window — the
+// goal is reached, the celebration replaces the line, the next glass is logged
+// and the null lookup aborts the rest of the update. Redrawing is idempotent
+// and always puts the ids back.
+function hydrationProgressLine(emoji) {
+  const card = document.currentScript?.closest('.card') || document;
+  const line = card.querySelector('#hydration-progress-text');
+  if (!line) return;
+  line.innerHTML = `${emoji} You've had <span id="hydration-current" style="color:var(--accent);font-weight:600;">${hydrationTodayIntake.toFixed(1)}</span> of <span id="hydration-target" style="color:#39ff14;font-weight:600;">${hydrationDailyTarget.toFixed(1)}</span> liters today`;
+}
+
 // Update progress bar and text
 function hydrationUpdateProgress() {
   const card = document.currentScript?.closest('.card') || document;
@@ -513,27 +533,18 @@ function hydrationUpdateProgress() {
     }
   }
   
-  // Update text
-  card.querySelector('#hydration-current').textContent = hydrationTodayIntake.toFixed(1);
-  card.querySelector('#hydration-target').textContent = hydrationDailyTarget.toFixed(1);
-  card.querySelector('#hydration-progress-percent').textContent = Math.round(percentage) + '%';
-  
-  // Update progress text with emoji
-  const progressText = card.querySelector('#hydration-progress-text');
-  if (progressText) {
-    let emoji = '💧';
-    if (percentage < 50) emoji = '⚠️';
-    if (percentage >= 50 && percentage < 80) emoji = '👍';
-    if (percentage >= 80 && percentage < 100) emoji = '🚰';
-    if (percentage >= 100) emoji = '🎉';
-    
-    // The rewritten spans MUST keep their ids: #hydration-progress-text is the
-    // parent of #hydration-current and #hydration-target, and the old markup
-    // dropped both ids — so the first run destroyed the spans and every later
-    // run (including the second call inside the same init) threw on the
-    // nulled lookups, aborting init before the inputs were wired.
-    progressText.innerHTML = `${emoji} You've had <span id="hydration-current" style="color:var(--accent);font-weight:600;">${hydrationTodayIntake.toFixed(1)}</span> of <span id="hydration-target" style="color:#39ff14;font-weight:600;">${hydrationDailyTarget.toFixed(1)}</span> liters today`;
-  }
+  // Update the percentage badge, then redraw the whole line. The spans must
+  // not be assumed to exist: hydrationCelebrate() is showing its own message
+  // for three seconds and the line's children are whatever it put there.
+  const percent = card.querySelector('#hydration-progress-percent');
+  if (percent) percent.textContent = Math.round(percentage) + '%';
+
+  let emoji = '💧';
+  if (percentage < 50) emoji = '⚠️';
+  if (percentage >= 50 && percentage < 80) emoji = '👍';
+  if (percentage >= 80 && percentage < 100) emoji = '🚰';
+  if (percentage >= 100) emoji = '🎉';
+  hydrationProgressLine(emoji);
 }
 
 // Reset today's intake
@@ -629,16 +640,20 @@ function hydrationCelebrate() {
   const title = card.querySelector('#hydration-title');
   
   // Add celebration animation
-  title.style.animation = 'pulse 1s 3';
+  if (title) title.style.animation = 'pulse 1s 3';
   
-  // Show congratulatory message
-  const originalStatus = card.querySelector('#hydration-progress-text').innerHTML;
-  card.querySelector('#hydration-progress-text').innerHTML = 
-    '🎉 <strong style="color:#39ff14;">GOAL ACHIEVED!</strong> Excellent hydration! 🎉';
-  
+  // Show congratulatory message. It is restored by redrawing the line rather
+  // than by replaying a snapshot of it: a drink logged during those three
+  // seconds would otherwise be missing from the numbers when they come back.
+  const line = card.querySelector('#hydration-progress-text');
+  if (line) {
+    line.innerHTML =
+      '🎉 <strong style="color:#39ff14;">GOAL ACHIEVED!</strong> Excellent hydration! 🎉';
+  }
+
   setTimeout(() => {
-    card.querySelector('#hydration-progress-text').innerHTML = originalStatus;
-    title.style.animation = '';
+    hydrationProgressLine('🎉');
+    if (title) title.style.animation = '';
   }, 3000);
 }
 

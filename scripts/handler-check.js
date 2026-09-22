@@ -4,7 +4,7 @@
  *
  *   node scripts/handler-check.js cards/some-tool.html [more cards...]
  *   node scripts/handler-check.js --changed   # cards touched vs HEAD (fast)
- *   node scripts/handler-check.js --all
+ *   node scripts/handler-check.js --all [--json FILE]
  *
  * Why this exists next to test-card.js. That harness clicks every control it
  * finds in the mounted container, which is the right test — a click is what a
@@ -28,7 +28,9 @@
  * Names are extracted conservatively — string literals, comments and property
  * access are stripped first — because a false positive here costs a maintainer
  * the same as a false negative: the check stops being read. `--json` lists
- * every handler inspected so a disagreement can be settled from the output.
+ * every handler inspected so a disagreement can be settled from the output —
+ * to FILE if one is named, otherwise handler-check.json in the repository root
+ * (which is gitignored: it is a reading, not a source file).
  */
 'use strict';
 
@@ -329,10 +331,15 @@ function checkCard(rel, report) {
 
 function main() {
   const args = process.argv.slice(2);
-  const JSON_OUT = args.includes('--json');
+  // `--json [FILE]` — a reading belongs wherever the caller wants it, and never
+  // in the working tree by accident: the default file is gitignored.
+  const jsonAt = args.indexOf('--json');
+  const JSON_OUT = jsonAt !== -1;
+  const JSON_FILE = JSON_OUT && args[jsonAt + 1] && !args[jsonAt + 1].startsWith('--')
+    ? args[jsonAt + 1] : path.join(ROOT, 'handler-check.json');
   const ALL = args.includes('--all');
   const CHANGED = args.includes('--changed');
-  let files = args.filter(a => !a.startsWith('--'));
+  let files = args.filter((a, i) => !a.startsWith('--') && i !== jsonAt + 1);
   if (CHANGED) {
     files = changedCards();
     if (!files.length) {
@@ -345,7 +352,7 @@ function main() {
     files = fs.readdirSync(CARDS).filter(f => f.endsWith('.html')).sort().map(f => `cards/${f}`);
   }
   if (!files.length) {
-    console.error('usage: node scripts/handler-check.js cards/x.html [more] | --changed | --all [--json]');
+    console.error('usage: node scripts/handler-check.js cards/x.html [more] | --changed | --all [--json [FILE]]');
     process.exit(2);
   }
   let cards = 0, handlersSeen = 0, failed = 0;
@@ -365,8 +372,10 @@ function main() {
     if (JSON_OUT) payload[rel] = result;
   }
   if (JSON_OUT) {
-    fs.writeFileSync(path.join(ROOT, 'handler-check.json'), JSON.stringify(payload, null, 2));
-    console.log(`read ${handlersSeen} handler(s) in ${cards} card(s); wrote handler-check.json`);
+    fs.writeFileSync(JSON_FILE, JSON.stringify(payload, null, 2));
+    const shown = path.relative(ROOT, JSON_FILE);
+    console.log(`read ${handlersSeen} handler(s) in ${cards} card(s); ` +
+                `wrote ${shown && !shown.startsWith('..') ? shown : JSON_FILE}`);
   } else {
     console.log(`\n${cards} card(s), ${handlersSeen} inline handler(s): ` +
                 (failed ? `${failed} card(s) with an unreachable handler` : 'every handler resolves'));

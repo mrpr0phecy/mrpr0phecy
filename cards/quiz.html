@@ -369,7 +369,11 @@ function qgRemoveOption(btn) {
 function qgAddQuestion() {
     const questionText = document.getElementById('qg-question').value.trim();
     const type = document.getElementById('qg-question-type').value;
-    const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+    // Belt and braces: the group has a default selection, and this falls back
+    // to it rather than throwing if some future path leaves nothing checked.
+    const difficultyPick = document.querySelector('input[name="difficulty"]:checked')
+        || document.querySelector('input[name="difficulty"]');
+    const difficulty = difficultyPick ? difficultyPick.value : 'easy';
     const category = document.getElementById('qg-category').value.trim();
     
     if (!questionText) {
@@ -458,10 +462,16 @@ function qgClearCurrent() {
     document.getElementById('qg-short-answer-input').value = '';
     document.getElementById('qg-open-ended-input').value = '';
     
-    // Reset radio buttons
-    document.querySelectorAll('input[type="radio"]').forEach(radio => {
-        radio.checked = false;
-    });
+    // Reset the ANSWER radios only, and put the difficulty group back on its
+    // default. This used to uncheck every radio in the document, difficulty
+    // included — and qgAddQuestion reads `input[name="difficulty"]:checked`
+    // before it looks at anything else, so after adding one question the next
+    // Add Question threw on a null lookup and added nothing. The first
+    // question worked, the second silently did not.
+    document.querySelectorAll('input[name="correct-option"], input[name="true-false"]')
+        .forEach(radio => { radio.checked = false; });
+    const defaultDifficulty = document.querySelector('input[name="difficulty"][value="easy"]');
+    if (defaultDifficulty) defaultDifficulty.checked = true;
     
     // Reset multiple choice options to 2
     const container = document.getElementById('qg-options-container');

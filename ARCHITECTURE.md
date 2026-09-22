@@ -1079,6 +1079,19 @@ production curls). The individual manual checks:
 # JS syntax inside a page (extract each <script> and run node --check)
 node --check extracted.js
 
+# Card JavaScript, three questions. Does it parse at all; does every inline
+# `on*=` handler resolve in the window scope it will run in; and does any card
+# index two arrays of different lengths with the same index. The third check is
+# there because creative-writing.html drew one index from 12 plot titles and
+# used it on 8 plot descriptions and 8 plot structures — four clicks in ten
+# read undefined and the generator threw, while the syntax was valid, the
+# handlers resolved and the card answered its own button on the other six.
+# verify.sh runs all three on changed cards in the gate and over cards/ on
+# --deep.
+python3 scripts/check-card-js.py --all
+node scripts/handler-check.js --all
+node scripts/check-parallel-arrays.js --all
+
 # Placeholders that must never ship
 grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
 
