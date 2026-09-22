@@ -3,7 +3,7 @@
  * test-card.js — smoke-test a card fragment the way tool.html loads it.
  *
  *   node scripts/test-card.js cards/my-tool.html [more cards...]
- *   node scripts/test-card.js --all               # every card, ~2.5 minutes
+ *   node scripts/test-card.js --all               # every card, ~7 minutes
  *
  * What it checks (each FAIL exits 1):
  *   - the file is a fragment (no doctype/html/head/body outside <script>)
@@ -31,6 +31,15 @@
  * and DOM appended outside the container is never cleaned up. Anything that
  * throws there is reported as a LEAK and names the card that caused it.
  *
+ * jsdom does not fetch external resources, so a card that appends a CDN
+ * <script> and waits for it never gets its callback here. That path is poked by
+ * hand once the container is gone — `load` and `error` both — because on a slow
+ * connection it is exactly what happens to a visitor who opens a card, sees the
+ * spinner, and picks another tool: the library lands, the handler runs, and it
+ * writes to markup that was removed. Reading the leftovers then waits a second
+ * longer before calling a node permanent: several cards clean up on a 400-500 ms
+ * timer, and a snapshot taken too early cannot tell that from a node that stays.
+ *
  * One window per card costs about what a window per batch of forty did — the
  * card's own execution dominates, not the jsdom boot — and it is the only
  * arrangement where every error is attributable. Attribution by "has this error
@@ -54,11 +63,11 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-let JSDOM;
+let JSDOM, VirtualConsole;
 try {
-  ({ JSDOM } = require(path.join('/tmp/tenv/node_modules/jsdom')));
+  ({ JSDOM, VirtualConsole } = require(path.join('/tmp/tenv/node_modules/jsdom')));
 } catch (_) {
-  try { ({ JSDOM } = require('jsdom')); } catch (e) {
+  try { ({ JSDOM, VirtualConsole } = require('jsdom')); } catch (e) {
     console.error('jsdom not found. Install with: mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom');
     process.exit(2);
   }
@@ -105,7 +114,8 @@ for (const rel of files) {
   const base = path.basename(rel);
   if (!fs.existsSync(abs)) { fail(rel, 'file not found'); continue; }
   const html = fs.readFileSync(abs, 'utf8');
-  parsedCards.push({ rel, base, html });
+  const card = { rel, base, html };
+  parsedCards.push(card);
 
   // 1. fragment
   const stripped = html.replace(/<script\b[\s\S]*?<\/script>/gi, '').replace(/<!--[\s\S]*?-->/g, '');
@@ -119,6 +129,10 @@ for (const rel of files) {
 
   // 3. scripts parse
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+  // Where each <script> block starts *in the file*, so a throw can be reported
+  // as a line of the card rather than a line of an anonymous eval.
+  card.scriptLines = scripts.map(s =>
+    html.slice(0, s.index + s[0].indexOf('>') + 1).split('\n').length);
   scripts.forEach((s, i) => {
     if (/type=["'](application\/json|text\/template|text\/plain)/i.test(s[1])) return;
     try { new Function(s[2]); } catch (e) { fail(rel, `script #${i + 1} does not parse: ${e.message}`); }
@@ -156,14 +170,57 @@ for (const rel of files) {
 }
 
 // ---------------------------------------------------------------- jsdom mount
+// A throw from inside a card's own callback comes back with a stack whose only
+// useful frame is a line number *inside the block that was eval'd* — "Cannot
+// read properties of null" says nothing about where in a 3,000-line card it
+// happened. The block text and the block's first line in the file are both
+// known here, so the statement can be printed with the error: that is the
+// difference between a report you act on and one you re-derive by hand.
+function locate(err, blocks) {
+  const stack = (err && err.stack) || '';
+  const m = /card-block-(\d+)\.js:(\d+):(\d+)/.exec(stack) ||
+            /<anonymous>:(\d+):(\d+)/.exec(stack);
+  if (!m) return '';
+  // two shapes: named block (3 groups) or anonymous eval (2 groups)
+  const blockNo = m.length === 4 ? Number(m[1]) : 0;
+  const n = Number(m.length === 4 ? m[2] : m[1]);
+  const col = m.length === 4 ? m[3] : m[2];
+  const order = blockNo ? [blocks[blockNo - 1], ...blocks] : blocks;
+  for (const b of order) {
+    if (!b) continue;
+    const line = String(b.text).split('\n')[n - 1];
+    if (line !== undefined && line.trim()) {
+      return ` [card line ${b.startLine + n - 1}:${col}: ${line.trim().slice(0, 100)}]`;
+    }
+  }
+  return '';
+}
+
 // One stubbed jsdom window; `currentRel` labels errors with the card being
 // mounted/poked when they fire (uncaught events are async and can only be
 // attributed to the card in flight — batch mode re-runs in isolation before
 // reporting, so a mis-attributed error cannot fail a clean card).
 function makeWindow(sink) {
+  // jsdom's window has its own error channel: an exception thrown inside a
+  // timer or an event handler it dispatched arrives here as a `jsdomError`, not
+  // as a node-level uncaughtException and not always as a window `error` event.
+  // Left alone it goes to the default console — the stack is printed, no card
+  // is charged, and a run reports ALL PASSED over a card that threw. Own it.
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', err => {
+    const message = err && err.message ? err.message : String(err);
+    // jsdom's own gaps (confirm(), requestSubmit(), navigation) are not card
+    // defects and are already visible in the harness source as stubs.
+    if (/not implemented/i.test(message)) return;
+    sink.push(`uncaught in the window: ${message.slice(0, 160)}`);
+  });
+
+  const pending = [];
+  const intervals = [];
   const dom = new JSDOM(shellHtml, {
     runScripts: 'outside-only',
     pretendToBeVisual: true,
+    virtualConsole,
     url: 'https://www.themostusefulsiteintheworld.com/',
     beforeParse(window) {
       window.alert = msg => sink.push(`alert(): ${String(msg).slice(0, 80)}`);
@@ -184,6 +241,40 @@ function makeWindow(sink) {
       };
       window.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
       window.HTMLCanvasElement.prototype.toBlob = cb => cb && cb(new window.Blob([]));
+      // Every one-shot timer the card schedules is recorded, so the harness can
+      // fire the ones still pending when the visitor leaves. Those are the
+      // callbacks the old spin never reached: a 500 ms preview, a 3 s toast, a
+      // 1 s auto-save and a 16 ms animation frame all look the same from here,
+      // and jsdom will not run one of them on its own after `window.close()`.
+      const realSetTimeout = window.setTimeout.bind(window);
+      const realClearTimeout = window.clearTimeout.bind(window);
+      window.setTimeout = function (fn, ms, ...rest) {
+        const handle = realSetTimeout(fn, ms, ...rest);
+        if (typeof fn === 'function') pending.push({ handle, fn, rest });
+        return handle;
+      };
+      window.clearTimeout = function (handle) {
+        const i = pending.findIndex(t => t.handle === handle);
+        if (i >= 0) pending.splice(i, 1);
+        return realClearTimeout(handle);
+      };
+      // Repeating timers are the same problem with a longer fuse: they fire
+      // again, so the guard has to live in the callback, not in the code that
+      // scheduled it. Recorded for the same fast-forward, which ticks each one
+      // twice after teardown — the first tick is the one a correct guard
+      // catches, the second is the one that catches a guard written wrong.
+      const realSetInterval = window.setInterval.bind(window);
+      const realClearInterval = window.clearInterval.bind(window);
+      window.setInterval = function (fn, ms, ...rest) {
+        const handle = realSetInterval(fn, ms, ...rest);
+        if (typeof fn === 'function') intervals.push({ handle, fn, rest });
+        return handle;
+      };
+      window.clearInterval = function (handle) {
+        const i = intervals.findIndex(t => t.handle === handle);
+        if (i >= 0) intervals.splice(i, 1);
+        return realClearInterval(handle);
+      };
       window.requestAnimationFrame = cb => window.setTimeout(() => cb(Date.now()), 16);
       window.cancelAnimationFrame = id => window.clearTimeout(id);
       window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
@@ -201,6 +292,11 @@ function makeWindow(sink) {
       window.speechSynthesis = { speak() {}, cancel() {}, getVoices: () => [], pause() {}, resume() {}, speaking: false, addEventListener() {} };
       window.SpeechSynthesisUtterance = function (t) { this.text = t; };
       window.navigator.clipboard = { writeText: () => Promise.resolve(), readText: () => Promise.resolve('') };
+      // jsdom ships no execCommand, so a card that falls back to it (the
+      // select-and-copy trick) lands in its own catch and never reaches the
+      // cleanup that follows — which then looks like a leak the card does not
+      // have. Browsers still have it; a stub keeps the harness honest.
+      window.document.execCommand = () => true;
       const store = {};
       const ls = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; }, clear: () => { for (const k in store) delete store[k]; }, key: i => Object.keys(store)[i] || null, get length() { return Object.keys(store).length; } };
       Object.defineProperty(window, 'localStorage', { value: ls, configurable: true });
@@ -210,9 +306,21 @@ function makeWindow(sink) {
     },
   });
   const { window } = dom;
-  window.addEventListener('error', e => sink.push(`uncaught: ${e.message}`));
-  window.console.error = (...a) => sink.push('console.error: ' + a.map(String).join(' ').slice(0, 160));
-  return { dom, window };
+  // A card that catches its own deferred throw leaves only the log line, so the
+  // log has to carry the location too — otherwise "Calculation error: TypeError"
+  // is all a sweep can say about it.
+  const logged = (...a) => {
+    // the card's Error is a jsdom-realm object, so duck-type it rather than
+    // ask `instanceof Error` across realms
+    const err = a.find(x => x && typeof x === 'object' && typeof x.stack === 'string');
+    sink.push('console.error: ' + a.map(String).join(' ').slice(0, 160) +
+              (err ? locate(err, window.__blocks) : ''));
+  };
+  window.addEventListener('error', e => {
+    sink.push(`uncaught: ${e.message}` + (e.error ? locate(e.error, window.__blocks) : ''));
+  });
+  window.console.error = logged;
+  return { dom, window, pending, intervals };
 }
 
 // Mount one card into a container inside window, run its scripts, fire
@@ -239,15 +347,29 @@ async function mountCard(card, window, sink) {
   container.appendChild(content);
 
   // run each script with document.currentScript pointing at an element in the container
-  for (const s of parsedScripts) {
+  const blocks = [];
+  let cursor = 0;
+  for (const [blockIndex, s] of parsedScripts.entries()) {
+    // The block's own text is the only reliable handle on where it starts: a
+    // card can quote `<script>` in its prose, and then counting tags in the raw
+    // file drifts by one and every reported line is wrong.
+    const at = html.indexOf(s.textContent, cursor);
+    if (at >= 0) cursor = at + s.textContent.length;
+    const startLine = at >= 0
+      ? html.slice(0, at).split('\n').length
+      : ((card.scriptLines || [])[blockIndex] || 1);
+    blocks.push({ text: s.textContent, startLine });
     const el = doc.createElement('script');
     Array.from(s.attributes).forEach(a => el.setAttribute(a.name, a.value));
     container.appendChild(el);
     try {
       Object.defineProperty(doc, 'currentScript', { value: el, configurable: true });
-      window.eval(s.textContent);
+      // The sourceURL names the block in the stack, which is how locate() tells
+      // a line in block 3 from the same line number in block 1.
+      window.eval(s.textContent + `\n//# sourceURL=card-block-${blockIndex + 1}.js`);
     } catch (e) {
-      errors.push(`threw during execution: ${e && e.stack ? e.stack.split('\n').slice(0, 2).join(' | ') : e}`);
+      errors.push(`threw during execution: ${e && e.message ? e.message : e}` +
+                  locate(e, blocks));
     }
   }
 
@@ -274,7 +396,8 @@ async function mountCard(card, window, sink) {
   }
   // The wait for timers/promises happens in the caller, asynchronously; a spin
   // here would starve the very queue it is waiting on.
-  return { errors, container };
+  window.__blocks = blocks;  // for locate() from console.error and error events
+  return { errors, container, blocks };
 }
 
 // ---------------------------------------------------------------- 7. mount + execute
@@ -303,6 +426,11 @@ async function mountCard(card, window, sink) {
 // leftover probe used a spin to "wait" three seconds.
 const SETTLE_MS = 120;
 
+// How long a leftover gets to prove it is temporary. Several cards remove the
+// anchor or toast they appended on a 400-500 ms timer; only a second look can
+// tell those from a node that is never coming back.
+const LINGER_MS = 900;
+
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // A card's deferred callback runs on node's timer queue (the jsdom window is
@@ -313,13 +441,15 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 // every other error; without this the harness aborted at the first card whose
 // timer threw and reported nothing for the 409 cards after it.
 let inFlight = null;
+let inFlightBlocks = null;
 process.on('uncaughtException', err => {
-  if (inFlight) inFlight.push(`deferred throw: ${err && err.message ? err.message : err}`);
-  else console.log(`  note (before any card): ${err && err.message ? err.message : err}`);
+  const message = err && err.message ? err.message : String(err);
+  if (inFlight) inFlight.push(`deferred throw: ${message}` + locate(err, inFlightBlocks));
+  else console.log(`  note (before any card): ${message}`);
 });
 process.on('unhandledRejection', reason => {
   const message = reason && reason.message ? reason.message : String(reason);
-  if (inFlight) inFlight.push(`deferred rejection: ${message}`);
+  if (inFlight) inFlight.push(`deferred rejection: ${message}` + locate(reason, inFlightBlocks));
 });
 
 (async () => {
@@ -329,12 +459,17 @@ process.on('unhandledRejection', reason => {
     const perCard = [];
     const sink = { push: e => perCard.push(e) };
     inFlight = perCard;
-    const { window } = makeWindow(sink);
+    const { window, pending, intervals } = makeWindow(sink);
     const before = new Set(window.document.body.children);
     const beforeHead = new Set(window.document.head.children);
     let container = null;
+    let blocks = null;
+    inFlightBlocks = null;
     try {
-      container = (await mountCard(card, window, sink)).container;
+      const mounted = await mountCard(card, window, sink);
+      container = mounted.container;
+      blocks = mounted.blocks;
+      inFlightBlocks = blocks;
     } catch (e) {
       perCard.push(`mount threw: ${e && e.message ? e.message : e}`);
     }
@@ -356,19 +491,84 @@ process.on('unhandledRejection', reason => {
     for (const fire of nextMove) {
       try { fire(); } catch (e) { perCard.push(`after teardown: ${e && e.message ? e.message : e}`); }
     }
-    await delay(SETTLE_MS);
+    // Time passes on the page the visitor moved to: every timer the card still
+    // had pending when its container was cleared fires now. Two waves — what
+    // was pending at teardown, then what that scheduled — because a card that
+    // re-arms itself (an animation loop, a save-every-second) would otherwise
+    // keep the flush running for as long as its own schedule allows.
+    for (let wave = 0; wave < 2 && pending.length; wave++) {
+      for (const t of pending.splice(0, pending.length)) {
+        try { t.fn(...t.rest); }
+        catch (e) {
+          perCard.push(`after teardown (timer): ${e && e.message ? e.message : e}` +
+                       locate(e, blocks));
+        }
+      }
+      await delay(0);
+    }
+
+    // Two more ticks of every interval the card never cleared. A repeating
+    // timer that only fails on its second tick is a real pattern — the first
+    // one is what a `clearInterval` guard is supposed to catch — and jsdom will
+    // not run it again after the window closes.
+    for (let tick = 0; tick < 2 && intervals.length; tick++) {
+      for (const t of intervals.splice(0, intervals.length)) {
+        try { t.fn(...t.rest); }
+        catch (e) {
+          perCard.push(`after teardown (interval): ${e && e.message ? e.message : e}` +
+                       locate(e, blocks));
+        }
+        intervals.push(t);  // still armed for the next tick, unless it cleared itself
+      }
+      await delay(0);
+    }
+
+    // A <script> the card appended itself is still waiting when the visitor
+    // leaves. Fire what a real network would: whichever way it lands, the
+    // card's continuation runs now, against markup that is gone.
+    const lateScripts = [
+      ...Array.from(window.document.body.children).filter(el => !before.has(el) && el.tagName === 'SCRIPT'),
+      ...Array.from(window.document.head.children).filter(el => !beforeHead.has(el) && el.tagName === 'SCRIPT'),
+    ];
+    if (lateScripts.length) {
+      for (const el of lateScripts) {
+        for (const type of ['load', 'error']) {
+          try { el.dispatchEvent(new window.Event(type)); }
+          catch (e) {
+            perCard.push(`after teardown (script ${type}): ${e && e.message ? e.message : e}` +
+                         locate(e, blocks));
+          }
+        }
+      }
+      await delay(SETTLE_MS);
+    }
     const leftBehind = [...new Set(perCard.slice(mark))];
 
     // What is still in the document that the card brought with it. <style> and
     // <link> are excluded: inert once scoped, and check-card-css-leaks.py
     // proves every one of them is.
     const inert = el => ['STYLE', 'LINK'].includes(el.tagName);
-    const left = [
-      ...Array.from(window.document.body.children).filter(el => !before.has(el) && !inert(el)),
-      ...Array.from(window.document.head.children).filter(el => !beforeHead.has(el) && !inert(el)),
-    ].map(el => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}`);
+    const parked = [];
+    for (const parent of [window.document.body, window.document.head]) {
+      const seen = parent === window.document.body ? before : beforeHead;
+      for (const el of Array.from(parent.children)) {
+        if (!seen.has(el) && !inert(el)) {
+          parked.push({ el, label: `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}` });
+        }
+      }
+    }
+    // A card that cleans up on its own 400-500 ms timer looks identical to one
+    // that never cleans up, if you only look once — the spin-era probe made a
+    // self-removing toast look permanent for exactly this reason.
+    let transient = 0;
+    if (parked.length) {
+      await delay(LINGER_MS);
+      transient = parked.filter(x => !x.el.isConnected).length;
+    }
+    const left = parked.filter(x => x.el.isConnected).map(x => x.label);
     window.close();
     inFlight = null;
+    inFlightBlocks = null;
 
     if (mountedErrors.length) {
       mountedErrors.slice(0, 6).forEach(e => fail(card.rel, e));
@@ -378,9 +578,9 @@ process.on('unhandledRejection', reason => {
     if (leftBehind.length) {
       leaking++;
       console.log(`  LEAK ${card.rel} — still runs after the next tool opens:`);
-      leftBehind.slice(0, 3).forEach(e => console.log(`       ${e.slice(0, 120)}`));
+      leftBehind.slice(0, 4).forEach(e => console.log(`       ${e.slice(0, 220)}`));
     }
-    if (left.length) leftovers.push({ rel: card.rel, nodes: left });
+    if (left.length || transient) leftovers.push({ rel: card.rel, nodes: left, transient });
   }
 
   if (leaking) {
@@ -396,7 +596,10 @@ process.on('unhandledRejection', reason => {
                 `card, or a node parked in document.body that should live inside the card. ` +
                 `Nothing here is a failure by itself; run with --leftovers to list them.`);
     if (process.argv.includes('--leftovers')) {
-      for (const l of leftovers) console.log(`  ${l.rel}: ${l.nodes.join(', ')}`);
+      for (const l of leftovers) {
+        const cleaned = l.transient ? ` (${l.transient} more cleaned up by the card's own timer)` : '';
+        console.log(`  ${l.rel}: ${l.nodes.length ? l.nodes.join(', ') : 'nothing permanent'}${cleaned}`);
+      }
     }
   }
 
