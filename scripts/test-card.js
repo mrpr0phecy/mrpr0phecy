@@ -4,6 +4,7 @@
  *
  *   node scripts/test-card.js cards/my-tool.html [more cards...]
  *   node scripts/test-card.js --all               # every card, ~7 minutes
+ *   node scripts/test-card.js --all --response    # + does it actually respond?
  *
  * What it checks (each FAIL exits 1):
  *   - the file is a fragment (no doctype/html/head/body outside <script>)
@@ -30,6 +31,27 @@
  * `let`/`const`/`class`, listeners on `document`/`window` are never removed,
  * and DOM appended outside the container is never cleaned up. Anything that
  * throws there is reported as a LEAK and names the card that caused it.
+ *
+ * Inline handlers work too. 1,056 of the 1,250 cards wire their controls in
+ * markup (`<button onclick="mcCalculate(this)">`), and jsdom does not compile
+ * an `on*` attribute on its own: the attribute sits there, the button looks
+ * bound, and no click ever reaches the card's function. The harness compiles
+ * every one it inserts, in the window's own scope with `this` bound to the
+ * element, which is what a browser does. An attribute that will not compile
+ * (`onclick="calculate("`) is a button that can never work, and is reported.
+ *
+ * `--response` adds the one thing a throw-count cannot see. Everything above
+ * proves a card does not *break*; none of it proves the card *works*. A tool
+ * whose handler writes to an element that no longer exists in its own markup,
+ * or whose result is computed and never rendered, mounts clean, pokes clean and
+ * reports `ok`. So in that mode every field the card renders is filled with a
+ * plausible value first, then the card's own primary control is pressed
+ * (Calculate / Generate / Convert / Solve / …), and the document is compared
+ * with the state just before the press. Nothing changed, and the card is named.
+ * The verdict is written to be read by a person — it is a lead, not a proof:
+ * an animation or a 300 ms debounce can move the DOM on its own, so the probe
+ * takes a quiet reading and a settled reading and calls a card responsive only
+ * when the press is what moved something.
  *
  * jsdom does not fetch external resources, so a card that appends a CDN
  * <script> and waits for it never gets its callback here. That path is poked by
@@ -177,6 +199,11 @@ for (const rel of files) {
 // known here, so the statement can be printed with the error: that is the
 // difference between a report you act on and one you re-derive by hand.
 function locate(err, blocks) {
+  // `blocks` is undefined for an error that fires before a card is mounted (or
+  // after its window is closed). Iterating it threw "order is not iterable"
+  // inside the harness and was reported as if the card had done it — the one
+  // failure mode a harness must never have.
+  if (!blocks || !blocks.length) return '';
   const stack = (err && err.stack) || '';
   const m = /card-block-(\d+)\.js:(\d+):(\d+)/.exec(stack) ||
             /<anonymous>:(\d+):(\d+)/.exec(stack);
@@ -280,6 +307,15 @@ function makeWindow(sink) {
       window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
       window.scrollTo = () => {};
       window.HTMLElement.prototype.scrollIntoView = () => {};
+      // A card that builds a button with setAttribute('onclick', …) expects the
+      // browser's compile-on-set behaviour. jsdom has none, so the hook runs the
+      // same compile the mount pass runs below.
+      const realSetAttribute = window.Element.prototype.setAttribute;
+      window.Element.prototype.setAttribute = function (name, value) {
+        const out = realSetAttribute.call(this, name, value);
+        if (window.__compileInline) window.__compileInline(this, name, value);
+        return out;
+      };
       window.AudioContext = window.webkitAudioContext = function () {
         // AudioParam stub: real browsers provide setTargetAtTime /
         // cancelAndHoldAtTime on every AudioParam and a .pan param on
@@ -373,9 +409,79 @@ async function mountCard(card, window, sink) {
     }
   }
 
+  // Compile the card's inline handlers before anything is dispatched: an `on*`
+  // attribute is inert in jsdom, so without this the click sweep (and the
+  // --response probe) measure controls that are not wired to anything.
+  let inlineHandlers = 0;
+  const compileInline = (el, name, value) => {
+    if (!/^on[a-z]+$/.test(name)) return;
+    try {
+      el[name] = new window.Function('event', String(value));
+      inlineHandlers++;
+    } catch (e) {
+      errors.push(`inline ${name} does not compile, so that control can never ` +
+                  `fire: ${e.message} (was: ${String(value).slice(0, 60)})`);
+    }
+  };
+  window.__compileInline = compileInline;
+  for (const el of Array.from(container.querySelectorAll('*'))) {
+    for (const attr of Array.from(el.attributes)) compileInline(el, attr.name, attr.value);
+  }
+  if (inlineHandlers) card.inlineHandlers = inlineHandlers;
+
   // fire DOMContentLoaded/load handlers registered by the card, then poke the UI
   try { doc.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true })); } catch (e) { errors.push('DOMContentLoaded handler threw: ' + e.message); }
   try { window.dispatchEvent(new window.Event('load')); } catch (e) { errors.push('load handler threw: ' + e.message); }
+
+  // --response: give the card something to work with, then press its own
+  // primary control. Done before the blind click sweep, which then runs with
+  // the fields populated — a path no earlier harness ever reached.
+  let responseReady = null;
+  if (RESPONSE) {
+    const fingerprintOf = () => {
+      const root = doc.getElementById('toolbox-grid');
+      return [
+        container.outerHTML.length, container.outerHTML,
+        root ? root.children.length : 0,
+        doc.body.className, window.getComputedStyle(container).display,
+      ].join('\u0000');
+    };
+    // The reading is taken BEFORE a single field is touched. Half the catalogue
+    // recalculates as you type, so a press is often a no-op simply because the
+    // answer is already on screen — measuring after the fill called those cards
+    // unresponsive when they were the responsive ones.
+    const quiet = fingerprintOf();
+    const fields = Array.from(container.querySelectorAll('input, select, textarea')).slice(0, 80);
+    for (const i of fields) {
+      if (!i.isConnected) continue;
+      if (i.type === 'checkbox' || i.type === 'radio') {
+        i.checked = true;
+      } else if (i.tagName === 'SELECT') {
+        const usable = Array.from(i.options).find(o => o.value !== '' && !o.disabled);
+        if (usable) i.value = usable.value;
+      } else if (i.type === 'file' || i.type === 'hidden') {
+        continue;
+      } else if (i.value === '') {
+        i.value = TYPED[i.type] || TYPED.text;
+      }
+      try {
+        i.dispatchEvent(new window.Event('input', { bubbles: true }));
+        i.dispatchEvent(new window.Event('change', { bubbles: true }));
+      } catch (e) { errors.push('input event threw: ' + e.message); }
+    }
+    const controls = Array.from(container.querySelectorAll(PRIMARY_SELECTOR));
+    const label = c => ((c.textContent || c.value || c.getAttribute('aria-label') || '') + '').trim();
+    const primary = controls.filter(c => PRIMARY_WORDS.test(label(c)) && !SECONDARY_WORDS.test(label(c)));
+    const chosen = primary.length ? primary : controls.filter(c => !SECONDARY_WORDS.test(label(c)));
+    for (const c of chosen.slice(0, 6)) {
+      if (!c.isConnected) continue;
+      try { c.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true })); }
+      catch (e) { errors.push(`click on "${label(c).slice(0, 30)}" threw: ${e.message}`); }
+    }
+    responseReady = { quiet, chosen: chosen.map(label).slice(0, 6),
+                      fingerprint: fingerprintOf, hasInputs: fields.length > 0,
+                      anyControl: controls.length > 0 };
+  }
 
   // click every button once, fire input on every field — smoke, not semantics.
   // Nodes detached by an earlier click (e.g. a mode toggle that rewrites the
@@ -397,7 +503,7 @@ async function mountCard(card, window, sink) {
   // The wait for timers/promises happens in the caller, asynchronously; a spin
   // here would starve the very queue it is waiting on.
   window.__blocks = blocks;  // for locate() from console.error and error events
-  return { errors, container, blocks };
+  return { errors, container, blocks, responseReady };
 }
 
 // ---------------------------------------------------------------- 7. mount + execute
@@ -431,6 +537,20 @@ const SETTLE_MS = 120;
 // tell those from a node that is never coming back.
 const LINGER_MS = 900;
 
+// --response: what the probe types into an empty field, and which controls it
+// reads as "the thing this card is for".
+const RESPONSE = process.argv.includes('--response') || process.argv.includes('--strict-response');
+const STRICT_RESPONSE = process.argv.includes('--strict-response');
+const TYPED = {
+  number: '100', range: '50', date: '2026-01-01', 'datetime-local': '2026-01-01T09:00',
+  time: '09:00', month: '2026-01', week: '2026-W01', color: '#3366ff',
+  email: 'someone@example.com', tel: '07700900123', url: 'https://example.com/',
+  password: 'correct horse battery staple', search: 'mortgage', text: 'Hello world',
+};
+const PRIMARY_WORDS = /calculate|compute|convert|generate|solve|analyz|analys|estimate|work ?out|run|start|build|create|draw|render|check|test|measure|find|search|show|plot|simulate|apply|submit/i;
+const SECONDARY_WORDS = /reset|clear|copy|download|print|share|help|guide|close|back|settings|theme|menu|example|random|toggle|hide|show (help|guide|more)|more|less|next|prev/i;
+const PRIMARY_SELECTOR = 'button, [role=button], input[type=submit], input[type=button]';
+
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // A card's deferred callback runs on node's timer queue (the jsdom window is
@@ -455,6 +575,7 @@ process.on('unhandledRejection', reason => {
 (async () => {
   let leaking = 0;
   const leftovers = [];
+  const unresponsive = [];
   for (const card of parsedCards) {
     const perCard = [];
     const sink = { push: e => perCard.push(e) };
@@ -464,11 +585,13 @@ process.on('unhandledRejection', reason => {
     const beforeHead = new Set(window.document.head.children);
     let container = null;
     let blocks = null;
+    let responseReady = null;
     inFlightBlocks = null;
     try {
       const mounted = await mountCard(card, window, sink);
       container = mounted.container;
       blocks = mounted.blocks;
+      responseReady = mounted.responseReady;
       inFlightBlocks = blocks;
     } catch (e) {
       perCard.push(`mount threw: ${e && e.message ? e.message : e}`);
@@ -476,6 +599,13 @@ process.on('unhandledRejection', reason => {
     // Let the card's own timers, promises and animation frames run: that is
     // when a deferred throw surfaces, and it belongs to this card.
     await delay(SETTLE_MS);
+    // --response: the settled reading. A press that only queues a debounce has
+    // changed nothing yet; this is the second chance for it to show itself.
+    let responsive = null;
+    if (responseReady) {
+      const settled = responseReady.fingerprint();
+      responsive = settled !== responseReady.quiet;
+    }
     const mountedErrors = [...new Set(perCard)];
 
     // The visitor has opened another tool: the loader clears its container and
@@ -581,6 +711,10 @@ process.on('unhandledRejection', reason => {
       leftBehind.slice(0, 4).forEach(e => console.log(`       ${e.slice(0, 220)}`));
     }
     if (left.length || transient) leftovers.push({ rel: card.rel, nodes: left, transient });
+    if (RESPONSE && responsive === false && (responseReady.chosen.length || responseReady.hasInputs)) {
+      unresponsive.push({ rel: card.rel, pressed: responseReady.chosen,
+                          inputs: responseReady.hasInputs });
+    }
   }
 
   if (leaking) {
@@ -601,6 +735,20 @@ process.on('unhandledRejection', reason => {
         console.log(`  ${l.rel}: ${l.nodes.length ? l.nodes.join(', ') : 'nothing permanent'}${cleaned}`);
       }
     }
+  }
+
+  if (RESPONSE) {
+    console.log(`\n${unresponsive.length} of ${parsedCards.length} card(s) did not respond to ` +
+                `their own main control: every field was filled with a plausible value, the ` +
+                `card's Calculate/Generate/Convert-style button was pressed, and nothing in the ` +
+                `page changed — not the markup, not an attribute, not the layout. Some of these ` +
+                `are cards that only react to something else (a keystroke, a file, a timer); the ` +
+                `rest are tools whose result never reaches the page.`);
+    for (const u of unresponsive) {
+      console.log(`  ${u.rel}: pressed ${u.pressed.map(p => `"${p.slice(0, 28)}"`).join(', ')}` +
+                  (u.inputs ? '' : ' (no fields to fill)'));
+    }
+    if (STRICT_RESPONSE) fails += unresponsive.length;
   }
 
   console.log(fails === 0

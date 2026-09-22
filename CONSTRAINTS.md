@@ -178,13 +178,35 @@ A callback that catches its own throw is reported through the `console.error` it
 writes, named with the card line that threw it, so a swallowed error is still
 visible.
 
-61 sites across 57 cards were live on 2026-09-22; the guard goes at the top of
-whatever the timer calls:
+61 sites across 57 cards were live on 2026-09-22, and a second wave of 28 was
+found the same day once the harness could run the timers. The guard goes at the
+top of whatever the timer calls:
 
     function recalc() {
       if (!document.getElementById('your-input')) return;   // card is gone
       …
     }
+
+Two traps that cost time finding those:
+
+**`card.querySelector(...)` is not a liveness test.** Once the container has
+been detached it still holds its children, so a guard written against the card
+object passes while the element is off the page. Check the document —
+`document.getElementById('your-root-id')` — which is the only thing that says
+whether the visitor is still looking at you.
+
+**A `while` loop over a `querySelectorAll` result never ends.** That NodeList is
+STATIC: `remove()` does not change `options.length`, so the loop removes the
+same detached node for ever and the tab freezes. `cards/quiz.html` shipped it in
+its Clear button (add a third option, press Clear, lose the tab) until
+2026-09-22. Copy the list and shrink the copy, or re-query each pass:
+
+    const options = Array.from(container.querySelectorAll('.option-item'));
+    while (options.length > 2) options.pop().remove();
+
+`scripts/check-card-js.py` fails that shape statically, and
+`scripts/sweep-cards.js` runs the harness in chunks with a timeout so a card
+that never returns is NAMED rather than costing the whole sweep.
 
 **A card's `<style>` is document-wide too.** The loader re-creates the
 fragment's `<style>` blocks inside `tool.html`'s own document, and a style
