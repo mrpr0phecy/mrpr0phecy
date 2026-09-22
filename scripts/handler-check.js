@@ -40,12 +40,19 @@ const vm = require('vm');
 // Same resolution order as test-card.js: the shared scratch install first (the
 // repo itself carries no node_modules), then whatever node can find.
 let JSDOM, VirtualConsole;
+// jsdom is deliberately not a repository dependency (the site ships zero
+// dependencies), so it lives outside the workspace. When it is missing this
+// SKIPs loudly and exits 0, like the jsdom-based suites — a developer without
+// the scratch install must not see the gate fail and read it as a broken
+// repository. CI installs it (see .github/workflows/verify.yml) so this is a
+// real check where it matters.
 try {
   ({ JSDOM, VirtualConsole } = require('/tmp/tenv/node_modules/jsdom'));
 } catch (_) {
   try { ({ JSDOM, VirtualConsole } = require('jsdom')); } catch (e) {
-    console.error('jsdom not found. Install with: mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom');
-    process.exit(2);
+    console.log('SKIP handler-check: jsdom not installed ' +
+                '(mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom)');
+    process.exit(0);
   }
 }
 

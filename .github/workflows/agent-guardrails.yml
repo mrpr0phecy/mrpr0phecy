@@ -35,6 +35,18 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+      # The card checks (inline handlers, and anything driven through jsdom)
+      # need jsdom, which is deliberately NOT a repository dependency — the site
+      # ships zero dependencies and AGENTS.md keeps the module out of the tree.
+      # The suites SKIP loudly without it, which meant "repo checks passed"
+      # while the handler sweep had not run at all. Install it outside the
+      # checkout, where every script already looks first.
+      - name: Install jsdom (outside the repository)
+        run: |
+          mkdir -p /tmp/tenv
+          cd /tmp/tenv
+          npm init -y >/dev/null 2>&1
+          npm install jsdom --no-audit --no-fund --loglevel=error
       - name: Verify (gate + deep audits)
         run: bash scripts/verify.sh --deep
       - name: Attach catalogue report

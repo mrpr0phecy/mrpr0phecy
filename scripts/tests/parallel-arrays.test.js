@@ -17,8 +17,11 @@
 // a single shared index over equal-length arrays, and an index that is clamped
 // before use (a note, not a defect).
 //
-// Fixtures live in scripts/tests/fixtures/ so they cannot be mistaken for
-// shipped cards: cards/ is the catalogue and every file in it is published.
+// Fixtures live in scripts/tests/fixtures/ and deliberately do NOT end in
+// .html: the sitemap lists every git-tracked .html file in the repository
+// (everything tracked is published by Pages), so a fixture named .html is a
+// fixture that ships to the live site — the deep audit caught exactly that on
+// the first run with these files.
 
 const fs = require('fs');
 const path = require('path');
@@ -39,9 +42,9 @@ function run(file) {
 }
 
 const fixtures = {
-  mismatch: path.join(FIXTURES, 'parallel-arrays-mismatch.html'),
-  ok: path.join(FIXTURES, 'parallel-arrays-ok.html'),
-  lookalikes: path.join(FIXTURES, 'parallel-arrays-lookalikes.html'),
+  mismatch: path.join(FIXTURES, 'parallel-arrays-mismatch.card'),
+  ok: path.join(FIXTURES, 'parallel-arrays-ok.card'),
+  lookalikes: path.join(FIXTURES, 'parallel-arrays-lookalikes.card'),
 };
 
 const tests = [];
@@ -50,7 +53,7 @@ function test(name, fn) { tests.push([name, fn]); }
 test('the shape that shipped: one index, three parallel arrays of different lengths', () => {
   const r = run(fixtures.mismatch);
   assert.strictEqual(r.code, 1, 'a mismatch must fail the check, not pass it silently');
-  assert.match(r.out, /FAIL .*parallel-arrays-mismatch\.html:\d+/,
+  assert.match(r.out, /FAIL .*parallel-arrays-mismatch\.card:\d+/,
     'the finding names the file and the line to fix');
   assert.match(r.out, /plotIndex is drawn from plotTitles \(12 entries\)/,
     'the finding names the index variable and the array it is in range for');
@@ -74,7 +77,7 @@ test('the look-alikes are not reported: own-length index, single array, clamped 
 });
 
 test('a clamped index is a note, not a failure', () => {
-  const clamped = path.join(FIXTURES, 'parallel-arrays-clamped.html');
+  const clamped = path.join(FIXTURES, 'parallel-arrays-clamped.card');
   const r = run(clamped);
   assert.strictEqual(r.code, 0, 'a clamped index cannot read undefined, so it must not fail the run');
   assert.match(r.out, /NOTE/, 'but it is still worth seeing that two arrays were assumed parallel');
