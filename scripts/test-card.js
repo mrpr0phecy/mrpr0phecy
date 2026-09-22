@@ -217,7 +217,7 @@ function makeWindow(sink) {
 
 // Mount one card into a container inside window, run its scripts, fire
 // DOMContentLoaded/load, poke the UI, settle. Returns the error list.
-function mountCard(card, window, sink) {
+async function mountCard(card, window, sink) {
   const { rel, base, html } = card;
   const errors = [];
   const doc = window.document;
@@ -272,9 +272,8 @@ function mountCard(card, window, sink) {
       i.dispatchEvent(new window.Event('change', { bubbles: true }));
     } catch (e) { errors.push(`input event threw: ${e.message}`); }
   }
-  // let timers/RAF settle briefly
-  const t0 = Date.now();
-  while (Date.now() - t0 < 30) { /* spin: jsdom timers are real timers; a short sync wait is enough for setTimeout(…,0) */ }
+  // The wait for timers/promises happens in the caller, asynchronously; a spin
+  // here would starve the very queue it is waiting on.
   return { errors, container };
 }
 
@@ -296,54 +295,114 @@ function mountCard(card, window, sink) {
 // Cross-card global collisions are deliberately NOT this tool's job any more —
 // nothing is co-mounted, so it cannot see them; scripts/check-card-collisions.py
 // owns that class, and it fails the gate.
-let leaking = 0;
-for (const card of parsedCards) {
-  const perCard = [];
-  const sink = { push: e => perCard.push(e) };
-  const { window } = makeWindow(sink);
-  let container = null;
-  try {
-    container = mountCard(card, window, sink).container;
-  } catch (e) {
-    perCard.push(`mount threw: ${e && e.message ? e.message : e}`);
-  }
-  const mountedErrors = [...new Set(perCard)];
+// Settling is ASYNCHRONOUS on purpose. A synchronous spin — `while (Date.now()
+// - t0 < 30) {}` — blocks the event loop, so nothing a card scheduled with
+// setTimeout ever runs, and the harness was blind to every deferred failure:
+// a card whose rAF loop, timer or promise callback threw after mount reported
+// clean. The same trap made a self-removing toast look permanent when a
+// leftover probe used a spin to "wait" three seconds.
+const SETTLE_MS = 120;
 
-  // The visitor has opened another tool: the loader clears its container and
-  // dispatches DOMContentLoaded again, then clicks and types somewhere else.
-  if (container && container.isConnected) container.remove();
-  const mark = perCard.length;
-  const nextMove = [
-    () => window.document.dispatchEvent(new window.Event('DOMContentLoaded')),
-    () => window.document.dispatchEvent(new window.MouseEvent('click', { bubbles: true })),
-    () => window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'a', bubbles: true })),
-    () => window.document.dispatchEvent(new window.Event('input', { bubbles: true })),
-  ];
-  for (const fire of nextMove) {
-    try { fire(); } catch (e) { perCard.push(`after teardown: ${e && e.message ? e.message : e}`); }
-  }
-  window.close();
-  const leftovers = [...new Set(perCard.slice(mark))];
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-  if (mountedErrors.length) {
-    mountedErrors.slice(0, 6).forEach(e => fail(card.rel, e));
-  } else if (!leftovers.length) {
-    console.log(`  ok   ${card.rel}`);
+// A card's deferred callback runs on node's timer queue (the jsdom window is
+// created with runScripts:'outside-only' and its scripts run through
+// window.eval), so a throw inside one arrives here rather than in the window's
+// error event and would kill the whole sweep — 1,250 cards, one crash. The
+// handler attributes it to the card in flight, which is what the sink does for
+// every other error; without this the harness aborted at the first card whose
+// timer threw and reported nothing for the 409 cards after it.
+let inFlight = null;
+process.on('uncaughtException', err => {
+  if (inFlight) inFlight.push(`deferred throw: ${err && err.message ? err.message : err}`);
+  else console.log(`  note (before any card): ${err && err.message ? err.message : err}`);
+});
+process.on('unhandledRejection', reason => {
+  const message = reason && reason.message ? reason.message : String(reason);
+  if (inFlight) inFlight.push(`deferred rejection: ${message}`);
+});
+
+(async () => {
+  let leaking = 0;
+  const leftovers = [];
+  for (const card of parsedCards) {
+    const perCard = [];
+    const sink = { push: e => perCard.push(e) };
+    inFlight = perCard;
+    const { window } = makeWindow(sink);
+    const before = new Set(window.document.body.children);
+    const beforeHead = new Set(window.document.head.children);
+    let container = null;
+    try {
+      container = (await mountCard(card, window, sink)).container;
+    } catch (e) {
+      perCard.push(`mount threw: ${e && e.message ? e.message : e}`);
+    }
+    // Let the card's own timers, promises and animation frames run: that is
+    // when a deferred throw surfaces, and it belongs to this card.
+    await delay(SETTLE_MS);
+    const mountedErrors = [...new Set(perCard)];
+
+    // The visitor has opened another tool: the loader clears its container and
+    // dispatches DOMContentLoaded again, then clicks and types somewhere else.
+    if (container && container.isConnected) container.remove();
+    const mark = perCard.length;
+    const nextMove = [
+      () => window.document.dispatchEvent(new window.Event('DOMContentLoaded')),
+      () => window.document.dispatchEvent(new window.MouseEvent('click', { bubbles: true })),
+      () => window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'a', bubbles: true })),
+      () => window.document.dispatchEvent(new window.Event('input', { bubbles: true })),
+    ];
+    for (const fire of nextMove) {
+      try { fire(); } catch (e) { perCard.push(`after teardown: ${e && e.message ? e.message : e}`); }
+    }
+    await delay(SETTLE_MS);
+    const leftBehind = [...new Set(perCard.slice(mark))];
+
+    // What is still in the document that the card brought with it. <style> and
+    // <link> are excluded: inert once scoped, and check-card-css-leaks.py
+    // proves every one of them is.
+    const inert = el => ['STYLE', 'LINK'].includes(el.tagName);
+    const left = [
+      ...Array.from(window.document.body.children).filter(el => !before.has(el) && !inert(el)),
+      ...Array.from(window.document.head.children).filter(el => !beforeHead.has(el) && !inert(el)),
+    ].map(el => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}`);
+    window.close();
+    inFlight = null;
+
+    if (mountedErrors.length) {
+      mountedErrors.slice(0, 6).forEach(e => fail(card.rel, e));
+    } else if (!leftBehind.length) {
+      console.log(`  ok   ${card.rel}`);
+    }
+    if (leftBehind.length) {
+      leaking++;
+      console.log(`  LEAK ${card.rel} — still runs after the next tool opens:`);
+      leftBehind.slice(0, 3).forEach(e => console.log(`       ${e.slice(0, 120)}`));
+    }
+    if (left.length) leftovers.push({ rel: card.rel, nodes: left });
+  }
+
+  if (leaking) {
+    console.log(`\n${leaking} of ${parsedCards.length} card(s) still run code after their container ` +
+                `is cleared. tool.html cannot unregister a listener it did not add, so a handler ` +
+                `bound to \`document\` fires in every tool opened afterwards — bail out when the ` +
+                `card is gone (CONSTRAINTS.md, "A listener on \`document\` runs in the next tool too").`);
+    fails += leaking;
   }
   if (leftovers.length) {
-    leaking++;
-    console.log(`  LEAK ${card.rel} — still runs after the next tool opens:`);
-    leftovers.slice(0, 3).forEach(e => console.log(`       ${e.slice(0, 120)}`));
+    console.log(`\n${leftovers.length} of ${parsedCards.length} card(s) leave elements in the ` +
+                `document after their container is cleared — a toast or a helper that outlives the ` +
+                `card, or a node parked in document.body that should live inside the card. ` +
+                `Nothing here is a failure by itself; run with --leftovers to list them.`);
+    if (process.argv.includes('--leftovers')) {
+      for (const l of leftovers) console.log(`  ${l.rel}: ${l.nodes.join(', ')}`);
+    }
   }
-}
 
-if (leaking) {
-  console.log(`\n${leaking} of ${parsedCards.length} card(s) still run code after their container ` +
-              `is cleared. tool.html cannot unregister a listener it did not add, so a handler ` +
-              `bound to \`document\` fires in every tool opened afterwards — bail out when the ` +
-              `card is gone (CONSTRAINTS.md, "A listener on \`document\` runs in the next tool too").`);
-  fails += leaking;
-}
+  console.log(fails === 0
+    ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})`
+    : `\n${fails} problem(s)`);
+  process.exit(fails === 0 ? 0 : 1);
+})();
 
-console.log(fails === 0 ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})` : `\n${fails} problem(s)`);
-process.exit(fails === 0 ? 0 : 1);
