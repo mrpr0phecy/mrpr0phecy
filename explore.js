@@ -474,7 +474,6 @@
 
     var wanted = {};
     list.forEach(function (r) { wanted[r.slug] = true; });
-    var filtering = list.length !== state.rows.length;
 
     var groups = [];
     state.staticRows.forEach(function (item) {
@@ -692,7 +691,7 @@
   }
 
   function move(delta) {
-    var rows = els.list.querySelectorAll('.xp-row[data-slug]');
+    var rows = els.list.querySelectorAll('.xp-row[data-slug]:not([hidden])');
     if (!rows.length) return;
     state.current = Math.max(0, Math.min(rows.length - 1, state.current + delta));
     rows.forEach(function (r) { r.classList.remove('xp-current'); });
@@ -705,7 +704,7 @@
   }
 
   function currentRow() {
-    var rows = els.list.querySelectorAll('.xp-row[data-slug]');
+    var rows = els.list.querySelectorAll('.xp-row[data-slug]:not([hidden])');
     return state.current >= 0 && state.current < rows.length ? rows[state.current] : null;
   }
 
