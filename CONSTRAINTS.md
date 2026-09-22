@@ -131,6 +131,23 @@ Prefix every id and every top-level name; IIFE-wrap anything you touch.
 summarises the remaining soft `var`/`function` overwrites — run it rather than
 trusting a number written here, because the count moves with the catalogue.
 
+**A listener on `document` runs in the next tool too.** The loader clears its
+container and dispatches `DOMContentLoaded` again for every card the visitor
+opens, and it cannot unregister a listener it did not add — so a handler bound
+to `document` also fires when your card is no longer on the page, and reaching
+for your own markup then throws. Bind to your own elements where you can; where
+you must use `document`, bail out first:
+
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!document.getElementById('your-root-id')) return;   // card is gone
+      ...
+    });
+
+The `if (document.readyState === 'loading') … else init()` idiom is immune: in
+`tool.html` the document is already loaded, so the listener is never registered.
+`node scripts/test-card.js --leaks cards/*.html` proves it with one window per
+card; 108 cards failed it on 2026-09-22 and were fixed with this guard.
+
 **A card's `<style>` is document-wide too.** The loader re-creates the
 fragment's `<style>` blocks inside `tool.html`'s own document, and a style
 element's rules apply to the whole document wherever it sits. A bare

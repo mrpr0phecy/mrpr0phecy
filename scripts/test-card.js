@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * test-card.js — smoke-test a card fragment the way index.html loads it.
+ * test-card.js — smoke-test a card fragment the way tool.html loads it.
  *
  *   node scripts/test-card.js cards/my-tool.html [more cards...]
  *   node scripts/test-card.js --all               # every card
- *   node scripts/test-card.js --all --batch=40    # shared-DOM batch size
+ *   node scripts/test-card.js --all --batch=40    # window batch size
+ *   node scripts/test-card.js --leaks cards/*.html  # exact leftover audit
  *
  * What it checks (each FAIL exits 1):
  *   - the file is a fragment (no doctype/html/head/body outside <script>)
@@ -13,18 +14,43 @@
  *   - the fragment mounts into a shared DOM alongside the shell and its
  *     scripts execute with zero uncaught exceptions (jsdom; window.alert and
  *     console.error are captured, network calls are refused and reported)
- *   - no element ids collide with ids already used by other cards
+ *   - no element ids collide with ids already used by another card (a leak
+ *     rather than a duplicate: only DOM outside the container outlives one)
  *   - every target=_blank link carries rel=noopener
  *   - the card makes no network request (fetch/XHR/Image/src=https)
  *
  * Mount efficiency: one jsdom window per card is ~1 s of pure boot cost, so a
  * full --all sweep used to take half an hour. With more than one file the
- * script now mounts cards in BATCHES (default 40) of fragments into a single
- * shared window — which is exactly how index.html runs them in production
- * (one document, one window, all cards coexisting). A window is still created
- * per batch, never per card. If a card only misbehaves inside a shared DOM,
- * it is re-run isolated before being reported: it FAILs if it also fails
- * isolated, and is a NOTE (shared-DOM interaction) if it passes alone.
+ * script hands several cards through a single window (--batch, default 40) —
+ * but mounts them ONE AT A TIME, removing the previous card's container first,
+ * because that is what tool.html does:
+
+ *     container.innerHTML = ''      // tool.html, before every injection
+ *     ...inject fragment, run scripts
+ *     document.dispatchEvent(new Event('DOMContentLoaded'))
+ *
+ * The document, and everything a card leaves on it, outlives the container.
+ * That is the point of batching: a classic inline script cannot undeclare a
+ * `let`/`const`/`class`, listeners on `document`/`window` are never removed,
+ * and DOM appended outside the container is never cleaned up — so a card can
+ * be hit by a card the visitor opened ten tools ago. A window is still created
+ * per batch, never per card. Each card is probed for leftovers the way
+ * tool.html navigates: its container is removed and DOMContentLoaded is
+ * dispatched again, with nothing else mounted, so a handler that could not
+ * cope with the card being gone is named and counted separately from a card
+ * that fails to mount at all.
+ *
+ * `--leaks` is the exact form of that question and uses one window per card:
+ * mount, poke, clear the container, then dispatch the events that follow a
+ * navigation (DOMContentLoaded, which tool.html re-dispatches, and the click /
+ * keydown / input the visitor's next action produces). Nothing else has ever
+ * been mounted in that window, so every error after the clear is this card's.
+ * The batch path above answers the same question faster, by difference, and
+ * can charge one card's leftover to another when the message varies — reach
+ * for --leaks when the answer has to be exact.
+ *
+ * A full --all sweep mounts every card, so it needs more heap than node's
+ * default — run it as: node --max-old-space-size=6144 scripts/test-card.js --all
  *
  * Needs jsdom. Install it OUTSIDE the workspace (AGENTS.md §2):
  *   mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom
@@ -209,7 +235,8 @@ function mountCard(card, window, sink) {
   container.className = 'card card-sandbox';
   doc.getElementById('toolbox-grid').appendChild(container);
 
-  // mirror index.html: parse, strip scripts, append body, then append scripts as new elements
+  // mirror tool.html: parse, strip scripts, append the body, then append the
+  // fragment's scripts as new elements so they run in global scope
   const parsed = new window.DOMParser().parseFromString(html, 'text/html');
   const parsedScripts = Array.from(parsed.querySelectorAll('script'));
   parsedScripts.forEach(s => s.remove());
@@ -258,6 +285,46 @@ function mountCard(card, window, sink) {
   return { errors, container };
 }
 
+// ------------------------------------------------------- 7a. exact leftover audit
+if (args.includes('--leaks')) {
+  let leaking = 0;
+  for (const card of parsedCards) {
+    const errs = [];
+    const sink = { push: e => errs.push(e) };
+    const { window } = makeWindow(sink);
+    let container = null;
+    try {
+      container = mountCard(card, window, sink).container;
+    } catch (e) {
+      errs.push(`mount threw: ${e && e.message ? e.message : e}`);
+    }
+    if (container && container.isConnected) container.remove();
+    const mark = errs.length;
+    // What the visitor's next move produces in tool.html: the loader
+    // re-dispatches DOMContentLoaded for the incoming card, and then the
+    // visitor clicks and types somewhere else on the page.
+    const nextMove = [
+      () => window.document.dispatchEvent(new window.Event('DOMContentLoaded')),
+      () => window.document.dispatchEvent(new window.MouseEvent('click', { bubbles: true })),
+      () => window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'a', bubbles: true })),
+      () => window.document.dispatchEvent(new window.Event('input', { bubbles: true })),
+    ];
+    for (const fire of nextMove) {
+      try { fire(); } catch (e) { errs.push(`after teardown: ${e && e.message ? e.message : e}`); }
+    }
+    window.close();
+    const leftovers = [...new Set(errs.slice(mark))];
+    if (leftovers.length) {
+      leaking++;
+      console.log(`  LEAK ${card.rel}`);
+      leftovers.slice(0, 3).forEach(e => console.log(`       ${e.slice(0, 120)}`));
+    }
+  }
+  console.log(`\n${leaking} of ${parsedCards.length} card(s) still run code after their container ` +
+              `is cleared — tool.html cannot unregister a listener it did not add.`);
+  process.exit(leaking ? 1 : 0);
+}
+
 // ---------------------------------------------------------------- 7. mount + execute
 if (parsedCards.length === 1) {
   // Single card: isolated window (the original behaviour, one for one).
@@ -270,33 +337,62 @@ if (parsedCards.length === 1) {
   if (unique.length) unique.slice(0, 6).forEach(e => fail(card.rel, e));
   else console.log(`  ok   ${card.rel}`);
 } else {
-  // Multiple cards: shared-DOM batches, exactly like index.html in production.
+  // One window per batch (booting jsdom is the expensive part), ONE CARD
+  // MOUNTED AT A TIME inside it, and a teardown probe after each: remove the
+  // container and dispatch DOMContentLoaded again, exactly as tool.html does
+  // when the visitor opens the next tool.
+  //
+  // Attribution is by DIFFERENCE, because a window that has already held
+  // moving.html will keep hearing from it: an error string seen during an
+  // earlier card is not charged to this one, and a card is only FAILed once
+  // the same failure is reproduced with nothing else in the window. An error
+  // that shows up for the first time during a card's own teardown probe is
+  // that card's leftover, and is reported as such.
+  const leaks = [];
+  let inheritedOnly = 0;
   for (let b = 0; b < parsedCards.length; b += batch) {
     const group = parsedCards.slice(b, b + batch);
     const errorsByCard = new Map(group.map(c => [c.rel, []]));
     let current = group[0].rel;
     const sink = { push: e => errorsByCard.get(current).push(e) };
     const { dom, window } = makeWindow(sink);
+    const seen = new Set();        // mount/poke errors already explained here
+    const probeSeen = new Set();   // leftover errors already explained here
+
     for (const card of group) {
       current = card.rel;
+      let mounted = null;
       try {
-        mountCard(card, window, sink);
+        mounted = mountCard(card, window, sink).container;
       } catch (e) {
         errorsByCard.get(card.rel).push(`mount threw: ${e && e.message ? e.message : e}`);
       }
-    }
-    window.close();
 
-    const suspects = [];
-    for (const card of group) {
-      const unique = [...new Set(errorsByCard.get(card.rel))];
-      if (unique.length) suspects.push({ card, unique });
-      else console.log(`  ok   ${card.rel}`);
-    }
+      // --- teardown probe: the visitor has opened another tool -------------
+      if (mounted && mounted.isConnected) mounted.remove();
+      const leftBehind = [];
+      const realPush = sink.push;
+      sink.push = e => leftBehind.push(e);
+      try {
+        window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+      } catch (e) {
+        leftBehind.push(`dispatch threw: ${e && e.message ? e.message : e}`);
+      }
+      sink.push = realPush;
 
-    // A card that only misbehaves inside a shared DOM is re-run isolated
-    // before being reported: FAIL if it also fails alone, NOTE if it passes.
-    for (const { card, unique } of suspects) {
+      const freshProbe = [...new Set(leftBehind)].filter(e => !probeSeen.has(e));
+      leftBehind.forEach(e => probeSeen.add(e));
+      if (freshProbe.length) leaks.push({ rel: card.rel, count: freshProbe.length, first: freshProbe[0] });
+
+      // --- did this card actually fail, or is it standing in a shadow? -----
+      const observed = [...new Set(errorsByCard.get(card.rel))];
+      const fresh = observed.filter(e => !seen.has(e));
+      observed.forEach(e => seen.add(e));
+      if (!fresh.length) {
+        if (observed.length) inheritedOnly++;
+        console.log(`  ok   ${card.rel}`);
+        continue;
+      }
       const isolated = [];
       const solo = makeWindow({ push: e => isolated.push(e) });
       try {
@@ -305,15 +401,34 @@ if (parsedCards.length === 1) {
         isolated.push(`mount threw: ${e && e.message ? e.message : e}`);
       }
       solo.window.close();
-      const isoUnique = [...new Set(isolated)];
-      if (isoUnique.length) {
-        isoUnique.slice(0, 6).forEach(e => fail(card.rel, e));
+      const repro = [...new Set(isolated)].filter(e => fresh.includes(e));
+      if (repro.length) {
+        repro.slice(0, 6).forEach(e => fail(card.rel, e));
       } else {
-        note(card.rel, `passes isolated but not in a shared DOM (interaction, first: ${unique[0].slice(0, 100)})`);
+        // Seen for the first time here, but the card is clean on its own: an
+        // earlier card in this window is throwing on its way to the next tool.
+        inheritedOnly++;
+        console.log(`  ok   ${card.rel}`);
       }
     }
+    window.close();
+  }
+
+  if (inheritedOnly) {
+    console.log(`\n  ${inheritedOnly} card(s) mounted clean and were only ever hit by another ` +
+                `card's leftovers — not reported as failures`);
+  }
+  if (leaks.length) {
+    console.log(`\n${leaks.length} card(s) keep running after the next tool opens. tool.html ` +
+                `clears the container and dispatches DOMContentLoaded again, and it cannot ` +
+                `unregister a listener it did not add:`);
+    for (const l of leaks.slice(0, 300)) {
+      console.log(`  left behind ${l.rel} (${l.count} error${l.count === 1 ? '' : 's'}, first: ${l.first.slice(0, 90)})`);
+    }
+    if (leaks.length > 300) console.log(`  ... and ${leaks.length - 300} more`);
+    console.log('  Fix by bailing out of the handler when the card is gone — see the JS scope ' +
+                'rule in CONSTRAINTS.md.');
   }
 }
-
 console.log(fails === 0 ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})` : `\n${fails} problem(s)`);
 process.exit(fails === 0 ? 0 : 1);
