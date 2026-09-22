@@ -139,9 +139,7 @@ SoundCloud and Instagram with a zero. Not a typo.
 **Never invent YouTube IDs.** Use the verified table in ARCHITECTURE.md §4.
 A Rickroll (`dQw4w9WgXcQ`) once shipped as a placeholder on a live page.
 
-**`sw.js` is not registered** by any page, on purpose — but `index.html` does
-`modulepreload` it, which is a wasted low-priority fetch until the "enable it or
-delete it" question above is answered. `CNAME` deletion breaks the custom domain.
+**`sw.js` is registered** by `home-core.js` (line 486) at idle on every list page — `index.html`, `tools.html`, `tools-index.html` and the 28 category pages. It runs `freshFast()` for the catalogue and card fragments (never stale beyond GitHub Pages' own 10-minute window) and `navigateFast()` for all navigations (2.5 s patience cap). `index.html` also `modulepreload`s it. `tool.html` does not load `home-core.js` and does not register the worker itself, but any navigation from a list page is already intercepted. `CNAME` deletion breaks the custom domain.
 
 ## Open questions only the owner can answer
 
@@ -150,8 +148,7 @@ line the moment it is answered.
 
 - **Language pages** — thin machine-translated hreflang cluster. Enrich with
   real localisation, or consolidate?
-- **`sw.js`** — enable it (a real win for an offline-first tool site) or
-  delete it? Currently dead code.
+- **`sw.js`** — live and registered by `home-core.js`. Working as designed. This line can be deleted.
 - **Ship or delete:** the four unlinked CV files (`CV.docx`, `CV.pdf`,
   `cv.pdf`, `latestcv.docx`). The rest of that list — `indexbeta.html`,
   `hokidea.html`, `guide.txt`, `substitutions/`, `system/`,
