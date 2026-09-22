@@ -28,6 +28,7 @@ const src = [
   grab('toolBuildError'),
   grab('toolUpdateMetadata'),
   grab('toolScheduleHeightReport'),
+  grab('showContributionsPanel'),
 ].join('\n');
 
 // ---- 1. static guarantees on the shipped page ------------------------------
@@ -114,21 +115,28 @@ const context = {
     },
     documentElement: { scrollHeight: 812 },
     createElement: tag => stubEl(tag),
-    getElementById: id => (id === 'tool-jsonld' ? jsonldBlock : null),
+    getElementById: id => (id === 'tool-jsonld' ? jsonldBlock : panels[id]),
   },
   window: {
     parent: { postMessage: (msg, origin) => posts.push({ msg, origin }) },
     addEventListener() {},
   },
+  // The navigation fallback writes location.href; a stub keeps the test off the network.
+  location: { href: 'https://www.themostusefulsiteintheworld.com/tool.html' },
   setTimeout: fn => 0,
   clearTimeout() {},
   MutationObserver: function () { return { observe() {} }; },
 };
 const jsonldBlock = null; // toolUpdateMetadata must create the block itself
+// Cards' "support this site" links call showContributionsPanel(); this page has
+// no panel of its own, so the fallback is a navigation. `panels` lets a test
+// place one.
+const panels = {};
 context.window.document = context.document;
 vm.createContext(context);
 vm.runInContext(src, context, { filename: 'tool.html<script>' });
-const { toolApplyEmbedMode, toolReportEmbedHeight, toolBuildError, toolUpdateMetadata } = context;
+const { toolApplyEmbedMode, toolReportEmbedHeight, toolBuildError, toolUpdateMetadata,
+        showContributionsPanel } = context;
 
 // ---- embed mode -------------------------------------------------------------
 assert.strictEqual(toolApplyEmbedMode(true), true);
@@ -150,6 +158,26 @@ const attrsFlat = JSON.stringify([box.attrs, ...box.children.map(c => c.attrs)])
 assert(!attrsFlat.includes('onerror'), 'hostile markup leaked into an attribute');
 assert.strictEqual(box.children[2].attrs.href === undefined || box.children[2].href === 'index.html', true,
   'return link must point at index.html');
+
+// ---- the support link inside six cards -------------------------------------
+// Six cards end with `<a href="#contributionsPanel" onclick="showContributionsPanel()">`.
+// Nothing defined that function, so the link threw ReferenceError and, since
+// tool.html has no #contributionsPanel either, went nowhere at all.
+assert(/function showContributionsPanel\(/.test(html),
+  'tool.html must define showContributionsPanel — six cards call it from markup');
+const callers = fs.readdirSync('cards').filter(f => f.endsWith('.html') &&
+  fs.readFileSync(`cards/${f}`, 'utf8').includes('showContributionsPanel()'));
+assert(callers.length >= 6, `expected the card links to still be there, found ${callers.length}`);
+// No panel in this page: the visitor is sent to the page that has one.
+showContributionsPanel();
+assert.strictEqual(context.location.href, 'index.html#contributionsPanel',
+  'with no panel on the page the helper must navigate to the homepage panel');
+// A panel on the page is opened in place instead of navigating away.
+const opened = [];
+panels.contributionsPanel = { showPopover: () => opened.push('shown') };
+showContributionsPanel();
+assert.deepStrictEqual(opened, ['shown'], 'an on-page panel must be opened, not navigated past');
+delete panels.contributionsPanel;
 
 // ---- height report matches the documented contract --------------------------
 toolReportEmbedHeight('mortgage');

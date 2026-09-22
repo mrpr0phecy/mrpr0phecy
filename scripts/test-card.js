@@ -410,6 +410,41 @@ function makeWindow(sink) {
       Object.defineProperty(window, 'sessionStorage', { value: ls, configurable: true });
       window.URL.createObjectURL = () => 'blob:mock';
       window.URL.revokeObjectURL = () => {};
+      // jsdom has no SubtleCrypto, and six cards hash or encrypt with it. A
+      // card written against the platform API is not broken because the test
+      // window lacks it: the digest is a deterministic stand-in of the right
+      // length, which is enough for the card to render its own result.
+      const DIGEST_BYTES = {
+        'SHA-1': 20, 'SHA-256': 32, 'SHA-384': 48, 'SHA-512': 64, 'MD5': 16,
+      };
+      const fakeDigest = data => {
+        const bytes = data instanceof ArrayBuffer ? new Uint8Array(data)
+          : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+          : new TextEncoder().encode(String(data));
+        // deterministic, not a hash: identical input gives identical bytes
+        let seed = 0;
+        for (const b of bytes) seed = (seed * 31 + b) >>> 0;
+        const out = new Uint8Array(32);
+        for (let i = 0; i < out.length; i++) out[i] = (seed >>> (i % 4 * 8)) & 0xff;
+        return out.buffer;
+      };
+      if (window.crypto) {
+        Object.defineProperty(window.crypto, 'subtle', {
+          configurable: true,
+          value: {
+            digest: (algo, data) => Promise.resolve(fakeDigest(data)),
+            importKey: () => Promise.resolve({ type: 'secret', algorithm: algo }),
+            deriveKey: () => Promise.resolve({ type: 'secret' }),
+            deriveBits: (o) => Promise.resolve(fakeDigest(o && o.salt || '').slice(0, (o && o.length || 256) / 8)),
+            encrypt: (a, k, data) => Promise.resolve(fakeDigest(data)),
+            decrypt: (a, k, data) => Promise.resolve(data),
+            sign: (a, k, data) => Promise.resolve(fakeDigest(data)),
+            verify: () => Promise.resolve(true),
+            generateKey: () => Promise.resolve({ type: 'secret' }),
+            exportKey: () => Promise.resolve(fakeDigest('key')),
+          },
+        });
+      }
     },
   });
   const { window } = dom;
