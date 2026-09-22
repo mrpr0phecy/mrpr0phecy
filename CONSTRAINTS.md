@@ -121,9 +121,15 @@ page's own list needs no block at all: it is built in the browser from
 lists inside the script. Add your slug to the right list *before* running it,
 or your category is silently lost.
 
-**All 1195 cards share one DOM.** Element ids must be globally unique — prefix
-everything. Top-level JS names collide too (135 soft collisions: `showError`,
-`updateStats`, `STORAGE_KEY`…); IIFE-wrap anything you touch.
+**Every card is written for one shared document.** `tool.html` injects a card
+fragment into its own page, one card at a time, so the document's global scope
+outlives the card: a top-level `let`/`const`/`class` in one card is still
+declared when the next card loads, and a name both cards use kills whichever
+loads second with a `SyntaxError` (the card renders and does nothing).
+Prefix every id and every top-level name; IIFE-wrap anything you touch.
+`scripts/check-card-collisions.py` fails the build on a hard collision and
+summarises the remaining soft `var`/`function` overwrites — run it rather than
+trusting a number written here, because the count moves with the catalogue.
 
 **Never interpolate untrusted input into `innerHTML`.** URL params,
 `error.message` and `cards.json` strings go in via `textContent` or DOM APIs.

@@ -1,5 +1,5 @@
 /**
- * maps/embed.js — how the other 1,205 tools use the map.
+ * maps/embed.js — how the other 1,250 tools use the map.
  *
  * Drop one line in a card and you get a real, interactive map:
  *
@@ -20,8 +20,8 @@
  *   MostUsefulMaps.locationCodes(51.8797, -0.4175)          → every code, as rows
  *   MostUsefulMaps.sunTimes(new Date(), 51.5, -0.12)        → sunrise/sunset/twilight
  *
- * Why it is built this way, in a repository where all 1,205 cards share one
- * DOM (AGENTS.md): nothing loads until a card asks. The core engine is about
+ * Why it is built this way: a card is mounted only when a visitor opens it,
+ * and nothing loads until a card asks. The core engine is about
  * 40 KB of plain scripts, the offline map renderer another 20 KB, and the
  * 1 MB MapLibre bundle only if the card explicitly asks for live tiles with
  * `{ live: true }` — and then only when the card is actually on screen.
@@ -168,7 +168,8 @@
     }
     // The card owns its own box. `.mm-map` in the product stylesheet means
     // "fill the parent" (absolute inset:0), which is right for the full page
-    // and wrong inside a card that shares one DOM with 1,205 others.
+    // and wrong inside a card, where the map is one block of many in a
+    // document it does not control.
     if (!el.style.position || el.style.position === 'static') el.style.position = 'relative';
     el.style.overflow = 'hidden';
     if (opts.height && !el.style.height) el.style.height = (typeof opts.height === 'number' ? opts.height + 'px' : opts.height);
