@@ -109,6 +109,11 @@ TARGETS_TOP = [
     #     comments describe the catalogue, and had drifted with it.
     "maps.html", "CONSTRAINTS.md", "package.json", ".well-known/mcp.json",
     "explore.js", "maps/embed.js", "maps/core/locators.js",
+    "FINANCE.md",
+    # feed.xml carries the count in the channel <description> (a live claim).
+    # Its <item> entries are dated history and carry <!-- historical-count -->
+    # markers where needed.
+    "feed.xml",
 ]
 TARGETS_GLOB = [
     "guides/*.html", "blog/*.html", "launch/index.html", "tools/*.html",
