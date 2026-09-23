@@ -16,6 +16,8 @@
  *          judged by an offline window. Notes do not exit 1.
  *   FAIL — something threw, or a contract in this list is broken. Exits 1.
  *
+ * `--nameless` lists every control and field without an accessible name (the
+ *          note reports the count and the first element; this reports them all).
  * `--strict-notes` promotes notes to failures for a card you are hardening;
  * without it a 1,250-card sweep reports defects rather than the sound of a
  * hundred forms being submitted empty.
@@ -388,6 +390,17 @@ function unnamedControls(container, doc) {
         break;
       }
     }
+    // A JS-built grid gives every cell the same data attribute (`data-f="6"`,
+    // thirty times over), so the hint alone cannot say which cell is meant. The
+    // nearest ancestor with an id — the container the card renders into, never
+    // the harness's own wrapper — plus the ordinal in the `--nameless` list is
+    // enough to find it: "#grid-rows [data-i=\"0\"], 3rd of 48".
+    let anchor = '';
+    if (!el.id) {
+      for (let up = el.parentElement; up && up !== container; up = up.parentElement) {
+        if (up.id) { anchor = `#${up.id}`; break; }
+      }
+    }
     // A nameless BUTTON or LINK and a nameless FORM FIELD are not the same
     // thing to fix. The button has nothing to read and nothing to see — the
     // visitor is looking at a colour, an emoji or an icon, and the name was
@@ -395,7 +408,13 @@ function unnamedControls(container, doc) {
     // its label sitting beside it, unassociated: a real gap, in the hundreds,
     // and a backlog to work through rather than a card to fail.
     const kind = (tag === 'input' || tag === 'select' || tag === 'textarea') ? 'field' : 'control';
-    out.push({ kind, text: `<${tag}${hint}> is announced as nothing but "${word}"` });
+    // Three shapes, and only the third is new: an element with an id or a class
+    // is described by its own handle, an element with neither is described by
+    // its bare tag, and a grid cell inside a named container says which grid.
+    const described = el.id || classes || !anchor
+      ? `<${tag}${hint}>`
+      : `<${tag}> in ${anchor}${hint ? ` ${hint}` : ''}`;
+    out.push({ kind, text: `${described} is announced as nothing but "${word}"` });
   }
   return out;
 }
@@ -973,6 +992,7 @@ const LINGER_MS = 900;
 const RESPONSE = process.argv.includes('--response') || process.argv.includes('--strict-response');
 const STRICT_RESPONSE = process.argv.includes('--strict-response');
 const STRICT_NOTES = process.argv.includes('--strict-notes');
+const N_LIST = process.argv.includes('--nameless');
 const TYPED = {
   number: '100', range: '50', date: '2026-01-01', 'datetime-local': '2026-01-01T09:00',
   time: '09:00', month: '2026-01', week: '2026-W01', color: '#3366ff',
@@ -1009,6 +1029,7 @@ process.on('unhandledRejection', reason => {
   let noted = 0;
   const leftovers = [];
   const unresponsive = [];
+  const nameless = [];
   for (const card of parsedCards) {
     const perCard = [];      // throw / contract break — a FAIL
     const perCardNotes = []; // the card responded: alert, console.error, network
@@ -1117,6 +1138,11 @@ process.on('unhandledRejection', reason => {
                        `(first: ${unnamed.find(u => u.kind === 'field').text}) — ` +
                        `a screen reader announces the role only`);
       }
+      // The counter says a card has 48 nameless fields; the fix needs to know
+      // *which* 48, and the first one is the only one the note names. `--nameless`
+      // prints the whole list for a card being worked on, the way `--leftovers`
+      // does for stray nodes.
+      if (N_LIST) for (const u of unnamed) nameless.push({ rel: card.rel, ...u });
     }
     const mountedErrors = [...new Set(perCard)];
     const mountedNotes = [...new Set(perCardNotes)];
@@ -1284,6 +1310,28 @@ process.on('unhandledRejection', reason => {
         const cleaned = l.transient ? ` (${l.transient} more cleaned up by the card's own timer)` : '';
         console.log(`  ${l.rel}: ${l.nodes.length ? l.nodes.join(', ') : 'nothing permanent'}${cleaned}`);
       }
+    }
+  }
+
+  if (N_LIST) {
+    const byCard = new Map();
+    for (const n of nameless) {
+      if (!byCard.has(n.rel)) byCard.set(n.rel, []);
+      byCard.get(n.rel).push(n);
+    }
+    if (nameless.length) {
+      console.log(`\n${nameless.length} control(s)/field(s) across ${byCard.size} card(s) have no ` +
+                  `accessible name. A control among them fails; a field is a note. ` +
+                  `Fix one by giving it an aria-label, or by associating the label that is ` +
+                  `already sitting beside it.`);
+      for (const [rel, list] of byCard) {
+        console.log(`  ${rel} (${list.length})`);
+        list.forEach((n, i) => {
+          console.log(`    ${String(i + 1).padStart(3)}. ${n.kind === 'field' ? 'field  ' : 'control'} ${n.text}`);
+        });
+      }
+    } else {
+      console.log('\nno control or field without an accessible name.');
     }
   }
 

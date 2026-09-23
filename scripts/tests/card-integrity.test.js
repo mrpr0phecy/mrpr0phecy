@@ -43,9 +43,9 @@ const HARNESS = path.join(ROOT, 'scripts', 'test-card.js');
 const FIXTURES = path.join(__dirname, 'fixtures');
 const f = name => path.join('scripts', 'tests', 'fixtures', name);
 
-function run(file) {
+function run(file, flags = []) {
   try {
-    return { code: 0, out: execFileSync(process.execPath, [HARNESS, file], { cwd: ROOT, encoding: 'utf8' }) };
+    return { code: 0, out: execFileSync(process.execPath, [HARNESS, ...flags, file], { cwd: ROOT, encoding: 'utf8' }) };
   } catch (e) {
     return { code: e.status, out: `${e.stdout || ''}${e.stderr || ''}` };
   }
@@ -107,6 +107,24 @@ test('a nameless control fails; a nameless field is only noted', () => {
   assert.match(r.out,
     /note .*1 field\(s\) with no accessible name \(first: <input#unnamed-slider> is announced as nothing but "slider"\)/);
   assert.doesNotMatch(r.out, /control with no accessible name: <input/);
+});
+
+test('--nameless lists every nameless field, not just the first', () => {
+  // The note reports "48 field(s) … (first: …)", and 48 is a number to work
+  // from only if the other 47 can be found. Off the sweep, the default output
+  // stays short: the list is opt-in.
+  const fixture = f('unnamed-grid.card');
+  const plain = run(fixture);
+  assert.strictEqual(plain.code, 0, `four unlabelled cells are a note — ${plain.out}`);
+  assert.match(plain.out, /4 field\(s\) with no accessible name/);
+  assert.doesNotMatch(plain.out, /1\. field/, 'no list unless --nameless asked for one');
+  const listed = run(fixture, ['--nameless']);
+  assert.strictEqual(listed.code, 0, 'a listing is not a new failure');
+  assert.match(listed.out, /4 control\(s\)\/field\(s\) across 1 card\(s\)/);
+  for (const i of ['0', '1', '2', '3']) {
+    assert.match(listed.out, new RegExp(`\\d+\\. field   <input> in #grid-rows \\[data-i="${i}"\\]`),
+      `cell ${i} must be findable by container and data attribute`);
+  }
 });
 
 test('a card that inits on DOMContentLoaded is initialised once', () => {
