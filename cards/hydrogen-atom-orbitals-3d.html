@@ -55,6 +55,7 @@
   <div class="x3-f"><label for="hao-l">Angular l <b id="hao-lv">2</b></label><input id="hao-l" type="range" min="0" max="2" step="1" value="2"></div>
   <div class="x3-f"><label for="hao-m">Magnetic m <b id="hao-mv">0</b></label><input id="hao-m" type="range" min="-2" max="2" step="1" value="0"></div>
   <div class="x3-f"><label for="hao-pts">Sample points <b id="hao-ptsv">40k</b></label><input id="hao-pts" type="range" min="5" max="90" step="5" value="40"></div>
+  <div class="x3-f"><label for="hao-z">Nucleus (hydrogen-like ion)</label><select id="hao-z"><option value="1">Z = 1 — H</option><option value="2">Z = 2 — He⁺</option><option value="3">Z = 3 — Li²⁺</option><option value="4">Z = 4 — Be³⁺</option><option value="5">Z = 5 — B⁴⁺</option><option value="6">Z = 6 — C⁵⁺</option></select></div>
   <div class="x3-f"><label for="hao-view">View</label><select id="hao-view"><option value="cloud">Full cloud</option><option value="slice">Slice (xz plane)</option><option value="half">Cutaway (y &gt; 0 removed)</option></select></div>
   <div class="x3-f"><label for="hao-col">Colour</label><select id="hao-col"><option value="phase">Phase (+ / −)</option><option value="dens">Density heat</option><option value="mono">Mono glow</option></select></div>
 </div>
@@ -66,6 +67,9 @@
   <div class="x3-stat"><span>Most probable r</span><b id="hao-s-rmp">—</b></div>
   <div class="x3-stat"><span>Nodes (radial / angular)</span><b id="hao-s-nodes">—</b></div>
   <div class="x3-stat"><span>Orbital angular momentum |L|</span><b id="hao-s-L">—</b></div>
+  <div class="x3-stat"><span>Ionisation energy from this level</span><b id="hao-s-ion">—</b></div>
+  <div class="x3-stat"><span>Degeneracy of level n</span><b id="hao-s-deg">—</b></div>
+  <div class="x3-stat"><span>Dipole-allowed final states</span><b id="hao-s-sel">—</b></div>
 </div>
 
 <h3 style="font-size:1rem;margin:16px 0 6px;">🌈 Transition calculator (Rydberg formula)</h3>
@@ -89,6 +93,7 @@
 <li><b>Energy:</b> <code>Eₙ = −13.598 eV / n²</code> (reduced-mass Rydberg). It depends only on n — all n² orbitals in a shell are degenerate.</li>
 <li><b>Nodes:</b> n−l−1 radial (spherical shells, best seen in Slice view) and l angular (planes or cones), n−1 in total.</li>
 <li><b>Mean radius:</b> <code>⟨r⟩ = a₀ [3n² − l(l+1)] / 2</code>, with a₀ = 52.918 pm.</li>
+<li><b>Hydrogen-like ions:</b> for a single electron around a nucleus of charge Z, energies scale by Z² and every length by 1/Z — so He⁺ is a quarter the size of H with four times the binding. The cloud’s shape is unchanged; its axis is in units of a₀/Z. Selection rules for a photon: Δl = ±1, Δm = 0, ±1.</li>
 <li><b>Transitions:</b> <code>1/λ = R_H (1/nₗ² − 1/nᵤ²)</code>, R_H = 1.09678×10⁷ m⁻¹. Hα (3→2) is 656.47 nm in vacuum (656.28 nm in air).</li>
 </ul>
 <p>Worked example: 2→1 (Lyman-α) gives 1/λ = 1.09678×10⁷ × 3/4 → λ = 121.57 nm, E = 10.20 eV — deep ultraviolet.</p>
@@ -231,6 +236,7 @@ var cv=$('hao-cv'); if(!cv) return;
 var V=X3View(cv,'hao-root',{dist:40,yaw:0.7,pitch:0.35,auto:0.18,maxD:600});
 V.tools('hao','hydrogen-orbital');
 var st={n:3,l:2,m:0,N:40000,view:'cloud',col:'phase'};
+function zv(){var e=$('hao-z'); var z=e?+e.value:1; return z>=1?z:1;}
 var X=new Float32Array(90000),Y=new Float32Array(90000),Z=new Float32Array(90000),S=new Int8Array(90000),D=new Float32Array(90000);
 var count=0,target=0,ext=10,radial=null,rmaxPlot=10,ymax=1,dmax=1,cdf=null,rgrid=null,gen=0;
 var L_NAMES='spdfghi';
@@ -264,9 +270,13 @@ function grow(budget){var l=st.l,m=st.m,n=st.n,tries=0;
     var R=Rnl(n,l,r), psi=R*y; S[count]=psi>=0?1:-1; var d=psi*psi; D[count]=d; if(d>dmax) dmax=d; count++;}}
 function stats(){var n=st.n,l=st.l,m=st.m;
   $('hao-s-name').textContent=orbName(n,l,m);
-  $('hao-s-e').textContent=X3fmt(-13.598/(n*n),5)+' eV';
-  var rm=(3*n*n-l*(l+1))/2; $('hao-s-r').textContent=X3fmt(rm,4)+' a₀ = '+X3fmt(rm*52.918,4)+' pm';
-  $('hao-s-rmp').textContent=X3fmt(radial.rmp,3)+' a₀';
+  var Zc=zv(), Zs=Zc>1?'/'+Zc:''; $('hao-s-e').textContent=X3fmt(-13.598*Zc*Zc/(n*n),5)+' eV';
+  var rm=(3*n*n-l*(l+1))/2; $('hao-s-r').textContent=X3fmt(rm/Zc,4)+' a₀ = '+X3fmt(rm*52.918/Zc,4)+' pm';
+  $('hao-s-rmp').textContent=X3fmt(radial.rmp/Zc,3)+' a₀ = '+X3fmt(radial.rmp*52.918/Zc,4)+' pm';
+  $('hao-s-ion').textContent=X3fmt(13.598*Zc*Zc/(n*n),5)+' eV';
+  $('hao-s-deg').textContent=(n*n)+' orbitals ('+(2*n*n)+' with spin)';
+  var fl=[]; if(l>0) fl.push('l′='+(l-1)+' ('+L_NAMES[l-1]+')'); fl.push('l′='+(l+1)+' ('+(L_NAMES[l+1]||'?')+')');
+  $('hao-s-sel').textContent=fl.join(' or ')+', Δm = 0, ±1'+(n===1?' (ground state — can only absorb)':'');
   $('hao-s-nodes').textContent=(n-l-1)+' / '+l+'  (total '+(n-1)+')';
   $('hao-s-L').textContent=l===0?'0':'√'+(l*(l+1))+' ħ = '+X3fmt(Math.sqrt(l*(l+1)),4)+' ħ';}
 /* ---- controls ---- */
@@ -293,8 +303,8 @@ function trans(){var u=Math.round(+$('hao-tu').value), lo=Math.round(+$('hao-tl'
   var ids=['hao-t-series','hao-t-lam','hao-t-e','hao-t-f'];
   if(!(u>lo&&lo>=1)){err.textContent='The upper level must be larger than the lower level (both whole numbers ≥ 1).'; ids.forEach(function(i){$(i).textContent='—';}); $('hao-t-bandtxt').textContent='—'; return;}
   err.textContent='';
-  var inv=1.0967758e7*(1/(lo*lo)-1/(u*u)), lam=1/inv, nm=lam*1e9, E=13.598*(1/(lo*lo)-1/(u*u));
-  var ser=['Lyman','Balmer','Paschen','Brackett','Pfund','Humphreys'][lo-1]||('n='+lo+' series');
+  var Zt=zv(), inv=1.0967758e7*Zt*Zt*(1/(lo*lo)-1/(u*u)), lam=1/inv, nm=lam*1e9, E=13.598*Zt*Zt*(1/(lo*lo)-1/(u*u));
+  var ser=(Zt>1?(['H','He⁺','Li²⁺','Be³⁺','B⁴⁺','C⁵⁺'][Zt-1]+' '):'')+(['Lyman','Balmer','Paschen','Brackett','Pfund','Humphreys'][lo-1]||('n='+lo+' series'));
   var greek='αβγδεζηθ'[u-lo-1]; $('hao-t-series').textContent=ser+(greek?'-'+greek:' ('+u+'→'+lo+')');
   $('hao-t-lam').textContent=nm<1e4?X3fmt(nm,6)+' nm':X3fmt(nm/1000,5)+' µm';
   $('hao-t-e').textContent=X3fmt(E,5)+' eV';
@@ -302,6 +312,7 @@ function trans(){var u=Math.round(+$('hao-tu').value), lo=Math.round(+$('hao-tl'
   var band=nm<10?'X-ray':nm<380?'Ultraviolet':nm<=750?'Visible':nm<1e6?'Infrared':'Microwave / radio';
   var sw=$('hao-t-sw'); sw.style.background=(nm>=380&&nm<=750)?wlRGB(nm):(nm<380?'#5b2b8a':'#6b1f1f');
   $('hao-t-bandtxt').textContent=band;}
+$('hao-z').addEventListener('change',function(){stats(); trans();});
 $('hao-tu').addEventListener('input',trans); $('hao-tl').addEventListener('input',trans);
 /* ---- render ---- */
 var PAL=[[20,40,120],[40,120,255],[80,230,255],[255,255,255]], PH_P=[70,190,255], PH_N=[255,120,70], MONO=[140,220,255];
@@ -325,13 +336,13 @@ V.over(function(g,V){
   g.globalCompositeOperation='source-over';
   /* mini radial distribution plot */
   if(radial){var W=Math.min(190,V.w*0.34),H=74,x0=V.w-W-10,y0=V.h-H-10; g.fillStyle='rgba(2,6,16,.66)'; g.fillRect(x0-6,y0-16,W+12,H+24);
-    g.fillStyle='#8aa0b8'; g.font='10px ui-monospace,monospace'; g.textAlign='left'; g.textBaseline='alphabetic'; g.fillText('P(r) = r²R²   0 → '+X3fmt(ext,3)+' a₀',x0,y0-4);
+    g.fillStyle='#8aa0b8'; g.font='10px ui-monospace,monospace'; g.textAlign='left'; g.textBaseline='alphabetic'; g.fillText('P(r) = r²R²   0 → '+X3fmt(ext/zv(),3)+' a₀',x0,y0-4);
     g.beginPath(); var pdf=radial.pdf,cut=radial.cut; for(i=0;i<=cut;i+=Math.max(1,Math.floor(cut/W))){var xx=x0+W*i/cut, yy=y0+H-H*pdf[i]/radial.pmax; if(i===0) g.moveTo(xx,yy); else g.lineTo(xx,yy);}
     g.strokeStyle='#5fd8ff'; g.lineWidth=1.5; g.stroke(); g.lineTo(x0+W,y0+H); g.lineTo(x0,y0+H); g.closePath(); g.fillStyle='rgba(60,180,255,.15)'; g.fill();}});
 V.start(function(dt){
   if(count<target) grow(count<2000?60000:24000);
   V.axes(ext*1.05,{alpha:0.35,neg:true});
-  $('hao-hud').textContent=orbName(st.n,st.l,st.m)+'   ψ'+st.n+st.l+st.m+'\nE = '+X3fmt(-13.598/(st.n*st.n),4)+' eV\n'+(count<target?'sampling… ':'')+count.toLocaleString()+' samples of |ψ|²';});
+  $('hao-hud').textContent=orbName(st.n,st.l,st.m)+'   ψ'+st.n+st.l+st.m+'\nE = '+X3fmt(-13.598*zv()*zv()/(st.n*st.n),4)+' eV\n'+(count<target?'sampling… ':'')+count.toLocaleString()+' samples of |ψ|²';});
 syncRanges(); prep(); trans();
 })();
 </script>

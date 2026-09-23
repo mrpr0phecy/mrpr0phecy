@@ -51,9 +51,11 @@
   </div>
 
 <div class="x3-grid">
-  <div class="x3-f"><label for="pah-edge">Edge length a</label><input id="pah-edge" type="number" min="0" step="any" value="1"></div>
+  <div class="x3-f"><label for="pah-edge">Edge length a (parent Platonic solid)</label><input id="pah-edge" type="number" min="0" step="any" value="1"></div>
   <div class="x3-f"><label for="pah-unit">Unit</label><select id="pah-unit"><option>cm</option><option>mm</option><option>m</option><option>in</option><option>ft</option></select></div>
   <div class="x3-f"><label for="pah-tr">Truncate <b id="pah-trv">0%</b></label><input id="pah-tr" type="range" min="0" max="1" step="0.01" value="0"></div>
+  <div class="x3-f"><label for="pah-rho">Density (optional, g/cm³)</label><input id="pah-rho" type="number" min="0" step="any" placeholder="e.g. 2.65 quartz"></div>
+  <div class="x3-f"><label for="pah-ex">Explode faces <b id="pah-exv">0%</b></label><input id="pah-ex" type="range" min="0" max="1" step="0.01" value="0"></div>
   <div class="x3-f"><label for="pah-style">Style</label><select id="pah-style"><option value="gem">Glass gem</option><option value="solid">Solid</option><option value="wire">Wireframe</option></select></div>
 </div>
 <div class="x3-bar">
@@ -73,6 +75,11 @@
   <div class="x3-stat"><span>Inradius r</span><b id="pah-s-in">—</b></div>
   <div class="x3-stat"><span>Dihedral angle(s)</span><b id="pah-s-dih">—</b></div>
   <div class="x3-stat"><span>Dual</span><b id="pah-s-dual">—</b></div>
+  <div class="x3-stat"><span>Angular defect (Descartes)</span><b id="pah-s-def">—</b></div>
+  <div class="x3-stat"><span>Fills its circumsphere</span><b id="pah-s-fill">—</b></div>
+  <div class="x3-stat"><span>Sphericity Ψ</span><b id="pah-s-sph">—</b></div>
+  <div class="x3-stat"><span>Mass</span><b id="pah-s-mass">—</b></div>
+  <div class="x3-stat"><span>Plato’s element · found in</span><b id="pah-s-lore">—</b></div>
 </div>
 
 <details class="x3-learn"><summary>How this works — why there are only five</summary>
@@ -247,12 +254,14 @@ function truncate(P,t){ /* t: 0 none … 1 rectified; cut at fraction s of each 
 function dual(P){var pts=P.f.map(function(f){var c=[0,0,0]; f.forEach(function(q){c[0]+=P.v[q][0];c[1]+=P.v[q][1];c[2]+=P.v[q][2];}); c=[c[0]/f.length,c[1]/f.length,c[2]/f.length]; return c;});
   /* polar reciprocal about midsphere */ var e=edges(P)[0], a=P.v[e[0]],b=P.v[e[1]], rho2=Math.pow(Math.hypot((a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2),2);
   return hull(pts.map(function(c){var d2=dot(c,c); return [c[0]*rho2/d2,c[1]*rho2/d2,c[2]*rho2/d2];}));}
+var LORE={tet:['Fire','d4 dice, methane CH₄'],cube:['Earth','d6 dice, salt crystals'],oct:['Air','d8 dice, fluorite, SF₆'],dod:['Aether / the cosmos','d12 dice, pyrite'],ico:['Water','d20 dice, virus capsids, geodesic domes']};
 var SOL={tet:{n:'Tetrahedron',sch:'{3,3}',d:'Tetrahedron (self-dual)',tu:1/3,tn:'Truncated tetrahedron',rn:'Octahedron (rectified)'},
   cube:{n:'Cube',sch:'{4,3}',d:'Octahedron',tu:2-Math.SQRT2,tn:'Truncated cube',rn:'Cuboctahedron'},
   oct:{n:'Octahedron',sch:'{3,4}',d:'Cube',tu:2/3,tn:'Truncated octahedron',rn:'Cuboctahedron'},
   dod:{n:'Dodecahedron',sch:'{5,3}',d:'Icosahedron',tu:2/(2+phi)*1.0,tn:'Truncated dodecahedron',rn:'Icosidodecahedron'},
   ico:{n:'Icosahedron',sch:'{3,5}',d:'Dodecahedron',tu:2/3,tn:'Truncated icosahedron (C₆₀ football)',rn:'Icosidodecahedron'}};
 /* uniform truncation fraction t (s=t/2): cut s such that new edge (s·a·2cos-ish) equals remaining (1-2s)a. For {p,q} face polygon p: s = 1/(2+2cos(π/p))... t = 2s */
+Object.keys(SOL).forEach(function(k){SOL[k].el=LORE[k][0]; SOL[k].ex=LORE[k][1];});
 Object.keys(SOL).forEach(function(k){var p={tet:3,cube:4,oct:3,dod:5,ico:3}[k]; var s=1/(2+2*Math.cos(Math.PI/p)); SOL[k].tu=2*s;});
 var cur='ico', T=0, base=null, shown=null, dl=null, info=null;
 function measure(P,scale){var c=0,vol=0,area=0,i; var F=P.f, Vv=P.v;
@@ -262,7 +271,9 @@ function measure(P,scale){var c=0,vol=0,area=0,i; var F=P.f, Vv=P.v;
   var rin=Infinity, norms=F.map(function(f){var nn=nrm(crs(sub(Vv[f[1]],Vv[f[0]]),sub(Vv[f[2]],Vv[f[0]]))); if(dot(nn,Vv[f[0]])<0) nn=[-nn[0],-nn[1],-nn[2]]; rin=Math.min(rin,dot(nn,Vv[f[0]])); return nn;});
   var dih={}; E.forEach(function(e){var fs=[]; F.forEach(function(f,fi){if(f.indexOf(e[0])>=0&&f.indexOf(e[1])>=0) fs.push(fi);}); if(fs.length===2){var ang=180-Math.acos(Math.max(-1,Math.min(1,dot(norms[fs[0]],norms[fs[1]]))))*180/Math.PI; dih[ang.toFixed(3)]=1;}});
   var fc={}; F.forEach(function(f){fc[f.length]=(fc[f.length]||0)+1;});
-  return {V:Vv.length,E:E.length,F:F.length,vol:vol*scale*scale*scale,area:area*scale*scale,R:R*scale,mid:mid*scale,rin:rin*scale,dih:Object.keys(dih),fc:fc};}
+  var angs=Vv.map(function(){return 0;}); F.forEach(function(f){for(var q=0;q<f.length;q++){var o=Vv[f[q]], A1=nrm(sub(Vv[f[(q+f.length-1)%f.length]],o)), B1=nrm(sub(Vv[f[(q+1)%f.length]],o)); angs[f[q]]+=Math.acos(Math.max(-1,Math.min(1,dot(A1,B1))));}});
+  var defs=angs.map(function(x){return 360-x*180/Math.PI;}), defTot=defs.reduce(function(p,x){return p+x;},0);
+  return {V:Vv.length,E:E.length,F:F.length,vol:vol*scale*scale*scale,area:area*scale*scale,R:R*scale,mid:mid*scale,rin:rin*scale,dih:Object.keys(dih),fc:fc,def:defs[0],defTot:defTot};}
 var PN={3:'triangles',4:'squares',5:'pentagons',6:'hexagons',8:'octagons',10:'decagons'};
 function rebuild(){base=raw(cur); var E=edges(base), a=base.v[E[0][0]], b=base.v[E[0][1]], L=Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]), k=2/L; /* normalise so edge = 2 units? use edge=1.6 on screen */
   var sc=1.6/L; base.v=base.v.map(function(p){return [p[0]*sc,p[1]*sc,p[2]*sc];});
@@ -276,6 +287,12 @@ function update(){var a=+$('pah-edge').value, u=$('pah-unit').value, t=T, S=SOL[
   $('pah-s-R').textContent=X3fmt(m.R,6)+' '+u; $('pah-s-mid').textContent=X3fmt(m.mid,6)+' '+u; $('pah-s-in').textContent=X3fmt(m.rin,6)+' '+u+(Object.keys(m.fc).length>1?' (nearest face)':'');
   $('pah-s-dih').textContent=m.dih.map(function(d){return (+d).toFixed(3)+'°';}).join(', ');
   $('pah-s-dual').textContent=t<0.005?S.d:'shown with “Show dual”';
+  $('pah-s-def').textContent=X3fmt(m.def,4)+'° per vertex × '+m.V+' = '+X3fmt(m.defTot,4)+'°';
+  $('pah-s-fill').textContent=X3fmt(m.vol/(4/3*Math.PI*Math.pow(m.R,3))*100,4)+' %';
+  $('pah-s-sph').textContent=X3fmt(Math.pow(Math.PI,1/3)*Math.pow(6*m.vol,2/3)/m.area,4);
+  var rho=+$('pah-rho').value, cm={mm:0.1,cm:1,m:100,'in':2.54,ft:30.48}[u];
+  $('pah-s-mass').textContent=rho>0?X3fmt(m.vol*cm*cm*cm*rho,5)+' g':'enter a density';
+  $('pah-s-lore').textContent=t<0.005?S.el+' · '+S.ex:(Math.abs(t-S.tu)<0.012&&cur==='ico'?'Buckminsterfullerene C₆₀, footballs':t>0.995?'Rectified '+S.n.toLowerCase()+' — Archimedean':'Truncation of the '+S.n.toLowerCase());
   $('pah-trv').textContent=Math.round(t*100)+'%'+(Math.abs(t-S.tu)<0.012?' · uniform':'');
   var bs=$('pah-presets').querySelectorAll('.x3-chip'); for(var i=0;i<bs.length;i++) bs[i].setAttribute('aria-pressed',bs[i].dataset.k===cur?'true':'false');}
 var bar=$('pah-presets'); Object.keys(SOL).forEach(function(k){var b=document.createElement('button'); b.type='button'; b.className='x3-chip'; b.dataset.k=k; b.textContent=SOL[k].n;
@@ -283,16 +300,19 @@ var bar=$('pah-presets'); Object.keys(SOL).forEach(function(k){var b=document.cr
 [['Truncated icosahedron','ico','u'],['Cuboctahedron','cube',1],['Icosidodecahedron','dod',1],['Truncated octahedron','oct','u']].forEach(function(p){var b=document.createElement('button'); b.type='button'; b.className='x3-chip'; b.dataset.k='_'; b.textContent=p[0];
   b.addEventListener('click',function(){cur=p[1]; T=p[2]==='u'?SOL[p[1]].tu:p[2]; $('pah-tr').value=String(T); rebuild();}); bar.appendChild(b);});
 $('pah-tr').addEventListener('input',function(){var S=SOL[cur]; T=+this.value; if(Math.abs(T-S.tu)<0.015) T=S.tu; rebuild();});
-$('pah-edge').addEventListener('input',update); $('pah-unit').addEventListener('change',update);
+$('pah-edge').addEventListener('input',update); $('pah-rho').addEventListener('input',update);
+$('pah-ex').addEventListener('input',function(){$('pah-exv').textContent=Math.round(this.value*100)+'%';});
+function explode(P,k){if(k<=0) return P; var vv=[],ff=[]; P.f.forEach(function(f){var c=[0,0,0]; f.forEach(function(q){c[0]+=P.v[q][0];c[1]+=P.v[q][1];c[2]+=P.v[q][2];}); c=nrm(c);
+  var st=vv.length; f.forEach(function(q){var p=P.v[q]; vv.push([p[0]+c[0]*k,p[1]+c[1]*k,p[2]+c[2]*k]);}); ff.push(f.map(function(_,i){return st+i;}));}); return {v:vv,f:ff};} $('pah-unit').addEventListener('change',update);
 var PAL=[[80,200,255],[160,120,255],[255,120,200],[90,255,190],[255,200,90],[120,150,255]];
 rebuild();
 V.start(function(){
-  var sty=$('pah-style').value, P=shown, cols=P.f.map(function(f){return PAL[(f.length-3)%PAL.length];});
+  var sty=$('pah-style').value, P=explode(shown,+$('pah-ex').value*0.9), cols=P.f.map(function(f){return PAL[(f.length-3)%PAL.length];});
   if(sty!=='wire') V.mesh(P.v,P.f,cols,sty==='gem'?0.55:1,{stroke:sty==='gem'?'rgba(220,245,255,.85)':'rgba(10,20,40,.9)',lw:1.2,amb:0.35});
   else edges(P).forEach(function(e){V.line(P.v[e[0]],P.v[e[1]],'rgba(120,220,255,.95)',1.8);});
   if($('pah-verts').checked) P.v.forEach(function(p){V.sphere(p,0.04,[230,250,255],1);});
   if($('pah-dual').checked&&dl){edges(dl).forEach(function(e){V.line(dl.v[e[0]],dl.v[e[1]],'rgba(255,210,90,.95)',1.8);}); dl.v.forEach(function(p){V.sphere(p,0.035,[255,210,90],1);});}
-  if($('pah-sph').checked){var R=0; P.v.forEach(function(p){R=Math.max(R,Math.hypot(p[0],p[1],p[2]));}); V.over(function(g,V){var c=V.P([0,0,0]); g.strokeStyle='rgba(255,255,255,.35)'; g.setLineDash([4,5]); g.beginPath(); g.arc(c[0],c[1],R*c[3],0,6.2832); g.stroke(); g.setLineDash([]);});}
-  var m=P.v.length; $('pah-hud').textContent=$('pah-s-name').textContent+'\nV '+m+' · E '+edges(P).length+' · F '+P.f.length;});
+  if($('pah-sph').checked){var R=0; shown.v.forEach(function(p){R=Math.max(R,Math.hypot(p[0],p[1],p[2]));}); V.over(function(g,V){var c=V.P([0,0,0]); g.strokeStyle='rgba(255,255,255,.35)'; g.setLineDash([4,5]); g.beginPath(); g.arc(c[0],c[1],R*c[3],0,6.2832); g.stroke(); g.setLineDash([]);});}
+  $('pah-hud').textContent=$('pah-s-name').textContent+'\nV '+shown.v.length+' · E '+edges(shown).length+' · F '+shown.f.length;});
 })();
 </script>

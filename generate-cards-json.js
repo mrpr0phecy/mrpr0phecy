@@ -196,6 +196,11 @@ const categoryMap = {
   'vector-field-divergence-curl-3d': 'Mathematics',
   'lagrange-points-three-body-3d': 'Astronomy & Space',
   'complex-function-landscape-3d': 'Mathematics',
+  // 2026-09-23 — merged with a parallel 3D set: the overlapping topics were folded into the cards
+  // above (Z-ions, XRD peak list, SVD/condition number, sphericity & mass…); these three are new.
+  'lorentz-force-particle-3d': 'Science & Engineering',
+  'vector-3d-calculator': 'Mathematics',
+  'surface-curvature-3d-explorer': 'Mathematics',
   // 2026-09-21 — ten fire-service tools (new Fire & Rescue Service category, on the
   // Trucking & Freight precedent). A keyword audit of all 1,240 existing cards found no
   // hydrant, nozzle, gpm, friction-loss, SCBA, tanker, WBGT, hazmat, ventilation, confined

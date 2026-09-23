@@ -59,6 +59,7 @@
   <div class="x3-f"><label for="clu-k">Miller k</label><input id="clu-k" type="number" step="1" value="1"></div>
   <div class="x3-f"><label for="clu-l">Miller l</label><input id="clu-l" type="number" step="1" value="1"></div>
   <div class="x3-f"><label for="clu-lam">X-ray λ (pm)</label><input id="clu-lam" type="number" min="1" step="any" value="154.06"></div>
+  <div class="x3-f"><label for="clu-src">X-ray tube</label><select id="clu-src"><option value="154.06">Cu Kα 154.06 pm</option><option value="70.93">Mo Kα 70.93 pm</option><option value="178.90">Co Kα 178.90 pm</option><option value="228.97">Cr Kα 228.97 pm</option><option value="">Custom</option></select></div>
 </div>
 <div class="x3-bar">
   <label class="x3-check"><input type="checkbox" id="clu-plane" checked> Show (hkl) plane</label>
@@ -75,6 +76,8 @@
   <div class="x3-stat"><span>Nearest-neighbour distance</span><b id="clu-s-nn">—</b></div>
   <div class="x3-stat"><span>d-spacing d(hkl)</span><b id="clu-s-d">—</b></div>
   <div class="x3-stat"><span>Bragg angle 2θ (n = 1)</span><b id="clu-s-bragg">—</b></div>
+  <div class="x3-stat"><span>Atomic radius (hard sphere)</span><b id="clu-s-rad">—</b></div>
+  <div class="x3-stat" style="grid-column:1/-1"><span>First allowed XRD peaks (2θ)</span><b id="clu-s-peaks">—</b></div>
 </div>
 <p class="x3-note" id="clu-rule"></p>
 
@@ -237,7 +240,8 @@ var ST={
  cscl:{n:'Caesium chloride (CsCl)',b:[[0,0,0,0],[.5,.5,.5,1]],Z:1,cn:8,nn:S3/2,apf:null,rule:function(){return true;},rn:'CsCl is simple-cubic with a two-atom basis: all planes reflect (odd sums are weak).'},
  hcp:{n:'Hexagonal close-packed',hex:true,Z:2,cn:12,nn:1,apf:Math.PI/(3*S2),rule:null,rn:'Hexagonal cell — Miller/Bragg fields apply to cubic structures only.'}};
 var MAT=[['Copper (Cu)','fcc',361.49,63.546],['Aluminium (Al)','fcc',404.95,26.982],['Gold (Au)','fcc',407.82,196.97],['Iron α (Fe)','bcc',286.65,55.845],['Tungsten (W)','bcc',316.52,183.84],
- ['Polonium (Po)','sc',335.9,208.98],['Silicon (Si)','dia',543.10,28.086],['Diamond (C)','dia',356.68,12.011],['Table salt (NaCl)','nacl',564.02,58.443],['Caesium chloride','cscl',412.3,168.36],['Magnesium (Mg)','hcp',320.94,24.305],['Titanium α (Ti)','hcp',295.08,47.867],['Custom','',0,0]];
+ ['Polonium (Po)','sc',335.9,208.98],['Silicon (Si)','dia',543.10,28.086],['Diamond (C)','dia',356.68,12.011],['Table salt (NaCl)','nacl',564.02,58.443],['Caesium chloride','cscl',412.3,168.36],['Silver (Ag)','fcc',408.53,107.87],['Nickel (Ni)','fcc',352.40,58.693],['Chromium (Cr)','bcc',291.00,51.996],['Sodium (Na)','bcc',429.06,22.990],['Germanium (Ge)','dia',565.79,72.630],
+ ['Potassium chloride (KCl)','nacl',629.20,74.551],['Magnesium oxide (MgO)','nacl',421.20,40.304],['β-brass (CuZn)','cscl',295.00,128.93],['Magnesium (Mg)','hcp',320.94,24.305],['Titanium α (Ti)','hcp',295.08,47.867],['Custom','',0,0]];
 var cur='fcc';
 var ms=$('clu-mat'); MAT.forEach(function(m,i){var o=document.createElement('option'); o.value=i; o.textContent=m[0]+(m[1]?' — '+ST[m[1]].n:''); ms.appendChild(o);});
 var bar=$('clu-presets'); Object.keys(ST).forEach(function(k){var b=document.createElement('button'); b.type='button'; b.className='x3-chip'; b.dataset.k=k; b.textContent=ST[k].n; b.addEventListener('click',function(){cur=k; ms.value=String(MAT.length-1); build(); calc();}); bar.appendChild(b);});
@@ -267,9 +271,15 @@ function calc(){var S=ST[cur], a=+$('clu-a').value, M=+$('clu-M').value, h=Math.
   else if(h===0&&k===0&&l===0){err.push('Miller indices cannot all be zero.'); $('clu-s-d').textContent='—'; $('clu-s-bragg').textContent='—';}
   else if(a>0){var d=a/Math.sqrt(h*h+k*k+l*l); $('clu-s-d').textContent=X3fmt(d,5)+' pm';
     var s=lam/(2*d); if(!(lam>0)) $('clu-s-bragg').textContent='—'; else if(s>1) $('clu-s-bragg').textContent='none (λ > 2d)'; else {var ok=S.rule(h,k,l); $('clu-s-bragg').textContent=(2*Math.asin(s)*180/Math.PI).toFixed(3)+'°'+(ok?'':' — forbidden');}}
+  $('clu-s-rad').textContent=(a>0&&S.apf)?X3fmt(S.nn*a/2,5)+' pm':S.apf?'—':'ionic — see ion radii';
+  var pk=[]; if(!S.hex&&a>0&&lam>0){var seenQ={}; for(var q=1;q<=40&&pk.length<6;q++){var hk=null; for(var H=0;H*H<=q&&!hk;H++) for(var K=0;K<=H&&!hk;K++) for(var L=0;L<=K&&!hk;L++) if(H*H+K*K+L*L===q&&S.rule(H,K,L)) hk=[H,K,L];
+      if(!hk) continue; var sn=lam*Math.sqrt(q)/(2*a); if(sn>1) break; pk.push('('+hk.join('')+') '+(2*Math.asin(sn)*180/Math.PI).toFixed(2)+'°');}}
+  $('clu-s-peaks').textContent=S.hex?'n/a (hexagonal)':pk.length?pk.join('  ·  '):'—';
   $('clu-rule').textContent=S.rn; $('clu-err').textContent=err.join(' ');}
 ['clu-a','clu-M','clu-h','clu-k','clu-l','clu-lam'].forEach(function(id){$(id).addEventListener('input',function(){if(id==='clu-a'||id==='clu-M') ms.value=String(MAT.length-1); calc();});});
 $('clu-cells').addEventListener('input',build);
+$('clu-src').addEventListener('change',function(){if(this.value){$('clu-lam').value=this.value; calc();}});
+$('clu-lam').addEventListener('input',function(){var v=this.value, o=$('clu-src').options, m=''; for(var i=0;i<o.length;i++) if(o[i].value&&Math.abs(+o[i].value-(+v))<1e-6) m=o[i].value; $('clu-src').value=m;});
 var COL=[[90,190,255],[255,150,90]];
 V.start(function(){
   var S=ST[cur], full=$('clu-full').checked, N=+$('clu-cells').value, i;
