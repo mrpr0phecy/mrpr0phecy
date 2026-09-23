@@ -25,8 +25,12 @@
 #   1. hygiene    no token, no placeholder ID, no unsafe target=_blank
 #   2. catalogue  cards/ and cards.json agree about what exists
 #   3. card JS    the JavaScript in every changed card parses, every inline
-#                 handler it ships resolves in window scope, and no card
-#                 indexes parallel arrays of different lengths
+#                 handler it ships resolves in window scope and compiles, no
+#                 card indexes parallel arrays of different lengths, no button
+#                 submits the form the visitor is working in, and no card can
+#                 only initialise while the document is still loading (which
+#                 tool.html never is: the listener is never registered and the
+#                 card never starts)
 #   4. links      every internal href/src resolves to a shipped file
 #   5. counts     every published tool count is re-derived, never hand-edited
 #   6. SEO        no top-level page is missing a <title>
@@ -160,6 +164,35 @@ card_js() {
            "a card picks one index into arrays that are not the same length — see above" \
            node scripts/check-parallel-arrays.js --changed
   fi
+  # A <button> with no type inside a <form> is a submit button, and on this site
+  # submitting the form reloads the tool: fitnesscore's "Calculate BMI" showed
+  # its answer, navigated to its own URL and came back empty. jsdom does not
+  # implement form submission, so the harness cannot see this one at all.
+  if [ "$DEEP" = "1" ]; then
+    expect "no button submits the form it sits in (full sweep)" \
+           "a click would run the tool and then reload it — see the button above" \
+           node scripts/check-form-buttons.js --all
+  else
+    expect "the changed cards' buttons do not submit their own forms" \
+           "a click would run the tool and then reload it — see the button above" \
+           node scripts/check-form-buttons.js --changed
+  fi
+  # `if (document.readyState === 'loading') { addEventListener(…) }` with no else
+  # never runs: tool.html injects the fragment into a document that finished
+  # loading long ago and *then* dispatches DOMContentLoaded, so the listener is
+  # never registered and the card never starts. Forty-three cards shipped that,
+  # left behind by the bulk edit that wrapped their init — tic-tac-toe drew no
+  # board at all. A card that starts and does nothing is silent under every
+  # runtime check, so the rule lives here.
+  if [ "$DEEP" = "1" ]; then
+    expect "every card can start in an already-loaded document (full sweep)" \
+           "a card never initialises for a visitor — give the guard an else branch" \
+           node scripts/check-card-init.js --all
+  else
+    expect "the changed cards can start in an already-loaded document" \
+           "a card never initialises for a visitor — give the guard an else branch" \
+           node scripts/check-card-init.js --changed
+  fi
 }
 
 links() {
@@ -207,8 +240,8 @@ deep_card_safety() {
   expect "every network-touching card is a classified, reviewed exception" \
          "unclassified card egress — see the check-egress.py header" \
          python3 scripts/check-egress.py
-  expect "labels resolve, images have alt text, _blank is safe" \
-         "accessibility regressions in cards/" \
+  expect "labels resolve, images have alt text, _blank is safe, every click target is focusable" \
+         "accessibility regressions in cards/ — a control a keyboard cannot reach" \
          python3 scripts/check-a11y.py
   expect "no cross-card top-level name can throw in the shared DOM" \
          "name collision — the second-loaded card would die with a SyntaxError" \
