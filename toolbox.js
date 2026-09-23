@@ -50,6 +50,10 @@
   var slugs = [];
   var byslug = null;                 // slug → { name, title, category } from cards-lite.json
   var litePromise = null;
+  // The lookup fetch carries its own abort window, spanning headers and body:
+  // a stalled download must degrade the panel to raw slugs, not leave it
+  // hanging on its first paint. Same contract as the list's catalogue fetch.
+  var LITE_TIMEOUT_MS = 12000;
   var listeners = [];
   var groupState = {};               // category → open? remembered for this visit
 
@@ -141,14 +145,21 @@
        any future nesting. */
     var dir = document.body.getAttribute('data-cards-dir') ||
       (location.pathname.indexOf('/categories/') !== -1 ? '../' : '');
-    litePromise = fetch(dir + 'cards/cards-lite.json')
-      .then(function (r) { return r.ok ? r.json() : []; })
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, LITE_TIMEOUT_MS) : null;
+    litePromise = fetch(dir + 'cards/cards-lite.json', ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(function (list) {
+        if (timer) clearTimeout(timer);
         byslug = {};
         (list || []).forEach(function (t) { if (t && t.name) byslug[t.name] = t; });
         return byslug;
       })
-      .catch(function () { byslug = {}; return byslug; });
+      .catch(function () {
+        if (timer) clearTimeout(timer);
+        litePromise = null;   // re-arm: a failed lookup retries on next use…
+        return byslug || {};  // …while this render degrades to raw slugs
+      });
     return litePromise;
   }
   function toolHref(slug, base) {

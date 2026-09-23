@@ -960,6 +960,24 @@ missing until the visitor happened to load the page twice.
 `scripts/tests/service-worker.test.js` drives the shipped handler and fails if
 a stale catalogue beats the deployed one.
 
+**Nothing in `sw.js` may wait on the network forever.** v19 bounded the
+navigations that already had a cached copy; v21 (2026-09-23) closed the rest
+after the report came back — browse back and forth between the index and a few
+tools and the tab hangs. Every first visit to a URL (each new `tool.html?card=*`
+leg of exactly that browse) awaited the network with no bound, so one stalled
+socket was a white screen forever. Past `UNCACHED_PATIENCE_MS` (8 s) an
+uncached navigation now falls back to the cached index — the same fallback an
+offline visit gets — and an uncached catalogue, fragment, script, font or
+fallback fetch fails fast (503) so the page renders its error UI instead of
+hanging; a navigation preload that never settles no longer stops the fetch
+from starting, either. The pages match that contract from their side: the home
+list's catalogue fetch carries its own 12 s abort window over headers *and*
+body, a failed load re-arms instead of caching the rejection, and the empty
+state offers a retry next to the directory link (`explore.js`); the toolbox's
+lookup fetch has the same window and the same re-arm (`toolbox.js`).
+`service-worker.test.js` drives the worker's bounds with a network that never
+settles, and `explore-list.test.js` pins the list's timeout and retry.
+
 **The precache list must only contain what the fetch handler reads from that
 cache.** Entries are fetched with `cache: 'reload'` (bypassing the HTTP cache)
 on install, so a URL that the handler serves out of `RUNTIME_CACHE` or

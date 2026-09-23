@@ -62,9 +62,12 @@ function makeWorker() {
     Headers,
     Date,
     Promise,
-    // The patience timer is 2.5 s in production; scale it so the tests stay
-    // fast while keeping the ordering the race depends on.
-    setTimeout: (fn, ms) => setTimeout(fn, Math.min(ms || 0, 30)),
+    // The patience timers are 2.5 s / 8 s in production; scale them so the
+    // tests stay fast while keeping the ordering the races depend on — the
+    // uncached bound must still outlast the cached one and the preload skip,
+    // or a hung preload plus a working network would resolve to the fallback
+    // in the harness and the live page in production.
+    setTimeout: (fn, ms) => setTimeout(fn, (ms || 0) >= 8000 ? 80 : Math.min(ms || 0, 30)),
     clearTimeout,
     caches: {
       open: async (name) => store(name),
@@ -95,7 +98,7 @@ function makeWorker() {
   vm.createContext(sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'sw.js' });
 
-  const dispatch = (url, { mode = 'no-cors' } = {}) => {
+  const dispatch = (url, { mode = 'no-cors', preload } = {}) => {
     // Node's Request constructor rejects mode:'navigate' (script cannot mint
     // navigation requests) — but that is exactly the mode every real page
     // navigation arrives in, so navigations are dispatched as the plain
@@ -104,7 +107,11 @@ function makeWorker() {
       ? { url: ORIGIN + url, method: 'GET', mode }
       : new Request(ORIGIN + url, { method: 'GET', mode });
     let responded = null;
-    listeners.fetch({ request, preloadResponse: Promise.resolve(undefined), respondWith: (p) => { responded = p; } });
+    listeners.fetch({
+      request,
+      preloadResponse: preload === undefined ? Promise.resolve(undefined) : preload,
+      respondWith: (p) => { responded = p; },
+    });
     assert(responded, `the fetch handler did not respond for ${url}`);
     return responded;
   };
@@ -230,6 +237,85 @@ const body = (res) => res.text();
     assert.strictEqual(await body(res3), 'OFFLINE INDEX',
       'an offline, uncached tool URL must fall back to the cached index');
     console.log('  ok   offline navigation: the cached index answers');
+  }
+
+  // ------------------------------------------------------------- routing 2c
+  // The v19 bound covered navigations that already had a cached copy. The
+  // uncached path — every first visit to a URL, which is every new
+  // tool.html?card=* leg of a back-and-forth browse — still awaited the
+  // network forever: one stalled socket hung the tab on a white screen, and
+  // the "browse back and forth a few times and it hangs" report came back.
+  // Nothing in the worker may wait on the network unbounded any more.
+  {
+    // Uncached navigation + a network that never settles: the cached index
+    // answers (the same fallback an offline visit gets), so the tab always
+    // resolves to a page the visitor can navigate.
+    const w = makeWorker();
+    await w.put(STATIC, '/index.html', 'OFFLINE INDEX', STALE_MS);
+    w.setNetwork(() => new Promise(() => {}));            // never settles: the hang
+    const raced = await Promise.race([
+      w.dispatch('/tool.html?card=brand-new-tool', { mode: 'navigate' }).then((r) => r.text()),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(raced, 'OFFLINE INDEX',
+      'a stalled first visit to a tool URL hung instead of falling back to the cached index');
+    console.log('  ok   stalled first visit: the cached index answers');
+
+    // ...and with no cached index either, the navigation still settles (503)
+    // rather than hanging the tab.
+    const w2 = makeWorker();
+    w2.setNetwork(() => new Promise(() => {}));
+    const raced2 = await Promise.race([
+      w2.dispatch('/tool.html?card=brand-new-tool', { mode: 'navigate' }).then((r) => r.status),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(raced2, 503,
+      'a stalled first visit with nothing cached must fail fast, not hang');
+    console.log('  ok   stalled first visit, nothing cached: fails fast');
+
+    // Uncached catalogue + hung network: fails fast (503) so the page renders
+    // its error UI and its retry — explore.js used to wait on this fetch with
+    // no timeout of its own, wedging the home list on "Searching…".
+    const w3 = makeWorker();
+    w3.setNetwork(() => new Promise(() => {}));
+    const raced3 = await Promise.race([
+      w3.dispatch('/tools-index.json').then((r) => r.status),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(raced3, 503,
+      'a stalled uncached catalogue fetch must fail fast so the page can render its error UI');
+    console.log('  ok   stalled catalogue: fails fast for the page to handle');
+
+    // A navigation preload that never settles must not stop the fetch from
+    // starting: with a working network, the live page still wins.
+    const w4 = makeWorker();
+    w4.setNetwork(() => new Response('LIVE TOOL PAGE', { status: 200 }));
+    const raced4 = await Promise.race([
+      w4.dispatch('/tool.html?card=bmi', { mode: 'navigate', preload: new Promise(() => {}) })
+        .then((r) => r.text()),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(raced4, 'LIVE TOOL PAGE',
+      'a hung navigation preload stopped the fetch from starting');
+    console.log('  ok   hung preload: the fetch starts anyway and the live page wins');
+
+    // The same bound for the remaining uncached fetches: fonts/images
+    // (cache-first) and the default branch must settle, never hang.
+    const w5 = makeWorker();
+    w5.setNetwork(() => new Promise(() => {}));
+    const raced5 = await Promise.race([
+      w5.dispatch('/fonts/inter-latin.woff2').then((r) => r.status),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(raced5, 503, 'a stalled uncached font must fail fast, not hang');
+    const w6 = makeWorker();
+    w6.setNetwork(() => new Promise(() => {}));
+    const raced6 = await Promise.race([
+      w6.dispatch('/sitemap.xml').then((r) => r.status),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(raced6, 503, 'a stalled default-branch fetch must fail fast, not hang');
+    console.log('  ok   stalled fonts and fallback fetches: fail fast');
   }
 
   // ------------------------------------------------------------- routing 3
