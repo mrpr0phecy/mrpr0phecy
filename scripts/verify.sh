@@ -27,10 +27,11 @@
 #   3. card JS    the JavaScript in every changed card parses, every inline
 #                 handler it ships resolves in window scope and compiles, no
 #                 card indexes parallel arrays of different lengths, no button
-#                 submits the form the visitor is working in, and no card can
+#                 submits the form the visitor is working in, no card can
 #                 only initialise while the document is still loading (which
 #                 tool.html never is: the listener is never registered and the
-#                 card never starts)
+#                 card never starts), and nothing a card appends to the document
+#                 outlives it (tool.html clears the card, not the body)
 #   4. links      every internal href/src resolves to a shipped file
 #   5. counts     every published tool count is re-derived, never hand-edited
 #   6. SEO        no top-level page is missing a <title>
@@ -192,6 +193,23 @@ card_js() {
     expect "the changed cards can start in an already-loaded document" \
            "a card never initialises for a visitor — give the guard an else branch" \
            node scripts/check-card-init.js --changed
+  fi
+  # tool.html clears the card's container on every navigation, never the
+  # document. A modal, a share dialog or a toast a card parks in document.body
+  # therefore outlives it and sits over the next tool — and a stale
+  # mrprophecy-*.html audio wrapper kept its iframe, and its music, playing.
+  # The harness sees only the leftovers its own clicks made, so the rule is
+  # static: an append documented.body/head with no removal of the same
+  # reference. A transient copy helper, a self-removing toast and a third-party
+  # <script src> are the three shapes that stay quiet.
+  if [ "$DEEP" = "1" ]; then
+    expect "nothing a card adds to the document outlives it (full sweep)" \
+           "a node parked in document.body stays over the next tool — append it into the card" \
+           node scripts/check-card-leftovers.js --all
+  else
+    expect "nothing the changed cards add to the document outlives them" \
+           "a node parked in document.body stays over the next tool — append it into the card" \
+           node scripts/check-card-leftovers.js --changed
   fi
 }
 

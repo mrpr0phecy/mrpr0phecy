@@ -351,6 +351,12 @@
    - Screen reader support
 */
 
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a modal, a share dialog or a live region parked there stays
+   behind after the visitor moves to another tool. */
+const gcRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
 // ========== GLOBAL STATE ==========
 const gc = {
   // Core state
@@ -1364,7 +1370,7 @@ function gcShareGraph() {
             </div>
           </div>
         `;
-        document.body.appendChild(shareDiv);
+        gcRoot.appendChild(shareDiv);
       });
   }
 }
@@ -1472,7 +1478,7 @@ function gcShowExamples() {
   html += '<button onclick="this.parentElement.remove()" style="margin-top:15px;padding:8px 16px;background:var(--glass);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;width:100%;">Close</button>';
   
   exampleDiv.innerHTML = html;
-  document.body.appendChild(exampleDiv);
+  gcRoot.appendChild(exampleDiv);
 }
 
 function gcQuickExpression(expr) {
@@ -1518,6 +1524,10 @@ function gcToggleTips() {
 // ========== HELPER FUNCTIONS ==========
 function updateOutput(message, type = 'info') {
   const output = document.getElementById('gc-output');
+  // A deferred caller can outlive the card: tool.html clears the container and
+  // this function is still reached from a timer or a rejected promise. Without
+  // the bail it throws on `.innerHTML` of null in the tool the visitor moved to.
+  if (!output) return;
   const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   
   let color;
@@ -1565,7 +1575,7 @@ function announceToScreenReader(message) {
     liveRegion.setAttribute('aria-live', 'polite');
     liveRegion.setAttribute('aria-atomic', 'true');
     liveRegion.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;';
-    document.body.appendChild(liveRegion);
+    gcRoot.appendChild(liveRegion);
   }
   
   liveRegion.textContent = message;

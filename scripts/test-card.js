@@ -1191,8 +1191,13 @@ process.on('unhandledRejection', reason => {
 
     // What is still in the document that the card brought with it. <style> and
     // <link> are excluded: inert once scoped, and check-card-css-leaks.py
-    // proves every one of them is.
-    const inert = el => ['STYLE', 'LINK'].includes(el.tagName);
+    // proves every one of them is. A <script src> is excluded on the same
+    // grounds — once it has run it is a loaded library, not a node the visitor
+    // can see, and the card's own guard (`querySelector('script[src*=…]')`)
+    // is what keeps it from being injected twice. An INLINE script still counts:
+    // appending one repeatedly is code running again, which is not inert.
+    const inert = el => ['STYLE', 'LINK'].includes(el.tagName) ||
+                        (el.tagName === 'SCRIPT' && el.hasAttribute('src'));
     const parked = [];
     for (const parent of [window.document.body, window.document.head]) {
       const seen = parent === window.document.body ? before : beforeHead;

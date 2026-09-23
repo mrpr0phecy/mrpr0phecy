@@ -42,80 +42,12 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { mask, matchBrace } = require('./lib/mask-js.js');
 
 const ROOT = path.join(__dirname, '..');
 const GUARD = /if\s*\(\s*document\.readyState\s*===?\s*['"]loading['"]\s*\)/g;
 const LISTENER = /document\.addEventListener\(\s*['"]DOMContentLoaded['"]/;
 
-function mask(code) {
-  const out = code.split('');
-  const n = code.length;
-  const blank = (a, b) => {
-    for (let k = Math.max(0, a); k < Math.min(b, n); k++) out[k] = code[k] === '\n' ? '\n' : ' ';
-  };
-  let i = 0, prev = '';
-  while (i < n) {
-    const c = code[i], nxt = code[i + 1] || '';
-    if (c === '/' && nxt === '/') {
-      const start = i;
-      while (i < n && code[i] !== '\n') i++;
-      blank(start, i);
-      continue;
-    }
-    if (c === '/' && nxt === '*') {
-      const start = i;
-      i += 2;
-      while (i < n && !(code[i] === '*' && code[i + 1] === '/')) i++;
-      i = Math.min(i + 2, n);
-      blank(start, i);
-      continue;
-    }
-    if (c === '/' && (prev === '' || '(,=:[!&|?{};+-*%^~<>'.includes(prev))) {
-      // a regex literal, or a division — decide by whether it closes on the line
-      const start = i;
-      i += 1;
-      let inClass = false, closed = false;
-      while (i < n) {
-        const ch = code[i];
-        if (ch === '\\') { i += 2; continue; }
-        if (ch === '[') inClass = true;
-        else if (ch === ']') inClass = false;
-        else if (ch === '/' && !inClass) { i += 1; closed = true; break; }
-        else if (ch === '\n') break;
-        i += 1;
-      }
-      if (closed) { blank(start, i); prev = '/'; } else { i = start + 1; prev = c; }
-      continue;
-    }
-    if (c === '"' || c === "'" || c === '`') {
-      const start = i;
-      i += 1;
-      while (i < n && code[i] !== c) {
-        if (code[i] === '\\') { i += 2; continue; }
-        i += 1;
-      }
-      i = Math.min(i + 1, n);
-      blank(start, i);
-      prev = c;
-      continue;
-    }
-    if (!/\s/.test(c)) prev = c;
-    i += 1;
-  }
-  return out.join('');
-}
-
-function matchBrace(masked, openIdx) {
-  let depth = 0;
-  for (let i = openIdx; i < masked.length; i++) {
-    if (masked[i] === '{') depth++;
-    else if (masked[i] === '}') {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
-}
 
 /** Guards that register DOMContentLoaded with no else: the card never starts. */
 function deadGuards(code) {

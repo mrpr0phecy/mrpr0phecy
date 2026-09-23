@@ -131,6 +131,29 @@ Prefix every id and every top-level name; IIFE-wrap anything you touch.
 summarises the remaining soft `var`/`function` overwrites — run it rather than
 trusting a number written here, because the count moves with the catalogue.
 
+**Nothing you append to the document outlives your card.** The same navigation
+clears the card's container and cannot clear `document.body` or
+`document.head`, so anything you park there stays on screen over the tool the
+visitor opens next — with its own Close button still wired to markup that is
+gone. Six cards did exactly that with a toast, and a share dialog or a modal
+behind a Share button is the same bug. Append into your own container instead,
+captured once while your script is the one running:
+
+    const myRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+    myRoot.appendChild(toast);
+
+The three shapes that legitimately use the body stay: the transient copy
+helper, which appends an `<a>` or a `<textarea>`, clicks or selects it and
+removes it in the same tick; a toast that removes itself on its timer; and a
+third-party `<script src>` (inert once it has run — an *inline* script does not
+count, appending one runs code). A global `<style>` is inert for a different
+reason, and `check-card-css-leaks.py` is the check that owns it.
+`scripts/check-card-leftovers.js` holds the line: an append to
+`document.body`/`document.head` with no removal of the same reference fails the
+build. The harness cannot be this guard on its own — its teardown probe sees
+only the leftovers its own clicks made, and a dialog behind a button is never
+clicked.
+
 **A listener on `document` runs in the next tool too.** The loader clears its
 container and dispatches `DOMContentLoaded` again for every card the visitor
 opens, and it cannot unregister a listener it did not add — so a handler bound

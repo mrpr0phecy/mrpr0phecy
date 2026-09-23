@@ -1079,7 +1079,7 @@ production curls). The individual manual checks:
 # JS syntax inside a page (extract each <script> and run node --check)
 node --check extracted.js
 
-# Card JavaScript, five questions. Does it parse at all; does every inline
+# Card JavaScript, six questions. Does it parse at all; does every inline
 # `on*=` handler resolve in the window scope it will run in AND compile as
 # JavaScript (a full sweep found 37 attributes like `onclick="fn(), this)"`,
 # which name a function that exists and are not code: the control is dead);
@@ -1089,17 +1089,22 @@ node --check extracted.js
 # and can the card start at all — a `document.readyState === 'loading'` guard
 # with no `else` never runs in a document that finished loading before the
 # fragment was injected, which is what tool.html does (forty-three cards, dead
-# on arrival: tic-tac-toe rendered no board at all). Each of the last four is
-# there because a real card shipped the defect while every other check passed —
-# creative-writing's 12/8/8 plot arrays, fitnesscore's "Calculate BMI" reloading
-# the tool, and the sweep of 2026-09-23 that named the 43 dead cards.
-# verify.sh runs all five on changed cards in the gate and over cards/ on
+# on arrival: tic-tac-toe rendered no board at all); and does anything the card
+# adds to the document outlive it — a modal, a share dialog or a toast parked in
+# document.body stays over the next tool, because tool.html clears the card's
+# container and never the body (six toasts and ten audio wrappers shipped that).
+# Each of the last four is there because a real card shipped the defect while
+# every other check passed — creative-writing's 12/8/8 plot arrays, fitnesscore's
+# "Calculate BMI" reloading the tool, and the sweep of 2026-09-23 that named the
+# 43 dead cards.
+# verify.sh runs all six on changed cards in the gate and over cards/ on
 # --deep.
 python3 scripts/check-card-js.py --all
 node scripts/handler-check.js --all
 node scripts/check-parallel-arrays.js --all
 node scripts/check-form-buttons.js --all
 node scripts/check-card-init.js --all
+node scripts/check-card-leftovers.js --all
 
 # Placeholders that must never ship
 grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
