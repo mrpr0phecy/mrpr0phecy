@@ -319,6 +319,10 @@ def _is_exempt(text: str, start: int, end: int) -> bool:
     return False
 
 
+# Opening tag of a generator-owned per-category badge, immediately before the number.
+_CATEGORY_BADGE = re.compile(r'class="(?:cat-)?count"[^>]*>\s*$')
+
+
 def _plausible(n: int) -> bool:
     return 200 <= n <= 1500
 
@@ -329,6 +333,14 @@ def fix_text(text: str, n: int, cats: int) -> tuple[str, list[str]]:  # noqa: C9
 
     def claim_repl(m: re.Match) -> str:
         if _is_exempt(text, m.start(), m.end()):
+            return m.group(0)
+        # A per-CATEGORY count is not the catalogue total. Science & Engineering
+        # passed 200 tools on 2026-09-23, entered the plausibility window below,
+        # and its "202 tools" badge was rewritten to the site total on
+        # index.html, tools.html and tools-index.html — then every generator
+        # run put it back and the gate went red in a loop. The generators own
+        # those badges; they always sit in a count/cat-count element.
+        if _CATEGORY_BADGE.search(text[max(0, m.start() - 60):m.start()]):
             return m.group(0)
         found = m.group(1)
         # "1,206" is one number written in grouped style, not two.
