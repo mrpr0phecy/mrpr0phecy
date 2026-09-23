@@ -23,7 +23,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 1250 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 1260 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -57,8 +57,8 @@ establish *which* site first.
 ├── toolbox.js              The visitor's own toolbox: a saved slug list, not a running grid
 ├── cards/
 │   ├── cards-lite.json     Generated critical-path tier: name/title/category
-│   ├── cards.json          Generated full index of all 1250 tools (descriptions feed search)
-│   └── <tool-name>.html    1250 tool fragments (NOT full documents)
+│   ├── cards.json          Generated full index of all 1260 tools (descriptions feed search)
+│   └── <tool-name>.html    1260 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json + cards-lite.json from the cards/ directory
 ├── ai.html                 Lantern — standalone AI product. Chat answered on
 │                           the device from the visitor's own documents and
@@ -153,7 +153,7 @@ What is left is a page that links. What that buys:
   chrome and the first list; nothing monospaced, nothing that needs a
   stylesheet from another deploy to look finished.
 - **One place a tool can go wrong.** `tool.html` fails the same way for all
-  1,250 tools, and `scripts/check-tool-graph.py` proves every link into it
+  1,260 tools, and `scripts/check-tool-graph.py` proves every link into it
   lands on a tool that exists.
 - **A list that scales.** Filtering, sorting, keyboard navigation, density and
   the toolbox are properties of a *list*. They were impossible to add while the
@@ -261,7 +261,7 @@ removed with the grid (2026-09-21). What it has instead:
   toolbox is added by `toolbox.js`, not baked in.
 - **`HOME-CATEGORIES`** — the 29 category hubs, one link each.
 - **`[data-explore="json"]`** — an empty container. Everything below the fold
-  (the filterable list of all 1,250 tools) is fetched on scroll and built 60
+  (the filterable list of all 1,260 tools) is fetched on scroll and built 60
   rows at a time. On a phone with a cold cache the page is useful before that
   fetch starts.
 
@@ -424,7 +424,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1250 cards.** They share one
+2. **Element IDs must be globally unique across all 1260 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -484,29 +484,29 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1250 tools)
+### Categories (1260 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
 | 198 | Science & Engineering | | 29 | MrProphecy Arcade |
-| 159 | Productivity & Lifestyle | | 29 | Museum & Collection |
-| 90 | Finance & Money | | 21 | Virtual Worlds & Gaming |
+| 161 | Productivity & Lifestyle | | 29 | Museum & Collection |
+| 94 | Finance & Money | | 21 | Virtual Worlds & Gaming |
 | 73 | SaaS & Business Killers | | 19 | AI & Autonomous Agents |
-| 70 | Writing & Language | | 17 | Mind-Blowing Demos |
+| 71 | Writing & Language | | 17 | Mind-Blowing Demos |
 | 69 | Algorithms & Computer Science | | 13 | Lucid Dreaming & Sleep |
 | 55 | Sports | | 11 | Survival & Emergency Readiness |
 | 54 | Mathematics | | 10 | Anime & Otaku Culture |
 | 51 | Interactive Art & Living Worlds | | 10 | Aquatics & Fishkeeping |
-| 46 | Health & Fitness | | 10 | Birdwatching & Ornithology |
+| 48 | Health & Fitness | | 10 | Birdwatching & Ornithology |
 | 41 | Home & DIY | | 10 | Dogs & Canine Care |
 | 40 | Music & Audio | | 10 | Fire & Rescue Service |
 | 35 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
-| 30 | Culinary & Food Science | | 10 | Trucking & Freight |
-| 30 | Wellbeing & Community | | | |
+| 31 | Wellbeing & Community | | 10 | Trucking & Freight |
+| 30 | Culinary & Food Science | | | |
 
-Total: 1250 tools in 29 categories.
+Total: 1260 tools in 29 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -858,7 +858,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 1197 indexable pages (including 1250 cards). Build it
+`sitemap.xml` lists all 1197 indexable pages (including 1260 cards). Build it
 from git rather than the working tree, so a sparse checkout does not silently
 drop the card pages:
 
@@ -1047,7 +1047,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1250 cards):
+# Music work (skip images and the 1260 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -1163,7 +1163,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ## 9. Current state
 
-1250 tools in `cards/` across 29 categories, one shared DOM, every derived
+1260 tools in `cards/` across 29 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. The gate is `npm run verify` — seven
 checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
 which is also what CI runs on every push and PR.
