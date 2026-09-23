@@ -213,17 +213,191 @@ for (const rel of files) {
               (hit ? ` — ${hit.trim().slice(0, 100)}` : ''));
   }
 
-  // 6. id collisions with other cards
+  // 6. id collisions with other cards.
+  //
+  // A duplicate id inside the card is checked on the mounted DOM, not here: the
+  // source text of a card that re-renders a control (`favToggle.innerHTML =
+  // '<span id="dpv-fav-count">…'`) contains the same id twice while the page
+  // only ever has one, and reading the file reported dog-photo-viewer and
+  // creative-writing for it when neither has a duplicate in the DOM. The
+  // cross-card check below has to stay source-level — it needs every card's ids
+  // without mounting them — and check-card-collisions.py owns that class.
   let m; idRe.lastIndex = 0;
-  const seenHere = new Set();
   while ((m = idRe.exec(html))) {
     const id = m[1];
     if (id.includes('${')) continue;
-    if (seenHere.has(id)) { note(rel, `duplicate id inside the card: ${id}`); }
-    seenHere.add(id);
     const owner = idOwners.get(id);
     if (owner && owner !== base) fail(rel, `id "${id}" already used by ${owner}`);
   }
+}
+
+/** Ids that appear more than once in the markup the visitor actually has. */
+function duplicateIds(container) {
+  const counts = new Map();
+  for (const el of container.querySelectorAll('[id]')) {
+    counts.set(el.id, (counts.get(el.id) || 0) + 1);
+  }
+  return [...counts].filter(([, n]) => n > 1).map(([id, n]) => `${id} ×${n}`);
+}
+
+// --------------------------------------------------------------- the card's
+// ---------------------------------------------------------- own references
+// Attributes that name another element by id: a label's `for`, the `aria-*`
+// relationships, a `list=`, a `headers=`. They are promises — "the text beside
+// this field is the label", "this control is described by that paragraph" —
+// and the browser keeps them silently when they point at nothing. A screen
+// reader then reads the field with no name, or reads a name and swallows the
+// help text, and nothing anywhere reports it: the markup is valid, the page
+// does not throw, and every check in this repo reads either the source, where
+// the attribute is present and looks fine, or the console, where nothing
+// happens. Resolving them is cheap once the card is mounted, which is the only
+// place the answer exists: cards build these ids, and their references, at
+// runtime (spirograph, the face avatars, every card that re-renders a panel).
+const REF_ATTRS = ['for', 'aria-labelledby', 'aria-describedby', 'aria-controls',
+  'aria-owns', 'aria-activedescendant', 'aria-errormessage', 'aria-details',
+  'aria-flowto', 'list', 'headers', 'form', 'popovertarget', 'usemap'];
+// A space-separated list of ids is one attribute (aria-describedby="a b").
+const REF_LISTS = new Set(['aria-labelledby', 'aria-describedby', 'aria-controls',
+  'aria-owns', 'aria-flowto', 'headers']);
+const REF_ATTR_SET = new Set(REF_ATTRS);
+
+// What the visitor loses when each kind of reference resolves to nothing.
+// `aria-labelledby` is the one that reads oddly without it: an element with its
+// own text keeps a (worse) name, so "no label" would be the wrong sentence.
+const REF_COST = {
+  for: 'the label points at no field, so the field is announced with no name',
+  'aria-labelledby': 'the name it should take from that element is not there',
+  'aria-describedby': 'the description is never read out',
+  list: 'the suggestions the field offers are not attached to it',
+};
+
+/** Reference attributes that name an id no element in the document carries. */
+function danglingReferences(container, doc) {
+  const out = [];
+  for (const el of container.querySelectorAll('*')) {
+    for (const attr of el.attributes) {
+      const name = attr.name.toLowerCase();
+      if (!REF_ATTR_SET.has(name)) continue;
+      const raw = (attr.value || '').trim();
+      // `#panel` is how `usemap` and href-style attributes are written and is
+      // not an id lookup; an empty value is a different defect (a promise to
+      // nobody) and is not this check's business.
+      if (!raw || raw.startsWith('#')) continue;
+      for (const id of REF_LISTS.has(name) ? raw.split(/\s+/) : [raw]) {
+        if (id && !doc.getElementById(id)) {
+          out.push(`${name}="${id}" on <${el.tagName.toLowerCase()}> names an id no ` +
+                   `element carries: ${REF_COST[name] || 'the browser drops it silently'}`);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// A control with no accessible name. The visitor with a screen reader hears
+// "button" and nothing else — no idea whether it draws, clears, shares or
+// deletes. Same shape as every other defect this harness looks for: the markup
+// is valid, the click works, and the cost lands on the person who cannot see
+// the icon the name was supposed to come from.
+//
+// Deliberately conservative. Text content, `aria-label`, `aria-labelledby`,
+// `title`, a wrapping `<label>`, a `label for=` that points at it, an `alt` on
+// a child image, a `<title>` inside a child svg and a placeholder each count as
+// a name — anything else is a finding.
+const NAME_TYPES = new Set(['hidden', 'submit', 'reset', 'button', 'image']);
+// What a screen reader says when there is no name to say: the control's role,
+// which is all the visitor gets.
+const ROLE_WORD = {
+  button: 'button', a: 'link', input: 'text field', select: 'combobox',
+  textarea: 'text area',
+};
+// The word an input's own type gives it: "announced as nothing but a text
+// field" is the wrong sentence for a range slider or a checkbox.
+const INPUT_WORD = {
+  range: 'slider', number: 'spin button', checkbox: 'checkbox',
+  radio: 'radio button', color: 'colour well', file: 'file chooser',
+  date: 'date field', 'datetime-local': 'date and time field', month: 'month field',
+  week: 'week field', time: 'time field', search: 'search box', url: 'URL field',
+  email: 'email field', tel: 'telephone field', password: 'password field',
+};
+function textOf(el) {
+  // `return (el && …)` used to hand back null — and a null from a dangling
+  // aria-labelledby reached `.replace` and killed the whole run for that card,
+  // hiding every check after it. An element that is not there has no text.
+  if (!el) return '';
+  return (el.textContent || '').replace(/\s+/g, ' ').trim();
+}
+function referencedText(el, doc) {
+  const ids = (el.getAttribute('aria-labelledby') || '').trim();
+  if (!ids) return '';
+  return ids.split(/\s+/).map(id => textOf(doc.getElementById(id))).join(' ').trim();
+}
+function accessibleName(el, doc) {
+  const direct = (el.getAttribute('aria-label') || '').trim() ||
+                 referencedText(el, doc) ||
+                 (el.getAttribute('title') || '').trim();
+  if (direct) return direct;
+  const tag = el.tagName.toLowerCase();
+  const own = textOf(el);
+  if (own) return own;
+  for (const img of el.querySelectorAll('img[alt]')) {
+    if ((img.getAttribute('alt') || '').trim()) return img.getAttribute('alt').trim();
+  }
+  for (const t of el.querySelectorAll('svg title')) {
+    if (textOf(t)) return textOf(t);
+  }
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') {
+    if (el.id) {
+      // Compared by hand rather than `querySelector('label[for="…"]')`: an id
+      // is not a selector, and the escaping needed to make one out of it is
+      // exactly what breaks here.
+      for (const label of doc.querySelectorAll('label[for]')) {
+        if (label.getAttribute('for') === el.id && textOf(label)) return textOf(label);
+      }
+    }
+    const wrap = el.closest('label');
+    if (wrap && textOf(wrap)) return textOf(wrap);
+    const ph = (el.getAttribute('placeholder') || '').trim();
+    if (ph) return ph;
+  }
+  return '';
+}
+function unnamedControls(container, doc) {
+  const out = [];
+  const selector = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"]';
+  for (const el of container.querySelectorAll(selector)) {
+    const tag = el.tagName.toLowerCase();
+    // A submit/reset/button input is named by its `value`; a hidden input is
+    // not on screen to be named.
+    if (tag === 'input' && NAME_TYPES.has((el.type || '').toLowerCase())) continue;
+    if (accessibleName(el, doc)) continue;
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    const word = ROLE_WORD[role] || INPUT_WORD[(el.type || '').toLowerCase()] ||
+                 ROLE_WORD[tag] || tag;
+    // The id is the fastest way to find the control again in a 1,000-line
+    // card; the classes are the next best; a JS-built control often has only a
+    // data attribute to go by (`data-dot="3"`), which is still enough to find
+    // it by.
+    const classes = (el.className && typeof el.className === 'string')
+      ? `.${el.className.split(/\s+/).filter(Boolean).slice(0, 2).join('.')}` : '';
+    let hint = (el.id ? `#${el.id}` : '') + classes;
+    if (!hint) {
+      for (const a of el.attributes) {
+        if (!a.name.startsWith('data-')) continue;
+        hint = `[${a.name}="${(a.value || '').slice(0, 20)}"]`;
+        break;
+      }
+    }
+    // A nameless BUTTON or LINK and a nameless FORM FIELD are not the same
+    // thing to fix. The button has nothing to read and nothing to see — the
+    // visitor is looking at a colour, an emoji or an icon, and the name was
+    // simply never written; that small set fails. The field almost always has
+    // its label sitting beside it, unassociated: a real gap, in the hundreds,
+    // and a backlog to work through rather than a card to fail.
+    const kind = (tag === 'input' || tag === 'select' || tag === 'textarea') ? 'field' : 'control';
+    out.push({ kind, text: `<${tag}${hint}> is announced as nothing but "${word}"` });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- jsdom mount
@@ -496,7 +670,30 @@ function makeWindow(sink) {
 
 // Mount one card into a container inside window, run its scripts, fire
 // DOMContentLoaded/load, poke the UI, settle. Returns the error list.
+//
+// The window is not ready for a card until jsdom has finished parsing it. jsdom
+// fires its OWN DOMContentLoaded (and load) a tick after the shell is built,
+// while this loop mounts and dispatches immediately — so a card that
+// initialises on DOMContentLoaded was initialised TWICE, the second time with
+// its first pass's markup still in place. mealplanner appended its seven day
+// columns twice and the sweep reported `mp-monday-meals ×2` … for a duplicate
+// no browser can produce: tool.html's loader dispatches the event once per
+// tool, after the document is complete, and the card's own "is my markup still
+// here?" guard covers the re-open. A harness artifact reported as the card's
+// bug is the one failure mode a harness must never have.
+//
+// Waiting for `complete` also gets the mount right for the cards that test
+// `document.readyState` before deciding whether to init now or wait for the
+// event: in production their script is injected into a loaded page.
+async function documentSettled(window, timeoutMs = 4000) {
+  const doc = window.document;
+  const deadline = Date.now() + timeoutMs;
+  while (doc.readyState !== 'complete' && Date.now() < deadline) await delay(10);
+  return doc.readyState;
+}
+
 async function mountCard(card, window, vmContext, sink) {
+  await documentSettled(window);
   const { rel, base, html } = card;
   const errors = [];
   const doc = window.document;
@@ -879,6 +1076,38 @@ process.on('unhandledRejection', reason => {
       const settled = responseReady.fingerprint();
       responsive = settled !== responseReady.quiet;
     }
+    // `getElementById` returns the first match, so a second element with the
+    // same id is a control, a label or an aria reference that can never be
+    // reached by the code that names it. Checked on the mounted DOM: the source
+    // file cannot tell a re-rendered control from a duplicated one.
+    if (container) {
+      for (const dup of duplicateIds(container)) {
+        fail(card.rel, `duplicate id in the rendered card: ${dup} — ` +
+                       `getElementById and every aria reference resolve to the first one`);
+      }
+      // The card's own promises to itself: a `for=`/`aria-*` that names an id
+      // nothing carries is silently ignored by the browser (see REF_ATTRS).
+      for (const ref of danglingReferences(container, window.document)) {
+        fail(card.rel, `reference to nowhere: ${ref}`);
+      }
+      // ...and the controls with no accessible name at all. A NOTE, not a
+      // failure: the catalogue has this shape in the hundreds — braille dot
+      // toggles and colour swatches built by JS, read-only output textareas,
+      // sliders whose label sits beside them unassociated — so it is a backlog
+      // to work through rather than a regression to charge to one card. A check
+      // that fails on hundreds of pre-existing controls is a check nobody
+      // reads. The count and the first element make each card actionable.
+      const unnamed = unnamedControls(container, window.document);
+      const controls = unnamed.filter(u => u.kind === 'control').length;
+      const fields = unnamed.length - controls;
+      if (unnamed.length) {
+        const parts = [];
+        if (controls) parts.push(`${controls} control(s)`);
+        if (fields) parts.push(`${fields} field(s)`);
+        note(card.rel, `${parts.join(' and ')} with no accessible name ` +
+                       `(first: ${unnamed[0].text}) — a screen reader announces the role only`);
+      }
+    }
     const mountedErrors = [...new Set(perCard)];
     const mountedNotes = [...new Set(perCardNotes)];
 
@@ -1066,5 +1295,12 @@ process.on('unhandledRejection', reason => {
     ? `\nALL PASSED (${files.length} card${files.length === 1 ? '' : 's'})`
     : `\n${fails} problem(s)`);
   process.exit(fails === 0 ? 0 : 1);
-})();
+})().catch((e) => {
+  // The harness itself failed. Without this, a throw in the loop is an
+  // unhandled rejection: the run dies mid-sweep, the cards after it are never
+  // checked, and a sweep driver counting only `ok`/`FAIL` lines sees a short
+  // run rather than an error. Say so and exit non-zero.
+  console.error(`harness failed before finishing: ${e && e.stack ? e.stack : e}`);
+  process.exit(1);
+});
 

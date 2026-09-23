@@ -149,6 +149,53 @@ The `if (document.readyState === 'loading') … else init()` idiom is immune: in
 its own window, clears the container and fires the next navigation; 108 cards
 failed that on 2026-09-22 and were fixed with this guard.
 
+**The `else` half of that idiom is not optional; it is the half that runs.**
+Without it the card does not merely skip the listener — it never starts at all.
+Forty-three cards shipped in exactly that state after the bulk edit of
+2026-09-22, which wrapped their init in the guard and gave the other 95 cards the
+`else`: tic-tac-toe rendered *no board at all*, cover-letter never filled in the
+date, cooking-unit-converter never ran a first conversion. No check here could
+see it — the markup was valid, the scripts compiled, every inline handler
+resolved, and the harness of the day mounted into a document jsdom had not
+finished parsing, where `readyState` really was `'loading'` and the guard passed.
+`scripts/test-card.js` waits for the shell to finish loading now, which is what
+exposed the class, and `scripts/check-card-init.js` fails the build on a guard
+with no `else` (a card that starts and does nothing is silent under any runtime
+check, so the rule has to be static).
+
+That last sentence is only true because the harness waits for the shell to
+report `document.readyState === 'complete'` before it mounts the card. jsdom
+fires its own `DOMContentLoaded` and `load` a tick after the shell is built, so
+a harness that mounted immediately handed the card two init events — the
+loader's, which production sends, and jsdom's, which production does not have
+left to send. `mealplanner.html` appended its seven day columns twice and the
+sweep reported `mp-monday-meals ×2` … for a duplicate no browser can produce:
+tool.html dispatches once per tool, into a completed document. Anything mounted
+now runs the same way it does in production, and `loads-once.card` fails loudly
+if that ever stops being true.
+
+While the card is mounted the harness also reads it for the promises it makes
+to itself, all of them invisible in the source file and to every other check
+here — the markup is valid and nothing throws:
+
+* **two elements with the same id.** `getElementById`, every `label for=` and
+  every aria reference resolve to the first one, so the second is a control or
+  a readout nothing can reach. Checked on the rendered card, not the text: a
+  card that re-renders the id it replaces (`favToggle.innerHTML = '<span
+  id="dpv-fav-count">…'`) names it twice in the file and once in the DOM.
+* **a reference to an id nothing carries** — `for=`, `aria-labelledby=`,
+  `aria-describedby=`, `list=`, `aria-controls=`. The browser keeps the
+  attribute and ignores it: the field is announced with no name, the help text
+  is never read out. FAIL, with what the visitor loses in the message.
+* **a control with no accessible name.** A nameless button or link fails (there
+  is nothing to read *and* nothing to see); a nameless field is a note, because
+  the catalogue has hundreds of them — read-only output textareas, sliders
+  whose label sits beside them unassociated — and a check that fails on
+  hundreds of pre-existing controls is a check nobody reads.
+
+`scripts/tests/card-integrity.test.js` pins all four, with fixtures for the
+failing and the passing shape of each.
+
 **Anything a card deferred must re-check the DOM before it uses it.** The same
 navigation takes the markup away between the moment a callback is scheduled and
 the moment it runs. Every one of these was live on 2026-09-22 and threw on the

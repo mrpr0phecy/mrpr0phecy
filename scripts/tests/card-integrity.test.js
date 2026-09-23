@@ -1,0 +1,131 @@
+#!/usr/bin/env node
+'use strict';
+// Run: node --test scripts/tests/card-integrity.test.js
+//
+// The mounted card has to be consistent with itself. Four things it can get
+// wrong, none of them visible in the source file and none of them noticed by
+// any other check in this repo — the markup is valid, the page does not throw,
+// and the visitor's cost is invisible rather than loud:
+//
+//   1. two elements with the same id. `getElementById`, every `label for=` and
+//      every aria reference resolve to the FIRST one, so the duplicate is a
+//      control or a readout nobody can reach. Reported from the rendered card,
+//      not the source: dog-photo-viewer and creative-writing re-render the id
+//      they replace and were named for a duplicate they do not have.
+//   2. a reference to an id nothing carries — `for=`, `aria-labelledby=`,
+//      `aria-describedby=`, `list=`. The browser keeps the attribute and
+//      ignores it, so the label or the help text simply never arrives.
+//   3. a control with no accessible name: a screen reader announces the role
+//      and nothing else. NOTED, never failed: the catalogue has this shape in
+//      the hundreds — braille dot toggles and colour swatches built by JS,
+//      read-only output textareas, sliders whose label sits beside them
+//      unassociated — so it is a backlog to work through, and a check that
+//      fails on hundreds of pre-existing controls is a check nobody reads. One
+//      line per card, with the count and the first element to go and find.
+//   4. a card that initialises on DOMContentLoaded must be initialised ONCE.
+//      The harness used to mount into a document jsdom had not finished
+//      parsing, so the card saw its own event plus jsdom's — mealplanner built
+//      its seven day columns twice and the sweep reported duplicate ids no
+//      browser can produce. `loads-once.card` pins that: it appends a row per
+//      init, so a second init is a duplicate id and fails.
+//
+// Fixtures are .card, not .html: the sitemap lists every tracked .html file, so
+// a fixture with that extension would be published to the live site.
+
+const fs = require('fs');
+const path = require('path');
+const assert = require('assert');
+const { execFileSync } = require('child_process');
+
+const ROOT = path.join(__dirname, '..', '..');
+const HARNESS = path.join(ROOT, 'scripts', 'test-card.js');
+const FIXTURES = path.join(__dirname, 'fixtures');
+const f = name => path.join('scripts', 'tests', 'fixtures', name);
+
+function run(file) {
+  try {
+    return { code: 0, out: execFileSync(process.execPath, [HARNESS, file], { cwd: ROOT, encoding: 'utf8' }) };
+  } catch (e) {
+    return { code: e.status, out: `${e.stdout || ''}${e.stderr || ''}` };
+  }
+}
+
+const tests = [];
+function test(name, fn) { tests.push([name, fn]); }
+
+test('two elements with the same id in the rendered card is a failure', () => {
+  const r = run(f('duplicate-ids-real.card'));
+  assert.strictEqual(r.code, 1, 'a duplicate id must fail the harness');
+  assert.match(r.out, /duplicate id in the rendered card: dup-real-count ×2/,
+    'the finding names the id and the count');
+  assert.match(r.out, /getElementById and every aria reference resolve to the first one/,
+    'and says what it costs the visitor');
+});
+
+test('a control the card re-renders is not a duplicate', () => {
+  const r = run(f('duplicate-ids-rerender.card'));
+  assert.strictEqual(r.code, 0, `the DOM has one element, so the card is fine — ${r.out}`);
+  assert.doesNotMatch(r.out, /duplicate id/, 'and it must not be named for it');
+});
+
+test('both duplicate-id fixtures are mounted, not read', () => {
+  // Guards the change itself: if the check went back to scanning source text,
+  // the re-render fixture would be reported and this test would fail first.
+  const source = fs.readFileSync(path.join(FIXTURES, 'duplicate-ids-rerender.card'), 'utf8');
+  assert.strictEqual((source.match(/dup-re-count/g) || []).length, 2,
+    'the fixture really does name the id twice in its text');
+});
+
+test('a reference to an id nothing carries is a failure, per attribute', () => {
+  const r = run(f('reference-to-nowhere.card'));
+  assert.strictEqual(r.code, 1, 'the fixture must fail');
+  assert.match(r.out, /for="ref-nowhere-depth" on <label> names an id no element carries: the label points at no field/);
+  assert.match(r.out, /aria-describedby="ref-nowhere-help" on <input> names an id no element carries: the description is never read out/);
+  assert.match(r.out, /aria-labelledby="ref-nowhere-heading" on <button> names an id no element carries: the name it should take/);
+  // The dangling aria-labelledby is what the accessible-name check then walks
+  // through to: `textOf(null)` used to throw and abort the run here, hiding
+  // every check after this one for that card.
+  assert.doesNotMatch(r.out, /harness failed before finishing/);
+});
+
+test('every way a control can be named counts as named', () => {
+  const r = run(f('reference-named.card'));
+  assert.strictEqual(r.code, 0, `wired-up references are not findings — ${r.out}`);
+  assert.doesNotMatch(r.out, /reference to nowhere/);
+  assert.doesNotMatch(r.out, /no accessible name/,
+    'text, aria-label, aria-labelledby, title, a child img alt, a wrapping label, a label for=, a placeholder');
+});
+
+test('a nameless control or field is noted, never charged to the card', () => {
+  const r = run(f('unnamed-control.card'));
+  assert.strictEqual(r.code, 0,
+    `hundreds of cards share this shape, so it is a backlog note — ${r.out}`);
+  assert.match(r.out,
+    /note .*2 control\(s\) and 1 field\(s\) with no accessible name \(first: <button#unnamed-swatch> is announced as nothing but "button"\)/,
+    'one line per card, counted, the first element named');
+  assert.match(r.out, /— a screen reader announces the role only/,
+    'and it says what the visitor actually hears');
+  assert.doesNotMatch(r.out, /FAIL/);
+});
+
+test('a card that inits on DOMContentLoaded is initialised once', () => {
+  const r = run(f('loads-once.card'));
+  assert.strictEqual(r.code, 0, `one dispatch, one row — ${r.out}`);
+  const out = r.out;
+  assert.doesNotMatch(out, /duplicate id in the rendered card: load-once-row/,
+    'a second init would append a second row with the same id');
+});
+
+(async () => {
+  for (const [name, fn] of tests) {
+    try {
+      fn();
+      console.log(`  ok   ${name}`);
+    } catch (e) {
+      console.error(`  FAIL ${name}`);
+      console.error(`       ${e.message.split('\n').join('\n       ')}`);
+      process.exitCode = 1;
+    }
+  }
+  console.log('');
+})();
