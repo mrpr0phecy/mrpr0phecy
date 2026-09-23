@@ -1079,18 +1079,27 @@ production curls). The individual manual checks:
 # JS syntax inside a page (extract each <script> and run node --check)
 node --check extracted.js
 
-# Card JavaScript, three questions. Does it parse at all; does every inline
-# `on*=` handler resolve in the window scope it will run in; and does any card
-# index two arrays of different lengths with the same index. The third check is
-# there because creative-writing.html drew one index from 12 plot titles and
-# used it on 8 plot descriptions and 8 plot structures — four clicks in ten
-# read undefined and the generator threw, while the syntax was valid, the
-# handlers resolved and the card answered its own button on the other six.
-# verify.sh runs all three on changed cards in the gate and over cards/ on
+# Card JavaScript, five questions. Does it parse at all; does every inline
+# `on*=` handler resolve in the window scope it will run in AND compile as
+# JavaScript (a full sweep found 37 attributes like `onclick="fn(), this)"`,
+# which name a function that exists and are not code: the control is dead);
+# does any card index two arrays of different lengths with the same index;
+# does any button submit the form it sits in (fifteen cards, 109 buttons, whose
+# clicks computed and then navigated to the tool's own URL, wiping the answer);
+# and can the card start at all — a `document.readyState === 'loading'` guard
+# with no `else` never runs in a document that finished loading before the
+# fragment was injected, which is what tool.html does (forty-three cards, dead
+# on arrival: tic-tac-toe rendered no board at all). Each of the last four is
+# there because a real card shipped the defect while every other check passed —
+# creative-writing's 12/8/8 plot arrays, fitnesscore's "Calculate BMI" reloading
+# the tool, and the sweep of 2026-09-23 that named the 43 dead cards.
+# verify.sh runs all five on changed cards in the gate and over cards/ on
 # --deep.
 python3 scripts/check-card-js.py --all
 node scripts/handler-check.js --all
 node scripts/check-parallel-arrays.js --all
+node scripts/check-form-buttons.js --all
+node scripts/check-card-init.js --all
 
 # Placeholders that must never ship
 grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
