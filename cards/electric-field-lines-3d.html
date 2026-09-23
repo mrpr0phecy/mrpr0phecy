@@ -79,6 +79,9 @@
   <div class="x3-stat"><span>Force on test charge</span><b id="efl-s-f">—</b></div>
   <div class="x3-stat"><span>Potential energy U = qV</span><b id="efl-s-u">—</b></div>
   <div class="x3-stat"><span>Net charge / dipole |p|</span><b id="efl-s-net">—</b></div>
+  <div class="x3-stat"><span>Nearest charge to probe</span><b id="efl-s-near">—</b></div>
+  <div class="x3-stat"><span>Configuration energy (assembly work)</span><b id="efl-s-w">—</b></div>
+  <div class="x3-stat"><span>Net force on selected charge</span><b id="efl-s-fsel">—</b></div>
 </div>
 
 <details class="x3-learn"><summary>How this works — Coulomb's law and field lines</summary>
@@ -267,6 +270,12 @@ function probe(){var out=field(pr[0],pr[1],pr[2],[0,0,0,0]), sc=K*1e-9/1e-4; /* 
   $('efl-s-u').textContent=X3fmt(qt*Vp,4)+' J';
   var net=0,px=0,py=0,pz=0; charges.forEach(function(c){net+=c[0];px+=c[0]*c[1];py+=c[0]*c[2];pz+=c[0]*c[3];});
   $('efl-s-net').textContent=X3fmt(net,3)+' nC / '+X3fmt(Math.hypot(px,py,pz)*1e-11,3)+' C·m';
+  var nd=Infinity, ni=-1; charges.forEach(function(c,i){var d=Math.hypot(pr[0]-c[1],pr[1]-c[2],pr[2]-c[3]); if(d<nd){nd=d;ni=i;}});
+  $('efl-s-near').textContent=ni<0?'—':'Charge '+(ni+1)+' at '+X3fmt(nd,4)+' cm'+(nd<0.15?' — probe is almost on it; field → ∞':'');
+  var W=0, fs=[0,0,0], i, j; for(i=0;i<charges.length;i++) for(j=i+1;j<charges.length;j++){var a=charges[i],b=charges[j],r=Math.hypot(a[1]-b[1],a[2]-b[2],a[3]-b[3])*1e-2; if(r>0) W+=K*a[0]*b[0]*1e-18/r;}
+  var cs=charges[sel]; if(cs){charges.forEach(function(c,k){if(k===sel) return; var dx=(cs[1]-c[1])*1e-2,dy=(cs[2]-c[2])*1e-2,dz=(cs[3]-c[3])*1e-2,r=Math.hypot(dx,dy,dz); if(r>0){var f=K*cs[0]*c[0]*1e-18/(r*r*r); fs[0]+=f*dx; fs[1]+=f*dy; fs[2]+=f*dz;}});}
+  $('efl-s-w').textContent=X3fmt(W,4)+' J'+(charges.length<2?'':W<0?' (bound — releases energy)':' (needs work to assemble)');
+  $('efl-s-fsel').textContent=cs?X3fmt(Math.hypot(fs[0],fs[1],fs[2]),4)+' N on charge '+(sel+1):'—';
   pr.E=[ex/(E||1),ey/(E||1),ez/(E||1)];}
 function ui(){var s=$('efl-sel'); s.textContent=''; charges.forEach(function(c,i){var o=document.createElement('option'); o.value=i; o.textContent='Charge '+(i+1)+' ('+(c[0]>0?'+':'')+c[0]+' nC)'; s.appendChild(o);});
   if(sel>=charges.length) sel=charges.length-1; s.value=String(sel); var c=charges[sel]; if(!c) return;
@@ -275,7 +284,7 @@ function ui(){var s=$('efl-sel'); s.textContent=''; charges.forEach(function(c,i
   $('efl-del').disabled=charges.length<2; $('efl-add').disabled=charges.length>=8;}
 var reb=0; function soon(){clearTimeout(reb); reb=setTimeout(function(){if(!document.getElementById('efl-root')) return; rebuild();},60);}
 ['q','x','y','z'].forEach(function(k,idx){$('efl-'+k).addEventListener('input',function(){var c=charges[sel]; if(!c) return; var v=+this.value; if(k==='q'&&v===0) v=0.5; c[idx]=v; ui(); soon();});});
-$('efl-sel').addEventListener('change',function(){sel=+this.value; ui();});
+$('efl-sel').addEventListener('change',function(){sel=+this.value; ui(); probe();});
 $('efl-dens').addEventListener('input',function(){dens=+this.value; $('efl-densv').textContent=dens; soon();});
 $('efl-add').addEventListener('click',function(){charges.push([-1,(Math.random()*4-2).toFixed(1)*1,(Math.random()*4-2).toFixed(1)*1,0]); sel=charges.length-1; rebuild();});
 $('efl-del').addEventListener('click',function(){if(charges.length<2) return; charges.splice(sel,1); sel=0; rebuild();});

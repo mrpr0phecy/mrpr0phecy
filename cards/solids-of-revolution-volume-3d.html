@@ -57,6 +57,7 @@
   <div class="x3-f"><label for="sor-b">To x = b</label><input id="sor-b" type="text" value="4"></div>
   <div class="x3-f"><label for="sor-axis">Axis of rotation</label><select id="sor-axis"><option value="x">x-axis (y = 0)</option><option value="y">y-axis (x = 0)</option></select></div>
   <div class="x3-f"><label for="sor-sweep">Sweep <b id="sor-sweepv">360°</b></label><input id="sor-sweep" type="range" min="10" max="360" step="5" value="360"></div>
+  <div class="x3-f"><label for="sor-rho">Density (optional, g/cm³ with units = cm)</label><input id="sor-rho" type="number" min="0" step="any" placeholder="e.g. 2.7 aluminium"></div>
   <div class="x3-f"><label for="sor-slices">Slices shown <b id="sor-slicesv">12</b></label><input id="sor-slices" type="range" min="0" max="40" step="1" value="12"></div>
 </div>
 <div class="x3-bar"><button type="button" class="x3-btn" id="sor-anim">▶ Animate the spin</button></div>
@@ -68,6 +69,7 @@
   <div class="x3-stat"><span>Outer surface area</span><b id="sor-s-area">—</b></div>
   <div class="x3-stat"><span>Centroid along axis</span><b id="sor-s-cent">—</b></div>
   <div class="x3-stat"><span>Area of region (Pappus check)</span><b id="sor-s-pap">—</b></div>
+  <div class="x3-stat"><span>Mass · capacity</span><b id="sor-s-mass">—</b></div>
 </div>
 <p class="x3-note" id="sor-formula"></p>
 
@@ -278,7 +280,8 @@ function recompute(){var err=$('sor-err'); ok=false;
   var bad=false,neg=false,i,n=400; prof=[]; var fmax=0;
   for(i=0;i<=n;i++){var x=A+(B-A)*i/n, fv=F(x), gv=G(x); if(!isFinite(fv)||!isFinite(gv)) bad=true; if(fv<gv-1e-9) neg=true; prof.push([x,fv,gv]); fmax=Math.max(fmax,Math.abs(fv),Math.abs(gv));}
   if(bad){err.textContent='The curve is undefined somewhere in [a, b] — adjust the interval (e.g. avoid x = 0 for 1/x).'; return;}
-  err.textContent=neg?'Note: g(x) > f(x) somewhere — the region is taken as between the two curves (|f² − g²| for washers).':'';
+  var cross=axis==='y'?(A<0&&B>0):prof.some(function(p){return p[1]<-1e-9;})&&prof.some(function(p){return p[1]>1e-9;});
+  err.textContent=cross?(axis==='y'?'Warning: [a, b] crosses the y-axis, so the two halves of the solid overlap — the volume counts them both.':'Warning: f(x) crosses the x-axis; the solid uses |f(x)| on each side.'):neg?'Note: g(x) > f(x) somewhere — the region is taken as between the two curves (|f² − g²| for washers).':'';
   var vol,meth,area,cent,regA,rbar;
   regA=simpson(function(x){return Math.abs(F(x)-G(x));},A,B);
   if(axis==='x'){vol=Math.PI*simpson(function(x){return Math.abs(F(x)*F(x)-G(x)*G(x));},A,B); meth=gs?'Washers':'Discs';
@@ -292,11 +295,12 @@ function recompute(){var err=$('sor-err'); ok=false;
   var hd=(B-A)*1e-5; area=2*Math.PI*simpson(function(x){var x1=Math.max(A,x-hd),x2=Math.min(B,x+hd),d=(F(x2)-F(x1))/(x2-x1); return (axis==='x'?Math.abs(F(x)):Math.abs(x))*Math.sqrt(1+d*d);},A,B);
   $('sor-s-vol').textContent=X3fmt(vol,8)+' units³'; $('sor-s-volpi').textContent=X3fmt(vol/Math.PI,8)+' π'; $('sor-s-meth').textContent=meth;
   $('sor-s-area').textContent=X3fmt(area,7)+' units²'; $('sor-s-cent').textContent=cent;
+  var rho=+$('sor-rho').value; $('sor-s-mass').textContent=(rho>0?X3fmt(vol*rho,6)+' g · ':'')+X3fmt(vol/1000,6)+' L (if units = cm)';
   $('sor-s-pap').textContent='A = '+X3fmt(regA,6)+' → 2π·r̄·A = '+X3fmt(2*Math.PI*rbar*regA,7);
   ext=Math.max(Math.abs(A),Math.abs(B),fmax); cx=axis==='x'?(A+B)/2:0; V.target=axis==='x'?[cx,0,0]:[0,0,(A+B)/4]; var span=axis==='x'?Math.max(B-A,2*fmax):Math.max(2*Math.max(Math.abs(A),Math.abs(B)),fmax); var dd=span*1.45+1.5; V.setHome({dist:dd,yaw:axis==='x'?0.4:0.7}); V.dist=dd; ok=true;
   var bs=bar.querySelectorAll('.x3-chip'); for(i=0;i<bs.length;i++){var p=PRE[i]; bs[i].setAttribute('aria-pressed',(p[1]===$('sor-f').value&&p[2]===$('sor-g').value&&p[3]===$('sor-a').value&&p[4]===$('sor-b').value&&p[5]===axis)?'true':'false');}}
 var rt=0; ['sor-f','sor-g','sor-a','sor-b'].forEach(function(id){$(id).addEventListener('input',function(){clearTimeout(rt); rt=setTimeout(function(){if(!document.getElementById('sor-root')) return; recompute();},200);});});
-$('sor-axis').addEventListener('change',recompute);
+$('sor-axis').addEventListener('change',recompute); $('sor-rho').addEventListener('input',recompute);
 $('sor-sweep').addEventListener('input',function(){anim=-1; sweep=+this.value*Math.PI/180; $('sor-sweepv').textContent=this.value+'°';});
 $('sor-slices').addEventListener('input',function(){$('sor-slicesv').textContent=this.value;});
 $('sor-anim').addEventListener('click',function(){anim=0;});

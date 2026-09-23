@@ -8,7 +8,7 @@
 
 ## Post (the daily.dev "Submit a post" form)
 
-**Title:** `I built 1,270 free browser-side tools in 2 years. Vanilla JS, no build, no npm.`
+**Title:** `I built 1,273 free browser-side tools in 2 years. Vanilla JS, no build, no npm.`
 
 **URL:** https://www.themostusefulsiteintheworld.com
 
@@ -20,13 +20,13 @@
 
 ## The post text (the daily.dev post body)
 
-> I\'m a developer in Luton, UK. For the last 2 years I\'ve been building a site with 1,270 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, and 1,200+ more.
+> I\'m a developer in Luton, UK. For the last 2 years I\'ve been building a site with 1,273 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, and 1,200+ more.
 >
 > The whole thing is **vanilla JavaScript, no framework, no build step, no npm, no TypeScript, no bundler.** Each tool is one HTML file. The repo is about 90 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
 >
 > **The architecture in 60 seconds:**
-> - `cards/<tool-name>.html` — one file per tool, 1,270 card files
-> - `cards/cards.json` — a single JSON file describing all 1,270 cards (id, name, title, description, category, file)
+> - `cards/<tool-name>.html` — one file per tool, 1,273 card files
+> - `cards/cards.json` — a single JSON file describing all 1,273 cards (id, name, title, description, category, file)
 > - `index.html` — the home page, driven by the JSON, with a client-side category filter
 > - `tool.html?card=<name>` — a shim that reads the URL and injects the tool
 > - A build script that runs on my laptop before I push and regenerates the sitemap, RSS, llms.txt, related.json, and the home page from the JSON

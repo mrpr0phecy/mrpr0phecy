@@ -1,0 +1,337 @@
+<!--
+  3D Vector Calculator — two or three vectors drawn as glowing arrows.
+  Dot and cross product, angle, projection, parallelogram area, scalar triple
+  product (parallelepiped volume), plane through three points, distance, unit
+  vectors, spherical coordinates. Step-by-step working. No network.
+-->
+<style>
+  .vcc-wrap{--vcc-acc:#2dd4ff;--vcc-acc2:#a78bfa;font-family:var(--sans,system-ui,-apple-system,Segoe UI,sans-serif);color:var(--text,#e6faff)}
+  .vcc-wrap h2.vcc-h{margin:0 0 4px;color:var(--vcc-acc);font-size:1.45rem;letter-spacing:-.01em}
+  .vcc-wrap .vcc-desc{margin:0 0 12px;color:var(--muted,#9fb4c8);font-size:.93rem;line-height:1.55}
+  .vcc-chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 10px}
+  .vcc-chip{padding:6px 13px;border-radius:999px;font:600 12.5px/1.2 inherit;font-family:inherit;cursor:pointer;color:var(--text,#e6faff);
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);transition:border-color .15s,background .15s,color .15s}
+  .vcc-chip:hover,.vcc-chip:focus-visible{border-color:var(--vcc-acc);color:var(--vcc-acc);outline:none}
+  .vcc-chip.vcc-on{background:color-mix(in srgb,var(--vcc-acc) 18%,transparent);border-color:var(--vcc-acc);color:#fff;box-shadow:0 0 14px color-mix(in srgb,var(--vcc-acc) 35%,transparent)}
+  .vcc-stage{position:relative;height:540px;border-radius:16px;overflow:hidden;border:1px solid color-mix(in srgb,var(--vcc-acc) 30%,transparent);
+    background:radial-gradient(120% 90% at 50% 30%,#14264a 0%,#08101f 55%,#03050b 100%);box-shadow:inset 0 0 80px rgba(0,0,0,.55),0 10px 40px rgba(0,0,0,.35)}
+  .vcc-stage:fullscreen{height:100vh;border-radius:0}
+  .vcc-stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}
+  .vcc-stage canvas.is-drag{cursor:grabbing}
+  .vcc-stage canvas:focus-visible{box-shadow:inset 0 0 0 2px var(--vcc-acc)}
+  .vcc-labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .vcc-lbl{position:absolute;transform:translate(-50%,-50%);font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#e6faff;
+    text-shadow:0 0 6px #000,0 0 2px #000;white-space:nowrap;letter-spacing:.02em}
+  .vcc-hud{position:absolute;left:12px;top:10px;max-width:calc(100% - 24px);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#bfeaff;
+    background:rgba(3,8,18,.62);border:1px solid rgba(255,255,255,.08);padding:6px 10px;border-radius:9px;pointer-events:none;backdrop-filter:blur(4px)}
+  .vcc-hint{position:absolute;right:12px;bottom:10px;font-size:11px;color:#7f93aa;background:rgba(3,8,18,.5);padding:4px 9px;border-radius:7px;pointer-events:none}
+  .vcc-tools{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+  .vcc-tb{min-width:34px;height:32px;padding:0 9px;border-radius:9px;border:1px solid rgba(255,255,255,.16);background:rgba(3,8,18,.62);color:#dff6ff;
+    font:600 12px/1 inherit;font-family:inherit;cursor:pointer;backdrop-filter:blur(4px)}
+  .vcc-tb:hover,.vcc-tb:focus-visible{border-color:var(--vcc-acc);color:var(--vcc-acc);outline:none}
+  .vcc-nogl{position:absolute;inset:auto 12px 44px 12px;padding:10px 12px;border-radius:10px;background:rgba(80,20,20,.7);color:#ffd9d9;font-size:13px}
+  .vcc-legend{position:absolute;left:12px;bottom:10px;font:11px/1.3 ui-monospace,monospace;color:#bfeaff;background:rgba(3,8,18,.55);padding:6px 9px;border-radius:8px;pointer-events:none}
+  .vcc-legend i{display:block;width:150px;height:8px;border-radius:4px;margin:4px 0 3px}
+  .vcc-legend b{display:flex;justify-content:space-between;font-weight:400;gap:10px}
+  .vcc-cols{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;margin-top:14px}
+  .vcc-panel{background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 15px}
+  .vcc-panel h3{margin:0 0 10px;font-size:.8rem;text-transform:uppercase;letter-spacing:.12em;color:var(--vcc-acc)}
+  .vcc-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:10px}
+  .vcc-f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted,#9fb4c8)}
+  .vcc-f label{display:flex;justify-content:space-between;gap:6px}
+  .vcc-f label output,.vcc-f label span{color:#e6faff;font-family:ui-monospace,monospace}
+  .vcc-f input[type=number],.vcc-f input[type=text],.vcc-f select{width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.15);
+    background:rgba(0,0,0,.3);color:#e6faff;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .vcc-f input:focus,.vcc-f select:focus{outline:none;border-color:var(--vcc-acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--vcc-acc) 25%,transparent)}
+  .vcc-f input[type=range]{width:100%;accent-color:var(--vcc-acc)}
+  .vcc-checks{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:#cfe6f5;margin:4px 0 8px}
+  .vcc-checks label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .vcc-checks input{accent-color:var(--vcc-acc)}
+  .vcc-btn{padding:8px 14px;border-radius:9px;border:1px solid color-mix(in srgb,var(--vcc-acc) 45%,transparent);background:color-mix(in srgb,var(--vcc-acc) 12%,transparent);
+    color:#e6faff;font:600 13px inherit;font-family:inherit;cursor:pointer}
+  .vcc-btn:hover,.vcc-btn:focus-visible{background:color-mix(in srgb,var(--vcc-acc) 24%,transparent);outline:none}
+  .vcc-out{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+  .vcc-out dt{color:var(--muted,#9fb4c8)}
+  .vcc-out dd{margin:0;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#f2fbff;font-variant-numeric:tabular-nums}
+  .vcc-out dd.vcc-good{color:#6ee7b7}.vcc-out dd.vcc-warn{color:#fbbf24}.vcc-out dd.vcc-bad{color:#fca5a5}
+  .vcc-out dt.vcc-sec{grid-column:1/-1;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08);color:var(--vcc-acc);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  .vcc-err{color:#fca5a5;font-size:12.5px;min-height:1em;margin:2px 0 6px}
+  .vcc-learn{margin-top:14px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:4px 16px}
+  .vcc-learn summary{cursor:pointer;padding:10px 0;font-weight:700;color:var(--vcc-acc)}
+  .vcc-learn p,.vcc-learn li{font-size:13.5px;line-height:1.65;color:#c9dcea}
+  .vcc-learn code{font-family:ui-monospace,monospace;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:5px;color:#e6faff}
+  .vcc-btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:flex-end}
+  .vcc-btns .vcc-f{flex:1 1 140px}
+  @media (max-width:760px){.vcc-out{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);font-size:12.5px}.vcc-out dd{overflow-wrap:anywhere}.vcc-panel{padding:12px}.vcc-stage{height:420px}.vcc-cols{grid-template-columns:1fr}.vcc-hint{display:none}.vcc-hud{font-size:11px;top:50px;left:8px}}
+
+  .vcc-wrap{--vcc-acc:#38bdf8}
+  .vcc-vec{display:grid;grid-template-columns:28px repeat(3,minmax(0,1fr));gap:6px;align-items:center;margin-bottom:6px}
+  .vcc-vec b{font:700 14px ui-monospace,monospace;text-align:center}
+  .vcc-vec input{width:100%;box-sizing:border-box;padding:7px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e6faff;font:13px ui-monospace,monospace;text-align:center}
+  .vcc-vec input:focus{outline:none;border-color:var(--vcc-acc)}
+  .vcc-steps{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.25);font:12px/1.7 ui-monospace,monospace;color:#cfe6f5;white-space:pre-wrap;word-break:break-word}
+</style>
+
+<div class="vcc-wrap" id="vcc-root">
+  <h2 id="vcc-title" class="vcc-h">➗ 3D Vector Calculator — Dot, Cross &amp; Triple Product Visualised</h2>
+  <p id="vcc-desc" class="vcc-desc">Enter up to three vectors and see them as glowing arrows in 3D. Instantly get the dot product, cross product, angle between them, projection, parallelogram area, scalar triple product and parallelepiped volume, magnitudes, unit vectors and the plane through three points — with the working shown step by step.</p>
+
+  <div class="vcc-chips" id="vcc-presets" role="group" aria-label="Examples"></div>
+  <div class="vcc-stage" id="vcc-stage">
+    <canvas id="vcc-canvas" tabindex="0" aria-label="3D view of vectors a, b, c with their cross product and projection. Drag to orbit."></canvas>
+    <div class="vcc-labels" id="vcc-labels" aria-hidden="true"></div>
+    <div class="vcc-hud" id="vcc-hud" aria-live="polite"></div>
+    <div class="vcc-tools">
+      <button type="button" class="vcc-tb" id="vcc-spin" aria-label="Pause auto-rotate">❚❚</button>
+      <button type="button" class="vcc-tb" id="vcc-reset" aria-label="Reset view">⟲</button>
+      <button type="button" class="vcc-tb" id="vcc-png" aria-label="Save view as PNG">PNG</button>
+      <button type="button" class="vcc-tb" id="vcc-fs" aria-label="Toggle fullscreen">⤢</button>
+    </div>
+    <div class="vcc-hint">drag to orbit · scroll / pinch to zoom · arrows + space when focused</div>
+  </div>
+
+  <div class="vcc-cols">
+    <div class="vcc-panel">
+      <h3>Vectors</h3>
+      <div class="vcc-vec" aria-hidden="true" style="font-size:11px;color:var(--muted,#9fb4c8)"><span></span><span style="text-align:center">x</span><span style="text-align:center">y</span><span style="text-align:center">z</span></div>
+      <div id="vcc-vecs"></div>
+      <div class="vcc-row">
+        <div class="vcc-f"><label for="vcc-show">Highlight</label><select id="vcc-show">
+          <option value="cross">a × b (cross product)</option><option value="proj">projection of a onto b</option><option value="triple">a · (b × c) parallelepiped</option><option value="plane">plane through tips of a, b, c</option><option value="sum">a + b and a − b</option></select></div>
+      </div>
+      <div class="vcc-checks">
+        <label><input type="checkbox" id="vcc-cg" checked> Grid &amp; axes</label>
+        <label><input type="checkbox" id="vcc-cc" checked> Use vector c</label>
+        <label><input type="checkbox" id="vcc-cd" checked> Drop lines to floor</label>
+      </div>
+      <div class="vcc-steps" id="vcc-steps" aria-live="polite"></div>
+    </div>
+    <div class="vcc-panel">
+      <h3>Results</h3>
+      <dl class="vcc-out" id="vcc-out"></dl>
+    </div>
+  </div>
+
+  <details class="vcc-learn">
+    <summary>How it works — the geometry of vector products</summary>
+    <p><b>Dot product</b> <code>a · b = aₓbₓ + a_yb_y + a_zb_z = |a||b| cos θ</code>. It measures how much two vectors point the same way: positive when the angle is acute, zero when perpendicular, negative when obtuse. The <b>projection</b> of a onto b is <code>(a·b / |b|²) b</code> — the shadow a casts on b's line.</p>
+    <p><b>Cross product</b> <code>a × b = (a_yb_z − a_zb_y, a_zbₓ − aₓb_z, aₓb_y − a_ybₓ)</code> is perpendicular to both, follows the right-hand rule and has length <code>|a||b| sin θ</code> — the area of the parallelogram they span. Half of that is the triangle's area. It is zero when the vectors are parallel.</p>
+    <p><b>Scalar triple product</b> <code>a · (b × c)</code> is the signed volume of the parallelepiped built on the three vectors (a sixth of it is the tetrahedron's volume). Zero means the three are <b>coplanar</b>; the sign says whether (a, b, c) is right-handed.</p>
+    <p><b>Plane through three points</b> A, B, C: the normal is <code>n = (B − A) × (C − A)</code> and the equation is <code>n · (r − A) = 0</code>, written <code>ax + by + cz = d</code>. The distance from the origin to the plane is <code>|d| / |n|</code>.</p>
+    <p><b>Worked example:</b> a = (1, 0, 0) and b = (0, 1, 0) give a·b = 0 (perpendicular), a × b = (0, 0, 1) = k̂ and θ = 90° — the right-hand rule in its simplest form.</p>
+  </details>
+</div>
+
+<script>
+(function(){
+/* ---- inline mini 3D engine: WebGL, orbit camera, glow points, labels. No network. ---- */
+var TAU=Math.PI*2;
+function vadd(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];}
+function vsub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function vscl(a,s){return [a[0]*s,a[1]*s,a[2]*s];}
+function vdot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function vcross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function vlen(a){return Math.sqrt(vdot(a,a));}
+function vnorm(a){var l=vlen(a)||1;return [a[0]/l,a[1]/l,a[2]/l];}
+function vlerp(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+function hsl(h,s,l){h=((h%360)+360)%360/360;function f(n){var k=(n+h*12)%12,a=s*Math.min(l,1-l);return l-a*Math.max(-1,Math.min(k-3,9-k,1));}return [f(0),f(8),f(4)];}
+function hex(c){c=c.replace('#','');return [parseInt(c.substr(0,2),16)/255,parseInt(c.substr(2,2),16)/255,parseInt(c.substr(4,2),16)/255];}
+function perspective(fy,as,n,f){var t=1/Math.tan(fy/2),nf=1/(n-f);return [t/as,0,0,0,0,t,0,0,0,0,(f+n)*nf,-1,0,0,2*f*n*nf,0];}
+function lookAt(e,c,u){var z=vnorm(vsub(e,c)),x=vnorm(vcross(u,z)),y=vcross(z,x);return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-vdot(x,e),-vdot(y,e),-vdot(z,e),1];}
+function mmul(a,b){var r=new Array(16);for(var i=0;i<4;i++)for(var j=0;j<4;j++){var s=0;for(var k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];r[i*4+j]=s;}return r;}
+function m3to4(m){return [m[0][0],m[1][0],m[2][0],0,m[0][1],m[1][1],m[2][1],0,m[0][2],m[1][2],m[2][2],0,0,0,0,1];}
+function sph(t,p){return [Math.sin(t)*Math.cos(p),Math.sin(t)*Math.sin(p),Math.cos(t)];}
+function fmtN(v,d){if(!isFinite(v))return '—';var a=Math.abs(v);if(a!==0&&(a<1e-3||a>=1e6))return v.toExponential(d==null?3:d).replace('e','×10^').replace('+','');return (+v.toFixed(d==null?4:d)).toString();}
+
+/* geometry builders */
+function Geo(){this.p=[];this.n=[];this.c=[];}
+Geo.prototype.v=function(p,n,c){this.p.push(p[0],p[1],p[2]);this.n.push(n[0],n[1],n[2]);this.c.push(c[0],c[1],c[2]);};
+Geo.prototype.tri=function(a,b,c,col){var n=vnorm(vcross(vsub(b,a),vsub(c,a)));this.v(a,n,col);this.v(b,n,col);this.v(c,n,col);};
+Geo.prototype.poly=function(pts,col){for(var i=1;i<pts.length-1;i++)this.tri(pts[0],pts[i],pts[i+1],col);};
+Geo.prototype.sphere=function(o,r,col,seg){seg=seg||14;var st=seg,sl=seg*2,self=this;function P(t,p){var d=sph(t,p);return [vadd(o,vscl(d,r)),d];}
+  for(var i=0;i<st;i++){var t0=Math.PI*i/st,t1=Math.PI*(i+1)/st;for(var j=0;j<sl;j++){var p0=TAU*j/sl,p1=TAU*(j+1)/sl;var a=P(t0,p0),b=P(t1,p0),c=P(t1,p1),d=P(t0,p1);
+    self.v(a[0],a[1],col);self.v(b[0],b[1],col);self.v(c[0],c[1],col);self.v(a[0],a[1],col);self.v(c[0],c[1],col);self.v(d[0],d[1],col);}}};
+Geo.prototype.tube=function(a,b,ra,rb,col,seg){seg=seg||12;var ax=vsub(b,a),L=vlen(ax);if(L<1e-9)return;var w=vscl(ax,1/L);var t=Math.abs(w[2])<0.9?[0,0,1]:[1,0,0];
+  var u=vnorm(vcross(w,t)),v=vcross(w,u),sl=(ra-rb)/L;
+  for(var i=0;i<seg;i++){var a0=TAU*i/seg,a1=TAU*(i+1)/seg;var d0=vadd(vscl(u,Math.cos(a0)),vscl(v,Math.sin(a0))),d1=vadd(vscl(u,Math.cos(a1)),vscl(v,Math.sin(a1)));
+    var n0=vnorm(vadd(d0,vscl(w,sl))),n1=vnorm(vadd(d1,vscl(w,sl)));var p00=vadd(a,vscl(d0,ra)),p01=vadd(a,vscl(d1,ra)),p10=vadd(b,vscl(d0,rb)),p11=vadd(b,vscl(d1,rb));
+    this.v(p00,n0,col);this.v(p10,n0,col);this.v(p11,n1,col);this.v(p00,n0,col);this.v(p11,n1,col);this.v(p01,n1,col);}};
+Geo.prototype.disk=function(c,nrm,r,col,seg){seg=seg||16;var w=vnorm(nrm),t=Math.abs(w[2])<0.9?[0,0,1]:[1,0,0],u=vnorm(vcross(w,t)),v=vcross(w,u);
+  for(var i=0;i<seg;i++){var a0=TAU*i/seg,a1=TAU*(i+1)/seg;this.v(c,w,col);this.v(vadd(c,vadd(vscl(u,r*Math.cos(a0)),vscl(v,r*Math.sin(a0)))),w,col);this.v(vadd(c,vadd(vscl(u,r*Math.cos(a1)),vscl(v,r*Math.sin(a1)))),w,col);}};
+Geo.prototype.arrow=function(a,b,r,col){var ax=vsub(b,a),L=vlen(ax);if(L<1e-6)return;var hl=Math.min(L*0.4,r*6),m=vadd(a,vscl(ax,(L-hl)/L));
+  this.tube(a,m,r,r,col,10);this.tube(m,b,r*2.6,0.0005,col,14);this.disk(m,vscl(ax,-1),r*2.6,col,14);};
+Geo.prototype.surface=function(f,colf,nu,nv,u0,u1,v0,v1){var P=[],C=[],N=[],i,j,W=nv+1;
+  for(i=0;i<=nu;i++)for(j=0;j<=nv;j++){var u=u0+(u1-u0)*i/nu,v=v0+(v1-v0)*j/nv,p=f(u,v);P.push(p);C.push(p&&colf?colf(u,v,p):[.6,.7,.9]);}
+  function ok(p){return p&&isFinite(p[0])&&isFinite(p[1])&&isFinite(p[2]);}
+  for(i=0;i<=nu;i++)for(j=0;j<=nv;j++){var a=P[Math.min(i+1,nu)*W+j],b=P[Math.max(i-1,0)*W+j],c=P[i*W+Math.min(j+1,nv)],d=P[i*W+Math.max(j-1,0)];
+    var n=(ok(a)&&ok(b)&&ok(c)&&ok(d))?vcross(vsub(a,b),vsub(c,d)):[0,0,1];if(vlen(n)<1e-12)n=[0,0,1];N.push(vnorm(n));}
+  for(i=0;i<nu;i++)for(j=0;j<nv;j++){var k0=i*W+j,k1=(i+1)*W+j,k2=(i+1)*W+j+1,k3=i*W+j+1;if(!ok(P[k0])||!ok(P[k1])||!ok(P[k2])||!ok(P[k3]))continue;
+    var q=[k0,k1,k2,k0,k2,k3];for(var m=0;m<6;m++)this.v(P[q[m]],N[q[m]],C[q[m]]);}};
+function Lines(){this.p=[];this.c=[];}
+Lines.prototype.seg=function(a,b,ca,cb){cb=cb||ca;this.p.push(a[0],a[1],a[2],b[0],b[1],b[2]);this.c.push(ca[0],ca[1],ca[2],ca[3]==null?1:ca[3],cb[0],cb[1],cb[2],cb[3]==null?1:cb[3]);};
+Lines.prototype.path=function(pts,cf,closed){for(var i=0;i<pts.length-1;i++)this.seg(pts[i],pts[i+1],cf(i,pts[i]),cf(i+1,pts[i+1]));if(closed&&pts.length>2)this.seg(pts[pts.length-1],pts[0],cf(pts.length-1,pts[pts.length-1]),cf(0,pts[0]));};
+Lines.prototype.grid=function(size,step,z,col){for(var x=-size;x<=size+1e-9;x+=step){var a=Math.abs(x)<1e-9?col[3]*1.8:col[3];this.seg([x,-size,z],[x,size,z],[col[0],col[1],col[2],a]);this.seg([-size,x,z],[size,x,z],[col[0],col[1],col[2],a]);}};
+function Pts(){this.p=[];this.c=[];this.s=[];}
+Pts.prototype.add=function(p,c,s){this.p.push(p[0],p[1],p[2]);this.c.push(c[0],c[1],c[2],c[3]==null?1:c[3]);this.s.push(s);};
+
+/* safe expression parser (no eval): + - * / ^, implicit ×, functions, pi, e */
+var EXF={sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,sinh:Math.sinh,cosh:Math.cosh,tanh:Math.tanh,exp:Math.exp,ln:Math.log,log:function(x){return Math.log(x)/Math.LN10;},sqrt:Math.sqrt,abs:Math.abs,floor:Math.floor,ceil:Math.ceil,sign:Math.sign,sec:function(x){return 1/Math.cos(x);},csc:function(x){return 1/Math.sin(x);},cot:function(x){return 1/Math.tan(x);}};
+function parseExpr(src,vars){var s=String(src).toLowerCase().replace(/\s+/g,'').replace(/\*\*/g,'^'),i=0;if(!s)throw new Error('empty expression');
+  var names=Object.keys(EXF).concat(vars,['pi','e']).sort(function(a,b){return b.length-a.length;});
+  function expr(){var a=term();while(s[i]==='+'||s[i]==='-'){var op=s[i++],b=term();a=(function(a,b,op){return op==='+'?function(E){return a(E)+b(E);}:function(E){return a(E)-b(E);};})(a,b,op);}return a;}
+  function term(){var a=unary();for(;;){var c=s[i];if(c==='*'||c==='/'){i++;var b=unary();a=(function(a,b,c){return c==='*'?function(E){return a(E)*b(E);}:function(E){return a(E)/b(E);};})(a,b,c);}
+    else if(c&&/[0-9a-z.(]/.test(c)){var b2=power();a=(function(a,b){return function(E){return a(E)*b(E);};})(a,b2);}else break;}return a;}
+  function unary(){if(s[i]==='-'){i++;var a=unary();return function(E){return -a(E);};}if(s[i]==='+'){i++;return unary();}return power();}
+  function power(){var a=atom();if(s[i]==='^'){i++;var b=unary();return function(E){return Math.pow(a(E),b(E));};}return a;}
+  function atom(){var c=s[i];if(c==='('){i++;var a=expr();if(s[i]!==')')throw new Error('missing )');i++;return a;}
+    var m=/^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/.exec(s.slice(i));if(m){i+=m[0].length;var val=parseFloat(m[0]);return function(){return val;};}
+    for(var k=0;k<names.length;k++){var nm=names[k];if(s.substr(i,nm.length)===nm){i+=nm.length;
+      if(EXF[nm]){var fn=EXF[nm],arg=power();return function(E){return fn(arg(E));};}
+      if(nm==='pi')return function(){return Math.PI;};if(nm==='e')return function(){return Math.E;};
+      return function(E){return E[nm];};}}
+    throw new Error(c?('unexpected "'+c+'" at position '+(i+1)):'expression ends too early');}
+  var f=expr();if(i<s.length)throw new Error('unexpected "'+s[i]+'" at position '+(i+1));return f;}
+
+/* renderer */
+function make3D(o){
+  var cv=o.canvas,E={ok:false,yaw:o.yaw==null?0.8:o.yaw,pitch:o.pitch==null?0.45:o.pitch,dist:o.dist||6,target:o.target||[0,0,0],auto:o.auto!==false,spin:o.spin||0.15,fov:0.75,layers:{},list:[],labels:{},minD:o.minD||1,maxD:o.maxD||60,VP:null};
+  var gl=null,PM,PL,PP,drag=null,pts={},pinch=0,labelsEl=o.labels,dpr=1,W=0,H=0,alive=true;
+  try{gl=cv.getContext('webgl',{antialias:true,alpha:true,premultipliedAlpha:true,preserveDrawingBuffer:true})||cv.getContext('experimental-webgl');}catch(e){gl=null;}
+  function sh(t,src){var x=gl.createShader(t);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw new Error('shader');return x;}
+  function prog(vs,fs,at,un){var p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);
+    if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error('link');var r={p:p,a:{},u:{}};at.forEach(function(n){r.a[n]=gl.getAttribLocation(p,n);});un.forEach(function(n){r.u[n]=gl.getUniformLocation(p,n);});return r;}
+  try{if(!gl||typeof gl.createShader!=='function')throw new Error('no webgl');
+    PM=prog('attribute vec3 aP;attribute vec3 aN;attribute vec3 aC;uniform mat4 uVP;uniform mat4 uM;varying vec3 vN;varying vec3 vC;varying vec3 vW;void main(){vec4 w=uM*vec4(aP,1.);vW=w.xyz;vN=(uM*vec4(aN,0.)).xyz;vC=aC;gl_Position=uVP*w;}',
+      'precision mediump float;uniform vec3 uEye;uniform float uA;uniform float uEm;varying vec3 vN;varying vec3 vC;varying vec3 vW;void main(){vec3 n=normalize(vN);vec3 v=normalize(uEye-vW);if(dot(n,v)<0.)n=-n;vec3 L=normalize(vec3(.45,.3,.85));float d=max(dot(n,L),0.);float h=.5+.5*n.z;vec3 amb=mix(vec3(.10,.12,.22),vec3(.34,.37,.46),h);vec3 r=reflect(-L,n);float s=pow(max(dot(r,v),0.),36.);float rim=pow(1.-max(dot(n,v),0.),3.);vec3 c=vC*(amb+d*.8)+s*.42+rim*vec3(.22,.45,.75)*.55;c=mix(c,vC,uEm);gl_FragColor=vec4(c*uA,uA);}',
+      ['aP','aN','aC'],['uVP','uM','uEye','uA','uEm']);
+    PL=prog('attribute vec3 aP;attribute vec4 aC;uniform mat4 uVP;uniform mat4 uM;varying vec4 vC;void main(){vC=aC;gl_Position=uVP*uM*vec4(aP,1.);}',
+      'precision mediump float;uniform float uA;varying vec4 vC;void main(){float a=vC.a*uA;gl_FragColor=vec4(vC.rgb*a,a);}',['aP','aC'],['uVP','uM','uA']);
+    PP=prog('attribute vec3 aP;attribute vec4 aC;attribute float aS;uniform mat4 uVP;uniform mat4 uM;uniform float uPx;varying vec4 vC;void main(){gl_Position=uVP*uM*vec4(aP,1.);gl_PointSize=clamp(aS*uPx/gl_Position.w,1.,96.);vC=aC;}',
+      'precision mediump float;uniform float uA;varying vec4 vC;void main(){vec2 d=gl_PointCoord-.5;float r=dot(d,d)*4.;if(r>1.)discard;float g=exp(-r*3.2)*(1.-r)*vC.a*uA;gl_FragColor=vec4(vC.rgb*g,g);}',['aP','aC','aS'],['uVP','uM','uPx','uA']);
+    E.ok=true;}catch(e){E.ok=false;}
+  var I4=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+  function buf(L,k,arr){if(!L.b[k])L.b[k]=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,L.b[k]);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(arr),gl.DYNAMIC_DRAW);}
+  E.set=function(name,data,opt){var L=E.layers[name];if(!L){L={name:name,b:{},vis:true,alpha:1,add:false,em:0,M:null,depth:true};E.layers[name]=L;E.list.push(L);}
+    for(var k in opt)L[k]=opt[k];L.kind=data instanceof Geo?'m':data instanceof Lines?'l':'p';L.n=data.p.length/3;
+    if(E.ok&&L.n){buf(L,'p',data.p);buf(L,'c',data.c);if(L.kind==='m')buf(L,'n',data.n);if(L.kind==='p')buf(L,'s',data.s);}return L;};
+  E.show=function(name,v){if(E.layers[name])E.layers[name].vis=!!v;};
+  E.label=function(key,pos,text,col){var d=E.labels[key];if(!d){d=document.createElement('span');d.className=o.labelClass||'';labelsEl&&labelsEl.appendChild(d);E.labels[key]=d;}
+    d.textContent=text;d._p=pos;d.style.color=col||'';d.style.display='';return d;};
+  E.clearLabels=function(prefix){for(var k in E.labels){if(!prefix||k.indexOf(prefix)===0){var d=E.labels[k];if(d.parentNode)d.parentNode.removeChild(d);delete E.labels[k];}}};
+  E.eye=function(){var cp=Math.cos(E.pitch);return vadd(E.target,[E.dist*cp*Math.cos(E.yaw),E.dist*cp*Math.sin(E.yaw),E.dist*Math.sin(E.pitch)]);};
+  E.project=function(p){if(!E.VP)return null;var m=E.VP,x=m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12],y=m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13],w=m[3]*p[0]+m[7]*p[1]+m[11]*p[2]+m[15];
+    if(w<=0.01)return null;return [(x/w*0.5+0.5)*cv.clientWidth,(0.5-y/w*0.5)*cv.clientHeight];};
+  function resize(){dpr=Math.min(window.devicePixelRatio||1,2);var w=Math.max(1,Math.round(cv.clientWidth*dpr)),h=Math.max(1,Math.round(cv.clientHeight*dpr));if(w!==W||h!==H){W=w;H=h;cv.width=w;cv.height=h;}}
+  function bindA(P,L,name,k,size){var loc=P.a[name];if(loc<0)return;gl.bindBuffer(gl.ARRAY_BUFFER,L.b[k]);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,size,gl.FLOAT,false,0,0);}
+  function unbind(P){for(var k in P.a)if(P.a[k]>=0)gl.disableVertexAttribArray(P.a[k]);}
+  function drawL(L,VP,eye){var P=L.kind==='m'?PM:L.kind==='l'?PL:PP;gl.useProgram(P.p);gl.uniformMatrix4fv(P.u.uVP,false,VP);gl.uniformMatrix4fv(P.u.uM,false,L.M||I4);gl.uniform1f(P.u.uA,L.alpha);
+    if(L.kind==='m'){gl.uniform3fv(P.u.uEye,eye);gl.uniform1f(P.u.uEm,L.em);bindA(P,L,'aP','p',3);bindA(P,L,'aN','n',3);bindA(P,L,'aC','c',3);gl.drawArrays(gl.TRIANGLES,0,L.n);}
+    else if(L.kind==='l'){bindA(P,L,'aP','p',3);bindA(P,L,'aC','c',4);gl.drawArrays(gl.LINES,0,L.n);}
+    else{gl.uniform1f(P.u.uPx,H/(2*Math.tan(E.fov/2)));bindA(P,L,'aP','p',3);bindA(P,L,'aC','c',4);bindA(P,L,'aS','s',1);gl.drawArrays(gl.POINTS,0,L.n);}unbind(P);}
+  E.render=function(){resize();var asp=W/H,eye=E.eye();var VP=mmul(perspective(E.fov,asp,0.05,300),lookAt(eye,E.target,[0,0,1]));E.VP=VP;
+    if(E.ok){gl.viewport(0,0,W,H);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.enable(gl.BLEND);
+      var i,L,ls=E.list;
+      gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true);
+      for(i=0;i<ls.length;i++){L=ls[i];if(L.vis&&L.n&&L.kind==='m'&&L.alpha>=0.999)drawL(L,VP,eye);}
+      gl.depthMask(false);
+      for(i=0;i<ls.length;i++){L=ls[i];if(L.vis&&L.n&&L.kind==='l'){if(L.add)gl.blendFunc(gl.ONE,gl.ONE);else gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);if(L.depth===false)gl.disable(gl.DEPTH_TEST);drawL(L,VP,eye);gl.enable(gl.DEPTH_TEST);}}
+      gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+      for(i=0;i<ls.length;i++){L=ls[i];if(L.vis&&L.n&&L.kind==='m'&&L.alpha<0.999)drawL(L,VP,eye);}
+      gl.blendFunc(gl.ONE,gl.ONE);
+      for(i=0;i<ls.length;i++){L=ls[i];if(L.vis&&L.n&&L.kind==='p'){if(L.depth===false)gl.disable(gl.DEPTH_TEST);drawL(L,VP,eye);gl.enable(gl.DEPTH_TEST);}}
+      gl.depthMask(true);}
+    for(var k in E.labels){var d=E.labels[k],s=E.project(d._p);if(!s){d.style.display='none';continue;}d.style.display='';d.style.left=s[0]+'px';d.style.top=s[1]+'px';}};
+  if(o.stars!==false){var st=new Pts();for(var q=0;q<700;q++){var dd=vnorm([Math.random()*2-1,Math.random()*2-1,Math.random()*2-1]),b=0.25+Math.random()*0.6,tint=Math.random();st.add(vscl(dd,80+Math.random()*40),[b*(0.8+tint*0.2),b*0.9,b],0.25+Math.random()*0.5);}E.set('__stars',st,{depth:false});}
+  /* input: drag orbit, wheel/pinch zoom, keys */
+  function np(){return Object.keys(pts).length;}
+  cv.addEventListener('pointerdown',function(e){pts[e.pointerId]=[e.clientX,e.clientY];drag=true;cv.classList.add('is-drag');if(np()===2){var k=Object.keys(pts);pinch=Math.hypot(pts[k[0]][0]-pts[k[1]][0],pts[k[0]][1]-pts[k[1]][1]);}try{cv.setPointerCapture(e.pointerId);}catch(_){}});
+  cv.addEventListener('pointermove',function(e){var p=pts[e.pointerId];if(!p)return;var dx=e.clientX-p[0],dy=e.clientY-p[1];pts[e.pointerId]=[e.clientX,e.clientY];
+    if(np()===1){E.yaw-=dx*0.008;E.pitch=Math.max(-1.52,Math.min(1.52,E.pitch+dy*0.008));}
+    else if(np()===2){var k=Object.keys(pts),d=Math.hypot(pts[k[0]][0]-pts[k[1]][0],pts[k[0]][1]-pts[k[1]][1]);if(pinch>0)E.dist=Math.max(E.minD,Math.min(E.maxD,E.dist*pinch/d));pinch=d;}});
+  function up(e){delete pts[e.pointerId];if(!np()){drag=null;cv.classList.remove('is-drag');}}
+  cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+  cv.addEventListener('wheel',function(e){e.preventDefault();E.dist=Math.max(E.minD,Math.min(E.maxD,E.dist*(e.deltaY>0?1.08:0.926)));},{passive:false});
+  cv.addEventListener('keydown',function(e){var k=e.key;if(k==='ArrowLeft')E.yaw+=0.08;else if(k==='ArrowRight')E.yaw-=0.08;else if(k==='ArrowUp')E.pitch=Math.min(1.52,E.pitch+0.06);else if(k==='ArrowDown')E.pitch=Math.max(-1.52,E.pitch-0.06);
+    else if(k==='+'||k==='=')E.dist=Math.max(E.minD,E.dist*0.9);else if(k==='-'||k==='_')E.dist=Math.min(E.maxD,E.dist*1.1);else if(k===' '){E.auto=!E.auto;if(E.onAuto)E.onAuto(E.auto);}else return;e.preventDefault();});
+  E.png=function(name){try{var c=document.createElement('canvas');c.width=cv.width;c.height=cv.height;var x=c.getContext('2d');var g=x.createRadialGradient(c.width/2,c.height*0.35,0,c.width/2,c.height*0.35,c.width*0.75);
+    g.addColorStop(0,'#13233d');g.addColorStop(0.6,'#070b16');g.addColorStop(1,'#03050a');x.fillStyle=g;x.fillRect(0,0,c.width,c.height);x.drawImage(cv,0,0);
+    var a=document.createElement('a');a.download=name;a.href=c.toDataURL('image/png');document.body.appendChild(a);a.click();a.remove();}catch(e){}};
+  var last=0,ro=null;
+  function frame(ts){if(!alive)return;if(!document.getElementById(cv.id)){alive=false;if(ro)ro.disconnect();return;}requestAnimationFrame(frame);var dt=Math.min(0.05,(ts-last)/1000||0.016);last=ts;
+    if(E.auto&&!drag)E.yaw+=E.spin*dt;if(o.onFrame)o.onFrame(dt,ts/1000);E.render();}
+  if(window.ResizeObserver){ro=new ResizeObserver(function(){if(document.getElementById(cv.id))E.render();});ro.observe(cv);}
+  E.start=function(){requestAnimationFrame(frame);};
+  return E;
+}
+function wireStage(E,P,name,home){var g=function(i){return document.getElementById(P+'-'+i);};var sp=g('spin'),st=g('stage');
+  function upd(){sp.textContent=E.auto?'\u275A\u275A':'\u25B6';sp.setAttribute('aria-label',E.auto?'Pause auto-rotate':'Resume auto-rotate');}
+  E.onAuto=upd;upd();sp.addEventListener('click',function(){E.auto=!E.auto;upd();});
+  g('reset').addEventListener('click',function(){E.yaw=home.yaw;E.pitch=home.pitch;E.dist=home.dist;});
+  g('png').addEventListener('click',function(){E.png(name+'.png');});
+  g('fs').addEventListener('click',function(){try{if(document.fullscreenElement){document.exitFullscreen();}else if(st.requestFullscreen){st.requestFullscreen();}}catch(e){}});
+  if(!E.ok){var m=document.createElement('div');m.className=P+'-nogl';m.textContent='WebGL is unavailable in this browser, so the 3D view is off \u2014 every calculation below still works.';st.appendChild(m);}}
+function mkEl(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+function renderOut(dl,rows,P){while(dl.firstChild)dl.removeChild(dl.firstChild);rows.forEach(function(r){if(typeof r==='string'){dl.appendChild(mkEl('dt',P+'-sec',r));return;}
+  dl.appendChild(mkEl('dt',null,r[0]));dl.appendChild(mkEl('dd',r[2]?P+'-'+r[2]:null,r[1]));});}
+function numVal(inp,def){var v=parseFloat(inp.value);return isFinite(v)?v:def;}
+/* ---- end engine ---- */
+
+var $=function(i){return document.getElementById('vcc-'+i);},E3,V={a:[3,1,0.5],b:[1,2.5,1],c:[0.5,0.5,2.5]};
+var COL={a:[1,0.42,0.42],b:[0.4,1,0.55],c:[0.45,0.65,1]},HEX={a:'#ff8a8a',b:'#8affa6',c:'#9cbcff'};
+var PRE=[['Default',[3,1,0.5],[1,2.5,1],[0.5,0.5,2.5],'cross'],['Right-hand rule',[1,0,0],[0,1,0],[0,0,1],'cross'],['Projection',[2,2,1],[3,0,0],[0,0,1],'proj'],['Parallelepiped',[2,0,0],[0.8,2,0],[0.6,0.6,1.8],'triple'],['Coplanar (volume 0)',[1,2,0],[2,-1,0],[3,1,0],'triple'],['Plane through 3 points',[2,0,0],[0,2,0],[0,0,2],'plane'],['Parallelogram law',[2,1,0],[0.5,2,1],[0,0,1],'sum']];
+function f(v){if(Math.abs(v)<5e-10)v=0;return (+v.toFixed(4)).toString();}
+function vs(v){return '('+v.map(f).join(', ')+')';}
+function draw(){
+  var a=V.a,b=V.b,c=V.c,useC=$('cc').checked,mode=$('show').value,i;
+  var m=Math.max(vlen(a),vlen(b),useC?vlen(c):0,vlen(vcross(a,b))*(mode==='cross'?0.6:0),vlen(vadd(a,b))*(mode==='sum'?1:0),1),sc=3/m;
+  function S(p){return vscl(p,sc);}
+  var G=new Geo(),L=new Lines(),T=new Geo();
+  G.arrow([0,0,0],S(a),0.045,COL.a);G.arrow([0,0,0],S(b),0.045,COL.b);if(useC)G.arrow([0,0,0],S(c),0.045,COL.c);
+  E3.clearLabels();E3.label('a',vscl(S(a),1.1),'a','#ff8a8a');E3.label('b',vscl(S(b),1.1),'b','#8affa6');if(useC)E3.label('c',vscl(S(c),1.1),'c','#9cbcff');
+  if(mode==='cross'){var x=vcross(a,b);if(vlen(x)>1e-9){G.arrow([0,0,0],S(x),0.05,[1,0.85,0.3]);E3.label('x',vscl(S(x),1.08),'a × b','#ffd66b');}
+    T.poly([[0,0,0],S(a),S(vadd(a,b)),S(b)],[1,0.8,0.35]);L.path([S(a),S(vadd(a,b)),S(b)],function(){return [1,0.85,0.4,0.6];});}
+  else if(mode==='proj'){var bb=vdot(b,b);if(bb>1e-12){var pr=vscl(b,vdot(a,b)/bb);G.arrow([0,0,0],S(pr),0.055,[1,0.85,0.3]);L.seg(S(a),S(pr),[1,1,1,0.7]);E3.label('p',vadd(S(pr),[0,0,-0.3]),'proj_b a','#ffd66b');
+      var ext=vscl(b,Math.max(1.4,Math.abs(vdot(a,b)/bb)*1.3));L.seg(S(vscl(ext,-0.3)),S(ext),[0.4,1,0.55,0.25]);}}
+  else if(mode==='triple'&&useC){var P=[[0,0,0],a,vadd(a,b),b,c,vadd(a,c),vadd(vadd(a,b),c),vadd(b,c)].map(S),F=[[0,1,2,3],[4,5,6,7],[0,1,5,4],[2,3,7,6],[1,2,6,5],[0,4,7,3]];
+    var vol=vdot(a,vcross(b,c));F.forEach(function(q){T.poly(q.map(function(k){return P[k];}),vol>=0?[0.45,0.8,1]:[1,0.6,0.3]);});
+    [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(function(e){L.seg(P[e[0]],P[e[1]],[0.8,0.9,1,0.55]);});}
+  else if(mode==='plane'&&useC){var n=vcross(vsub(b,a),vsub(c,a));if(vlen(n)>1e-9){var nn=vnorm(n),cen=vscl(vadd(vadd(a,b),c),1/3),u=vnorm(vsub(a,cen)),w=vcross(nn,u),R=Math.max(vlen(vsub(a,cen)),vlen(vsub(b,cen)),vlen(vsub(c,cen)))*1.5,pts=[];
+      for(i=0;i<40;i++){var t=TAU*i/40;pts.push(S(vadd(cen,vadd(vscl(u,Math.cos(t)*R),vscl(w,Math.sin(t)*R)))));}T.poly(pts,[0.7,0.5,1]);
+      L.path([S(a),S(b),S(c)],function(){return [1,1,1,0.8];},true);G.arrow(S(cen),S(vadd(cen,vscl(nn,m*0.35))),0.035,[1,0.85,0.3]);E3.label('n',S(vadd(cen,vscl(nn,m*0.4))),'n̂','#ffd66b');}}
+  else if(mode==='sum'){var s=vadd(a,b),d=vsub(a,b);G.arrow([0,0,0],S(s),0.05,[1,0.85,0.3]);G.arrow(S(b),S(a),0.03,[1,0.5,0.9]);L.seg(S(a),S(s),[0.4,1,0.55,0.4]);L.seg(S(b),S(s),[1,0.42,0.42,0.4]);
+    E3.label('s',vscl(S(s),1.08),'a + b','#ffd66b');E3.label('d',vscl(vadd(S(a),S(b)),0.5),'a − b','#ff9ae6');}
+  if($('cd').checked){['a','b'].concat(useC?['c']:[]).forEach(function(k){var p=S(V[k]);L.seg(p,[p[0],p[1],0],[COL[k][0],COL[k][1],COL[k][2],0.35]);L.seg([p[0],p[1],0],[0,0,0],[COL[k][0],COL[k][1],COL[k][2],0.18]);});}
+  E3.set('arrows',G,{em:0.2});E3.set('fill',T,{alpha:0.26,em:0.5});E3.set('aux',L,{});
+  var GR=new Lines();if($('cg').checked){GR.grid(3,0.5,0,[0.4,0.75,1,0.08]);GR.seg([-3.4,0,0],[3.4,0,0],[1,0.4,0.4,0.45]);GR.seg([0,-3.4,0],[0,3.4,0],[0.4,1,0.5,0.45]);GR.seg([0,0,-0.01],[0,0,3.4],[0.4,0.6,1,0.45]);
+    E3.label('X',[3.6,0,0],'x','#ff9a9a');E3.label('Y',[0,3.6,0],'y','#9affb0');E3.label('Z',[0,0,3.6],'z','#a8c0ff');}
+  E3.set('grid',GR,{});report();}
+function report(){var a=V.a,b=V.b,c=V.c,useC=$('cc').checked,la=vlen(a),lb=vlen(b),d=vdot(a,b),x=vcross(a,b),cos=la&&lb?d/(la*lb):NaN,th=Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI;
+  var rel=!isFinite(cos)?'—':Math.abs(d)<1e-9?'perpendicular':vlen(x)<1e-9*la*lb?(d>0?'parallel':'anti-parallel'):(d>0?'acute':'obtuse');
+  function sphs(v){var r=vlen(v);return 'r='+f(r)+', θ='+f(r?Math.acos(v[2]/r)*180/Math.PI:0)+'°, φ='+f(Math.atan2(v[1],v[0])*180/Math.PI)+'°';}
+  var rows=['a and b',['|a| , |b|',f(la)+' , '+f(lb)],['a · b',f(d),Math.abs(d)<1e-9?'good':null],['a × b',vs(x)],['|a × b| (parallelogram)',f(vlen(x))],['Triangle area',f(vlen(x)/2)],
+    ['Angle θ',isFinite(th)?f(th)+'°  ('+f(th*Math.PI/180)+' rad)':'—'],['Relationship',rel],['proj_b a',lb?vs(vscl(b,d/(lb*lb))):'—'],['comp_b a (scalar)',lb?f(d/lb):'—'],
+    ['â (unit)',la?vs(vscl(a,1/la)):'—'],['b̂ (unit)',lb?vs(vscl(b,1/lb)):'—'],['a + b / a − b',vs(vadd(a,b))+' / '+vs(vsub(a,b))],['Distance |a − b|',f(vlen(vsub(a,b)))],['a in spherical',sphs(a)]];
+  var steps='a · b = ('+f(a[0])+')('+f(b[0])+') + ('+f(a[1])+')('+f(b[1])+') + ('+f(a[2])+')('+f(b[2])+') = '+f(d)+'\n'+
+    'a × b = ('+f(a[1])+'·'+f(b[2])+' − '+f(a[2])+'·'+f(b[1])+', '+f(a[2])+'·'+f(b[0])+' − '+f(a[0])+'·'+f(b[2])+', '+f(a[0])+'·'+f(b[1])+' − '+f(a[1])+'·'+f(b[0])+') = '+vs(x)+'\n'+
+    'cos θ = '+f(d)+' / ('+f(la)+' × '+f(lb)+') = '+(isFinite(cos)?f(cos):'undefined');
+  if(useC){var tp=vdot(a,vcross(b,c)),n=vcross(vsub(b,a),vsub(c,a)),dd=vdot(n,a);
+    rows.push('With c',['|c|',f(vlen(c))],['a · (b × c)',f(tp),Math.abs(tp)<1e-9?'warn':null],['Parallelepiped volume',f(Math.abs(tp))],['Tetrahedron volume',f(Math.abs(tp)/6)],['Coplanar?',Math.abs(tp)<1e-9?'yes':'no'],['Handedness (a,b,c)',Math.abs(tp)<1e-9?'—':tp>0?'right-handed':'left-handed'],
+      ['Plane through tips',vlen(n)>1e-9?f(n[0])+'x + '+f(n[1])+'y + '+f(n[2])+'z = '+f(dd):'points are collinear',vlen(n)>1e-9?null:'warn'],['Origin → plane distance',vlen(n)>1e-9?f(Math.abs(dd)/vlen(n)):'—']);
+    steps+='\na · (b × c) = det[a; b; c] = '+f(tp);}
+  renderOut($('out'),rows,'vcc');$('steps').textContent=steps;
+  $('hud').textContent='a·b = '+f(d)+'   |a×b| = '+f(vlen(x))+'   θ = '+(isFinite(th)?f(th)+'°':'—')+(useC?'   a·(b×c) = '+f(vdot(a,vcross(b,c))):'');}
+function fill(){['a','b','c'].forEach(function(k){for(var i=0;i<3;i++)$(k+i).value=f(V[k][i]);});}
+function preset(i){var p=PRE[i];V.a=p[1].slice();V.b=p[2].slice();V.c=p[3].slice();$('show').value=p[4];fill();Array.prototype.forEach.call($('presets').children,function(b,k){b.classList.toggle('vcc-on',k===i);});draw();}
+function init(){
+  var box=$('vecs');['a','b','c'].forEach(function(k){var row=mkEl('div','vcc-vec'),lb=mkEl('b',null,k);lb.style.color=HEX[k];row.appendChild(lb);
+    for(var i=0;i<3;i++){(function(i){var inp=document.createElement('input');inp.type='number';inp.step='0.5';inp.id='vcc-'+k+i;inp.setAttribute('aria-label','Vector '+k+' '+'xyz'[i]+' component');
+      inp.addEventListener('input',function(){var v=parseFloat(inp.value);if(isFinite(v)){V[k][i]=Math.max(-1e6,Math.min(1e6,v));draw();}});row.appendChild(inp);})(i);}box.appendChild(row);});
+  E3=make3D({canvas:$('canvas'),labels:$('labels'),labelClass:'vcc-lbl',dist:10,yaw:0.75,pitch:0.42,spin:0.1,target:[0,0,0.8]});
+  wireStage(E3,'vcc','vectors-3d',{yaw:0.75,pitch:0.42,dist:10});
+  PRE.forEach(function(p,i){var b=mkEl('button','vcc-chip',p[0]);b.type='button';b.addEventListener('click',function(){preset(i);});$('presets').appendChild(b);});
+  $('show').addEventListener('change',draw);['cg','cc','cd'].forEach(function(k){$(k).addEventListener('change',draw);});
+  preset(0);E3.start();
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){if(!document.getElementById('vcc-root'))return;init();});}else{init();}
+})();
+</script>
