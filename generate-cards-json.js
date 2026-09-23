@@ -182,6 +182,20 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-23 — ten interactive 3D science & maths visualisers sharing one zero-dependency
+  // Canvas-2D engine (inlined per card). Keyword audit found no existing hydrogen-orbital,
+  // field-line, 3x3-matrix, polyhedra-measurement, Miller-plane, polarization, solid-of-revolution,
+  // divergence/curl, Lagrange-point or complex-domain-colouring tool.
+  'hydrogen-atom-orbitals-3d': 'Science & Engineering',
+  'electric-field-lines-3d': 'Science & Engineering',
+  'linear-transformation-3d-visualizer': 'Mathematics',
+  'platonic-archimedean-polyhedra-3d': 'Mathematics',
+  'crystal-lattice-unit-cell-3d': 'Science & Engineering',
+  'electromagnetic-wave-polarization-3d': 'Science & Engineering',
+  'solids-of-revolution-volume-3d': 'Mathematics',
+  'vector-field-divergence-curl-3d': 'Mathematics',
+  'lagrange-points-three-body-3d': 'Astronomy & Space',
+  'complex-function-landscape-3d': 'Mathematics',
   // 2026-09-21 — ten fire-service tools (new Fire & Rescue Service category, on the
   // Trucking & Freight precedent). A keyword audit of all 1,240 existing cards found no
   // hydrant, nozzle, gpm, friction-loss, SCBA, tanker, WBGT, hazmat, ventilation, confined
