@@ -210,7 +210,11 @@ function ptLoadData() {
         const savedGoal = localStorage.getItem('pt-weekly-goal');
         if (savedGoal) {
             ptWeeklyGoal = parseInt(savedGoal);
-            document.getElementById('pt-goal').value = ptWeeklyGoal;
+            // tool.html clears the card on the next navigation and cannot
+            // cancel a callback that outlives it: this one is reached from a
+            // re-entry after the visitor has moved on.
+            const goalInput = document.getElementById('pt-goal');
+            if (goalInput) goalInput.value = ptWeeklyGoal;
         }
     } catch (e) {
         console.error('Failed to load practice data:', e);
@@ -367,6 +371,9 @@ function ptUpdateLogEntries() {
         return;
     }
     
+    // tool.html clears the card on the next navigation and cannot cancel
+    // this callback: bail out rather than write to a DOM that is gone.
+    if (!statsGrid) return;
     statsGrid.style.display = 'grid';
     
     let entriesHTML = '';
@@ -424,6 +431,9 @@ function ptUpdateStatistics() {
     const consistency = Math.round((practiceDays / 7) * 100);
     
     // Update display
+    // tool.html clears the card on the next navigation and cannot cancel
+    // this callback: bail out rather than write to a DOM that is gone.
+    if (!document.getElementById('pt-total-time')) return;
     document.getElementById('pt-total-time').textContent = `${totalTime} min`;
     document.getElementById('pt-session-count').textContent = sessionCount;
     document.getElementById('pt-avg-session').textContent = `${avgSession} min`;
@@ -444,6 +454,9 @@ function ptUpdateStatistics() {
 function ptUpdateFocusDistribution() {
     const focusChart = document.getElementById('pt-focus-chart');
     const focusContainer = document.getElementById('pt-focus-distribution');
+    // tool.html clears the card on the next navigation and cannot cancel this
+    // callback: bail out rather than write to a DOM that is gone.
+    if (!focusContainer) return;
     
     if (ptSessions.length === 0) {
         focusContainer.style.display = 'none';
@@ -541,6 +554,9 @@ function ptUpdateGoalProgress() {
         status = 'Good progress';
     }
     
+    // tool.html clears the card on the next navigation and cannot cancel
+    // this callback: bail out rather than write to a DOM that is gone.
+    if (!goalProgress) return;
     goalProgress.innerHTML = `
         <div style="margin-bottom:8px;">
             <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
@@ -599,8 +615,7 @@ function ptClearData() {
 }
 
 // Initialize on load
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function practiceTrackerInit() {
         const card = document.currentScript?.closest('.card') || document;
         
         // Load saved data
@@ -612,11 +627,24 @@ if (document.readyState === 'loading') {
             dateInput.value = new Date().toISOString().split('T')[0];
         }
         
-        // Auto-update goal progress
-        setInterval(ptUpdateGoalProgress, 60000); // Update every minute
+        // Auto-update goal progress. The timer needs a handle to be stopped:
+        // this handler runs once per visit, and tool.html cannot cancel a
+        // timer it did not create, so the card stops its own on the first tick
+        // that finds the card gone.
+        let ptGoalTimer = setInterval(function () {
+            if (!card.querySelector('#pt-total-time')) {
+                clearInterval(ptGoalTimer); ptGoalTimer = null; return;
+            }
+            ptUpdateGoalProgress();
+        }, 60000); // Update every minute
         
         console.log('Practice Tracker ready');
-    });
+    
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', practiceTrackerInit);
+} else {
+    practiceTrackerInit();
 }
 </script>
 

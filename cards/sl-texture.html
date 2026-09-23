@@ -354,6 +354,12 @@ STATUS: Perfected
 
 <!-- ===== 5. JAVASCRIPT (Self-contained, prefixed, robust) ===== -->
 <script>
+
+// The toast lives INSIDE the card, not in document.body.
+// tool.html clears the card's container on every navigation and cannot clear
+// the body, so a toast parked there stays behind — and the next visit finds the
+// stale node by id and reuses it instead of building a fresh one.
+const ttToastRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
 // TOOL-SPECIFIC FUNCTIONS (prefix with tt-)
 const ttState = {
     textureWidth: 512,
@@ -456,6 +462,9 @@ function ttSetTexturePreset(size) {
 
 // Calculate alignment
 function ttCalculate() {
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!document.getElementById('tt-texture-width')) return;
     // Get current values
     ttState.textureWidth = parseFloat(document.getElementById('tt-texture-width').value) || 512;
     ttState.textureHeight = parseFloat(document.getElementById('tt-texture-height').value) || 512;
@@ -510,6 +519,35 @@ function ttCalculate() {
     
     // Save settings
     ttSaveSettings();
+}
+
+// Toast notifications. Called throughout this card (including during the
+// initial calculation on load) but never defined — the missing function threw
+// inside the DOMContentLoaded handler and aborted init, leaving the inputs
+// unwired. The toast element is created on demand: this card has no toast
+// markup of its own.
+function showNotification(message, type) {
+    let toast = document.getElementById('tt-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'tt-toast';
+        toast.setAttribute('role', 'status');
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);' +
+            'padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:1000;' +
+            'opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;' +
+            'background:#141e28;border:1px solid #2dd4ff;color:#e6faff;max-width:min(90vw,420px);text-align:center;';
+        ttToastRoot.appendChild(toast);
+    }
+    const colors = { success: '#39ff14', error: '#ff4d4d', warning: '#ffb700' };
+    toast.style.borderColor = colors[type] || '#2dd4ff';
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toast._hide);
+    toast._hide = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 2500);
 }
 
 // Validate inputs
@@ -738,6 +776,10 @@ function ttEmbed() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('sltexttt-title')) return;
     console.log('🖼️ SL Texture Alignment Tool loaded');
     
     // Load saved settings
@@ -753,6 +795,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('sltexttt-title')) return;
         if (e.key === 'Escape') {
             ttReset();
         }

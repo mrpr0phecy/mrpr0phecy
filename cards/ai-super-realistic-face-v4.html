@@ -111,19 +111,35 @@
         this.eyeTarget.x=(this.mouse.x-0.5)*12; this.eyeTarget.y=(this.mouse.y-0.5)*8;
       });
       this.canvas.addEventListener('mouseleave', ()=>{ this.eyeTarget={x:0,y:0}; });
-      setInterval(()=>{ if(Math.random()<0.14 && this.blink===0) this.triggerBlink(); }, 160);
-      setInterval(()=>{ if(Math.random()<0.45){ this.microSaccade.x=(Math.random()-0.5)*3.5; this.microSaccade.y=(Math.random()-0.5)*2.5; this.microSaccade.next=performance.now()+300+Math.random()*400; } }, 200);
-      setInterval(()=>{ if(Math.random()<0.08) this.triggerMicro(['surprise','contempt','disgust','fear'][Math.floor(Math.random()*4)]); }, 400);
+      // Three ambient loops, one card. tool.html cannot cancel a timer it did
+      // not create, so each one stops itself (and its siblings) on the first
+      // tick that finds the canvas gone, instead of animating nothing for the
+      // rest of the visitor's session.
+      this.ambient=()=>{
+        clearInterval(this.blinkTimer); clearInterval(this.saccadeTimer); clearInterval(this.microTimer);
+        this.blinkTimer=this.saccadeTimer=this.microTimer=null;
+      };
+      const alive=()=>document.getElementById('asrf-canvas');
+      this.blinkTimer=setInterval(()=>{ if(!alive()) return this.ambient(); if(Math.random()<0.14 && this.blink===0) this.triggerBlink(); }, 160);
+      this.saccadeTimer=setInterval(()=>{ if(!alive()) return this.ambient(); if(Math.random()<0.45){ this.microSaccade.x=(Math.random()-0.5)*3.5; this.microSaccade.y=(Math.random()-0.5)*2.5; this.microSaccade.next=performance.now()+300+Math.random()*400; } }, 200);
+      this.microTimer=setInterval(()=>{ if(!alive()) return this.ambient(); if(Math.random()<0.08) this.triggerMicro(['surprise','contempt','disgust','fear'][Math.floor(Math.random()*4)]); }, 400);
       this.animate();
     }
     triggerBlink(){ this.blinkTarget=1; setTimeout(()=>this.blinkTarget=0, 140); }
-    triggerMicro(type){ this.micro={active:true,type,start:performance.now(),duration:80+Math.random()*40}; $('asrf-status').textContent=`micro ${type} 80ms — FACS flash 1/25s`; setTimeout(()=>{ this.micro.active=false; $('asrf-status').textContent='Move mouse — eyes track mouse + GoT nodes, micro 1/25s, FACS blended'; }, this.micro.duration); }
+    triggerMicro(type){ this.micro={active:true,type,start:performance.now(),duration:80+Math.random()*40}; $('asrf-status').textContent=`micro ${type} 80ms — FACS flash 1/25s`; setTimeout(()=>{
+      // tool.html clears the card's container on the next navigation and cannot
+      // cancel this timer: bail out rather than write to markup that is gone.
+      if (!$('asrf-status')) return; this.micro.active=false; $('asrf-status').textContent='Move mouse — eyes track mouse + GoT nodes, micro 1/25s, FACS blended'; }, this.micro.duration); }
     setEmotionBlend(blends){ Object.assign(this.blend, blends); const dom=Object.entries(this.blend).sort((a,b)=>b[1]-a[1])[0]; if(dom) this.emotion=dom[0]; $('asrf-status').textContent=`blend ${Object.entries(this.blend).filter(([k,v])=>v>0.05).map(([k,v])=>`${k} ${v.toFixed(2)}`).join(' + ')} — micro ${this.micro.active?this.micro.type:'none'}`; if(this.blend.happy>0.3) this.lighting=0.6; else if(this.blend.thinking>0.3) this.lighting=-0.5; else this.lighting=0; if(this.blend.thinking>0.4||this.blend.concerned>0.3) this.wrinkle=0.7; else this.wrinkle=0.1; if(this.blend.curious>0.4) this.headTiltTarget=-0.18; else if(this.blend.thinking>0.4) this.headTiltTarget=0.22; else this.headTiltTarget=0; }
     setSkin(t){ this.skinTone=t; }
     setEyeColor(c){ this.eyeColor=c; }
     setHair(s){ this.hairStyle=s; }
     setMouthOpen(l,v){ this.mouthTarget=l; this.viseme=v; }
     animate(){
+      // The card's markup is torn out when the visitor opens another tool, and
+      // a rAF loop outlives it. The canvas is the marker: gone means stop, not
+      // "render one more frame and write the fps line into a null element".
+      if (!this.canvas || !this.canvas.isConnected) return;
       this.time+=0.016; this.breath+=0.012;
       const goTW=this.totNodes.length?0.35:0;
       const tx=this.eyeTarget.x*(1-goTW) + this.eyeGoT.x*goTW + this.microSaccade.x;

@@ -160,6 +160,10 @@ const DATA_SOURCES = {
 
 // Initialize
 async function initPLWidget() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('pl-team')) return;
   updateStatus('Loading current Premier League teams...');
   
   try {
@@ -172,8 +176,14 @@ async function initPLWidget() {
     
     updateStatus('Ready to fetch data');
     
-    // Auto-refresh teams every hour
-    setInterval(loadCurrentTeams, 60 * 60 * 1000);
+    // Auto-refresh teams every hour. The fetch outlives the card — tool.html
+    // clears the container on the next navigation and cannot cancel a timer it
+    // did not create — so the timer stops itself once the card is gone instead
+    // of pulling a Wikipedia extract for a page nobody is looking at.
+    const plTeamTimer = setInterval(function () {
+      if (!document.getElementById('pl-team')) { clearInterval(plTeamTimer); return; }
+      loadCurrentTeams();
+    }, 60 * 60 * 1000);
     
   } catch (error) {
     console.error('Initialization error:', error);
@@ -184,27 +194,13 @@ async function initPLWidget() {
 
 // Load current teams from web source
 async function loadCurrentTeams() {
+  if (!document.getElementById('pl-team')) return;   // card gone: do not fetch
   try {
-    // Try to get teams from BBC Sport
-    const response = await fetch(DATA_SOURCES.bbcStandings, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; PLWidget/1.0)',
-        'Accept': 'text/html'
-      }
-    });
-    
-    if (response.ok) {
-      const html = await response.text();
-      const teams = parseTeamsFromHTML(html);
-      
-      if (teams.length > 0) {
-        currentTeams = teams;
-        updateTeamSelector();
-        return;
-      }
-    }
-    
-    // Fallback: Use Wikipedia API (public, no key needed)
+    // NOTE: the old first attempt fetched https://www.bbc.com/... directly,
+    // but BBC Sport sends no CORS headers, so every browser rejects that
+    // request before it can ever succeed — a wasted failed request on every
+    // load. Wikipedia's API supports CORS (origin=*) and can actually work,
+    // so it is the primary source, with the static list as final fallback.
     const wikiResponse = await fetch(
       'https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro&titles=2023%E2%80%9324_Premier_League&origin=*'
     );
@@ -307,6 +303,9 @@ function loadFallbackTeams() {
 // Update team selector dropdown
 function updateTeamSelector() {
   const select = document.getElementById('pl-team');
+  // tool.html clears the card on the next navigation and cannot cancel
+  // this callback: bail out rather than write to a DOM that is gone.
+  if (!select) return;
   select.innerHTML = '';
   
   currentTeams.forEach(team => {

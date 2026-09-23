@@ -286,6 +286,11 @@ function tttUpdateBoardDisplay() {
     cells.forEach((cell, index) => {
         const value = tttGame.board[index];
         cell.textContent = value;
+        // An empty cell is a button with no text at all: a screen reader
+        // announces nine identical "button"s and the board is unusable. The
+        // position and the state are the name.
+        cell.setAttribute('aria-label',
+            `Row ${Math.floor(index / 3) + 1}, column ${(index % 3) + 1}: ${value ? value : 'empty'}`);
         
         if (value === 'X') {
             cell.style.color = '#ff4d4d';
@@ -690,6 +695,10 @@ function tttShowWinningLine(player) {
 function tttUpdateGameStatus() {
     const statusElement = document.getElementById('ttt-status-text');
     const turnDisplay = document.getElementById('ttt-turn-display');
+    // The computer moves on a timer, and tool.html cannot cancel it. A second
+    // later the card may be gone, and getElementById then returns null — every
+    // write below threw. No status line means there is no status to update.
+    if (!statusElement || !turnDisplay) return;
     
     if (tttGame.gameActive) {
         if (tttGame.gameMode === 'ai') {
@@ -818,8 +827,11 @@ function tttResetGame() {
 }
 
 // Initialize on load
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function ticTacToeInit() {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('ttt-stats-x')) return;
         // Load saved stats from localStorage
         const savedStats = localStorage.getItem('ttt-stats');
         if (savedStats) {
@@ -851,12 +863,12 @@ if (document.readyState === 'loading') {
         tttInitializeBoard();
         
         console.log('Tic Tac Toe initialized');
-    });
     
-    // Save stats on page unload
-    window.addEventListener('beforeunload', function() {
-        localStorage.setItem('ttt-stats', JSON.stringify(tttGame.stats));
-    });
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ticTacToeInit);
+} else {
+    ticTacToeInit();
 }
 </script>
 

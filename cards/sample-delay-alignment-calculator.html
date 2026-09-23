@@ -1,0 +1,24 @@
+<h2 id="sdac-title" style="margin-top:0;color:var(--accent,#2dd4ff);">Sample-Delay Alignment Calculator</h2>
+<p id="sdac-desc" class="description" style="color:var(--text-secondary);line-height:1.6;">Translate a measured timing offset into DAW sample nudges, acoustic path difference, and predicted comb-filter notches.</p>
+<form id="sdac-form" aria-describedby="sdac-desc" onsubmit="event.preventDefault();">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin:16px 0;"><div><label for="sdac-delay" style="display:block;margin-bottom:6px;">Measured offset (ms)</label><input id="sdac-delay" type="number" value="1" min="0" max="1000" step="any" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div><div><label for="sdac-rate" style="display:block;margin-bottom:6px;">Session sample rate (Hz)</label><input id="sdac-rate" type="number" value="48000" min="8000" max="384000" step="1" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div><div><label for="sdac-temp" style="display:block;margin-bottom:6px;">Air temperature (°C)</label><input id="sdac-temp" type="number" value="20" min="-20" max="50" step="any" required style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;"></div></div>
+</form>
+<pre id="sdac-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:var(--bg-secondary,#141e28);border:1px solid var(--border-light,#38505c);border-radius:10px;line-height:1.7;font-size:14px;"></pre>
+<p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;">Advance the late track or delay the early track by the offset. Rounded samples leave the residual shown. Notches assume equal-level, identical, same-polarity signals summed with a fixed delay; real microphones and rooms differ. Polarity reversal is not the same as correcting a time offset.</p>
+<script>
+(function() {
+  'use strict';
+  const el = key => document.getElementById('sdac-' + key);
+  const result = el('result');
+  const num = key => Number(el(key).value);
+  const db = x => x > 0 ? (20 * Math.log10(x)).toFixed(2) + ' dB' : '−∞ dB';
+  const valid = () => el('form').checkValidity();
+  
+  function update(){
+    if(!valid()){result.textContent='Enter an offset from 0–1000 ms, an integer rate from 8000–384000 Hz, and temperature from −20–50 °C.';return;}
+    const t=num('delay')/1000, rate=num('rate'), samples=t*rate, rounded=Math.round(samples), speed=331.3+0.606*num('temp');
+    result.textContent='Exact offset: '+samples.toFixed(4)+' samples\nNearest DAW nudge: '+rounded+' samples\nResidual (requested − rounded): '+((samples-rounded)/rate*1000).toFixed(6)+' ms\nAcoustic path difference: '+(speed*t).toFixed(4)+' m\n'+(t ? 'First five theoretical notches: '+Array.from({length:5},(_,i)=>((2*i+1)/(2*t)).toFixed(1)+' Hz'+((2*i+1)/(2*t)>=rate/2?' (at/above Nyquist)':'')).join(', ') : 'Zero delay: no delay-induced comb notches.');
+  }
+  el('form').addEventListener('input',update);update();
+})();
+</script>

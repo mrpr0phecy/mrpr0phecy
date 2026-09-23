@@ -36,6 +36,14 @@
      A hidden YouTube IFrame player. The API script is not even injected
      until the player first starts, so the card costs nothing until played
      and no third-party request is made on page load.                   */
+  /* The audio bed lives INSIDE this card, not in document.body.
+     tool.html clears the card's container on every navigation and cannot clear
+     the body, so a wrapper parked in the body keeps its iframe — and its audio
+     — playing after the visitor has moved to another tool, and the next visit
+     then finds the stale wrapper, skips creating a player, and leaves this
+     card's own music control dead for the rest of the session. */
+  var mpbmroot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
   var mpbmTRACKS = [{"id": "IiHLS25VjgM", "n": "Innersoul"}, {"id": "4dcMWZsGICY", "n": "Inhabited"}, {"id": "D2O-ZVD5Ctg", "n": "Indigo"}, {"id": "d1NI6lX6tnk", "n": "Internal"}];
   var mpbmyt = null, mpbmytReady = false, mpbmpending = false, mpbmti = 0, mpbmmuted = false;
 
@@ -45,7 +53,7 @@
     w.id = 'mpbm-ytwrap';
     w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
     var d = document.createElement('div'); d.id = 'mpbm-ythost';
-    w.appendChild(d); document.body.appendChild(w);
+    w.appendChild(d); mpbmroot.appendChild(w);
 
     function make() {
       mpbmyt = new YT.Player('mpbm-ythost', {
@@ -110,6 +118,9 @@
     for (var i=0;i<4;i++) (function(i){
       var b=document.createElement('button');
       b.type='button'; b.dataset.i=i;
+      // Four bare pads: "button, button, button, button". The pad number is the
+      // only thing that distinguishes them.
+      b.setAttribute('aria-label', 'Pad ' + (i + 1));
       b.style.cssText='aspect-ratio:1;border-radius:14px;border:2px solid '+COLS[i]+';background:'+COLS[i]+'22;cursor:pointer;transition:background .12s,transform .08s;';
       b.addEventListener('click',function(){ tap(i); });
       box.appendChild(b);
@@ -122,19 +133,31 @@
     setTimeout(function(){ b.style.background = COLS[i]+'22'; b.style.transform='scale(1)'; }, ms || 260);
   }
   function showSeq() {
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!document.getElementById('mpbm-msg')) return;
     showing = true;
     document.getElementById('mpbm-msg').textContent = 'Watch';
     var i = 0;
     var iv = setInterval(function(){
+      // Re-resolve on every tick. The guard at the top of showSeq() covers the
+      // entry point, but this timer outlives the card: tool.html removes the
+      // markup on the next navigation and nothing here can cancel it, so the
+      // last tick wrote 'Your turn' into a null element and threw.
+      var msg = document.getElementById('mpbm-msg');
+      if (!msg) { clearInterval(iv); return; }
       if (i >= seq.length) {
         clearInterval(iv); showing = false; step = 0;
-        document.getElementById('mpbm-msg').textContent = 'Your turn';
+        msg.textContent = 'Your turn';
         return;
       }
       flash(seq[i]); i++;
     }, 520);
   }
   function nextRound() {
+    // tool.html clears the card's container on the next navigation and
+    // cannot cancel this timer: bail out rather than write to what is gone.
+    if (!document.getElementById('mpbm-r')) return;
     round++; document.getElementById('mpbm-r').textContent = round;
     seq.push(Math.floor(Math.random()*4));
     setTimeout(showSeq, 550);

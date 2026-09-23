@@ -1,0 +1,47 @@
+<h2 id="smca-title" style="margin-top:0;color:var(--accent,#2dd4ff);">Stereo &amp; Mono Compatibility Analyzer</h2>
+<p id="smca-desc" class="description" style="color:var(--text-secondary);line-height:1.6;">Measure stereo correlation, side energy, and mono fold-down loss from your mix without uploading it.</p>
+<form id="smca-form" aria-describedby="smca-desc" onsubmit="event.preventDefault();">
+<label for="smca-file">Audio file (maximum 30 MB, 5 minutes, mono or stereo)</label><input id="smca-file" type="file" accept="audio/*,.wav,.flac,.mp3,.m4a,.ogg" style="width:100%;box-sizing:border-box;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text,#e6faff);border:1px solid var(--border-light,#38505c);font-size:16px;;margin:8px 0 16px;"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin:16px 0;"></div>
+</form>
+<pre id="smca-result" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:var(--bg-secondary,#141e28);border:1px solid var(--border-light,#38505c);border-radius:10px;line-height:1.7;font-size:14px;">Choose an audio file to begin.</pre>
+<p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;">Correlation is a whole-file, uncentered L/R energy measurement, not a time-varying meter. Mono is (L + R) / 2; negative correlation suggests cancellation, not automatically a bad mix. Decoding may resample to the browser’s audio rate.</p>
+<script>
+(function() {
+  'use strict';
+  const el = key => document.getElementById('smca-' + key);
+  const result = el('result');
+  const num = key => Number(el(key).value);
+  const db = x => x > 0 ? (20 * Math.log10(x)).toFixed(2) + ' dB' : '−∞ dB';
+  const valid = () => el('form').checkValidity();
+  let buffer = null, serial = 0;
+  el('file').addEventListener('change', async () => {
+    const ticket = ++serial; buffer = null;
+    if (el('download')) el('download').disabled = true;
+    const file = el('file').files[0];
+    if (!file) { result.textContent = 'Choose an audio file to begin.'; return; }
+    if (file.size > 30 * 1024 * 1024) { result.textContent = 'Please choose a file smaller than 30 MB.'; return; }
+    result.textContent = 'Decoding locally…';
+    let context;
+    try {
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) throw new Error('unsupported');
+      context = new Audio();
+      const decoded = await context.decodeAudioData(await file.arrayBuffer());
+      if (ticket !== serial) return;
+      if (decoded.duration > 300 || decoded.numberOfChannels > 2) {
+        result.textContent = 'Use mono or stereo audio no longer than 5 minutes.'; return;
+      }
+      buffer = decoded; update();
+    } catch (_) { if (ticket === serial) result.textContent = 'Unable to decode this file. Try a PCM WAV file in a browser with Web Audio support.'; }
+    finally { if (context) await context.close().catch(() => {}); }
+  });
+  
+  function update() {
+    const l = buffer.getChannelData(0), r = buffer.getChannelData(buffer.numberOfChannels - 1);
+    let ll=0, rr=0, lr=0, mid=0, side=0;
+    for(let i=0;i<l.length;i++){ll+=l[i]*l[i];rr+=r[i]*r[i];lr+=l[i]*r[i];mid+=((l[i]+r[i])/2)**2;side+=((l[i]-r[i])/2)**2;}
+    const energy=(ll+rr)/2, correlation=ll && rr ? lr/Math.sqrt(ll*rr) : null;
+    result.textContent = 'Channels: '+buffer.numberOfChannels+' • Duration: '+buffer.duration.toFixed(2)+' s\nL/R correlation: '+(correlation === null ? 'undefined (silent channel)' : correlation.toFixed(4))+'\nMono level relative to stereo RMS: '+(energy ? db(Math.sqrt(mid/energy)) : 'undefined (silence)')+'\nSide / mid RMS: '+(mid ? db(Math.sqrt(side/mid)) : 'undefined (no mid energy)')+'\n'+(!energy ? 'Silent file.' : buffer.numberOfChannels===1 ? 'Mono source: no stereo difference.' : correlation !== null && correlation<0 ? 'Check the mix in mono: opposing channel energy may cancel.' : 'Inspect important sections separately; a whole-file average can hide brief cancellation.');
+  }
+})();
+</script>

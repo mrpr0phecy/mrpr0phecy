@@ -249,6 +249,9 @@ function expQuickValue(type, value) {
 }
 
 function expCalculate() {
+  // tool.html clears the card's container on the next navigation and
+  // cannot cancel this timer: bail out rather than write to what is gone.
+  if (!document.getElementById('exp-base')) return;
     const baseInput = document.getElementById('exp-base');
     const exponentInput = document.getElementById('exp-exponent');
     const showSteps = document.getElementById('exp-show-steps').checked;
@@ -510,6 +513,99 @@ function expDrawRootVisualization(ctx, canvas, base, exponent, result) {
     ctx.fillText('Output: ' + result.toFixed(4), centerX, centerY - radius - 20);
 }
 
+// The log and exponential modes both computed a result and then called one of
+// these, neither of which existed: the answer appeared and the chart threw.
+function expDrawLogVisualization(ctx, canvas, base, exponent, result) {
+    const padding = 30;
+    const chartWidth = canvas.width - 2 * padding;
+    const chartHeight = canvas.height - 2 * padding;
+
+    // A log is the power the base needs: base^result = exponent, so the bars
+    // show the argument, the base, and the exponent the tool found.
+    const values = [
+        { label: `log${base}(${exponent})`, value: result, color: 'rgba(57,255,20,0.6)' },
+        { label: `base = ${base}`, value: base, color: 'rgba(45,212,255,0.6)' },
+        { label: `argument = ${exponent}`, value: exponent, color: 'rgba(255,165,0,0.6)' }
+    ];
+    const maxValue = Math.max(...values.map(v => Math.abs(v.value)), 1);
+    const barWidth = chartWidth / values.length;
+
+    values.forEach((item, i) => {
+        const height = Math.abs(item.value) / maxValue * chartHeight;
+        const x = padding + i * barWidth;
+        ctx.fillStyle = item.color;
+        ctx.fillRect(x, canvas.height - padding - height, barWidth * 0.7, height);
+
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(item.label, x + barWidth * 0.35, canvas.height - padding + 6);
+    });
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${base} ^ ${Number(result.toFixed(6))} = ${exponent}`, canvas.width / 2, padding / 2);
+}
+
+function expDrawExponentialVisualization(ctx, canvas, base, result) {
+    const padding = 30;
+    const chartWidth = canvas.width - 2 * padding;
+    const chartHeight = canvas.height - 2 * padding;
+
+    // e^x and its base: plotting the curve is the point of this mode, so draw
+    // it rather than a bar for the single answer.
+    const steps = 60;
+    const xMin = -2, xMax = 2;
+    const curve = [];
+    for (let i = 0; i <= steps; i++) {
+        const x = xMin + (xMax - xMin) * (i / steps);
+        curve.push({ x, y: Math.exp(x) });
+    }
+    const yMax = Math.max(...curve.map(p => p.y));
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padding, canvas.height - padding);
+    ctx.lineTo(canvas.width - padding, canvas.height - padding);
+    ctx.moveTo(padding, padding);
+    ctx.lineTo(padding, canvas.height - padding);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(45,212,255,0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    curve.forEach((point, i) => {
+        const px = padding + (i / steps) * chartWidth;
+        const py = canvas.height - padding - (point.y / yMax) * chartHeight;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Mark the answer the card calculated.
+    const marker = expCurrentOperation === 'exponential'
+        ? { x: Number(base), y: Number(result) } : null;
+    if (marker && isFinite(marker.x) && isFinite(marker.y)) {
+        const px = padding + ((marker.x - xMin) / (xMax - xMin)) * chartWidth;
+        const py = canvas.height - padding - (marker.y / yMax) * chartHeight;
+        if (px >= padding && px <= canvas.width - padding && py >= padding) {
+            ctx.fillStyle = 'rgba(57,255,20,0.95)';
+            ctx.beginPath();
+            ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = 'bold 14px Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`e^x from ${xMin} to ${xMax}`, padding + 6, padding - 22);
+}
+
 function expShowError(message) {
     const mainResult = document.getElementById('exp-main-result');
     mainResult.innerHTML = `
@@ -621,6 +717,9 @@ function expReset() {
 }
 
 function expExample() {
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!document.getElementById('exp-base')) return;
     // Set example values
     document.getElementById('exp-base').value = 2;
     document.getElementById('exp-exponent').value = 3;
@@ -632,6 +731,10 @@ function expExample() {
 
 // Add keyboard shortcut (Enter to calculate)
 document.addEventListener('keydown', function(e) {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('exponents-calculator-title')) return;
     if (e.key === 'Enter' && !e.target.matches('textarea, input[type="text"]')) {
         e.preventDefault();
         expCalculate();
@@ -639,8 +742,11 @@ document.addEventListener('keydown', function(e) {
 });
 
 // Initialize
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function exponentsInit() {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('exponents-calculator-title')) return;
         // Set default values
         expSetOperation('power');
         
@@ -648,7 +754,12 @@ if (document.readyState === 'loading') {
         setTimeout(expExample, 500);
         
         console.log('Exponents Calculator ready');
-    });
+    
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', exponentsInit);
+} else {
+    exponentsInit();
 }
 </script>
 

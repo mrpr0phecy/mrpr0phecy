@@ -8,22 +8,22 @@
 
 ## Tagline (60 characters max — this is the most important line)
 
-**Primary:** `562 free browser tools. No accounts, no display ads. Open source.`
+**Primary:** `1,260 free browser tools. No accounts, no display ads. Open source.`
 
 **Alternates:**
-- `562 free browser tools. No accounts, no display ads. Open source.`
-- `562 free, private, browser-side tools. Open source.`
-- `The most useful site in the world. 562 tools. Free.`
+- `1,260 free browser tools. No accounts, no display ads. Open source.`
+- `1,260 free, private, browser-side tools. Open source.`
+- `The most useful site in the world. 1,260 tools. Free.`
 
 ## Short description (260 characters max)
 
-> A non-commercial catalogue of 562 free, browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, colour contrast checker, invoice generator, and 550+ more. No accounts, no display ads. Open source. One person, built in two years, in Luton, UK.
+> A non-commercial catalogue of 1,260 free, browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, colour contrast checker, invoice generator, and 1,200+ more. No accounts, no display ads. Open source. One person, built in two years, in Luton, UK.
 
 ## Long description
 
 > **The Most Useful Site in the World** is a non-commercial project I\'ve been building for two years.
 >
-> The whole site is 562 free, browser-side tools. Every one of them runs in your browser, with no account, no email, no display ads, no upsell.
+> The whole site is 1,260 free, browser-side tools. Every one of them runs in your browser, with no account, no email, no display ads, no upsell.
 >
 > The catalogue includes:
 > - **Finance:** mortgage, compound interest, debt payoff, salary, lease vs buy, stamp duty, affordability, investment, unit-price comparator, credit card
@@ -33,11 +33,11 @@
 > - **Writing & language:** word counter, grammar checker, paraphraser, JSON formatter, regex tester, password generator
 > - **Image & design:** colour palette extractor, WCAG contrast checker, image format converter, SVG-to-PNG
 > - **Astronomy:** eyepiece calculator, lunar phase, star chart, telescope collimation
-> - **And 500+ more**
+> - **And 1,200+ more**
 >
 > **The thing I am most proud of:** the **no-display-ads part**. View source on any page. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the tool and its text. (I do run Google Analytics for measurement — that's how I know which guides convert — but Analytics does not place ads.)
 >
-> **The thing I am least proud of:** the homepage. I have been told it\'s "a wall of 562 emoji". It is. I am working on it.
+> **The thing I am least proud of:** the homepage. I have been told it\'s "a wall of emoji". It is. I am working on it.
 >
 > **Built by:** one person (me, Russell), in Luton, UK, in the evenings and weekends.
 > **Stack:** vanilla JavaScript, one HTML file per tool, no framework, no build step, no npm.
@@ -94,15 +94,15 @@ Just me. Single maker launch.
 > Author here. A few things I should have put in the main post:
 >
 > - The site is **non-commercial.** There is no business model. There is no display ad inventory, no email list, no newsletter, no upsell, no pop-up. The donate link has been live for 9 months; total donations received: £34.50. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None are advertising.)
-> - The number **562 is honest.** There are 562 separate tool pages and a `cards.json` file with all 562 entries. The count is exposed at the top of `/tools.html`.
+> - The number **is honest and checkable.** There are 1,260 separate tool pages and a `cards.json` file with an entry for each of them. The count is exposed at the top of `/tools.html`.
 > - The **no-display-ads claim is verifiable.** View source on any page. You will not find an ad slot, an ads.txt file, an ad network script, or a sponsored-content block. The whole markup is the tool and its text.
-> - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is 47 MB total, including screenshots for the help docs.
+> - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is about 90 MB in total, most of it a photo library that two of the non-tool pages use.
 > - I am **one person**, based in Luton, UK. I work on this in the evenings and weekends.
 > - The thing I am most proud of is the **"How mortgages really work" guide** at https://www.themostusefulsiteintheworld.com/guides/mortgage.html. The bank\'s calculator never tells you the total interest. The guide walks through it.
 >
 > **If you only click one thing on the site**, that guide is the one.
 >
-> **If you want to embed a tool** (e.g. on your own site or in a school newsletter), `/embed.html` gives you a one-line iframe for any of the 562.
+> **If you want to embed a tool** (e.g. on your own site or in a school newsletter), `/embed.html` gives you a one-line iframe for any of the 1,260 tools.
 >
 > Happy to answer questions. I read every comment.
 
@@ -114,7 +114,7 @@ Just me. Single maker launch.
 
 2. **Hunters, not just makers.** Get a hunter (someone with a good PH reputation) to submit the post instead of submitting it yourself. Posts with hunters get 2-3× the page-1 visibility. Ask a maker friend with a 100+ follower count to hunt it.
 
-3. **Avoid the "AI" trap.** Don\'t call it "AI-powered" in the tagline. PH\'s audience is allergic to the word. The tagline is "562 free browser tools" — no buzzwords.
+3. **Avoid the "AI" trap.** Don\'t call it "AI-powered" in the tagline. PH\'s audience is allergic to the word. The tagline is "1,260 free browser tools" — no buzzwords.
 
 4. **Don\'t launch on a Friday or weekend.** Tuesday, Wednesday, or Thursday only.
 

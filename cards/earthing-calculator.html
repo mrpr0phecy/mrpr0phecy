@@ -1,4 +1,5 @@
 <h2 id="earthing-calculator-title" style="margin-top:0;color:var(--accent);">⚡ Earthing Conductor Calculator</h2>
+<p id="earthing-calculator-desc" class="small" style="margin:0 0 16px;color:rgba(230,250,255,0.9);">Size earthing conductors for fault protection. For qualified electricians — always verify with local regulations.</p>
 
 <div class="warning-banner" style="
   background:linear-gradient(90deg, rgba(255,45,85,0.1), rgba(255,45,85,0.05));
@@ -403,7 +404,7 @@
   "></pre>
   
   <div style="display:flex;gap:12px;margin-top:20px;">
-    <button onclick="copyReport()" style="
+    <button onclick="copyReport(this)" style="
       padding:12px 24px;
       background:rgba(45,212,255,0.15);
       border:1px solid var(--accent);
@@ -454,6 +455,10 @@ const materialConstants = {
 
 // Initialize calculator
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('earth-material')) return;
   updateStandardSizes();
   updateKFactor();
   
@@ -711,10 +716,13 @@ function getCircuitCount(grouping) {
   return mapping[grouping] || "Custom grouping";
 }
 
-function copyReport() {
+function copyReport(btn) {
   const report = document.getElementById('earth-output').textContent;
+  // This used the legacy global `event` to find the button. Firefox has never
+  // had window.event, so Copy threw there; the button is passed in instead.
+  const target = btn || document.getElementById('earth-output') || document.body;
   navigator.clipboard.writeText(report).then(() => {
-    const btn = event.target;
+    const btn = target;
     const original = btn.innerHTML;
     btn.innerHTML = '✅ Copied!';
     setTimeout(() => { btn.innerHTML = original; }, 2000);
@@ -724,6 +732,7 @@ function copyReport() {
 function printReport() {
   const report = document.getElementById('earth-output').textContent;
   const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('Popup blocked: allow popups for this site to print.'); return; }
   
   printWindow.document.write(`
     <html>

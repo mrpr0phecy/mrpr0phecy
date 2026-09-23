@@ -435,13 +435,26 @@ function epmShowSubtopics(topic) {
 
 function epmGenerateQuestion() {
     const card = document.currentScript?.closest('.card') || document;
+    // Reached from a 0-500 ms `setTimeout` chain (the 5-question set) and from
+    // an immediate-solution timer: by then the visitor may have opened another
+    // tool, and tool.html has cleared this card's container. The check has to
+    // be against the DOCUMENT — `card` may be the detached container itself,
+    // whose children are still there, so a query inside it always succeeds.
+    if (!document.getElementById('epm-difficulty')) return;
     const difficulty = card.querySelector('#epm-difficulty').value;
     const showSolution = card.querySelector('#epm-show-solution').value;
     
     // Get available questions for current topic and difficulty
     const topicQuestions = epmQuestions[epmCurrentTopic];
-    if (!topicQuestions || !topicQuestions[difficulty] || topicQuestions[difficulty].length === 0) {
-        // Fallback to easy if no questions for current difficulty
+    // No questions for this topic at all: Object.keys(undefined) threw a
+    // TypeError here, so the button did nothing and the console filled with
+    // "Cannot convert undefined or null to object".
+    if (!topicQuestions || Object.keys(topicQuestions).length === 0) {
+        alert('No questions available for this topic yet.');
+        return;
+    }
+    if (!topicQuestions[difficulty] || topicQuestions[difficulty].length === 0) {
+        // Fallback to the first difficulty that does have questions
         const fallbackDiff = Object.keys(topicQuestions)[0] || 'easy';
         epmCurrentQuestion = topicQuestions[fallbackDiff][0];
     } else {
@@ -725,8 +738,7 @@ function epmNewTip() {
 }
 
 // Initialize
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function examPrepMathsInit() {
         const card = document.currentScript?.closest('.card') || document;
         
         // Load progress
@@ -737,7 +749,12 @@ if (document.readyState === 'loading') {
         epmNewTip();
         
         console.log('Math Exam Prep ready!');
-    });
+    
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', examPrepMathsInit);
+} else {
+    examPrepMathsInit();
 }
 </script>
 

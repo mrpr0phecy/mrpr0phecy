@@ -290,6 +290,10 @@ I have a dream that my four little children will one day live in a nation where 
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('la-text')) return;
     const textarea = document.querySelector('#la-text');
     const charCount = document.querySelector('#la-char-count');
     
@@ -424,9 +428,12 @@ function laAnalyze(btn) {
             '<strong style="color:#ffcc00;">📝</strong> Add more text for better analysis (20+ characters recommended).';
     }
     
-    // Show loading state
+    // Show loading state. The label span is kept in the markup while the work
+    // runs: laSetMode writes to #la-btn-text and the mode buttons stay clickable,
+    // so replacing the button's contents wholesale made every mode switch during
+    // a run throw on a missing element.
     const originalHTML = btn.innerHTML;
-    btn.innerHTML = '<span style="font-size:18px;">⏳</span> Processing...';
+    btn.innerHTML = '<span style="font-size:18px;">⏳</span> <span id="la-btn-text">Processing...</span>';
     btn.disabled = true;
     
     setTimeout(() => {
@@ -435,6 +442,9 @@ function laAnalyze(btn) {
         let studyTime = 0;
         
         if (currentMode === 'analyze') {
+            // tool.html clears the card on the next navigation and cannot cancel
+            // this callback: bail out rather than write to a DOM that is gone.
+            if (!document.getElementById('la-focus')) return;
             const focus = document.getElementById('la-focus').value;
             const depth = document.getElementById('la-depth').value;
             

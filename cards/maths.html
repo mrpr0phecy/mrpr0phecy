@@ -194,27 +194,39 @@ const mhMathFunctions = {
 };
 
 // Safe expression parser
+// Order matters here, and the previous order was wrong three times over:
+//   * `^` was turned into `**` BEFORE `e^x` was looked for, so `e^2` reached
+//     the evaluator as `e**2` and threw "e is not defined" — as did every one of
+//     the card's own examples, which all use `pi`.
+//   * `x` was replaced everywhere, so `max(1,2)` became `ma*(1,2)`.
+//   * the word `pi` was never converted at all, only the character `π`.
+// Functions are substituted first, then the loose `x`-as-multiplication rule is
+// anchored so it cannot bite into an identifier.
 function mhParseExpression(expr) {
-  // Replace common math symbols
-  let safeExpr = expr
-    .replace(/\^/g, '**')           // Convert ^ to **
-    .replace(/√(\d+)/g, 'sqrt($1)') // Convert √x to sqrt(x)
-    .replace(/π/g, 'Math.PI')       // Convert π to Math.PI
-    .replace(/e\^(\w+)/g, 'exp($1)')// Convert e^x to exp(x)
-    .replace(/(\d+)%/g, '$1/100')   // Convert percentages
-    .replace(/x/g, '*');            // Alternative multiplication
-  
-  // Handle implicit multiplication (e.g., 2(3+4) becomes 2*(3+4))
-  safeExpr = safeExpr.replace(/(\d)(\()/g, '$1*$2')
-                     .replace(/(\))(\d)/g, '$1*$2')
-                     .replace(/(\))(\()/g, '$1*$2');
-  
-  // Extract function calls and replace with safe versions
+  let safeExpr = String(expr)
+    .replace(/√\s*\(/g, 'sqrt(')                  // √(25) → sqrt(25)
+    .replace(/√\s*(\d+(?:\.\d+)?)/g, 'sqrt($1)')  // √25  → sqrt(25)
+    .replace(/π/g, 'Math.PI')
+    .replace(/\bpi\b/gi, 'Math.PI')                // the hint says "use pi"
+    .replace(/(?<![\w.])e\s*\^\s*(-?\d+(?:\.\d+)?)/g, 'exp($1)')  // e^2 → exp(2)
+    .replace(/(?<![\w.])e\s*\^\s*\(/g, 'exp(')   // e^(x) → exp(x)
+    .replace(/\^/g, '**')                          // remaining `^` is a power
+    .replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');    // Convert percentages
+
+  // Named functions become calls on the safe object, before the loose rules.
   Object.keys(mhMathFunctions).forEach(func => {
-    const regex = new RegExp(`\\b${func}\\(`, 'g');
+    if (typeof mhMathFunctions[func] !== 'function') return;
+    const regex = new RegExp(`(?<![\\w.$])${func}\\(`, 'g');
     safeExpr = safeExpr.replace(regex, `mhMathFunctions.${func}(`);
   });
-  
+
+  // x between numbers is multiplication (2x → 2*), but never inside a name:
+  // the character before it has to be a digit, a dot or a closing bracket.
+  safeExpr = safeExpr
+    .replace(/(?<=[\d).])x(?![\w(])/g, '*')
+    .replace(/(\d)\s*\(/g, '$1*(')                // 2(3+4) → 2*(3+4)
+    .replace(/\)\s*(?=[\d(])/g, ')*');            // (1+2)(3+4) → (1+2)*(3+4)
+
   return safeExpr;
 }
 
@@ -290,6 +302,9 @@ let mhHistory = [];
 
 // Main solve function
 function mhSolve(btn) {
+  // tool.html clears the card's container on the next navigation and
+  // cannot cancel this timer: bail out rather than write to what is gone.
+  if (!document.querySelector('#mh-input')) return;
   const card = btn.closest('.card') || document;
   const expr = card.querySelector('#mh-input').value.trim();
   const precision = card.querySelector('#mh-precision').value;
@@ -315,7 +330,11 @@ function mhSolve(btn) {
     };
     
     // Use Function constructor but with limited scope
-    const result = Function('"use strict";return (' + safeExpr + ')').call(context);
+    // mhParseExpression rewrote the card's helpers to `mhMathFunctions.x(`, and a
+    // Function body only sees globals — the object goes in as a parameter, not
+    // as `this`, or the rewrite resolves to nothing.
+    const result =
+      Function('mhMathFunctions', '"use strict";return (' + safeExpr + ')').call(context, mhMathFunctions);
     
     // Format result
     const formattedResult = mhFormatNumber(result, displayMode, precision);
@@ -547,8 +566,7 @@ function mhToggleHistory() {
 }
 
 // Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
+function mathsInit() {
     const card = document.currentScript?.closest('.card') || document;
     
     // Load example on startup
@@ -568,7 +586,12 @@ if (document.readyState === 'loading') {
     });
     
     console.log('Math Helper initialized');
-  });
+  
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mathsInit);
+} else {
+    mathsInit();
 }
 </script>
 

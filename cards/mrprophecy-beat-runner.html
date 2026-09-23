@@ -36,6 +36,14 @@
      A hidden YouTube IFrame player. The API script is not even injected
      until the player first starts, so the card costs nothing until played
      and no third-party request is made on page load.                   */
+  /* The audio bed lives INSIDE this card, not in document.body.
+     tool.html clears the card's container on every navigation and cannot clear
+     the body, so a wrapper parked in the body keeps its iframe — and its audio
+     — playing after the visitor has moved to another tool, and the next visit
+     then finds the stale wrapper, skips creating a player, and leaves this
+     card's own music control dead for the rest of the session. */
+  var mpbrroot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
   var mpbrTRACKS = [{"id": "qL6X6n6FLuo", "n": "Injection"}, {"id": "pNMuhikcxsY", "n": "Inrush"}, {"id": "XHK3oUuT4eQ", "n": "Infighting"}, {"id": "U7OknSZ6iGE", "n": "Invasion"}];
   var mpbryt = null, mpbrytReady = false, mpbrpending = false, mpbrti = 0, mpbrmuted = false;
 
@@ -45,7 +53,7 @@
     w.id = 'mpbr-ytwrap';
     w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
     var d = document.createElement('div'); d.id = 'mpbr-ythost';
-    w.appendChild(d); document.body.appendChild(w);
+    w.appendChild(d); mpbrroot.appendChild(w);
 
     function make() {
       mpbryt = new YT.Player('mpbr-ythost', {
@@ -120,6 +128,10 @@
     for (var i = 0; i < n; i++) particles.push({ x: x, y: y, vx: (Math.random() - .5) * 5, vy: -Math.random() * 4, l: 26, c: col });
   }
   function loop(ts) {
+    // This loop re-schedules itself, and tool.html clears the card's
+    // container when the visitor opens another tool — the next frame
+    // would run against markup that is gone. Stop instead.
+    if (!document.getElementById('mpbr-score')) return;
     if (!mpbrrunning) return;
     if (!mpbrt0) mpbrt0 = ts;
     var dt = Math.min(2.6, (ts - mpbrt0) / 16.7); mpbrt0 = ts;

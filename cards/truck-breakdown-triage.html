@@ -1,0 +1,326 @@
+<h2 id="bdt-title" style="margin-top:0;color:var(--accent);">🔧 Roadside Breakdown Triage</h2>
+
+<form aria-describedby="bdt-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="bdt-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Something has gone wrong at the worst possible place. Pick the symptom and this walks you through what is
+    safe to check, what each finding most likely means, whether you can carry on or stop, and exactly what to say
+    to the shop and dispatch. No guessing in a lay-by at 3 a.m.
+  </p>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+    <button type="button" id="bdt-us" class="small-btn" style="padding:8px 14px;background:rgba(45,212,255,0.18);border:1px solid rgba(45,212,255,0.45);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">US warning devices</button>
+    <button type="button" id="bdt-eu" class="small-btn" style="padding:8px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(230,250,255,0.8);cursor:pointer;font-weight:600;">EU / UK warning devices</button>
+  </div>
+
+  <div style="margin-bottom:14px;">
+    <label for="bdt-symptom" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">What is it doing?</label>
+    <select id="bdt-symptom" style="width:100%;padding:12px;border-radius:8px;border:1px solid rgba(45,212,255,0.25);background:rgba(0,0,0,0.3);color:var(--text);font-size:15px;"></select>
+  </div>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="bdt-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);"></div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Where this comes from, and the limits of a phone at the roadside</summary>
+  <p style="margin-top:8px;">
+    The symptom lists are built from the roadside checks a driver can do without tools or a pit: what the gauges
+    and lamps say, what you can hear, what you can see, what is warm and what is not. The air brake thresholds
+    (warning before 60 psi, spring brakes applying between 45 and 20 psi, leakage limits of 2&ndash;3 psi a minute
+    released and 3&ndash;4 psi applied) and the US warning-device distances come from the CDL manual and
+    49 CFR 393.95; the DEF derate behaviour varies by manufacturer and is described generally.
+  </p>
+  <p>
+    <strong>The honest limits:</strong> a driver cannot diagnose a failed injector, an EGR cooler or a wiring
+    chafe from the shoulder of a road, and should not try to. What this page is good at is telling you which
+    failures are a phone call and which are a <em>do not move this truck</em>, and how to describe the problem so
+    the shop sends the right help the first time.
+  </p>
+  <p style="color:#ffa500;">Never work under a vehicle that is not chocked and secured, never open a hot cooling
+  system, never bleed a hot tyre, and stay off the traffic side of the truck. If the situation is dangerous, the
+  only correct answer is to get yourself out of it and call for help.</p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  var REGION = 'us';
+
+  var SAFETY = {
+    us: [
+      'Get the truck off the road as far right as the shoulder allows, wheels straight, parking brake set.',
+      'Hazard flashers on immediately. At night or in low visibility, keep your marker lights on too.',
+      'Warning devices (49 CFR 393.95): one within about 10 ft behind or beside the truck, one about 100 ft behind, and one about 200 ft behind on a divided highway or wherever a curve or hill hides you. Fuses or flares may be used if it is safe to place them.',
+      'Put the reflective vest on BEFORE you get out, and stay on the non-traffic side of the truck.',
+      'Chock the wheels before you go under, around or between anything, and tell someone where you are and that you have stopped.'
+    ],
+    eu: [
+      'Pull as far off the carriageway as you can, hazards on, parking brake set.',
+      'Warning triangle at least 50 m behind the vehicle (100&ndash;150 m on a motorway or where visibility is poor). Wear the reflective vest before opening the door &mdash; it is a legal requirement in most of the EU.',
+      'Some countries restrict or ban flares; use the triangle and the truck lights instead.',
+      'Keep passengers away from the carriageway and behind the barrier where there is one.',
+      'Chock the wheels before you go under or around anything, and tell the operator where you are.'
+    ]
+  };
+
+  var SYMPTOMS = [
+    {
+      id: 'nocrank',
+      label: "Won't turn over — nothing happens when I turn the key",
+      safety: 'If you are in a live lane, this is now an emergency: hazards, warning devices, get out of the cab on the safe side.',
+      checks: ['Battery master switch on and not tripped', 'Gear selector in neutral / clutch pedal down (many trucks will not crank in gear)', 'Headlights on — do they look bright or dull?', 'Battery terminals and ground straps clean, tight, not hot to touch', 'Any fuse for the starter or ignition visible in the dash panel'],
+      findings: [
+        { label: 'Lights go dim or click when I try to start', urgency: 'amber', cause: 'Battery charge or connection problem — flat batteries, a corroded terminal or a bad ground.', tell: 'Batteries or connections; asked for a jump or a battery service. Bright headlights before and dim during crank points at charge, not the starter.' },
+        { label: 'Lights stay bright, no click at all', urgency: 'amber', cause: 'Starter circuit: neutral/clutch safety switch, starter relay or fuse, or ignition switch.', tell: 'No crank with good battery voltage: suspect the neutral safety switch, relay or fuse before the starter.' },
+        { label: 'One loud click, then nothing', urgency: 'amber', cause: 'Starter solenoid or starter motor.', tell: 'Single click, no crank — solenoid or starter. Needs a service call, not a tow, on most trucks.' },
+        { label: 'It turns over but does not fire', urgency: 'grey', cause: 'Fuel or electronics, not the starter — switch to the "cranks but will not start" symptom.', tell: 'Cranks fine but will not fire.' }
+      ]
+    },
+    {
+      id: 'nofire',
+      label: 'Cranks over but will not start',
+      safety: 'Do not crank in long bursts; you will flatten the batteries and cook the starter. If you are near traffic, keep the hazards on and stay in the cab between attempts.',
+      checks: ['Fuel gauge — is there definitely fuel in it?', 'Water separator / fuel filter: drain a little into a container and look for water, cloudiness or wax', 'Air filter restriction indicator or a blocked filter', 'Emergency fuel shutoff (usually a pull cable or a switch in the cab) not tripped', 'Battery voltage while cranking — a low cranking voltage can stop the ECM firing the injectors'],
+      findings: [
+        { label: 'No smoke at all, turns over evenly', urgency: 'amber', cause: 'Fuel is not reaching the cylinders: shutoff, empty tank, blocked filter, or an electronic fault.', tell: 'Turns over, no smoke: suspect fuel delivery — filter, shutoff, air in the system.' },
+        { label: 'Puffs of smoke, tries to catch, dies', urgency: 'amber', cause: 'Air in the fuel or a partly blocked filter; classic after running a tank dry.', tell: 'Starts to catch then dies — air in fuel or a restricted filter. Needs priming and a filter.' },
+        { label: 'Cold morning, recent cold snap', urgency: 'amber', cause: 'Fuel gelling / waxing. Summer-grade diesel and clogged filters in freezing weather.', tell: 'Suspect gelled fuel. Needs a filter change and winter additive; check the tank heater.' },
+        { label: 'Fuel gauge low or unknown, and it died suddenly', urgency: 'grey', cause: 'Out of fuel. Prime it properly rather than cranking it dry.', tell: 'Possibly out of fuel — will need priming once refuelled.' }
+      ]
+    },
+    {
+      id: 'air',
+      label: 'Losing air / will not build pressure',
+      safety: 'This is a braking emergency, not a warning light. If pressure keeps falling, stop somewhere safe while you still have service brakes and let the spring brakes set. Never crawl under the truck without chocking it first.',
+      checks: ['Watch the gauge with the engine off for a minute — how fast is it dropping?', 'Listen and walk around: hissing at the gladhands, drain valves, chambers, hoses or the dryer', 'Drain the air tanks — how much water or oil comes out?', 'Trailer air supply valve position, line connections seated and sealed'],
+      findings: [
+        { label: 'Steady hiss with the brakes off', urgency: 'red', cause: 'A leak in the service side — line, fitting, valve, chamber or gladhand seal.', tell: 'Air leak audible with brakes released; losing roughly X psi per minute; located near (describe). Not fit to move until found.' },
+        { label: 'Builds but stops low, or builds very slowly', urgency: 'red', cause: 'Compressor, governor or dryer fault, or a large leak.', tell: 'Compressor will not build past X psi. Cannot safely move — brakes will not be reliable.' },
+        { label: 'Purges constantly, water in the tanks', urgency: 'amber', cause: 'Saturated air dryer cartridge. It will keep working for now but the system is wet and will freeze or corrode.', tell: 'Dryer cartridge needs changing — constant purge and water in the tanks.' },
+        { label: 'Only drops when the trailer is connected', urgency: 'red', cause: 'Trailer-side leak: gladhand seal, trailer lines or trailer spring brake chambers.', tell: 'Leak is on the trailer side — check the gladhands and trailer chambers before the tractor.' }
+      ]
+    },
+    {
+      id: 'overheat',
+      label: 'Running hot / coolant loss',
+      safety: 'Never open a pressurised cooling system while it is hot — you will be scalded. Let it cool for at least 30 minutes, or do not open it at all and call for service.',
+      checks: ['Temperature gauge behaviour and whether the fan is cycling', 'Visible coolant on the ground or spraying, hose condition, clamp marks', 'Coolant level in the overflow/surge tank once cold', 'Radiator and charge-air cooler blocked with debris, bugs or cardboard (a forgotten winter cover)', 'Any white smoke or a sweet smell from the exhaust'],
+      findings: [
+        { label: 'Temperature climbing on a grade with a load', urgency: 'amber', cause: 'Normal heat soak near the top of the gauge, or a fan/dirty radiator problem.', tell: 'Runs hot under load on grades; watch the fan and radiator for blockage.' },
+        { label: 'Steam or a burst hose', urgency: 'red', cause: 'Coolant loss under pressure — hose, clamp, radiator or water pump.', tell: 'Coolant loss with steam. Stopped safely and shut down. Needs a hose or pump.' },
+        { label: 'White smoke and a persistent loss of coolant with no visible leak', urgency: 'red', cause: 'Internal leak — EGR cooler or head gasket. Continuing can destroy the engine.', tell: 'White smoke, coolant disappearing, no external leak — think EGR cooler or head gasket. Do not run it.' },
+        { label: 'Warning lamp and derate with the temperature high', urgency: 'red', cause: 'The engine is protecting itself. Stop at the next safe place immediately, not the next stop.', tell: 'Derated from overheat — stopped it before damage.' }
+      ]
+    },
+    {
+      id: 'tyre',
+      label: 'Blowout / tyre damage',
+      safety: 'Steering-axle blowout: grip the wheel with both hands, do not brake hard, ease off the throttle and let the truck slow, then move right. Trailer blowout: hold your line, do not stamp on the brakes, slow gently.',
+      checks: ['Which axle and which side? Steer, drive or trailer', 'Is it a single or the inner tyre of a dual?', 'Any damage to the mudguard, air lines, brake chamber or fuel tank', 'Is there a serviceable spare and the right tools for it?', 'Is the location safe enough to change it, or is it a hard shoulder on a blind curve?'],
+      findings: [
+        { label: 'Trailer tyre gone, truck drives straight', urgency: 'amber', cause: 'Trailer tyre failure. If an inner dual has gone down, the outer tyre carries the whole side and the flapping casing can start a fire.', tell: 'Trailer tyre blown, position and size, spare status. Stopped in a safe place.' },
+        { label: 'Steer tyre damaged or gone', urgency: 'red', cause: 'Front tyre failure — the most dangerous place to lose one.', tell: 'Steer tyre failure. Truck is stopped and stationary. Needs roadside tyre service.' },
+        { label: 'Spare available, good location, changed it myself', urgency: 'green', cause: 'Changed and ready to go.', tell: 'Wheel changed. Will re-torque after 50&ndash;100 miles and get it checked.' },
+        { label: 'Inner dual flat and I need to keep moving', urgency: 'red', cause: 'Do not. The outer tyre is overloaded, the casing can wrap and catch fire.', tell: 'Inner dual down — cannot move. Needs service at the position.' }
+      ]
+    },
+    {
+      id: 'hotwheel',
+      label: 'One wheel hot / dragging brake / burning smell',
+      safety: 'Do not touch a hot drum or rim. Hold your hand near the hub to compare sides, or use an infrared thermometer. A dragging brake can set fire to the tyre, and a fire on the shoulder becomes a total loss in minutes.',
+      checks: ['Compare hub and drum temperature across all wheels, not just the suspect one', 'Smell: hot brake lining, burning rubber, or hot oil from a bearing', 'Look for smoke, grease melting out of the hub, or a wheel that looks darker than its mate', 'Listen for a metallic grind or a rhythmic scrape while rolling slowly'],
+      findings: [
+        { label: 'One drum much hotter than the rest', urgency: 'red', cause: 'Dragging service brake, a sticking slack adjuster, or a failed spring brake chamber not releasing.', tell: 'One wheel running hot — suspect a dragging brake or chamber. Parked it. Needs a brake service.' },
+        { label: 'Hub hot, grease weeping, noise from the bearing', urgency: 'red', cause: 'Failing wheel bearing. It can seize and take the wheel off the truck.', tell: 'Hot hub with grease weeping — wheel bearing. Do not move it.' },
+        { label: 'Brake smell on a long descent', urgency: 'amber', cause: 'You have been riding the brakes. Let them cool properly before continuing, and change your descent technique — gear down and use the retarder.', tell: 'Brakes hot from a descent; cooling down before continuing at a lower speed.' },
+        { label: 'All wheels cool, smell was from somewhere else', urgency: 'green', cause: 'Probably exhaust soot, a plastic bag on the manifold or road debris.', tell: 'Checked all hubs, temperatures even. Carrying on.' }
+      ]
+    },
+    {
+      id: 'trailerlamp',
+      label: 'Trailer lights or ABS fault',
+      safety: 'Lights out on the trailer is a legal problem and a safety problem. If you are parked in the dark, leave the hazards on while you work.',
+      checks: ['The 7-way cord: seated, pins clean, cord not stretched or chafed', 'Which lamps are out — one side, all of them, or one function?', 'Ground wire and the trailer socket pins', 'Trailer ABS lamp behaviour: yellow lamp staying on after the self-check', 'Fuses for the trailer circuit in the cab'],
+      findings: [
+        { label: 'All trailer lights dead', urgency: 'amber', cause: 'Usually the cord, the socket or a ground — the whole trailer losing power rather than individual bulbs.', tell: 'All trailer lights out — suspect the 7-way cord or ground. Have a spare cord.' },
+        { label: 'One function out — brake lights or one side', urgency: 'amber', cause: 'Bulb, lamp housing earth, or the specific pin in the cord.', tell: 'Single circuit out (describe). Replacing the lamp and checking the earth.' },
+        { label: 'Yellow ABS lamp stays on after the check', urgency: 'amber', cause: 'ABS fault on the trailer. Brakes still work, but the wheel will lock under a hard stop.', tell: 'Trailer ABS lamp on. Will get it read at the next shop; brakes working normally otherwise.' },
+        { label: 'Wiggle the cord and the lights flicker', urgency: 'amber', cause: 'Cord or socket fault — replace it rather than taping it.', tell: 'Intermittent trailer lights traced to the cord. Needs a new cord.' }
+      ]
+    },
+    {
+      id: 'derate',
+      label: 'Derate / check engine / DPF or DEF warning',
+      safety: 'A derate is the engine protecting itself; it will get worse, not better. Plan your stop rather than having one chosen for you on a grade at 20 mph.',
+      checks: ['Read the fault code from the dash menu if the truck can show it (SPN/FMI or a text description) — photograph the screen', 'DEF level and whether the warning is a countdown or a lamp only', 'Any active regeneration message or DPF lamp, and any recent parked regen you interrupted', 'Whether the derate is a torque limit (still moves) or a speed limit (5&ndash;10 mph)'],
+      findings: [
+        { label: 'DEF low or out', urgency: 'amber', cause: 'Low DEF triggers a staged response: a warning, then torque derating, then a speed limit. Never let it run dry.', tell: 'DEF low/empty and derated. Refilling at the first source; will not run it dry.' },
+        { label: 'DPF lamp, regen needed or interrupted', urgency: 'amber', cause: 'The filter is loading up. A parked regen in a safe place with nothing flammable underneath usually clears it.', tell: 'DPF/regen warning. Needs a parked regen in a safe location; may need a dealer.' },
+        { label: 'Check engine lamp, no derate, truck runs normally', urgency: 'amber', cause: 'A stored fault. It may be harmless, but it will not clear itself.', tell: 'Check engine with code XXXX; truck runs normally. Booking it in after this run.' },
+        { label: 'Lamp flashing or a hard derate at low speed', urgency: 'red', cause: 'An active, serious fault — injector, EGR, aftertreatment or sensor failure.', tell: 'Flashing lamp and hard derate. Getting to a safe place now and calling for service.' }
+      ]
+    },
+    {
+      id: 'power',
+      label: 'Lost power / will not pull a hill',
+      safety: 'If you cannot hold a safe speed on a highway, you are a hazard. Find the first safe place and stop, rather than crawling a grade in the dark.',
+      checks: ['Fuel filters last changed? Restriction is the most common cause', 'Air filter restriction indicator', 'Any boost leak — hissing under load, black smoke', 'Whether the loss came with a warning lamp or a derate message', 'Throttle response: does it rev freely in neutral, or is it flat everywhere?'],
+      findings: [
+        { label: 'Flat under load, worse uphill, no warning lamp', urgency: 'amber', cause: 'Fuel or air restriction: filters, a failing lift pump, or a boost leak.', tell: 'Down on power under load with no lamp — suspect fuel or air filter restriction.' },
+        { label: 'Lamp and a hard torque limit', urgency: 'amber', cause: 'An electronic derate protecting the engine.', tell: 'Derate with a code. Limping to a safe stop; needs the code read.' },
+        { label: 'Intermittent, comes and goes, surging', urgency: 'amber', cause: 'A sensor or wiring fault, or air in the fuel.', tell: 'Intermittent power loss with surging. Describe when it happens.' },
+        { label: 'Still pulls but slowly, and you can reach a safe exit', urgency: 'grey', cause: 'Reduced power but drivable — a decision about the route, not just the truck.', tell: 'Limping on reduced power; will take the flattest route to the next service.' }
+      ]
+    },
+    {
+      id: 'suspension',
+      label: 'Steering, suspension or an airbag leak',
+      safety: 'A suspension failure changes how the truck steers and stops. Do not test-drive it at highway speed to see how bad it is.',
+      checks: ['Is the truck sitting level, or is one corner low?', 'Visible broken leaf spring, or an airbag collapsed or split', 'Ride height valve linkage intact and connected', 'Steering: free play with the engine running, any clunk or wander', 'Air loss that only starts when the truck is loaded'],
+      findings: [
+        { label: 'One corner low, hissing from an airbag', urgency: 'red', cause: 'Split airbag or a failed height control valve.', tell: 'Airbag leaking, truck sitting low. Cannot move safely — needs a spring/airbag service.' },
+        { label: 'Broken leaf spring or a shifted axle', urgency: 'red', cause: 'Structural suspension failure; the axle can walk and the brakes and tyres with it.', tell: 'Broken spring. Stopped. Needs a heavy recovery or mobile spring service.' },
+        { label: 'Wanders and clunks over bumps', urgency: 'red', cause: 'Worn or loose steering component — drag link, kingpin, tie rod end. Losing steering on the road is fatal.', tell: 'Steering wander and clunk. Not driving it until a steering component is checked.' },
+        { label: 'Sits level, everything looks sound, one tyre is wearing oddly', urgency: 'amber', cause: 'Alignment or a worn component that is not yet dangerous.', tell: 'Uneven wear, geometry check needed at the next shop.' }
+      ]
+    },
+    {
+      id: 'fuel',
+      label: 'Fuel problem — gelling, contamination or wrong fuel',
+      safety: 'If you have put petrol in a diesel, do NOT start it, even to move it off the pump. Starting it turns a drain-and-flush into an engine repair.',
+      checks: ['Which fuel went in, and how much?', 'Temperature — was it below freezing when it died?', 'Water separator: drain and look for water or a milky layer', 'Fuel filter age and any recent tank fill from an unfamiliar source', 'Smell the fuel if it is safely possible — petrol and diesel are obvious'],
+      findings: [
+        { label: 'Petrol into a diesel tank', urgency: 'red', cause: 'Contamination. Do not start it.', tell: 'Wrong fuel in the tank, engine not started. Needs a drain and flush before it is turned over.' },
+        { label: 'Died in freezing weather, was running fine before', urgency: 'amber', cause: 'Gelling or waxing — summer fuel in winter, or a saturated filter.', tell: 'Gelled fuel suspected. Needs a filter, winter additive and a warm-up.' },
+        { label: 'Water in the separator, rough running and stalling', urgency: 'amber', cause: 'Contaminated fuel or a saturated filter; water in the injection system is expensive.', tell: 'Water in the fuel system. Draining and changing filters; may need the tank pumped.' },
+        { label: 'Ran a tank dry, now it will only splutter', urgency: 'amber', cause: 'Air in the fuel system. Prime it the way the manufacturer says rather than cranking it dry.', tell: 'Ran dry, needs priming and possibly a filter.' }
+      ]
+    },
+    {
+      id: 'electrical',
+      label: 'Electrical failure — no charge or the voltage is dropping',
+      safety: 'A truck running on battery alone will lose the lights, the wipers and eventually the engine, usually in the worst place. Do not decide to "push on and see".',
+      checks: ['Voltmeter reading with the engine running (should be around 13.5&ndash;14.5 V on a 12 V system or 27&ndash;28 V on 24 V)', 'Battery warning lamp', 'Alternator belt intact and turning', 'Battery terminals, ground straps and any obvious melted or chafed wiring', 'How many electrical loads you can switch off (lights, AC, fridge, inverter)'],
+      findings: [
+        { label: 'Voltage dropping with the engine running', urgency: 'red', cause: 'Alternator or belt failure; the truck is on battery power only.', tell: 'No charge — running on batteries. Heading to the nearest service at reduced load, or stopping now if the voltage is below 12 V.' },
+        { label: 'Lamp on but voltage steady at normal', urgency: 'amber', cause: 'A charging fault that is not yet critical, or a sensor fault.', tell: 'Charge lamp on, voltage looks normal. Will get it checked at the next shop.' },
+        { label: 'Multiple unrelated lamps out and odd behaviour', urgency: 'amber', cause: 'A ground fault or a chafed loom — common at the rear of the tractor and around the fifth wheel.', tell: 'Multiple electrical faults — suspect a ground or chafe.' },
+        { label: 'Battery terminals hot or smoking', urgency: 'red', cause: 'High resistance or a short. Disconnect at the master switch if it is safe to do so, and get away from it.', tell: 'Hot terminals/smoke at the battery. Isolated with the master switch, waiting for service away from the truck.' }
+      ]
+    }
+  ];
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function symptom() { return SYMPTOMS.filter(function (s) { return s.id === $('bdt-symptom').value; })[0] || SYMPTOMS[0]; }
+
+  function fillSymptoms() {
+    $('bdt-symptom').innerHTML = SYMPTOMS.map(function (s) {
+      return '<option value="' + s.id + '">' + esc(s.label) + '</option>';
+    }).join('');
+  }
+
+  function urgencyBox(u, text) {
+    var c = u === 'red' ? '#ff4d4d' : u === 'amber' ? '#ffa500' : u === 'green' ? '#39ff14' : 'rgba(230,250,255,0.6)';
+    var bg = u === 'red' ? 'rgba(255,77,77,0.08)' : u === 'amber' ? 'rgba(255,165,0,0.08)' : u === 'green' ? 'rgba(57,255,20,0.06)' : 'rgba(255,255,255,0.04)';
+    var label = u === 'red' ? 'STOP — do not move it' : u === 'amber' ? 'Get it looked at' : u === 'green' ? 'Good to go' : 'See the other symptom';
+    return '<div style="padding:10px 12px;background:' + bg + ';border-left:3px solid ' + c + ';border-radius:6px;margin-bottom:8px;color:rgba(230,250,255,0.9);font-size:0.88rem;">' +
+      '<strong style="color:' + c + ';">' + label + '</strong><br>' + text + '</div>';
+  }
+
+  function render() {
+    var s = symptom();
+    var safetyList = SAFETY[REGION].map(function (t) { return '<li style="margin-bottom:3px;">' + t + '</li>'; }).join('');
+    var checks = s.checks.map(function (c, i) {
+      return '<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:0.86rem;color:rgba(230,250,255,0.82);cursor:pointer;">' +
+        '<input type="checkbox" data-check="' + i + '" style="margin-top:3px;width:15px;height:15px;flex:0 0 auto;" />' +
+        '<span>' + esc(c) + '</span></label>';
+    }).join('');
+
+    var options = s.findings.map(function (f, i) {
+      return '<option value="' + i + '">' + esc(f.label) + '</option>';
+    }).join('');
+
+    $('bdt-out').innerHTML =
+      '<div style="padding:12px;background:rgba(255,77,77,0.06);border:1px solid rgba(255,77,77,0.25);border-radius:10px;margin-bottom:14px;">' +
+        '<div style="color:#ff4d4d;font-weight:700;margin-bottom:6px;">First, the things that matter more than the fault</div>' +
+        '<ul style="margin:0;padding-left:18px;font-size:0.85rem;color:rgba(230,250,255,0.85);line-height:1.7;">' + safetyList + '</ul>' +
+        '<div style="margin-top:8px;font-size:0.85rem;color:#ffd700;">' + esc(s.safety) + '</div>' +
+      '</div>' +
+      '<div style="color:var(--accent);font-weight:600;font-size:0.9rem;margin-bottom:6px;">What you can safely check — ' + esc(s.label) + '</div>' +
+      '<div style="padding:10px 12px;background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.15);border-radius:8px;margin-bottom:12px;">' + checks + '</div>' +
+      '<label for="bdt-find" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Which of these matches what you found?</label>' +
+      '<select id="bdt-find" style="width:100%;padding:11px;border-radius:8px;border:1px solid rgba(45,212,255,0.25);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;margin-bottom:12px;">' + options + '</select>' +
+      '<div id="bdt-result"></div>';
+
+    $('bdt-find').addEventListener('change', showResult);
+    var boxes = card.querySelectorAll('#bdt-out input[data-check]');
+    for (var i = 0; i < boxes.length; i++) boxes[i].addEventListener('change', updateProgress);
+    showResult();
+  }
+
+  function updateProgress() {
+    var boxes = card.querySelectorAll('#bdt-out input[data-check]');
+    var done = 0;
+    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) done++;
+    var bar = $('bdt-progress');
+    if (bar) bar.textContent = done + ' of ' + boxes.length + ' checks done';
+  }
+
+  function showResult() {
+    var s = symptom();
+    var f = s.findings[parseInt($('bdt-find').value, 10) || 0];
+    var unit = $('bdt-unit') ? $('bdt-unit').value : '';
+    var copy = 'BREAKDOWN REPORT\n' +
+      'Vehicle: ' + (unit || '(unit)') + '  Trailer: (trailer no.)\n' +
+      'Symptom: ' + s.label + '\n' +
+      'Finding: ' + f.label + '\n' +
+      'Likely area: ' + f.cause + '\n' +
+      'Action: ' + (f.urgency === 'red' ? 'Stopped — needs service before moving.' : f.urgency === 'amber' ? 'Needs service/attention.' : 'Continuing with a re-check.') + '\n' +
+      'What to tell them: ' + f.tell + '\n' +
+      'Location: (road, mile marker, nearest town, direction)\n' +
+      'Load status: (loaded/empty, temperature if reefer)';
+
+    $('bdt-result').innerHTML =
+      '<div style="color:var(--accent);font-weight:600;font-size:0.9rem;margin-bottom:6px;">Most likely, and what it means</div>' +
+      urgencyBox(f.urgency, '<strong>' + esc(f.cause) + '</strong>') +
+      '<div style="padding:10px 12px;background:rgba(255,215,0,0.07);border-left:3px solid #ffd700;border-radius:6px;margin-bottom:10px;font-size:0.86rem;color:rgba(230,250,255,0.9);">' +
+        '<strong>What to say to the shop or dispatch:</strong><br>&ldquo;' + esc(f.tell) + '&rdquo;</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px;">' +
+        '<div><label for="bdt-unit" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">Unit / trailer number</label>' +
+        '<input id="bdt-unit" type="text" value="' + esc(unit) + '" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '<div><label for="bdt-loc" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">Location (road, marker, direction)</label>' +
+        '<input id="bdt-loc" type="text" value="" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+      '</div>' +
+      '<div class="small" style="color:rgba(230,250,255,0.5);font-size:12px;margin-bottom:8px;" id="bdt-progress">' +
+        (card.querySelectorAll('#bdt-out input[data-check]').length ? '0 of ' + card.querySelectorAll('#bdt-out input[data-check]').length + ' checks done' : '') + '</div>' +
+      '<details style="color:rgba(230,250,255,0.6);font-size:0.85rem;">' +
+      '<summary style="cursor:pointer;color:var(--accent);">Copy the report for the shop</summary>' +
+      '<textarea id="bdt-copy" readonly style="width:100%;height:150px;margin-top:8px;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.4);color:var(--text);font-family:ui-monospace,monospace;font-size:12px;">' + esc(copy) + '</textarea></details>';
+
+    var unitField = $('bdt-unit');
+    if (unitField) unitField.addEventListener('input', function () { /* keep it simple: the report is regenerated on change below */ });
+    updateProgress();
+    var boxes = card.querySelectorAll('#bdt-out input[data-check]');
+    for (var i = 0; i < boxes.length; i++) boxes[i].addEventListener('change', updateProgress);
+  }
+
+  function setRegion(r) {
+    REGION = r;
+    var on = 'padding:8px 14px;background:rgba(45,212,255,0.18);border:1px solid rgba(45,212,255,0.45);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;';
+    var off = 'padding:8px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(230,250,255,0.8);cursor:pointer;font-weight:600;';
+    $('bdt-us').setAttribute('style', r === 'us' ? on : off);
+    $('bdt-eu').setAttribute('style', r === 'eu' ? on : off);
+    render();
+  }
+
+  $('bdt-us').addEventListener('click', function () { if (REGION !== 'us') setRegion('us'); });
+  $('bdt-eu').addEventListener('click', function () { if (REGION !== 'eu') setRegion('eu'); });
+  $('bdt-symptom').addEventListener('change', render);
+
+  fillSymptoms();
+  setRegion('us');
+})();
+</script>

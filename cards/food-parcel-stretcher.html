@@ -1,0 +1,399 @@
+<h2 id="fpss-title" style="margin-top:0;color:var(--accent);">📦 Food Parcel Stretcher: A Week of Meals From a Food Bank Box</h2>
+
+<form aria-describedby="fpss-desc" onsubmit="event.preventDefault();">
+  <p id="fpss-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Got a food bank parcel or pantry box? Enter what is inside and get a 7-day meal plan that uses
+    it all up — plus the cheapest fresh top-ups that unlock the most extra meals. Parcel first,
+    money second.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="fpss-cur" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Currency</label>
+      <input id="fpss-cur" type="text" value="£" maxlength="3" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="fpss-topup" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Top-up budget (fresh)</label>
+      <input id="fpss-topup" type="number" min="0" step="0.5" value="8" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="fpss-adults" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Adults</label>
+      <input id="fpss-adults" type="number" min="1" max="12" step="1" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="fpss-kids" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Children</label>
+      <input id="fpss-kids" type="number" min="0" max="12" step="1" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="fpss-diet" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Diet</label>
+      <select id="fpss-diet" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;">
+        <option value="any">Anything</option>
+        <option value="veg">Vegetarian (no fish/meat)</option>
+        <option value="vegan">Vegan (no animal products)</option>
+      </select>
+    </div>
+    <div>
+      <label for="fpss-eq" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cooking gear</label>
+      <select id="fpss-eq" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;">
+        <option value="full">Hob + oven + microwave</option>
+        <option value="hob">Hob only</option>
+        <option value="micro">Microwave / kettle only</option>
+        <option value="none">No cooking at all</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="font-size:0.85rem;font-weight:700;margin-bottom:6px;">📦 What is in your parcel? (quantities)</div>
+  <div id="fpss-parcel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;margin-bottom:12px;"></div>
+
+  <details style="margin-bottom:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;">
+    <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--accent);">🏷️ Local prices — match your shops (everything reprices instantly)</summary>
+    <div id="fpss-prices" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;"></div>
+    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:8px;">Defaults are rough UK budget-shop prices. Change them to your local prices and every cost below updates.</div>
+  </details>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button type="button" id="fpss-go" style="flex:1;min-width:180px;padding:12px;background:linear-gradient(135deg,rgba(45,212,255,0.25),rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.5);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">📦 Stretch my parcel into a week</button>
+    <button type="button" id="fpss-save" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">💾 Save</button>
+    <button type="button" id="fpss-load" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">📂 Load</button>
+  </div>
+</form>
+
+<div id="fpss-out" aria-live="polite" style="margin-top:16px;"></div>
+
+<div style="margin-top:10px;font-size:0.74rem;color:var(--text-secondary);line-height:1.5;">
+  ⚠️ Amounts, calories and costs are honest estimates, not lab analysis or medical advice. Check every
+  tin: reject swollen, deeply dented (especially seam dents), rusty or leaking tins, and anything past its
+  use-by date. Runs offline · your entries stay in this browser.
+</div>
+
+<script>
+(function(){
+'use strict';
+/* Food Parcel Stretcher. Parcel inventory -> 7-day plan + ranked top-up list. No globals. */
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function money(n, cur){ return cur + (Math.round(n*100)/100).toFixed(2); }
+function qty(n){ var r = Math.round(n*10)/10; return (r % 1 === 0) ? String(r) : r.toFixed(1); }
+
+/* Parcel catalogue: key -> [label, unit, default price if you must buy more] */
+var PARCEL = [
+  ['toms',   'Tinned tomatoes (400g)', 'tin', 0.45, 4],
+  ['beans',  'Baked beans (415g)', 'tin', 0.40, 4],
+  ['kidney', 'Kidney beans (400g)', 'tin', 0.55, 2],
+  ['chick',  'Chickpeas (400g)', 'tin', 0.55, 2],
+  ['soup',   'Tinned soup (400g)', 'tin', 0.55, 4],
+  ['tuna',   'Tinned tuna', 'tin', 0.90, 2],
+  ['sard',   'Tinned sardines/mackerel', 'tin', 0.70, 2],
+  ['corned', 'Corned beef (340g)', 'tin', 2.20, 1],
+  ['peas',   'Tinned peas (300g)', 'tin', 0.40, 2],
+  ['corn',   'Tinned sweetcorn', 'tin', 0.50, 2],
+  ['tpot',   'Tinned potatoes', 'tin', 0.60, 1],
+  ['fruit',  'Tinned fruit (400g)', 'tin', 0.65, 2],
+  ['pasta',  'Pasta (dry)', 'kg', 1.00, 1],
+  ['rice',   'Rice (dry)', 'kg', 1.10, 1],
+  ['oats',   'Porridge oats', 'kg', 1.20, 0.75],
+  ['uht',    'UHT milk', 'litre', 1.25, 2],
+  ['tea',    'Tea bags', 'pack', 1.20, 1],
+  ['bisc',   'Biscuits', 'pack', 0.60, 1],
+  ['jam',    'Jam', 'jar', 0.80, 0],
+  ['sugar',  'Sugar', 'kg', 1.10, 0.5]
+];
+/* Fresh top-ups: key -> [label, unit, default price] */
+var FRESH = [
+  ['onion',  'Onions', 'kg', 0.90],
+  ['potato', 'Potatoes', 'kg', 0.80],
+  ['carrot', 'Carrots', 'kg', 0.70],
+  ['cabbage','Cabbage', 'each', 0.85],
+  ['eggs',   'Eggs', 'each', 0.18],
+  ['bread',  'Bread (800g loaf)', 'loaf', 0.55],
+  ['milk',   'Fresh milk', 'litre', 1.25],
+  ['oil',    'Cooking oil', 'litre', 2.20],
+  ['banana', 'Bananas', 'each', 0.15],
+  ['apple',  'Apples', 'each', 0.30],
+  ['fpeas',  'Frozen peas', 'kg', 1.40],
+  ['garlic', 'Garlic bulb', 'each', 0.30]
+];
+
+/* Meals. need = parcel amounts for 4 mouths. fresh = fresh amounts for 4 mouths.
+   eq: hob/micro/none. diet: 'vegan' | 'veg' | 'meat' (fish/meat). */
+var MEALS = [
+{n:'Big tomato pasta',t:'M',eq:['hob'],d:'vegan',need:{pasta:0.4,toms:2},fresh:{onion:0.2,oil:0.02},kcal:620,pro:18,steps:['Soften chopped onion in oil 5 min.','Add 2 tins tomatoes + a tin of water, simmer 15 min.','Boil pasta, mix through. Salt + pepper.'],tip:'Add any wilting veg to the sauce — it all disappears.'},
+{n:'Bean chilli + rice',t:'M',eq:['hob'],d:'vegan',need:{kidney:2,toms:1,rice:0.3},fresh:{onion:0.2,oil:0.01},kcal:680,pro:22,steps:['Fry onion in oil 5 min.','Add drained kidney beans + tomatoes, simmer 20 min.','Serve over boiled rice.'],tip:'Tinned kidney beans are already cooked — just heat through.'},
+{n:'Tuna pasta + tomatoes',t:'M',eq:['hob','micro'],d:'meat',need:{pasta:0.4,tuna:2,toms:1},fresh:{onion:0.15},kcal:640,pro:30,steps:['Boil pasta.','Warm tomatoes + drained tuna + chopped onion 5 min.','Mix through the pasta.'],tip:'One of the highest-protein meals a parcel can make.'},
+{n:'Chickpea curry + rice',t:'M',eq:['hob'],d:'vegan',need:{chick:2,toms:1,rice:0.3},fresh:{onion:0.2,oil:0.02},kcal:700,pro:21,steps:['Fry onion in oil till golden, 8 min.','Add chickpeas + tomatoes + curry powder if you have it. Simmer 15 min.','Serve over rice.'],tip:'No curry powder? Salt + pepper + a spoon of sugar still works.'},
+{n:'Sardine spaghetti',t:'M',eq:['hob'],d:'meat',need:{pasta:0.4,sard:2,toms:1},fresh:{onion:0.1,oil:0.02},kcal:660,pro:28,steps:['Boil spaghetti.','Fry onion in oil, add sardines + tomatoes, break up, 5 min.','Toss through the pasta.'],tip:'Oily fish is brain food — this is a genuinely good dinner.'},
+{n:'Corned beef hash',t:'M',eq:['hob'],d:'meat',need:{corned:1},fresh:{potato:1,onion:0.2,oil:0.02},kcal:720,pro:26,steps:['Boil diced potato 8 min, drain.','Fry with onion in oil 10 min.','Crumble in corned beef, crisp 5 min.'],tip:'Press it flat in the pan — crispy bits are the whole point.'},
+{n:'Hearty soup + bread',t:'M',eq:['hob','micro'],d:'veg',need:{soup:2,beans:1},fresh:{bread:0.5,carrot:0.2},kcal:520,pro:18,steps:['Grate carrot into the soup.','Heat soup + half a tin of beans per person.','Serve with thick bread.'],tip:'Bulking soup with beans doubles it into a real meal.'},
+{n:'Tuna fried rice',t:'M',eq:['hob'],d:'meat',need:{rice:0.3,tuna:1,peas:1},fresh:{onion:0.15,oil:0.02},kcal:680,pro:30,steps:['Boil rice, spread out to steam dry 10 min.','Fry onion in oil, add rice + peas, crisp 5 min.','Stir through drained tuna off the heat.'],tip:'Day-old cold rice fries best — cook extra rice the day before.'},
+{n:'Tuna sweetcorn pasta',t:'M',eq:['hob','micro'],d:'meat',need:{pasta:0.4,corn:1,tuna:1},fresh:{onion:0.1},kcal:660,pro:29,steps:['Boil pasta.','Warm sweetcorn + tuna + chopped onion 3 min.','Mix through with pasta water to loosen.'],tip:'Kids reliably eat this one. No-fuss protein.'},
+{n:'Bean + potato stew',t:'M',eq:['hob'],d:'vegan',need:{beans:2,toms:1},fresh:{potato:0.6,carrot:0.2,onion:0.2},kcal:640,pro:22,steps:['Fry onion 5 min.','Add diced potato + carrot + a mug of water, simmer 15 min.','Add beans + tomatoes, simmer 10 min.'],tip:'Baked beans melt into a thick, sweet stew base.'},
+{n:'Savoury tomato rice',t:'M',eq:['hob'],d:'vegan',need:{rice:0.3,peas:1,toms:1},fresh:{onion:0.15,oil:0.01},kcal:620,pro:16,steps:['Fry onion in oil 5 min.','Add rice + tomatoes + 2 tins of water. Simmer 15 min.','Stir in peas, rest 5 min.'],tip:'One pot, one hob, minimal washing up.'},
+{n:'Corned beef tomato pasta',t:'M',eq:['hob'],d:'meat',need:{pasta:0.4,corned:1,toms:1},fresh:{onion:0.15},kcal:700,pro:28,steps:['Boil pasta.','Simmer tomatoes + onion 10 min, crumble in corned beef.','Mix through.'],tip:'Tastes like a ragu at a tenth of the price.'},
+{n:'Bean pile on toast',t:'M',eq:['hob','micro'],d:'veg',need:{beans:3},fresh:{bread:1},kcal:560,pro:24,steps:['Heat the beans.','Toast thick bread.','Pile beans high — this is dinner, be generous.'],tip:'Fastest hot dinner here: 10 minutes, one pan.'},
+{n:'Chickpea tomato stew + bread',t:'M',eq:['hob'],d:'vegan',need:{chick:1,toms:2},fresh:{bread:0.5,onion:0.15},kcal:600,pro:20,steps:['Fry onion 5 min.','Add chickpeas + tomatoes, simmer 15 min.','Serve with bread for mopping.'],tip:'Mashing a few chickpeas thickens the stew for free.'},
+{n:'Tinned potato hash',t:'M',eq:['hob'],d:'vegan',need:{tpot:2,beans:1},fresh:{onion:0.2,oil:0.02},kcal:640,pro:19,steps:['Fry sliced tinned potato + onion in oil till crisp, 12 min.','Warm beans separately and spoon over.'],tip:'Tinned potatoes crisp up brilliantly — drain them well first.'},
+{n:'Porridge + jam',t:'B',eq:['hob','micro'],d:'veg',need:{oats:0.24,uht:0.4,jam:0.1},fresh:{},kcal:420,pro:12,steps:['Simmer oats in milk 5 min, stirring.','Swirl jam through.'],tip:'No milk? Water + a spoon of sugar works fine.'},
+{n:'Beans on toast',t:'B',eq:['hob','micro'],d:'veg',need:{beans:2},fresh:{bread:0.75},kcal:540,pro:24,steps:['Heat the beans.','Toast the bread thick.','Beans on top, pepper if you have it.'],tip:'A genuinely complete meal — protein, fibre, carbs.'},
+{n:'Tuna sandwiches',t:'B',eq:['none','hob','micro'],d:'meat',need:{tuna:1},fresh:{bread:0.75},kcal:520,pro:28,steps:['Drain tuna, mash with a fork.','Pile into bread.'],tip:'Add grated carrot or onion if you have any — stretches the tuna.'},
+{n:'Soup + bread (lunch)',t:'B',eq:['hob','micro'],d:'veg',need:{soup:2},fresh:{bread:0.5},kcal:480,pro:14,steps:['Heat the soup.','Serve with bread.'],tip:'See dinner tip: half a tin of beans bulks any soup.'},
+{n:'Oats + tinned fruit',t:'B',eq:['none','hob','micro'],d:'vegan',need:{oats:0.24,fruit:1,uht:0.2},fresh:{},kcal:450,pro:11,steps:['Mix oats with milk the night before (or cook 5 min).','Top with tinned fruit + a spoon of juice.'],tip:'Overnight oats need no cooking at all.'},
+{n:'Sardines on toast',t:'B',eq:['none','hob','micro'],d:'meat',need:{sard:1},fresh:{bread:0.75},kcal:500,pro:26,steps:['Toast the bread.','Mash sardines straight on.'],tip:'Cheapest omega-3 on earth. Vinegar or pepper lifts it.'},
+{n:'Egg fried rice (lunch)',t:'B',eq:['hob'],d:'veg',need:{rice:0.25,peas:0.5},fresh:{eggs:4,oil:0.02,onion:0.1},kcal:640,pro:24,steps:['Fry onion in oil, add cold cooked rice + peas.','Push aside, scramble in the eggs.','Mix and serve.'],tip:'Uses yesterday’s leftover rice — plan for it.'},
+{n:'Jam sandwiches + banana',t:'B',eq:['none','hob','micro'],d:'vegan',need:{jam:0.15},fresh:{bread:1,banana:4},kcal:480,pro:9,steps:['Spread jam thickly.','Banana on the side.'],tip:'No-cook fuel. Good before school or physical work.'},
+{n:'Cheesy-style bean pasta',t:'B',eq:['hob','micro'],d:'veg',need:{pasta:0.3,beans:1,toms:0.5},fresh:{},kcal:600,pro:22,steps:['Boil pasta.','Mash beans + tomatoes into a sauce, heat.','Mix through with pasta water.'],tip:'Mashing half the beans makes it creamy without cheese.'},
+{n:'Potato soup + bread',t:'B',eq:['hob'],d:'veg',need:{soup:1},fresh:{potato:0.8,onion:0.2,bread:0.5},kcal:560,pro:15,steps:['Simmer diced potato + onion in water 15 min.','Add the tinned soup, heat through, mash roughly.'],tip:'One tin of soup + potatoes feeds four properly.'},
+{n:'Biscuits + fruit + tea',t:'B',eq:['none','hob','micro'],d:'veg',need:{bisc:0.5,fruit:1,tea:0.1},fresh:{},kcal:380,pro:6,steps:['Open, pour, share.'],tip:'A light day — pair with the biggest dinner of the week.'},
+{n:'Sweetcorn fritters',t:'B',eq:['hob'],d:'veg',need:{corn:1},fresh:{eggs:2,oil:0.02,onion:0.1},kcal:520,pro:19,steps:['Mix sweetcorn + beaten eggs + chopped onion + salt.','Fry spoonfuls 3 min per side.'],tip:'Crispy, filling, and kids think they are a treat.'}
+];
+
+var DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+var SAVE_KEY = 'fpss-save-v1';
+
+var parcelBox = $('fpss-parcel'), priceBox = $('fpss-prices');
+
+/* Build parcel qty inputs */
+PARCEL.forEach(function(p){
+  var key=p[0], label=p[1], unit=p[2], dflt=p[4];
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:7px 9px;';
+  var lab = document.createElement('label');
+  lab.style.cssText = 'flex:1;font-size:0.78rem;line-height:1.3;';
+  lab.textContent = label + ' (' + unit + ')';
+  var inp = document.createElement('input');
+  inp.type = 'number'; inp.min = '0'; inp.step = '0.5'; inp.value = String(dflt);
+  inp.id = 'fpss-p-' + key; inp.setAttribute('aria-label', label + ' quantity');
+  inp.style.cssText = 'width:62px;padding:7px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  lab.htmlFor = inp.id;
+  wrap.appendChild(lab); wrap.appendChild(inp);
+  parcelBox.appendChild(wrap);
+});
+/* Build price inputs (fresh + parcel shortfall prices) */
+function priceInput(id, label, val){
+  var wrap = document.createElement('div');
+  var lab = document.createElement('label');
+  lab.style.cssText = 'display:block;font-size:0.74rem;margin-bottom:3px;';
+  lab.textContent = label;
+  var inp = document.createElement('input');
+  inp.type='number'; inp.min='0'; inp.step='0.01'; inp.value=String(val);
+  inp.id = id; inp.setAttribute('aria-label', label + ' price');
+  inp.style.cssText = 'width:100%;padding:7px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  lab.htmlFor = id;
+  wrap.appendChild(lab); wrap.appendChild(inp);
+  return wrap;
+}
+FRESH.forEach(function(f){ priceBox.appendChild(priceInput('fpss-f-'+f[0], f[1]+' / '+f[2], f[3])); });
+PARCEL.forEach(function(p){ priceBox.appendChild(priceInput('fpss-c-'+p[0], p[1]+' price', p[3])); });
+
+function num(id, dflt){ var v = parseFloat($(id).value); return isFinite(v) && v >= 0 ? v : dflt; }
+function dietOk(meal, diet){
+  if (diet === 'any') return true;
+  if (diet === 'veg') return meal.d === 'vegan' || meal.d === 'veg';
+  return meal.d === 'vegan';
+}
+function eqOk(meal, eq){
+  if (eq === 'full') return true;
+  return meal.eq.indexOf(eq) !== -1;
+}
+function copyText(t, btn){
+  function done(){ var o = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(function(){ btn.textContent = o; }, 1600); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand('copy'); done(); } catch(e){} document.body.removeChild(ta);
+  }
+}
+
+function build(){
+  var cur = $('fpss-cur').value || '£';
+  var topupBudget = num('fpss-topup', 0);
+  var adults = Math.max(1, Math.round(num('fpss-adults', 2)));
+  var kids = Math.max(0, Math.round(num('fpss-kids', 0)));
+  var diet = $('fpss-diet').value, eq = $('fpss-eq').value;
+  var mouths = adults + kids * 0.6;
+  var scale = mouths / 4;
+
+  var stock = {}, price = {}, freshPrice = {};
+  PARCEL.forEach(function(p){ stock[p[0]] = num('fpss-p-'+p[0], 0); price[p[0]] = num('fpss-c-'+p[0], p[3]); });
+  FRESH.forEach(function(f){ freshPrice[f[0]] = num('fpss-f-'+f[0], f[3]); });
+
+  var freshBuy = {}, shortBuy = {}, used = [], plan = [];
+  var kcalTot = 0, proTot = 0;
+
+  function freshCostOf(m){
+    var c = 0;
+    for (var k in m.fresh){ c += m.fresh[k] * scale * (freshPrice[k] || 0); }
+    return c;
+  }
+  function pick(type){
+    var cands = MEALS.filter(function(m){ return m.t === type && dietOk(m, diet) && eqOk(m, eq); });
+    if (!cands.length){
+      cands = MEALS.filter(function(m){ return m.t === type && dietOk(m, diet); });
+    }
+    if (!cands.length) cands = MEALS.filter(function(m){ return m.t === type; });
+    var scored = cands.map(function(m){
+      var cov = 0, tot = 0;
+      for (var k in m.need){ tot++; if ((stock[k] || 0) >= m.need[k] * scale - 0.001) cov++; }
+      var recent = used.slice(-3).filter(function(u){ return u === m.n; }).length;
+      var score = (tot ? cov / tot : 1) * 10 - recent * 4 - freshCostOf(m) * 0.15 + Math.random() * 0.6;
+      return { m: m, s: score };
+    });
+    scored.sort(function(a, b){ return b.s - a.s; });
+    return scored[0].m;
+  }
+  function consume(m){
+    for (var k in m.need){
+      var want = m.need[k] * scale;
+      stock[k] = (stock[k] || 0) - want;
+      if (stock[k] < -0.001){
+        shortBuy[k] = (shortBuy[k] || 0) + (-stock[k]);
+        stock[k] = 0;
+      }
+    }
+    for (var f in m.fresh){ freshBuy[f] = (freshBuy[f] || 0) + m.fresh[f] * scale; }
+  }
+
+  for (var d = 0; d < 7; d++){
+    var dinner = pick('M'); consume(dinner); used.push(dinner.n);
+    var dayMeal = pick('B'); consume(dayMeal); used.push(dayMeal.n);
+    kcalTot += (dinner.kcal + dayMeal.kcal); proTot += (dinner.pro + dayMeal.pro);
+    plan.push({ dinner: dinner, day: dayMeal });
+  }
+
+  var freshCost = 0, shortCost = 0;
+  for (var fk in freshBuy){ freshCost += freshBuy[fk] * (freshPrice[fk] || 0); }
+  for (var sk in shortBuy){ shortCost += shortBuy[sk] * (price[sk] || 0); }
+  var totalCost = freshCost + shortCost;
+  var perDay = Math.round(kcalTot / 7), proDay = Math.round(proTot / 7);
+
+  var h = '';
+  /* Verdict banner */
+  var verdict, vCol;
+  if (totalCost <= topupBudget){
+    verdict = '✅ This week costs about <b>' + money(totalCost, cur) + '</b> in top-ups — inside your ' + money(topupBudget, cur) + ' budget, with ' + money(topupBudget - totalCost, cur) + ' to spare.';
+    vCol = 'rgba(57,255,20,0.4)';
+  } else {
+    verdict = '⚠️ This week needs about <b>' + money(totalCost, cur) + '</b> in top-ups — ' + money(totalCost - topupBudget, cur) + ' over budget. The unlock list below is in priority order: buy from the top down.';
+    vCol = 'rgba(255,215,0,0.45)';
+  }
+  h += '<div style="background:rgba(255,255,255,0.03);border:1px solid ' + vCol + ';border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:0.86rem;line-height:1.6;">' + verdict +
+    '<br/>🍽️ Roughly <b>' + perDay + ' kcal</b> + <b>' + proDay + 'g protein</b> per person per day across the two planned meals — leftovers and toast fill the gaps. Household counts as ' + mouths.toFixed(1) + ' mouths (kids = 0.6).</div>';
+
+  /* Day plan */
+  h += '<div style="font-weight:700;margin-bottom:8px;">🗓️ Your week (parcel items drain as you go)</div>';
+  h += '<div style="display:grid;gap:8px;margin-bottom:14px;">';
+  plan.forEach(function(p, i){
+    function mealHtml(m, tag){
+      var st = m.steps.map(function(s, j){ return (j+1) + '. ' + esc(s); }).join('<br/>');
+      return '<div style="margin-top:6px;"><b>' + tag + ' ' + esc(m.n) + '</b> <span style="color:var(--text-secondary);font-size:0.76rem;">~' + m.kcal + ' kcal · ' + m.pro + 'g protein</span><br/><span style="font-size:0.8rem;">' + st + '</span><br/><span style="font-size:0.78rem;color:var(--accent);">💡 ' + esc(m.tip) + '</span></div>';
+    }
+    h += '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;font-size:0.84rem;"><b style="color:var(--accent);">' + DAYS[i] + '</b>' + mealHtml(p.day, '☀️') + mealHtml(p.dinner, '🌙') + '</div>';
+  });
+  h += '</div>';
+
+  /* Shopping list */
+  var shopRows = [];
+  for (var k2 in freshBuy){
+    var fl = FRESH.filter(function(f){ return f[0] === k2; })[0];
+    shopRows.push({ label: fl[1] + ' (' + fl[2] + ')', amt: freshBuy[k2], cost: freshBuy[k2] * (freshPrice[k2] || 0), kind: 'fresh' });
+  }
+  /* Round sensible units for display */
+  h += '<div style="font-weight:700;margin-bottom:8px;">🛒 Top-up shopping list — about ' + money(totalCost, cur) + '</div>';
+  if (!shopRows.length && !Object.keys(shortBuy).length){
+    h += '<div style="font-size:0.85rem;margin-bottom:14px;">🎉 Your parcel covers the whole week. Spend the top-up budget on fruit or save it.</div>';
+  } else {
+    shopRows.sort(function(a, b){ return b.cost - a.cost; });
+    h += '<div style="display:grid;gap:6px;margin-bottom:8px;">';
+    shopRows.forEach(function(r){
+      h += '<div style="display:flex;justify-content:space-between;gap:8px;font-size:0.84rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;"><span>🥬 ' + esc(r.label) + ' × <b>' + qty(r.amt) + '</b></span><b>' + money(r.cost, cur) + '</b></div>';
+    });
+    for (var k3 in shortBuy){
+      var pl = PARCEL.filter(function(p){ return p[0] === k3; })[0];
+      var c = shortBuy[k3] * (price[k3] || 0);
+      h += '<div style="display:flex;justify-content:space-between;gap:8px;font-size:0.84rem;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.35);border-radius:8px;padding:8px 10px;"><span>📦 Extra ' + esc(pl[1]) + ' × <b>' + qty(shortBuy[k3]) + '</b> <span style="font-size:0.75rem;color:var(--text-secondary);">(parcel runs out — buy or ask the food bank)</span></span><b>' + money(c, cur) + '</b></div>';
+    }
+    h += '</div>';
+  }
+
+  /* Unlock ranking */
+  var unlock = FRESH.map(function(f){
+    var n = MEALS.filter(function(m){ return m.fresh[f[0]] && dietOk(m, diet) && eqOk(m, eq); }).length;
+    return { label: f[1], n: n, price: f[3] };
+  }).filter(function(u){ return u.n > 0; }).sort(function(a, b){ return b.n - a.n; });
+  h += '<div style="font-weight:700;margin:12px 0 8px;">🔓 If money is very tight, buy in this order</div>';
+  h += '<div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:6px;">Each fresh item ranked by how many parcel meals it unlocks:</div>';
+  h += '<div style="display:grid;gap:6px;margin-bottom:14px;">';
+  unlock.slice(0, 8).forEach(function(u, i){
+    h += '<div style="font-size:0.84rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;">' + (i+1) + '. <b>' + esc(u.label) + '</b> — unlocks ' + u.n + ' meals</div>';
+  });
+  h += '</div>';
+
+  /* Leftover stock */
+  var left = PARCEL.filter(function(p){ return (stock[p[0]] || 0) > 0.01; });
+  if (left.length){
+    h += '<div style="font-weight:700;margin-bottom:6px;">📦 Still left after the week</div>';
+    h += '<div style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">' + left.map(function(p){ return esc(p[1]) + ' × ' + qty(stock[p[0]]); }).join(' · ') + '</div>';
+  }
+
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">';
+  h += '<button type="button" id="fpss-copy" style="flex:1;min-width:200px;padding:11px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:var(--success);cursor:pointer;font-weight:700;">📋 Copy my week + shopping list</button>';
+  h += '<button type="button" id="fpss-print" style="padding:11px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">🖨️ Print</button></div>';
+
+  $('fpss-out').innerHTML = h;
+
+  var plain = 'MY FOOD PARCEL WEEK (' + adults + ' adults, ' + kids + ' kids)\n\n';
+  plan.forEach(function(p, i){
+    plain += DAYS[i].toUpperCase() + '\n  Day: ' + p.day.n + '\n  Dinner: ' + p.dinner.n + '\n';
+  });
+  plain += '\nTOP-UP SHOPPING (~' + money(totalCost, cur) + '):\n';
+  shopRows.forEach(function(r){ plain += '  - ' + r.label + ' x ' + qty(r.amt) + ' (' + money(r.cost, cur) + ')\n'; });
+  for (var k4 in shortBuy){
+    var pl2 = PARCEL.filter(function(p){ return p[0] === k4; })[0];
+    plain += '  - EXTRA ' + pl2[1] + ' x ' + qty(shortBuy[k4]) + ' (parcel runs out)\n';
+  }
+  $('fpss-copy').addEventListener('click', function(){ copyText(plain, $('fpss-copy')); });
+  $('fpss-print').addEventListener('click', function(){ window.print(); });
+}
+
+function snapshot(){
+  var s = { cur: $('fpss-cur').value, topup: $('fpss-topup').value, ad: $('fpss-adults').value,
+    kids: $('fpss-kids').value, diet: $('fpss-diet').value, eq: $('fpss-eq').value, p: {}, fp: {}, cp: {} };
+  PARCEL.forEach(function(p){ s.p[p[0]] = $('fpss-p-'+p[0]).value; s.cp[p[0]] = $('fpss-c-'+p[0]).value; });
+  FRESH.forEach(function(f){ s.fp[f[0]] = $('fpss-f-'+f[0]).value; });
+  return s;
+}
+function restore(s){
+  if (!s) return false;
+  $('fpss-cur').value = s.cur || '£'; $('fpss-topup').value = s.topup || 0;
+  $('fpss-adults').value = s.ad || 2; $('fpss-kids').value = s.kids || 0;
+  $('fpss-diet').value = s.diet || 'any'; $('fpss-eq').value = s.eq || 'full';
+  PARCEL.forEach(function(p){ if (s.p && s.p[p[0]] !== undefined) $('fpss-p-'+p[0]).value = s.p[p[0]]; if (s.cp && s.cp[p[0]] !== undefined) $('fpss-c-'+p[0]).value = s.cp[p[0]]; });
+  FRESH.forEach(function(f){ if (s.fp && s.fp[f[0]] !== undefined) $('fpss-f-'+f[0]).value = s.fp[f[0]]; });
+  return true;
+}
+
+$('fpss-go').addEventListener('click', build);
+$('fpss-save').addEventListener('click', function(){
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); $('fpss-save').textContent = '✓ Saved'; }
+  catch(e){ $('fpss-save').textContent = '✕ No storage'; }
+  setTimeout(function(){
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!$('fpss-save')) return; $('fpss-save').textContent = '💾 Save'; }, 1600);
+});
+$('fpss-load').addEventListener('click', function(){
+  try {
+    var s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (restore(s)){ build(); $('fpss-load').textContent = '✓ Loaded'; }
+    else $('fpss-load').textContent = '✕ Nothing saved';
+  } catch(e){ $('fpss-load').textContent = '✕ Nothing saved'; }
+  setTimeout(function(){
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!$('fpss-load')) return; $('fpss-load').textContent = '📂 Load'; }, 1600);
+});
+})();
+</script>

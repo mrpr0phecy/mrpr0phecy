@@ -394,8 +394,11 @@ function lightCalculate(btn) {
   const wallReflectance = parseFloat(document.getElementById('light-wall-reflectance-value').value) / 100;
   const floorReflectance = parseFloat(document.getElementById('light-floor-reflectance-value').value) / 100;
   
-  // Get illuminance requirement
-  let requiredLux = parseFloat(document.getElementById('light-lux').value);
+  // Get illuminance requirement. There is no lux field in this card's markup —
+  // the room type sets it — so the lookup is optional rather than fatal (it made
+  // Calculate Lighting throw on a null).
+  const luxField = document.getElementById('light-lux');
+  let requiredLux = luxField ? parseFloat(luxField.value) : NaN;
   if (!requiredLux || requiredLux <= 0) {
     // Use room type preset
     const roomType = document.getElementById('light-room-type').value;
@@ -695,6 +698,10 @@ function lightShowHint(card, message, type) {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('light-lamp-lumens')) return;
   // Sync reflectance sliders and inputs
   const reflectanceIds = ['ceiling-reflectance', 'wall-reflectance', 'floor-reflectance'];
   reflectanceIds.forEach(id => {

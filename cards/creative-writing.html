@@ -615,6 +615,9 @@
         }
     </style>
 
+    <h2 id="creative-writing-title" style="margin-top:0;">✍️ Creative Writing Studio</h2>
+    <p id="creative-writing-desc" class="small" style="margin:0 0 16px;color:rgba(230,250,255,0.9);">Prompts, character and plot generators, story ideas, world builder, word bank and focus timer for writers.</p>
+
     <div class="writing-tabs">
         <button class="writing-tab active" data-panel="quick-write">✍️ Quick Write</button>
         <button class="writing-tab" data-panel="character">👤 Character</button>
@@ -1123,14 +1126,16 @@
             "Describe a library where the books are alive and choose their readers."
         ];
         
-        // New Prompt Button
-        document.getElementById('newPromptBtn').addEventListener('click', () => {
+        // New Prompt Button (named handler: the old arrow function used
+        // `arguments.callee`, which throws — `arguments` doesn't exist in
+        // arrows — so every click died before reattaching the listener).
+        document.getElementById('newPromptBtn').addEventListener('click', function newPromptHandler() {
             const randomPrompt = writingPrompts[Math.floor(Math.random() * writingPrompts.length)];
-            document.getElementById('writingPrompt').innerHTML = 
+            document.getElementById('writingPrompt').innerHTML =
                 `"${randomPrompt}" <button class="new-prompt-btn" id="newPromptBtn">New</button>`;
-            
+
             // Reattach event listener
-            document.getElementById('newPromptBtn').addEventListener('click', arguments.callee);
+            document.getElementById('newPromptBtn').addEventListener('click', newPromptHandler);
         });
         
         // Word Count and Auto-save
@@ -1178,8 +1183,23 @@
         
         document.getElementById('copyText').addEventListener('click', () => {
             writingText.select();
-            document.execCommand('copy');
-            showNotification('Text copied to clipboard!', 'success');
+            // execCommand is deprecated and missing in some contexts — prefer
+            // the Clipboard API, fall back to the legacy call, and never throw.
+            const legacyCopy = () => {
+                try { return document.execCommand ? document.execCommand('copy') : false; }
+                catch (e) { return false; }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(writingText.value).then(() => {
+                    showNotification('Text copied to clipboard!', 'success');
+                }).catch(() => {
+                    legacyCopy();
+                    showNotification('Text copied to clipboard!', 'success');
+                });
+            } else {
+                legacyCopy();
+                showNotification('Text copied to clipboard!', 'success');
+            }
         });
         
         document.getElementById('clearText').addEventListener('click', () => {
@@ -1264,7 +1284,11 @@
             'Their emotions manifest as physical phenomena', 'Dreams in languages they never learned'
         ];
         
-        const goals = [
+        // Prefixed: an unprefixed `goals` collided with goaltracker.html's
+        // `let goals` in the shared tool.html global scope, and the second
+        // card to load died with "Identifier 'goals' has already been
+        // declared" (caught by scripts/check-card-collisions.py).
+        const cwGoals = [
             'To undo a family curse that manifests as silver scars',
             'To find and protect their digitized sister',
             'To rediscover their true identity after memory loss',
@@ -1282,7 +1306,7 @@
                 occupation: occupations[Math.floor(Math.random() * occupations.length)],
                 personality: personalities[Math.floor(Math.random() * personalities.length)],
                 secret: secrets[Math.floor(Math.random() * secrets.length)],
-                goal: goals[Math.floor(Math.random() * goals.length)]
+                goal: cwGoals[Math.floor(Math.random() * cwGoals.length)]
             };
             
             const charName = document.querySelector('#character-panel .character-name');
@@ -1329,7 +1353,11 @@
             'A librarian discovers that some books in their care are actually prisons for ancient beings, and one is beginning to wake up.',
             'A musician composes a symphony so beautiful it begins to warp reality around the concert hall.',
             'In a world where people trade their dreams for wealth, a dream thief discovers a dream that predicts the end of the world.',
-            'A detective specializes in solving crimes that haven\'t happened yet, using technology that shows possible futures.'
+            'A detective specializes in solving crimes that haven\'t happened yet, using technology that shows possible futures.',
+            'A botanist cultivates a garden where every plant exists in two states at once, and discovers that the act of observing which one is real destroys the other — including the version of herself who planted it.',
+            'A tattoo artist\'s inks begin to move on the skin, spelling out memories their clients have paid to forget, and one commission names a person who has been dead for a decade.',
+            'Centuries after the stars went out, a navigator on a black sea finds them — harvested, catalogued and hoarded by a guild that sells their light back to the cities below.',
+            'In a city of clockwork automata, the winged messengers were built to carry other people\'s words; one of them starts delivering letters nobody wrote, and the recipients remember them.',
         ];
         
         const plotStructures = [
@@ -1340,7 +1368,11 @@
             ['Strange occurrences', 'Ancient text discovery', 'Being awakens', 'Containment race', 'New understanding'],
             ['Composition creation', 'Reality glitches', 'Authorities notice', 'Performance decision', 'Reality reset or embrace'],
             ['Dream acquisition', 'Apocalyptic vision', 'Verify prediction', 'Prevention attempt', 'Sacrifice or acceptance'],
-            ['Future crime vision', 'Prevent first attempt', 'Discover mastermind', 'Time paradox risk', 'Change timeline or accept fate']
+            ['Future crime vision', 'Prevent first attempt', 'Discover mastermind', 'Time paradox risk', 'Change timeline or accept fate'],
+            ['Garden discovered', 'Superposition explained', 'Observation begins to collapse it', 'Choose which state to keep', 'One garden survives — or none'],
+            ['Ink moves', 'Client returns', 'Memory uncovered', 'The name is confronted', 'The truth is worn openly — or covered again'],
+            ['Starless crossing', 'A spark is sighted', 'The guild vault found', 'Light released or traded', 'Sky restored'],
+            ['A message arrives', 'No one claims it', 'The fleet notices', 'The sender is found', 'Messages delivered, makers freed'],
         ];
         
         document.getElementById('generatePlot').addEventListener('click', () => {
@@ -1661,8 +1693,10 @@
         }
         
         // Add animations
-        const style = document.createElement('style');
-        style.textContent = `
+        // Prefixed for the same reason as cwGoals: `style` collided with an
+        // identically-named top-level const in moving.html.
+        const cwStyle = document.createElement('style');
+        cwStyle.textContent = `
             @keyframes fadeIn {
                 from { opacity: 0; transform: translateY(-10px); }
                 to { opacity: 1; transform: translateY(0); }
@@ -1672,7 +1706,7 @@
                 to { transform: translateX(0); opacity: 1; }
             }
         `;
-        document.head.appendChild(style);
+        document.head.appendChild(cwStyle);
         
         // Initialize timer display
         updateTimerDisplay();

@@ -1,0 +1,774 @@
+/* explore.css — the shared list-view layer.
+   ---------------------------------------------------------------------------
+   Loaded by every page that shows a list of tools: the home page, the full
+   index (tools.html), the zero-JS directory (tools-index.html) and the 28
+   category pages. One stylesheet, one row component, one toolbar — so a
+   visitor who learns the list once has learned it everywhere.
+
+   Rules this file follows:
+   - Every class is `xp-` or `tb-` prefixed. The host pages have their own
+     palettes and their own class names (`.topbar`, `.cat-card`); nothing here
+     collides with them or depends on them.
+   - Colours fall back to literals if the host page does not define the shared
+     tokens, because the category pages carry their own inline <style> and do
+     not link a theme file.
+   - The list works with JavaScript switched off. The engine only *adds* to
+     markup that is already a working set of links, so nothing here is
+     load-bearing for no-JS visitors.
+   - Sizes are fluid (`clamp()`), the toolbar is one control stack at every
+     width, and every interactive control meets a 44 px touch target on a
+     coarse pointer. Before this pass the toolbar was 238 px of the first
+     screen on a 320 px phone, the row link was a 25 px tap target and the
+     toolbar parked at a hard-coded offset that four different host pages had
+     each guessed differently.
+
+   The one variable a host page can set is `--xp-sticky-h`: the height of
+   whatever sticky chrome sits above the list (the site's command bar, a
+   page's own topbar). explore.js measures it and writes it to :root, so the
+   toolbar always parks directly under that chrome instead of under a number
+   somebody typed. See `measureStickyOffset()` in explore.js.
+*/
+
+/* Tokens live on :root, not on .xp-wrap, because the toolbar and the panel are
+   also used on pages that never get a .xp-wrap (the toolbox popover, the shared
+   toolbox banner). Names are xp--prefixed, so nothing here can shadow a host
+   page's own custom properties. */
+:root {
+  --xp-accent: var(--accent, #2dd4ff);
+  --xp-gold: var(--gold, #ffd700);
+  --xp-line: rgba(255, 255, 255, 0.09);
+  --xp-line-soft: rgba(255, 255, 255, 0.05);
+  --xp-text: var(--text, #e6faff);
+  --xp-muted: rgba(230, 250, 255, 0.62);
+  --xp-panel: rgba(0, 0, 0, 0.28);
+  --xp-surface: color-mix(in srgb, var(--bg-primary, #0a0f14) 88%, transparent);
+  --xp-radius: 12px;
+  --xp-radius-sm: 9px;
+  --xp-tap: 44px;
+  --xp-toolbar-top: 4px;               /* the toolbar's own gap under the chrome */
+  /* Filled in by explore.js from what is actually on screen: the height of
+     whatever sticky chrome the host page puts above the list. The fallback is
+     what a visitor with no script gets, and they have no sticky toolbar either,
+     so it only has to be sane. */
+  --xp-sticky-h: 0px;
+}
+@supports (backdrop-filter: blur(4px)) {
+  :root { --xp-surface: color-mix(in srgb, var(--bg-primary, #0a0f14) 78%, transparent); }
+}
+.xp-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 clamp(12px, 3.4vw, 20px);
+  box-sizing: border-box;
+}
+.xp-wrap *,
+.xp-wrap *::before,
+.xp-wrap *::after { box-sizing: border-box; }
+
+/* ------------------------------------------------------------------ toolbar */
+.xp-bar {
+  position: sticky;
+  top: calc(var(--xp-sticky-h, 0px) + var(--xp-toolbar-top));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: clamp(8px, 1.6vw, 10px);
+  margin-bottom: 12px;
+  background: var(--xp-surface);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid var(--xp-line);
+  border-radius: var(--xp-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  /* A sticky bar is a fixed island: it must never be the reason the page
+     scrolls sideways. */
+  max-width: 100%;
+}
+.xp-bar:focus-within { border-color: color-mix(in srgb, var(--xp-accent) 45%, transparent); }
+.xp-bar-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.xp-field {
+  position: relative;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.xp-field input {
+  width: 100%;
+  min-height: var(--xp-tap);
+  padding: 10px 38px 10px 38px;
+  /* 16px is the smallest font an iOS text field will not zoom in on. */
+  font-size: max(16px, 0.92rem);
+  color: var(--xp-text);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--xp-line);
+  border-radius: var(--xp-radius-sm);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.xp-field input::placeholder { color: rgba(230, 250, 255, 0.42); }
+.xp-field input:focus { outline: 2px solid var(--xp-accent); outline-offset: 1px; }
+.xp-field::before {
+  content: '🔍';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  opacity: 0.75;
+  pointer-events: none;
+}
+.xp-field .xp-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--xp-muted);
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.xp-field .xp-clear:hover { color: var(--xp-text); background: rgba(255, 255, 255, 0.07); }
+.xp-field.xp-has-value .xp-clear { display: block; }
+
+.xp-select {
+  min-height: 38px;
+  max-width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--xp-text);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--xp-line);
+  border-radius: var(--xp-radius-sm);
+  cursor: pointer;
+}
+.xp-select:focus-visible { outline: 2px solid var(--xp-accent); outline-offset: 1px; }
+
+.xp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--xp-text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--xp-line);
+  border-radius: var(--xp-radius-sm);
+  cursor: pointer;
+}
+.xp-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.xp-btn[aria-pressed="true"],
+.xp-btn.xp-on {
+  color: var(--xp-accent);
+  background: color-mix(in srgb, var(--xp-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--xp-accent) 45%, transparent);
+}
+.xp-btn:disabled { opacity: 0.55; cursor: default; }
+.xp-btn.xp-gold { color: var(--xp-gold); border-color: rgba(255, 215, 0, 0.35); }
+.xp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.xp-density { display: flex; gap: 4px; }
+.xp-count {
+  font-size: 12.5px;
+  color: var(--xp-muted);
+  white-space: nowrap;
+}
+.xp-count strong { color: var(--xp-text); }
+
+.xp-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: rgba(230, 250, 255, 0.45);
+}
+.xp-hint kbd {
+  padding: 1px 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--xp-line);
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------- facets */
+.xp-facets {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  padding: 2px 2px 4px;
+  margin: 0;
+  scrollbar-width: thin;
+  /* The row scrolls itself instead of widening the page. */
+  max-width: 100%;
+}
+/* A sideways row has to look like one. The edge with more content behind it
+   fades; the edge you have reached does not. explore.js writes data-overflow
+   (start | middle | end) on every horizontal chip row it finds — the facet
+   strip under the list toolbar, the home page's popular searches, the category
+   strips on tools.html and tools-index.html — and removes the attribute when
+   the row fits, so nothing here can dim a chip with nowhere left to scroll.
+   One rule for all of them: the rows live in four different stylesheets, the
+   behaviour is the same one. */
+[data-overflow="start"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 30px), transparent);
+}
+[data-overflow="middle"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 30px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 30px), transparent);
+}
+[data-overflow="end"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 26px);
+  mask-image: linear-gradient(to right, transparent, #000 26px);
+}
+.xp-facets::-webkit-scrollbar { height: 6px; }
+.xp-facets::-webkit-scrollbar-thumb { background: var(--xp-line); border-radius: 3px; }
+.xp-facet {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-height: 32px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--xp-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--xp-line);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.xp-facet:hover { color: var(--xp-text); border-color: color-mix(in srgb, var(--xp-accent) 35%, transparent); }
+.xp-facet[aria-pressed="true"] {
+  color: var(--xp-accent);
+  background: color-mix(in srgb, var(--xp-accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--xp-accent) 45%, transparent);
+  font-weight: 600;
+}
+.xp-facet .xp-facet-n { opacity: 0.65; }
+
+/* --------------------------------------------------------------------- list */
+.xp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--xp-line);
+  border-radius: var(--xp-radius);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.015);
+}
+.xp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--xp-line-soft);
+  /* Hover paints the row, not the page behind it. */
+  background-clip: padding-box;
+}
+.xp-row:last-child { border-bottom: 0; }
+.xp-row:hover { background: color-mix(in srgb, var(--xp-accent) 5%, transparent); }
+.xp-row.xp-current {
+  background: color-mix(in srgb, var(--xp-accent) 9%, transparent);
+  box-shadow: inset 3px 0 0 var(--xp-accent);
+}
+.xp-row.xp-current .xp-title { color: var(--xp-accent); }
+/* The whole title line is the target, not the 14 px of text inside it: the
+   link stretches to the row height the action buttons already set. On a phone
+   that is the difference between a 25 px and a ~48 px tap target. */
+.xp-open {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  padding: 4px 0;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 6px;
+}
+.xp-open:focus-visible { outline: 2px solid var(--xp-accent); outline-offset: 2px; }
+.xp-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--xp-text);
+  overflow-wrap: anywhere;
+}
+.xp-open:hover .xp-title { color: var(--xp-accent); }
+.xp-cat {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgba(230, 250, 255, 0.45);
+  border: 1px solid var(--xp-line-soft);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.xp-actions { display: flex; gap: 4px; align-items: center; }
+.xp-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--xp-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--xp-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.xp-icon:hover { color: var(--xp-text); background: rgba(255, 255, 255, 0.1); }
+.xp-icon:focus-visible { outline: 2px solid var(--xp-accent); outline-offset: 1px; }
+.xp-icon.xp-in {
+  color: var(--xp-gold);
+  background: rgba(255, 215, 0, 0.14);
+  border-color: rgba(255, 215, 0, 0.4);
+}
+.xp-desc {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--xp-muted);
+}
+.xp-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: rgba(230, 250, 255, 0.4);
+}
+.xp-tag { color: color-mix(in srgb, var(--xp-accent) 75%, transparent); }
+.xp-desc a { color: var(--xp-accent); }
+
+/* Density: comfortable shows every description (the classic index); compact
+   hides them until a row is expanded. `.xp-collapsed` is the per-row override
+   in comfortable density, `.xp-open-row` the per-row reveal in compact. */
+.xp-row.xp-collapsed .xp-desc { display: none; }
+body.xp-compact .xp-desc { display: none; }
+body.xp-compact .xp-row.xp-open-row .xp-desc { display: block; }
+body.xp-compact .xp-row { padding: 5px 12px; }
+body.xp-compact .xp-title { font-size: 14px; }
+
+.xp-more {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--xp-accent);
+  background: color-mix(in srgb, var(--xp-accent) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--xp-accent) 20%, transparent);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.xp-more:hover { background: color-mix(in srgb, var(--xp-accent) 12%, transparent); }
+.xp-more[hidden] { display: none; }
+
+.xp-empty {
+  padding: 26px 16px;
+  text-align: center;
+  color: var(--xp-muted);
+  font-size: 14px;
+}
+.xp-empty strong { color: var(--xp-text); }
+.xp-empty a { color: var(--xp-accent); }
+
+.xp-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding-top: 14px;
+}
+.xp-pager button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--xp-text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--xp-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.xp-pager button[aria-current="true"] {
+  color: #06121a;
+  background: var(--xp-accent);
+  border-color: var(--xp-accent);
+  font-weight: 700;
+}
+.xp-pager button:disabled { opacity: 0.4; cursor: default; }
+.xp-pager .xp-ellipsis { color: var(--xp-muted); }
+
+/* --------------------------------------------------------- sponsor slot ---
+   One per page, clearly separated, clearly labelled. The `.xp-sponsor` block
+   is the *unsold* invitation — it is not a paid placement and never claims to
+   be one. When a sponsor buys the position this block is replaced by a marked
+   `<!-- SPONSOR-SLOT -->` block carrying the word "Sponsored", which is what
+   scripts/check-finance.js looks for. Kept as one element, never a rail. */
+.explore-head { margin: 0 0 16px; }
+.explore-lede {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--xp-muted);
+}
+.explore-lede kbd {
+  font-family: inherit; font-size: 12px; font-weight: 700;
+  padding: 1px 6px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--xp-line);
+}
+
+.xp-sponsor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 14px;
+  margin: 14px 0;
+  background: rgba(255, 215, 0, 0.05);
+  border: 1px dashed rgba(255, 215, 0, 0.28);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--xp-muted);
+}
+.xp-sponsor b {
+  color: var(--xp-gold);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 2px;
+}
+.xp-sponsor a { color: var(--xp-gold); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ toolbox */
+/* The panel is a native popover (#toolbox) so opening it needs no script.
+   Everything below styles the list inside it. */
+.toolbox .tb-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.tb-list { list-style: none; margin: 0; padding: 0; }
+.tb-group { border-bottom: 1px solid var(--xp-line-soft); }
+.tb-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--xp-text);
+  cursor: pointer;
+  list-style: none;
+}
+.tb-group > summary::-webkit-details-marker { display: none; }
+.tb-group > summary::before {
+  content: '▸';
+  font-size: 11px;
+  color: var(--xp-accent);
+  transition: transform 0.15s ease;
+}
+.tb-group[open] > summary::before { transform: rotate(90deg); }
+.tb-group .tb-n { margin-left: auto; font-size: 11.5px; color: var(--xp-muted); font-weight: 500; }
+.tb-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 8px 20px;
+}
+.tb-item a {
+  font-size: 13px;
+  color: var(--xp-text);
+  text-decoration: none;
+}
+.tb-item a:hover { color: var(--xp-accent); }
+.tb-item .tb-cat { display: block; font-size: 11px; color: var(--xp-muted); }
+.tb-item .tb-acts { display: flex; gap: 3px; }
+.tb-item .tb-acts button {
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
+  color: var(--xp-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--xp-line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.tb-item .tb-acts button:hover { color: var(--xp-text); }
+.tb-empty { padding: 18px 6px; font-size: 13px; color: var(--xp-muted); line-height: 1.7; }
+.tb-foot {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--xp-line-soft);
+  font-size: 12px;
+  color: var(--xp-muted);
+  line-height: 1.7;
+}
+.tb-foot a { color: var(--xp-gold); }
+.tb-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--xp-line-soft);
+  margin-bottom: 4px;
+}
+.tb-bar button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--xp-text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--xp-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tb-bar button:hover { background: rgba(255, 255, 255, 0.1); }
+.tb-bar button:disabled { opacity: 0.5; cursor: default; }
+.tb-share {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--xp-text);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--xp-line);
+  border-radius: 8px;
+  resize: vertical;
+}
+.tb-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #06121a;
+  background: var(--xp-gold);
+  border-radius: 999px;
+  text-align: center;
+}
+.tb-badge:empty { display: none; }
+
+/* ------------------------------------------------------------------- toast */
+.xp-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%) translateY(8px);
+  z-index: 300;
+  max-width: min(92vw, 460px);
+  padding: 11px 15px;
+  font-size: 13px;
+  color: #06121a;
+  background: var(--xp-accent, #2dd4ff);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.xp-toast.xp-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.xp-toast a { color: #06121a; font-weight: 700; }
+
+/* --------------------------------------------------------------- toolbox -----
+   The panel is one script, two shapes: the home page's sticky-bar popover, and
+   the floating one toolbox.js builds on every other page. Both are styled
+   here, so a visitor who saves a tool on a category page and opens the toolbox
+   on the home page sees the same thing in the same place. */
+.xp-tb-float {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 240;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 10px 14px;
+  font: 600 13.5px/1 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--xp-text);
+  background: var(--xp-surface);
+  border: 1px solid var(--xp-line);
+  border-radius: 100px;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+/* Clearance for the page under the floating button (explore.js sets
+   `xp-has-float` on <html> only where the button exists). Without it the
+   44 px button covers the footer's last links at 390 px. */
+html.xp-has-float body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+.xp-tb-float:hover { border-color: var(--xp-accent); color: var(--xp-accent); }
+.xp-tb-float.xp-open { border-color: var(--xp-accent); color: var(--xp-accent); }
+
+.tb-panel {
+  position: fixed;
+  right: 16px;
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  z-index: 245;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(72vh, 620px);
+  overflow: auto;
+  padding: 14px;
+  background: rgba(10, 15, 20, 0.98);
+  border: 1px solid var(--xp-line);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+}
+.tb-panel[hidden] { display: none; }
+.tb-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--xp-line);
+  font-size: 14px;
+}
+.tb-head strong { flex: 1; font-weight: 800; }
+.tb-head span { font-size: 12px; color: var(--xp-muted); }
+.tb-x {
+  width: 32px; height: 32px; font-size: 13px; line-height: 1;
+  color: var(--xp-muted); background: transparent;
+  border: 1px solid var(--xp-line); border-radius: 8px; cursor: pointer;
+}
+.tb-x:hover { color: var(--xp-text); border-color: var(--xp-accent); }
+.tb-n { margin-left: auto; font-size: 11.5px; font-weight: 600; color: var(--xp-muted); }
+.tb-item > div:first-child { flex: 1; min-width: 0; }
+.tb-cat { display: block; font-size: 11px; color: rgba(230, 250, 255, 0.4); }
+.tb-acts { display: flex; gap: 4px; }
+.tb-acts button {
+  width: 30px; height: 30px; font-size: 12px; line-height: 1;
+  color: var(--xp-muted); background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--xp-line); border-radius: 7px; cursor: pointer;
+}
+.tb-acts button:hover { color: var(--xp-text); border-color: var(--xp-accent); }
+.tb-empty kbd {
+  font-family: inherit; font-size: 11.5px; font-weight: 700;
+  padding: 1px 5px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid var(--xp-line);
+}
+.tb-footer, .tb-foot {
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid var(--xp-line);
+  font-size: 12px; line-height: 1.6; color: var(--xp-muted);
+}
+.tb-foot a, .tb-footer a { color: var(--xp-gold); }
+
+/* ------------------------------------------------------------ responsive ---
+   Below 760 px the toolbar keeps its two control rows and drops the
+   desktop-only furniture: the density switch (compact rows are a scanning
+   tool for a big screen), the category <select> (the facet row does the same
+   job with bigger targets) and the keyboard hint (there is no keyboard).
+   The count moves under the search box rather than squeezing the field. */
+@media (max-width: 900px) {
+  .xp-hint { display: none; }
+  .xp-bar { gap: 6px; }
+}
+@media (max-width: 760px) {
+  [data-xp-density] { display: none; }
+  body.xp-compact .xp-desc { display: block; }   /* never hide text on a phone */
+  .xp-select#xp-cat { display: none; }
+  .xp-row { padding: 8px 10px; gap: 2px 8px; }
+  .xp-title { font-size: 14px; }
+  .xp-cat { display: none; }
+  .xp-desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12.5px;
+  }
+  .xp-row.xp-open-row .xp-desc,
+  .xp-row.xp-collapsed .xp-desc { display: -webkit-box; }
+  .xp-meta { font-size: 11px; }
+}
+@media (max-width: 420px) {
+  .xp-count { font-size: 12px; width: 100%; }
+  .xp-bar-top { gap: 6px; }
+  .xp-tools { flex: 1 1 100%; justify-content: space-between; }
+}
+
+/* A finger is not a mouse pointer: hover styles are noise, and every control
+   worth pressing gets a real 44 px target. */
+@media (hover: none) and (pointer: coarse) {
+  /* A blurred sticky toolbar repaints the rows underneath it on every frame. */
+  .xp-bar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--bg-primary, #0a0f14);
+  }
+  .xp-hint { display: none; }
+  .xp-icon { width: var(--xp-tap); height: var(--xp-tap); font-size: 15px; }
+  .xp-btn, .xp-select { min-height: var(--xp-tap); }
+  .xp-facet { min-height: 40px; padding: 9px 14px; }
+  .xp-row { padding-top: 10px; padding-bottom: 10px; }
+  .xp-row:hover { background: none; }
+  /* The whole row is the target. Tapping the title works already, but the
+     title line is 27 px tall on a phone and the description underneath is not
+     a link at all, so a tap that lands 10 px low does nothing. The overlay
+     belongs to the row's own link: the URL, the semantics and keyboard focus
+     are unchanged, and the action buttons (later in the document, and lifted
+     above it here) still take their own taps. Mouse users keep the plain
+     link — a full-row overlay would fight text selection, which matters on a
+     page whose whole job is describing tools. */
+  .xp-row { position: relative; }
+  .xp-open::after { content: ''; position: absolute; inset: 0; }
+  .xp-actions, .xp-meta { position: relative; z-index: 1; }
+  /* "Open <tool> →" inside an expanded row is a real action, not a footnote. */
+  .xp-meta a { display: inline-flex; align-items: center; min-height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-toast,
+  .tb-group > summary::before { transition: none; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .xp-bar, .xp-tb-float { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-primary, #0a0f14); }
+}

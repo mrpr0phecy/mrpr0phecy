@@ -1,0 +1,169 @@
+<h2 id="ctb-title" style="margin-top:0;color:var(--accent);">🏠 Council Tax Band Checker &amp; Bill Estimator</h2>
+
+<form aria-describedby="ctb-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="ctb-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Bands come from your home&rsquo;s value on a fixed historic date — 1991 in England and Scotland, 2003 in Wales.
+    Find your band, estimate the real bill from your council&rsquo;s Band&nbsp;D figure, and see what the discounts are worth.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="ctb-nation" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Nation</label>
+      <select id="ctb-nation" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="england" selected>England</option>
+        <option value="scotland">Scotland</option>
+        <option value="wales">Wales</option>
+      </select>
+    </div>
+    <div>
+      <label for="ctb-value" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;"><span id="ctb-vlabel">Value in April 1991 (£)</span> — optional</label>
+      <input id="ctb-value" type="number" min="0" step="1000" placeholder="e.g. 75000" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="ctb-band" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">…or pick the band on your bill</label>
+      <select id="ctb-band" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;"></select>
+    </div>
+    <div>
+      <label for="ctb-bill" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Band D bill here (£/year)</label>
+      <input id="ctb-bill" type="number" min="0" step="10" value="2200" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+  </div>
+  <label style="display:flex;gap:8px;align-items:center;font-size:0.86rem;color:rgba(230,250,255,0.75);margin-bottom:14px;cursor:pointer;">
+    <input id="ctb-single" type="checkbox" style="accent-color:#2dd4ff;" /> Only adult in the property — apply the 25% single-person discount
+  </label>
+
+  <button type="button" id="ctb-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">Show my band and bill</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="ctb-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Your Band D figure is on your council&rsquo;s website or any household bill; everything else scales by fixed statutory ratios.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Method, the discount list, and how a challenge actually works</summary>
+  <p style="margin-top:8px;">
+    <strong>Method.</strong> Every band&rsquo;s bill is a fixed fraction of Band D: England and Scotland run A&nbsp;=&nbsp;6/9
+    up to H&nbsp;=&nbsp;18/9; Wales (revalued to April 2003 values in 2005) adds band I at 21/9. So a Band F home in a
+    £2,200-Band-D council pays 13/9 × £2,200 ≈ £3,178 before discounts.
+  </p>
+  <p>
+    <strong>Discounts worth real money.</strong> Single adult −25%. Full-time students are disregarded (an
+    all-student home pays nothing). People with severe mental impairment, and live-in carers who meet the
+    conditions, are disregarded too — which can re-create the 25% discount even with two names on the bill.
+    Empty and second homes vary by council, and some can cost extra rather than less.
+  </p>
+  <p>
+    <strong>Challenging a band.</strong> In England and Wales you ask the Valuation Office Agency; in Scotland the
+    Scottish Assessors. The realistic case is evidence: neighbours in identical homes in a lower band, or
+    documentary proof the 1991 (or 2003) value was wrong. Be aware the listing officer can move the band <em>up</em>
+    as well as down — gather the evidence before the letter, not after. A successful challenge refunds the
+    overpayment back to when you moved in, and neighbours&rsquo; bands do not move automatically with yours.
+  </p>
+  <p>
+    <strong>Edge cases.</strong> Scotland&rsquo;s bills include water and sewerage charges collected alongside council
+    tax; the ratios above apply to the council-tax element. New builds are banded on what they would have sold for
+    on the valuation date, and annexes can qualify for a separate 50% discount.
+  </p>
+  <p style="font-size:0.78rem;opacity:0.75;">Primary sources: statutory band thresholds and ratios (Local Government Finance Act 1992 as amended; Council Tax (Valuation Bands) (Wales) Order 2003), VOA/SAA guidance. Not financial or legal advice. Last reviewed 2026-09-21.</p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  // [band letter, lower bound (exclusive), upper bound (inclusive), ninths of D]
+  var BANDS = {
+    england: { label: 'April 1991', list: [['A', -1, 40000, 6], ['B', 40000, 52000, 7], ['C', 52000, 68000, 8], ['D', 68000, 88000, 9], ['E', 88000, 120000, 11], ['F', 120000, 160000, 13], ['G', 160000, 320000, 15], ['H', 320000, Infinity, 18]] },
+    scotland: { label: 'April 1991', list: [['A', -1, 40000, 6], ['B', 40000, 52000, 7], ['C', 52000, 68000, 8], ['D', 68000, 88000, 9], ['E', 88000, 120000, 11], ['F', 120000, 160000, 13], ['G', 160000, 320000, 15], ['H', 320000, Infinity, 18]] },
+    wales: { label: 'April 2003', list: [['A', -1, 44000, 6], ['B', 44000, 65000, 7], ['C', 65000, 91000, 8], ['D', 91000, 123000, 9], ['E', 123000, 162000, 11], ['F', 162000, 223000, 13], ['G', 223000, 324000, 15], ['H', 324000, 424000, 18], ['I', 424000, Infinity, 21]] }
+  };
+
+  function gbp(n) { return '£' + Math.round(n).toLocaleString('en-GB'); }
+
+  function rebuildBandOptions() {
+    var nation = $('ctb-nation').value;
+    var conf = BANDS[nation];
+    $('ctb-vlabel').textContent = 'Value in ' + conf.label + ' (£)';
+    var sel = $('ctb-band');
+    sel.innerHTML = '';
+    conf.list.forEach(function (b) {
+      var o = document.createElement('option');
+      o.value = b[0]; o.textContent = 'Band ' + b[0];
+      if (b[0] === 'D') o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+
+  function bandFromValue(v) {
+    var conf = BANDS[$('ctb-nation').value];
+    for (var i = 0; i < conf.list.length; i++) {
+      if (v > conf.list[i][1] && v <= conf.list[i][2]) return conf.list[i][0];
+    }
+    return null;
+  }
+
+  function fmtRange(b) {
+    if (b[1] < 0) return 'up to ' + gbp(b[2]);
+    if (b[2] === Infinity) return 'over ' + gbp(b[1]);
+    return gbp(b[1]) + ' – ' + gbp(b[2]);
+  }
+
+  function show() {
+    var nation = $('ctb-nation').value;
+    var conf = BANDS[nation];
+    var billD = Math.max(0, parseFloat($('ctb-bill').value) || 0);
+    var single = $('ctb-single').checked;
+    var v = parseFloat($('ctb-value').value);
+    var fromVal = (v > 0) ? bandFromValue(v) : null;
+    var band = fromVal || $('ctb-band').value;
+
+    var entry = conf.list.filter(function (b) { return b[0] === band; })[0];
+    var annual = billD * entry[3] / 9;
+    var monthly = annual / 12;
+    var disc = single ? annual * 0.25 : 0;
+
+    var html = '';
+    if (fromVal) {
+      html += '<div style="padding:10px 12px;background:rgba(45,212,255,0.08);border:1px solid rgba(45,212,255,0.22);border-radius:8px;margin-bottom:10px;font-size:0.88rem;color:rgba(230,250,255,0.85);">' +
+        'A ' + conf.label + ' value of <strong>' + gbp(v) + '</strong> falls in <strong style="color:var(--accent);">Band ' + fromVal + '</strong> (' + fmtRange(entry) + ').</div>';
+    }
+
+    html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">' +
+      '<div style="flex:1;min-width:140px;padding:12px;background:rgba(45,212,255,0.07);border:1px solid rgba(45,212,255,0.22);border-radius:8px;text-align:center;"><div style="font-size:0.72rem;color:rgba(230,250,255,0.55);">YOUR BAND</div><div style="color:var(--accent);font-weight:800;font-size:1.5rem;">' + band + '</div></div>' +
+      '<div style="flex:1;min-width:140px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;text-align:center;"><div style="font-size:0.72rem;color:rgba(230,250,255,0.55);">EST. ANNUAL BILL</div><div style="color:rgba(230,250,255,0.95);font-weight:800;font-size:1.3rem;">' + gbp(annual - disc) + '</div></div>' +
+      '<div style="flex:1;min-width:140px;padding:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;text-align:center;"><div style="font-size:0.72rem;color:rgba(230,250,255,0.55);">≈ PER MONTH (12 payments)</div><div style="color:rgba(230,250,255,0.95);font-weight:800;font-size:1.3rem;">' + gbp((annual - disc) / 12) + '</div></div></div>';
+    if (single) {
+      html += '<div style="font-size:0.82rem;color:#39ff14;margin-bottom:10px;">Single-person discount applied: −' + gbp(disc) + ' (' + gbp(annual) + ' full charge − 25%).</div>';
+    }
+
+    html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-bottom:10px;"><thead><tr style="color:rgba(230,250,255,0.55);text-align:left;">' +
+      '<th style="padding:5px 4px;font-weight:500;">Band</th><th style="padding:5px 4px;font-weight:500;">' + conf.label + ' value</th><th style="padding:5px 4px;font-weight:500;text-align:right;">Ratio of D</th><th style="padding:5px 4px;font-weight:500;text-align:right;">Est. bill' + (single ? ' (−25%)' : '') + '</th></tr></thead><tbody>';
+    conf.list.forEach(function (b) {
+      var raw = billD * b[3] / 9;
+      var shown = single ? raw * 0.75 : raw;
+      var hl = b[0] === band;
+      html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);' + (hl ? 'background:rgba(57,255,20,0.06);' : '') + '">' +
+        '<td style="padding:6px 4px;font-weight:700;color:' + (hl ? '#39ff14' : 'rgba(230,250,255,0.85)') + ';">' + b[0] + (hl ? ' ◄' : '') + '</td>' +
+        '<td style="padding:6px 4px;color:rgba(230,250,255,0.7);">' + fmtRange(b) + '</td>' +
+        '<td style="padding:6px 4px;text-align:right;color:rgba(230,250,255,0.6);">' + b[3] + '/9</td>' +
+        '<td style="padding:6px 4px;text-align:right;color:var(--accent);font-weight:600;">' + gbp(shown) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    html += '<div style="font-size:0.82rem;color:rgba(230,250,255,0.65);">One band step at these figures is worth about <strong style="color:var(--accent);">' +
+      gbp(billD * 2 / 9) + ' a year</strong> — which is why a well-evidenced challenge pays, and why it pays to check the evidence first.</div>';
+    $('ctb-out').innerHTML = html;
+  }
+
+  rebuildBandOptions();
+  show();
+  $('ctb-go').addEventListener('click', show);
+  ['ctb-value', 'ctb-bill'].forEach(function (id) { $(id).addEventListener('input', show); });
+  $('ctb-band').addEventListener('change', show);
+  $('ctb-single').addEventListener('change', show);
+  $('ctb-nation').addEventListener('change', function () { rebuildBandOptions(); show(); });
+})();
+</script>

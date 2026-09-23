@@ -37,6 +37,14 @@
      A hidden YouTube IFrame player. The API script is not even injected
      until the player first starts, so the card costs nothing until played
      and no third-party request is made on page load.                   */
+  /* The audio bed lives INSIDE this card, not in document.body.
+     tool.html clears the card's container on every navigation and cannot clear
+     the body, so a wrapper parked in the body keeps its iframe — and its audio
+     — playing after the visitor has moved to another tool, and the next visit
+     then finds the stale wrapper, skips creating a player, and leaves this
+     card's own music control dead for the rest of the session. */
+  var mpmbroot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
   var mpmbTRACKS = [{"id": "MUAgPsbgMpQ", "n": "Init"}, {"id": "SX_CbWF2rp4", "n": "Integrate"}, {"id": "_1UnKjZFcCE", "n": "Incandescent"}, {"id": "d1NI6lX6tnk", "n": "Internal"}];
   var mpmbyt = null, mpmbytReady = false, mpmbpending = false, mpmbti = 0, mpmbmuted = false;
 
@@ -46,7 +54,7 @@
     w.id = 'mpmb-ytwrap';
     w.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;overflow:hidden;';
     var d = document.createElement('div'); d.id = 'mpmb-ythost';
-    w.appendChild(d); document.body.appendChild(w);
+    w.appendChild(d); mpmbroot.appendChild(w);
 
     function make() {
       mpmbyt = new YT.Player('mpmb-ythost', {
@@ -122,6 +130,9 @@
     });
   }
   function newRound() {
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!document.getElementById('mpmb-r')) return;
     round++; document.getElementById('mpmb-r').textContent = round;
     target = BANDS.map(function(){ return 10 + Math.floor(Math.random()*81); });
     var hint = target.map(function(t,i){
@@ -152,6 +163,9 @@
     setTimeout(newRound, 1400);
   }
   function finish() {
+    // tool.html clears the card's container on the next navigation and
+    // cannot cancel this timer: bail out rather than write to what is gone.
+    if (!document.querySelector('#mpmb-start')) return;
     mpmbrunning=false; mpmbmusicOff();
     play.style.display='none'; idle.style.display='';
     idle.innerHTML = '<div style="font-weight:900;color:var(--premium);margin-bottom:6px;">'+total+' POINTS</div>' +

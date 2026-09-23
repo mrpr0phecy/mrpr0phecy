@@ -166,6 +166,12 @@ RULE: Follows Sacred Tool Template structure
 
 <!-- ===== 6. JAVASCRIPT ===== -->
 <script>
+
+// The toast lives INSIDE the card, not in document.body.
+// tool.html clears the card's container on every navigation and cannot clear
+// the body, so a toast parked there stays behind — and the next visit finds the
+// stale node by id and reuses it instead of building a fresh one.
+const sleepToastRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
 // TOOL-SPECIFIC FUNCTIONS
 const sleepTtState = {
     bedtime: '23:00',
@@ -173,7 +179,36 @@ const sleepTtState = {
     recommendedCycles: 5
 };
 
+// Toast notifications. Called by calculate/suggest/reset below but never
+// defined — those buttons threw a ReferenceError. Created on demand.
+function showNotification(message, type) {
+    let toast = document.getElementById('sleep-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'sleep-toast';
+        toast.setAttribute('role', 'status');
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);' +
+            'padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:1000;' +
+            'opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;' +
+            'background:#141e28;border:1px solid #2dd4ff;color:#e6faff;max-width:min(90vw,420px);text-align:center;';
+        sleepToastRoot.appendChild(toast);
+    }
+    const colors = { success: '#39ff14', error: '#ff4d4d', warning: '#ffb700', info: '#2dd4ff' };
+    toast.style.borderColor = colors[type] || '#2dd4ff';
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toast._hide);
+    toast._hide = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 2500);
+}
+
 function ttCalculate() {
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!document.getElementById('tt-bedtime')) return;
     const bedtimeInput = document.getElementById('tt-bedtime').value;
     const cycles = parseInt(document.getElementById('tt-cycles-slider').value);
     
@@ -372,6 +407,10 @@ function ttEmbed() {
 
 // INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('tt-bedtime')) return;
     console.log('🛏️ Sleep Calculator loaded');
     
     // Set up event listeners
@@ -384,6 +423,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('sleeptt-title')) return;
         if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             ttReset();

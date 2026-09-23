@@ -118,7 +118,7 @@
                   style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">
             ❄️ Snowfall
           </button>
-          <button type="button" onclick="ckSetTheme="lights")" id="ck-theme-lights"
+          <button type="button" onclick="ckSetTheme('lights')" id="ck-theme-lights"
                   style="padding:8px 12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">
             🎄 Lights
           </button>
@@ -297,6 +297,13 @@
    - Christmas carol karaoke with lyrics and pitch detection
    - Scoped with "ck" prefix
 */
+
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a dialog or a toast parked there stays on screen over the
+   next tool, with its own Close button still pointing at this card's markup. */
+const ckRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
 
 let ckCurrentSong = null;
 let ckIsPlaying = false;
@@ -589,6 +596,9 @@ function ckDisplayLyrics() {
   const container = document.querySelector('#ck-lyrics-container');
   
   // Display current line
+  // tool.html clears the card on the next navigation and cannot cancel
+  // this callback: bail out rather than write to a DOM that is gone.
+  if (!container) return;
   container.innerHTML = `
     <div style="font-size:28px;color:#39ff14;margin-bottom:8px;font-weight:600;">
       ${line.text}
@@ -653,6 +663,9 @@ function ckStartTimer() {
 }
 
 function ckUpdateStats() {
+  // tool.html clears the card on the next navigation and cannot cancel
+  // this callback: bail out rather than write to a DOM that is gone.
+  if (!document.querySelector('#ck-stat-score')) return;
   document.querySelector('#ck-stat-score').textContent = ckScore;
   document.querySelector('#ck-stat-streak').textContent = ckStreak;
   document.querySelector('#ck-stat-accuracy').textContent = `${ckAccuracy}%`;
@@ -731,6 +744,9 @@ function ckStopKaraoke() {
     ckStreak = 0;
     ckAccuracy = 0;
     ckUpdateStats();
+    // tool.html clears the card on the next navigation and cannot cancel
+    // this callback: bail out rather than write to a DOM that is gone.
+    if (!document.querySelector('#ck-stat-time')) return;
     document.querySelector('#ck-stat-time').textContent = '0:00';
     status.textContent = 'Ready to sing!';
     status.style.color = '#39ff14';
@@ -753,11 +769,15 @@ function ckStartRecording() {
     // Simulate recording stop
     document.querySelector('#ck-status').textContent = '✅ Recording saved';
     document.querySelector('#ck-status').style.color = '#39ff14';
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to what is gone.
     setTimeout(() => {
+      const status = document.querySelector('#ck-status');
+      if (!status) return;
       if (ckIsPlaying) {
-        document.querySelector('#ck-status').textContent = 'Now playing';
+        status.textContent = 'Now playing';
       } else {
-        document.querySelector('#ck-status').textContent = 'Ready to sing!';
+        status.textContent = 'Ready to sing!';
       }
     }, 3000);
   }
@@ -800,7 +820,7 @@ function ckSharePerformance() {
   const dialog = document.createElement('div');
   dialog.id = 'share-dialog';
   dialog.innerHTML = shareHTML;
-  document.body.appendChild(dialog);
+  ckRoot.appendChild(dialog);
 }
 
 function ckSaveAudio() {
@@ -817,6 +837,9 @@ function ckSaveAudio() {
     if (ckIsPlaying) {
       document.querySelector('#ck-status').textContent = 'Now playing';
     } else {
+      // tool.html clears the card on the next navigation and cannot cancel
+      // this callback: bail out rather than write to a DOM that is gone.
+      if (!document.querySelector('#ck-status')) return;
       document.querySelector('#ck-status').textContent = 'Ready to sing!';
     }
   }, 3000);
@@ -895,14 +918,20 @@ function ckGenerateCertificate() {
     if (ckIsPlaying) {
       document.querySelector('#ck-status').textContent = 'Now playing';
     } else {
+      // tool.html clears the card on the next navigation and cannot cancel
+      // this callback: bail out rather than write to a DOM that is gone.
+      if (!document.querySelector('#ck-status')) return;
       document.querySelector('#ck-status').textContent = 'Ready to sing!';
     }
   }, 3000);
 }
 
 // Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
+function carolKaraokeInit() {
+    // This handler listens on the DOCUMENT, and tool.html dispatches these
+    // events again every time the visitor opens a tool. Bail out once
+    // the card is gone instead of dereferencing markup that was removed.
+    if (!document.getElementById('ck-tempo')) return;
     // Set default theme
     ckSetTheme('fireplace');
     ckSetMode('solo');
@@ -932,7 +961,12 @@ if (document.readyState === 'loading') {
       }
     `;
     document.head.appendChild(style);
-  });
+  
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', carolKaraokeInit);
+} else {
+    carolKaraokeInit();
 }
 </script>
 
