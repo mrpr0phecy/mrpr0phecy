@@ -16,12 +16,13 @@
 //      `aria-describedby=`, `list=`. The browser keeps the attribute and
 //      ignores it, so the label or the help text simply never arrives.
 //   3. a control with no accessible name: a screen reader announces the role
-//      and nothing else. NOTED, never failed: the catalogue has this shape in
-//      the hundreds — braille dot toggles and colour swatches built by JS,
-//      read-only output textareas, sliders whose label sits beside them
-//      unassociated — so it is a backlog to work through, and a check that
-//      fails on hundreds of pre-existing controls is a check nobody reads. One
-//      line per card, with the count and the first element to go and find.
+//      and nothing else. A nameless control FAILS — there is nothing to read
+//      and nothing to see, and the catalogue's 150 of them (121 coordinate
+//      cells, 8 tic-tac-toe cells, braille dot toggles, colour swatches, beat
+//      pads) are all named now, so a new one is a regression. A nameless FIELD
+//      is a NOTE: 861 of them, all the same shape (a read-only output textarea,
+//      a slider whose label sits beside it unassociated), and a check that
+//      fails on hundreds of pre-existing fields is a check nobody reads.
 //   4. a card that initialises on DOMContentLoaded must be initialised ONCE.
 //      The harness used to mount into a document jsdom had not finished
 //      parsing, so the card saw its own event plus jsdom's — mealplanner built
@@ -96,16 +97,16 @@ test('every way a control can be named counts as named', () => {
     'text, aria-label, aria-labelledby, title, a child img alt, a wrapping label, a label for=, a placeholder');
 });
 
-test('a nameless control or field is noted, never charged to the card', () => {
+test('a nameless control fails; a nameless field is only noted', () => {
   const r = run(f('unnamed-control.card'));
-  assert.strictEqual(r.code, 0,
-    `hundreds of cards share this shape, so it is a backlog note — ${r.out}`);
+  assert.strictEqual(r.code, 1, 'the swatch and the icon link are unreachable by name');
   assert.match(r.out,
-    /note .*2 control\(s\) and 1 field\(s\) with no accessible name \(first: <button#unnamed-swatch> is announced as nothing but "button"\)/,
-    'one line per card, counted, the first element named');
-  assert.match(r.out, /— a screen reader announces the role only/,
-    'and it says what the visitor actually hears');
-  assert.doesNotMatch(r.out, /FAIL/);
+    /control with no accessible name: <button#unnamed-swatch> is announced as nothing but "button"/);
+  assert.match(r.out, /control with no accessible name: <a> is announced as nothing but "link"/);
+  // The slider is a field: 861 of them catalogue-wide, so it stays a note.
+  assert.match(r.out,
+    /note .*1 field\(s\) with no accessible name \(first: <input#unnamed-slider> is announced as nothing but "slider"\)/);
+  assert.doesNotMatch(r.out, /control with no accessible name: <input/);
 });
 
 test('a card that inits on DOMContentLoaded is initialised once', () => {

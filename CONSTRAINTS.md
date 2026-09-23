@@ -210,11 +210,21 @@ here — the markup is valid and nothing throws:
   `aria-describedby=`, `list=`, `aria-controls=`. The browser keeps the
   attribute and ignores it: the field is announced with no name, the help text
   is never read out. FAIL, with what the visitor loses in the message.
-* **a control with no accessible name.** A nameless button or link fails (there
-  is nothing to read *and* nothing to see); a nameless field is a note, because
-  the catalogue has hundreds of them — read-only output textareas, sliders
-  whose label sits beside them unassociated — and a check that fails on
-  hundreds of pre-existing controls is a check nobody reads.
+* **a control with no accessible name.** A nameless **control** fails: there is
+  nothing to read *and* nothing to see — the button is a colour, an emoji or a
+  position. The catalogue had 150 of them (121 coordinate cells in one card, 8
+  tic-tac-toe cells, six braille dot toggles, colour swatches, beat pads) and
+  every one is named now, so a new one is a regression. A nameless **field** is
+  a note: 861 of them, and they are the same shape in every card — a read-only
+  output textarea, a slider whose label sits beside it unassociated, a search
+  box with a placeholder. A check that fails on hundreds of pre-existing fields
+  is a check nobody reads, so that backlog is counted per card instead.
+
+Naming a control is cheap and worth doing while you are in the file: an
+`aria-label` where the content is a colour or a position (`Set graph colour to
+#0077cc`, `Row 2, column 3: X`), a `for=` where the label already exists beside
+the field, and `aria-hidden="true"` on a decorative svg so the button's own name
+is what gets read.
 
 `scripts/tests/card-integrity.test.js` pins all four, with fixtures for the
 failing and the passing shape of each.

@@ -1090,22 +1090,32 @@ process.on('unhandledRejection', reason => {
       for (const ref of danglingReferences(container, window.document)) {
         fail(card.rel, `reference to nowhere: ${ref}`);
       }
-      // ...and the controls with no accessible name at all. A NOTE, not a
-      // failure: the catalogue has this shape in the hundreds — braille dot
-      // toggles and colour swatches built by JS, read-only output textareas,
-      // sliders whose label sits beside them unassociated — so it is a backlog
-      // to work through rather than a regression to charge to one card. A check
-      // that fails on hundreds of pre-existing controls is a check nobody
-      // reads. The count and the first element make each card actionable.
+      // ...and the controls with no accessible name at all. Two severities,
+      // because they are two different jobs:
+      //
+      //   * a nameless CONTROL fails. There is nothing to read *and* nothing to
+      //     see — the button is a colour, an emoji or a position — and there is
+      //     no way to guess what it should have said without deciding. The
+      //     catalogue's 150 of these (121 coordinate cells in one card, 8 tic-tac-toe
+      //     cells, braille dot toggles, colour swatches, beat pads) are all
+      //     named now, so anything new is a regression, not a backlog.
+      //   * a nameless FIELD is a note. 861 of them, and they are the same
+      //     shape in every card: a read-only output textarea, a slider whose
+      //     label sits beside it unassociated, a search box with a placeholder.
+      //     The gap is real but it is a backlog to work through, and a check
+      //     that fails on hundreds of pre-existing fields is a check nobody
+      //     reads. The count and the first element make each card actionable.
       const unnamed = unnamedControls(container, window.document);
-      const controls = unnamed.filter(u => u.kind === 'control').length;
-      const fields = unnamed.length - controls;
-      if (unnamed.length) {
-        const parts = [];
-        if (controls) parts.push(`${controls} control(s)`);
-        if (fields) parts.push(`${fields} field(s)`);
-        note(card.rel, `${parts.join(' and ')} with no accessible name ` +
-                       `(first: ${unnamed[0].text}) — a screen reader announces the role only`);
+      const namelessControls = unnamed.filter(u => u.kind === 'control');
+      const namelessFields = unnamed.length - namelessControls.length;
+      for (const control of namelessControls) {
+        fail(card.rel, `control with no accessible name: ${control.text} — ` +
+                       `give it an aria-label, or make the name visible`);
+      }
+      if (namelessFields) {
+        note(card.rel, `${namelessFields} field(s) with no accessible name ` +
+                       `(first: ${unnamed.find(u => u.kind === 'field').text}) — ` +
+                       `a screen reader announces the role only`);
       }
     }
     const mountedErrors = [...new Set(perCard)];
