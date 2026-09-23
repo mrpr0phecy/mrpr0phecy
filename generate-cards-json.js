@@ -182,6 +182,11 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-23 — "roots of the system" trio: circular economy, food sovereignty,
+  // and bank-free community money. Keyword audit found no existing tool doing each job.
+  'repair-or-replace': 'Home & DIY',
+  'grow-your-calories': 'Culinary & Food Science',
+  'mutual-credit-ledger': 'Wellbeing & Community',
   // 2026-09-23 — ten interactive 3D science & maths visualisers sharing one zero-dependency
   // Canvas-2D engine (inlined per card). Keyword audit found no existing hydrogen-orbital,
   // field-line, 3x3-matrix, polyhedra-measurement, Miller-plane, polarization, solid-of-revolution,

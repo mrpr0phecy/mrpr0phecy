@@ -11,7 +11,7 @@ actually hurt the site, the owner's income or a visitor.
 
 Two products that never mix:
 
-- **Product A** — `themostusefulsiteintheworld.com`: 1273 offline browser
+- **Product A** — `themostusefulsiteintheworld.com`: 1276 offline browser
   tools, each one a fragment in `cards/`, loaded into one shared DOM by
   `index.html` / `tool.html`. Plus `ai.html` (Lantern, the on-site AI).
 - **Product B** — the music pages (`listen.html`, `artists.html`, the hreflang
