@@ -1,0 +1,375 @@
+<h2 id="hos-title" style="margin-top:0;color:var(--accent);">🕐 Driving Hours &amp; Duty Clock Planner</h2>
+
+<form aria-describedby="hos-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="hos-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    How much driving have you actually got left, when is your break due, and what time does your day end?
+    Pick your rule set, drop in the numbers from your log, and this shows every limit counting down at once
+    &mdash; then tells you which one runs out first. Nothing leaves your phone.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;">
+    <div>
+      <label for="hos-rules" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Rule set</label>
+      <select id="hos-rules" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;">
+        <option value="us" selected>US &mdash; FMCSA property-carrying</option>
+        <option value="ca">Canada &mdash; federal HOS</option>
+        <option value="eu">EU / GB &mdash; EC 561/2006</option>
+        <option value="au">Australia &mdash; NHVR standard (solo)</option>
+      </select>
+    </div>
+    <div>
+      <label for="hos-start" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Shift / on-duty start</label>
+      <input id="hos-start" type="time" value="06:00" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="hos-drive" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Driving used so far (hours)</label>
+      <input id="hos-drive" type="number" min="0" max="24" step="0.25" value="4" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="hos-duty" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Other on-duty used (hours)</label>
+      <input id="hos-duty" type="number" min="0" max="24" step="0.25" value="1.5" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div>
+      <label for="hos-break" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Since last qualifying break (hours)</label>
+      <input id="hos-break" type="number" min="0" max="24" step="0.25" value="3" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      <div class="small" style="color:rgba(230,250,255,0.45);font-size:11px;margin-top:4px;">Driving for US/EU, total work for AU</div>
+    </div>
+    <div>
+      <label for="hos-cycle" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Cycle hours already used</label>
+      <input id="hos-cycle" type="number" min="0" max="200" step="0.5" value="38" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+    </div>
+    <div id="hos-cycleselect-wrap">
+      <label for="hos-cycleselect" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;font-size:14px;">Cycle</label>
+      <select id="hos-cycleselect" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;"></select>
+    </div>
+  </div>
+
+  <div id="hos-reduced-wrap" style="display:none;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+    <label style="display:flex;gap:8px;align-items:center;color:rgba(230,250,255,0.75);font-size:14px;cursor:pointer;">
+      <input id="hos-reduced" type="checkbox" style="width:16px;height:16px;" />
+      <span>Took a reduced daily rest (9 h) &mdash; allowed three times between weekly rests</span>
+    </label>
+    <label style="display:flex;gap:8px;align-items:center;color:rgba(230,250,255,0.75);font-size:14px;cursor:pointer;">
+      <input id="hos-eu10" type="checkbox" style="width:16px;height:16px;" />
+      <span>Using the 10-hour driving day &mdash; allowed twice a week</span>
+    </label>
+  </div>
+
+  <button type="button" id="hos-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;margin-bottom:14px;">Show my clock</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="hos-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Every limit below is counted from the shift start above. Add your real numbers and press the button.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Where these numbers come from &mdash; and where they can bite</summary>
+  <p style="margin-top:8px;">
+    <strong>US:</strong> 49 CFR 395.3 &mdash; 11 hours driving, 14-hour on-duty window, 30-minute break after 8
+    cumulative hours of driving, 10 consecutive hours off to reset, and 60 hours in 7 days or 70 in 8 with a
+    34-hour restart. Split sleeper berth pairings (8+2 or 7+3, neither period under 2 hours) pause the 14-hour
+    clock &mdash; 395.1(g). Drivers inside the 150 air-mile short-haul exception run on 395.1(e) rules instead,
+    which this planner does not model.
+  </p>
+  <p>
+    <strong>Canada:</strong> SOR/2005-313 &mdash; 13 hours driving, 14 hours on duty (16 with a deferral),
+    8 consecutive hours off before a shift, 10 hours off in the day, 70 hours in 7 days or 120 in 14.
+    There is no federal break requirement; some provinces add one.
+  </p>
+  <p>
+    <strong>EU / GB:</strong> Regulation (EC) 561/2006 &mdash; 9 hours daily driving, extendable to 10 twice in a
+    week; a 45-minute break (splittable 15 + 30) after 4.5 hours of driving; 11 hours daily rest, reducible to 9
+    three times between weekly rests; 56 hours in a week and 90 in any two consecutive weeks. GB domestic rules
+    for goods vehicles are separate and stricter on the working day &mdash; check which regime your work falls under.
+  </p>
+  <p>
+    <strong>Australia:</strong> NHVR Heavy Vehicle Fatigue Rules, standard hours for a solo driver &mdash; maximum
+    12 hours work in any 24, at least 30 continuous minutes of rest after 5.5 hours of work, 7 continuous hours
+    stationary in 24, and 24 continuous hours of rest in 7 days. Basic Fatigue Management and AFM change all of
+    these numbers; this models standard hours only.
+  </p>
+  <p style="color:#ffa500;">
+    Rules change, exemptions exist and enforcement varies. This is a planning aid built from the published limits,
+    not a legal opinion or a substitute for your log. When the number here matters, read the rule text that applies
+    to you.
+  </p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+
+  /* Each rule set is the published limit set for that jurisdiction.
+     drive  = daily driving limit (hours)
+     duty   = on-duty / working window from shift start (hours)
+     breakAfter / breakLen  = qualifying break requirement
+     cycle  = [ { label, hours, days } ]  long-run accumulation limits
+     rest   = hours off required before the next shift
+     restart= label + hours for the big reset, or null */
+  var RULES = {
+    us: {
+      label: 'US property-carrying — 49 CFR 395.3',
+      drive: 11, duty: 14, dutyLabel: 'On-duty window',
+      breakAfter: 8, breakLen: 0.5, breakLabel: 'driving',
+      cycles: [{ label: '60 hours in 7 days', hours: 60, days: 7 }, { label: '70 hours in 8 days', hours: 70, days: 8 }],
+      rest: 10, restLabel: '10 consecutive hours off duty',
+      restart: { label: '34-hour restart', hours: 34 }
+    },
+    ca: {
+      label: 'Canada federal — SOR/2005-313',
+      drive: 13, duty: 14, dutyLabel: 'On-duty time',
+      breakAfter: null, breakLen: 0, breakLabel: 'work',
+      cycles: [{ label: '70 hours in 7 days', hours: 70, days: 7 }, { label: '120 hours in 14 days', hours: 120, days: 14 }],
+      rest: 8, restLabel: '8 consecutive hours off duty',
+      restart: { label: '36-hour reset', hours: 36 }
+    },
+    eu: {
+      label: 'EU / GB — EC 561/2006',
+      drive: 9, driveExtended: 10, duty: 13, dutyLabel: 'Duty day (from the daily rest rule)',
+      breakAfter: 4.5, breakLen: 0.75, breakLabel: 'driving',
+      cycles: [{ label: '56 hours this week', hours: 56, days: 7 }, { label: '90 hours this fortnight', hours: 90, days: 14 }],
+      rest: 11, restLabel: '11 hours daily rest (9 h if reduced)',
+      restart: { label: '45-hour weekly rest', hours: 45 }
+    },
+    au: {
+      label: 'Australia — NHVR standard hours, solo',
+      drive: 12, duty: 12, dutyLabel: 'Work period',
+      breakAfter: 5.5, breakLen: 0.5, breakLabel: 'work',
+      cycles: [{ label: '24 continuous hours rest in 7 days', hours: 0, days: 7 }],
+      rest: 7, restLabel: '7 continuous hours stationary rest',
+      restart: { label: '24-hour continuous rest', hours: 24 }
+    }
+  };
+
+  var state = { rules: 'us', cycleIdx: 0 };
+
+  function hm(mins) {
+    mins = Math.max(0, Math.round(mins));
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return h + 'h ' + (m < 10 ? '0' : '') + m + 'm';
+  }
+  function hhmm(absMins) {
+    var day = '';
+    while (absMins < 0) absMins += 1440;
+    var d = Math.floor(absMins / 1440);
+    if (d > 0) day = ' <span style="color:rgba(230,250,255,0.45);font-size:0.72rem;">+' + d + 'd</span>';
+    var t = ((absMins % 1440) + 1440) % 1440;
+    var h = Math.floor(t / 60), m = Math.round(t % 60);
+    if (m === 60) { m = 0; h = (h + 1) % 24; }
+    return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + day;
+  }
+  function nowMins() { var d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+  function tile(label, value, sub, colour) {
+    return '<div style="flex:1;min-width:118px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:10px;text-align:center;">' +
+      '<div style="font-size:1.15rem;font-weight:700;color:' + (colour || 'var(--accent)') + ';">' + value + '</div>' +
+      '<div style="font-size:0.66rem;color:rgba(230,250,255,0.55);text-transform:uppercase;letter-spacing:0.04em;">' + label + '</div>' +
+      (sub ? '<div style="font-size:0.7rem;color:rgba(230,250,255,0.45);margin-top:3px;">' + sub + '</div>' : '') +
+      '</div>';
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function fillCycleSelect() {
+    var r = RULES[state.rules];
+    var sel = $('hos-cycleselect');
+    sel.innerHTML = r.cycles.map(function (c, i) {
+      return '<option value="' + i + '"' + (i === state.cycleIdx ? ' selected' : '') + '>' + esc(c.label) + '</option>';
+    }).join('');
+  }
+
+  function syncRules() {
+    state.rules = $('hos-rules').value;
+    state.cycleIdx = 0;
+    fillCycleSelect();
+    $('hos-reduced-wrap').style.display = state.rules === 'eu' ? 'grid' : 'none';
+    $('hos-cycleselect-wrap').style.display = RULES[state.rules].cycles.length > 1 ? 'block' : 'none';
+    var r = RULES[state.rules];
+    $('hos-out').innerHTML = '<div style="color:rgba(230,250,255,0.75);">' + esc(r.label) + ': ' +
+      r.drive + ' h driving' + (r.driveExtended ? ' (up to ' + r.driveExtended + ' twice a week)' : '') +
+      ', ' + r.duty + ' h ' + r.dutyLabel.toLowerCase() +
+      (r.breakAfter ? ', ' + Math.round(r.breakLen * 60) + ' min break after ' + r.breakAfter + ' h of ' + r.breakLabel : ', no federal break rule') +
+      '.</div>';
+  }
+
+  function plan() {
+    var r = RULES[state.rules];
+    var startRaw = $('hos-start').value || '06:00';
+    var start = (parseInt(startRaw.slice(0, 2), 10) || 0) * 60 + (parseInt(startRaw.slice(3, 5), 10) || 0);
+    var driveUsed = Math.max(0, parseFloat($('hos-drive').value) || 0);
+    var dutyUsed = Math.max(0, parseFloat($('hos-duty').value) || 0);
+    var sinceBreak = Math.max(0, parseFloat($('hos-break').value) || 0);
+    var cycleUsed = Math.max(0, parseFloat($('hos-cycle').value) || 0);
+    var cycle = r.cycles[Math.min(parseInt($('hos-cycleselect').value, 10) || 0, r.cycles.length - 1)];
+    var reduced = $('hos-reduced').checked;
+
+    /* Elapsed time on duty. If the clock is earlier than the shift start, the
+       shift began yesterday — count through midnight rather than going negative. */
+    var elapsed = nowMins() - start;
+    if (elapsed < 0) elapsed += 1440;
+
+    var dutyLimit = r.duty;
+    if (state.rules === 'eu' && reduced) dutyLimit = 15;
+    var driveLimit = r.drive;
+    // The 10-hour day is an extension of the driving limit, not of the window.
+    if (state.rules === 'eu' && $('hos-eu10').checked) driveLimit = r.driveExtended;
+
+    var driveLeft = driveLimit - driveUsed;
+    var dutyLeft = dutyLimit - elapsed;
+    var breakLeft = r.breakAfter === null ? null : (r.breakAfter - sinceBreak);
+    var totalOnDuty = driveUsed + dutyUsed;
+
+    var warnings = [];
+    if (elapsed > dutyLimit) warnings.push('You are already ' + hm(elapsed - dutyLimit) + ' past the ' + dutyLimit + '-hour ' + r.dutyLabel.toLowerCase() + '.');
+    if (driveUsed > driveLimit) warnings.push('Driving time is already over the ' + driveLimit + '-hour limit.');
+    if (cycle.hours && cycleUsed > cycle.hours) warnings.push('Cycle hours are already over the ' + cycle.label + ' cap.');
+    if (totalOnDuty > elapsed + 0.01) warnings.push('Driving plus on-duty (' + hm(totalOnDuty * 60) + ') is more than the time since the shift started (' + hm(elapsed * 60) + ') — one of the entries is wrong.');
+
+    /* Which limit bites first if you keep rolling?
+       Insert the qualifying break if it falls due before the other limits run out,
+       then see whether the clock or the drive limit stops you first. */
+    var breakCost = 0, breakNote = '';
+    if (breakLeft !== null && breakLeft < driveLeft) {
+      breakCost = r.breakLen * 60;
+      breakNote = 'A ' + Math.round(r.breakLen * 60) + '-minute break is due first (in ' + hm(breakLeft * 60) + '), then you carry on.';
+    }
+    var driveUntil = start + elapsed + driveLeft * 60 + breakCost;   // clock time if you drive to the drive limit
+    var dutyUntil = start + elapsed + dutyLeft * 60;                 // clock time when the window closes
+    var driveEnd = Math.min(driveUntil, dutyUntil);
+    var binding = driveUntil <= dutyUntil ? 'drive' : 'window';
+    if (dutyLeft <= 0) { driveEnd = dutyUntil; binding = 'window'; }
+    if (driveLeft <= 0) { driveEnd = start + elapsed; binding = 'drive'; }
+
+    var offDutyBy = driveEnd;
+    var backOnDutyAt = offDutyBy + r.rest * 60;
+
+    /* Cycle maths: at the pace you have run today, how long until the cap? */
+    var dayPace = Math.max(totalOnDuty, 0.5);
+    var cycleLeft = cycle.hours ? cycle.hours - cycleUsed : null;
+    var cycleLine = '';
+    if (cycleLeft === null) {
+      cycleLine = 'No rolling hour cap in this rule set — the ' + esc(cycle.label) + ' is a rest requirement, not a budget.';
+    } else {
+      var daysLeft = cyclePaceDays(cycleLeft, dayPace, cycle.days);
+      cycleLine = hm(cycleLeft * 60) + ' of the ' + esc(cycle.label) + ' left. At ' + dayPace.toFixed(1) +
+        ' h on duty a day that is about ' + daysLeft.toFixed(1) + ' more working day' + (daysLeft.toFixed(1) === '1.0' ? '' : 's') +
+        ' before the cap — a ' + esc(r.restart.label) + ' clears the cycle.';
+    }
+
+    /* Verdict */
+    var verdict, colour;
+    if (warnings.length) {
+      colour = '#ff4d4d';
+      verdict = '<strong>Over a limit.</strong> ' + esc(warnings[0]) + ' Fix the log before you move — an over-limit clock is an out-of-service conversation, not a rounding error.';
+    } else if (driveLeft <= 0.25) {
+      colour = '#ff4d4d';
+      verdict = '<strong>Driving time is spent.</strong> ' + esc(r.restLabel) + ' starts when you park: off duty by ' + hhmm(offDutyBy) + ', rolling again from ' + hhmm(backOnDutyAt) + '.';
+    } else if (driveLeft <= 1) {
+      colour = '#ffa500';
+      verdict = 'Under an hour of driving left. The ' + (binding === 'drive' ? 'drive limit' : 'duty window') + ' stops you at ' + hhmm(driveEnd) + '.';
+    } else {
+      colour = '#39ff14';
+      verdict = 'You can keep driving until <strong>' + hhmm(driveEnd) + '</strong> — the ' +
+        (binding === 'drive' ? driveLimit + '-hour drive limit' : dutyLimit + '-hour ' + r.dutyLabel.toLowerCase()) + ' runs out first.';
+    }
+
+    var html = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' +
+      tile('Driving left', driveLeft > 0 ? hm(driveLeft * 60) : '0h 00m', 'of ' + driveLimit + ' h', driveLeft <= 0 ? '#ff4d4d' : 'var(--accent)') +
+      tile(r.dutyLabel + ' left', dutyLeft > 0 ? hm(dutyLeft * 60) : '0h 00m', 'of ' + dutyLimit + ' h', dutyLeft <= 0 ? '#ff4d4d' : 'var(--accent)') +
+      (breakLeft === null ? tile('Break', 'Not required', 'by federal rules here', 'rgba(230,250,255,0.7)')
+                          : tile('Break due in', breakLeft > 0 ? hm(breakLeft * 60) : 'now', Math.round(r.breakLen * 60) + ' min, after ' + r.breakAfter + ' h ' + r.breakLabel, breakLeft <= 0 ? '#ffa500' : 'var(--accent)')) +
+      tile('Day ends', hhmm(driveEnd), 'must be off duty', 'var(--accent)') +
+      '</div>' +
+      '<div style="padding:10px 12px;background:rgba(45,212,255,0.07);border:1px solid rgba(45,212,255,0.2);border-radius:8px;margin-bottom:10px;color:rgba(230,250,255,0.9);">' +
+      verdict + (breakNote ? ' ' + esc(breakNote) : '') + '</div>' +
+      timeline(elapsed, dutyLimit, driveUsed, driveLimit, cycleUsed, cycle) +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">' +
+      tile('Off duty by', hhmm(offDutyBy), 'when the clock stops', 'var(--accent)') +
+      tile('Rest required', r.rest + ' h', esc(r.restLabel), 'var(--accent)') +
+      tile('Earliest next shift', hhmm(backOnDutyAt), 'if you stop at the deadline', 'var(--accent)') +
+      '</div>' +
+      '<div style="padding:10px 12px;background:rgba(57,255,20,0.06);border:1px solid rgba(57,255,20,0.15);border-radius:8px;color:rgba(230,250,255,0.85);font-size:0.85rem;margin-bottom:10px;">' + cycleLine + '</div>' +
+      (state.rules === 'us' ? splitSleeperPanel() : '');
+
+    $('hos-out').innerHTML = html;
+    wireSplit();
+  }
+
+  function cyclePaceDays(cycleLeft, pace, spanDays) {
+    if (pace <= 0) return 0;
+    return Math.max(0, cycleLeft / pace);
+  }
+
+  function timeline(elapsed, dutyLimit, driveUsed, driveLimit, cycleUsed, cycle) {
+    function bar(label, used, limit) {
+      var pct = limit > 0 ? Math.max(0, Math.min(100, (used / limit) * 100)) : 0;
+      var col = pct >= 100 ? '#ff4d4d' : pct >= 80 ? '#ffa500' : '#39ff14';
+      return '<div style="margin-bottom:7px;">' +
+        '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:rgba(230,250,255,0.65);"><span>' + label + '</span>' +
+        '<span>' + hm(used * 60) + ' / ' + limit + ' h</span></div>' +
+        '<div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-top:3px;">' +
+        '<div style="height:100%;width:' + pct.toFixed(1) + '%;background:' + col + ';"></div></div></div>';
+    }
+    var h = '<div style="color:rgba(230,250,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em;margin:12px 0 6px;">How full the day is</div>';
+    h += bar('On-duty window used', Math.min(elapsed, dutyLimit), dutyLimit);
+    h += bar('Driving used', Math.max(0, Math.min(driveUsed, driveLimit)), driveLimit);
+    if (cycle.hours) h += bar('Cycle used', Math.max(0, Math.min(cycleUsed, cycle.hours)), cycle.hours);
+    return h;
+  }
+
+  var SPLIT_HTML =
+    '<details style="margin-top:6px;color:rgba(230,250,255,0.6);font-size:0.85rem;">' +
+    '<summary style="cursor:pointer;color:var(--accent);">US split sleeper check (395.1(g))</summary>' +
+    '<p style="margin:8px 0 6px;">Two off-duty periods of at least 2 hours each, adding up to either 8 + 2 or 7 + 3 hours, pause the 14-hour window. Driving is still capped at 11 hours and the cycle still applies.</p>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;">' +
+    '<div><label for="hos-split1" style="display:block;margin-bottom:4px;font-size:13px;">Period 1 (hours)</label>' +
+    '<input id="hos-split1" type="number" min="0" max="14" step="0.25" value="8" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);"></div>' +
+    '<div><label for="hos-split2" style="display:block;margin-bottom:4px;font-size:13px;">Period 2 (hours)</label>' +
+    '<input id="hos-split2" type="number" min="0" max="14" step="0.25" value="2" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);"></div>' +
+    '</div><div id="hos-splitout" style="margin-top:8px;"></div></details>';
+
+  function splitSleeperPanel() { return SPLIT_HTML; }
+
+  function wireSplit() {
+    var b = $('hos-splitout');
+    if (!b) return;
+    var a1 = $('hos-split1'), a2 = $('hos-split2');
+    var check = function () {
+      var x = Math.max(0, parseFloat(a1.value) || 0), y = Math.max(0, parseFloat(a2.value) || 0);
+      var lo = Math.min(x, y), hi = Math.max(x, y);
+      var qualifies = lo >= 2 && ((Math.abs(hi - 8) < 0.01 && Math.abs(lo - 2) < 0.01) || (Math.abs(hi - 7) < 0.01 && Math.abs(lo - 3) < 0.01));
+      b.innerHTML = qualifies
+        ? '<div style="color:#39ff14;">Qualifying pairing (' + hi + ' + ' + lo + '). The two periods pause the 14-hour clock; the 11-hour driving cap and the cycle are unaffected.</div>'
+        : '<div style="color:#ffa500;">Not a qualifying pairing. It must be 8 + 2 or 7 + 3, with neither period shorter than 2 hours. ' +
+          (lo < 2 ? 'Right now the shorter period is ' + lo + ' h.' : 'Right now that is ' + hi + ' + ' + lo + '.') + '</div>';
+    };
+    a1.addEventListener('input', check);
+    a2.addEventListener('input', check);
+    check();
+  }
+
+  $('hos-rules').addEventListener('change', function () { syncRules(); plan(); });
+  $('hos-cycleselect').addEventListener('change', function () { state.cycleIdx = parseInt(this.value, 10) || 0; plan(); });
+  $('hos-reduced').addEventListener('change', plan);
+  $('hos-eu10').addEventListener('change', plan);
+  ['hos-start', 'hos-drive', 'hos-duty', 'hos-break', 'hos-cycle'].forEach(function (id) {
+    $(id).addEventListener('input', plan);
+  });
+  $('hos-go').addEventListener('click', plan);
+
+  /* Default the shift start to five hours ago so the example is always
+     mid-shift, whatever time of day the page is opened. */
+  (function () {
+    var back = (nowMins() - 300 + 1440) % 1440;
+    back = Math.round(back / 15) * 15;
+    var h = Math.floor(back / 60) % 24, m = back % 60;
+    $('hos-start').value = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+  })();
+
+  syncRules();
+  plan();
+})();
+</script>

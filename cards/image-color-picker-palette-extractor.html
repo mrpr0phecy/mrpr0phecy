@@ -1,0 +1,325 @@
+<h2 id="icpk-title" style="margin-top:0;color:var(--accent);">🎨 Image Colour Picker &amp; Palette Extractor</h2>
+
+<div id="icpk-root">
+<form aria-describedby="icpk-desc" onsubmit="event.preventDefault();" style="margin-bottom:12px;">
+  <p id="icpk-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:14px;">
+    Drop in a photo, logo or screenshot and hover to read any pixel as HEX, RGB and HSL — with a magnifier for
+    precision. The tool also pulls out the image's dominant palette, ready to copy as CSS variables or JSON.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start;">
+    <div>
+      <div id="icpk-drop" tabindex="0" role="button" aria-label="Choose or drop an image"
+        style="border:2px dashed rgba(45,212,255,0.35);border-radius:12px;padding:10px;text-align:center;background:rgba(0,0,0,0.25);cursor:crosshair;position:relative;">
+        <canvas id="icpk-canvas" width="640" height="400" role="img" aria-label="Loaded image" style="max-width:100%;height:auto;display:block;margin:0 auto;border-radius:6px;touch-action:none;"></canvas>
+        <div id="icpk-hint" style="font-size:.82rem;color:rgba(230,250,255,0.6);margin-top:8px;">Click, drop or paste (Ctrl+V) an image. Then hover to read colours and click to keep one.</div>
+        <input type="file" id="icpk-file" accept="image/*" style="display:none;">
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" id="icpk-choose" class="icpk-btn">Choose image</button>
+        <button type="button" id="icpk-sample" class="icpk-btn">Try a sample</button>
+        <label for="icpk-n" style="display:flex;align-items:center;gap:6px;font-size:.85rem;margin-left:auto;">Palette size
+          <select id="icpk-n" style="padding:6px;border-radius:6px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:13px;">
+            <option>4</option><option>5</option><option selected>6</option><option>8</option><option>10</option><option>12</option>
+          </select></label>
+      </div>
+    </div>
+
+    <div>
+      <div style="display:flex;gap:12px;align-items:center;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;">
+        <canvas id="icpk-loupe" width="96" height="96" aria-hidden="true" style="width:96px;height:96px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);flex:none;image-rendering:pixelated;background:#111;"></canvas>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span id="icpk-swatch" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:#000;flex:none;"></span>
+            <strong id="icpk-hex" style="font-size:1.15rem;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--text);">#000000</strong>
+            <button type="button" id="icpk-copyhex" class="icpk-btn" style="padding:4px 10px;font-size:12px;">Copy</button>
+          </div>
+          <div id="icpk-rgb" style="font-size:.85rem;color:rgba(230,250,255,0.75);font-family:ui-monospace,Menlo,Consolas,monospace;">rgb(0, 0, 0)</div>
+          <div id="icpk-hsl" style="font-size:.85rem;color:rgba(230,250,255,0.75);font-family:ui-monospace,Menlo,Consolas,monospace;">hsl(0, 0%, 0%)</div>
+          <div id="icpk-pos" style="font-size:.75rem;color:rgba(230,250,255,0.45);margin-top:4px;">Hover over the image · click to keep · arrow keys nudge</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:600;font-size:14px;">Dominant palette</span>
+          <span id="icpk-avg" style="font-size:.75rem;color:rgba(230,250,255,0.5);"></span>
+        </div>
+        <div id="icpk-palette" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;min-height:44px;"></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span style="color:var(--accent);font-weight:600;font-size:14px;">Picked colours</span>
+          <button type="button" id="icpk-clearpicked" class="icpk-btn" style="padding:4px 10px;font-size:12px;">Clear</button>
+        </div>
+        <div id="icpk-picked" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;min-height:30px;font-size:.8rem;color:rgba(230,250,255,0.45);">Click the image to collect colours here.</div>
+      </div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;">
+        <button type="button" id="icpk-copycss" class="icpk-btn">Copy as CSS variables</button>
+        <button type="button" id="icpk-copyjson" class="icpk-btn">Copy as JSON</button>
+        <button type="button" id="icpk-copylist" class="icpk-btn">Copy hex list</button>
+      </div>
+      <div id="icpk-status" aria-live="polite" style="font-size:.8rem;color:rgba(230,250,255,0.6);margin-top:6px;min-height:1.2em;"></div>
+    </div>
+  </div>
+</form>
+
+<details style="margin-top:8px;color:rgba(230,250,255,0.55);font-size:0.85rem;">
+  <summary style="cursor:pointer;">How the palette is extracted, why it differs from other tools, and privacy</summary>
+  <p style="margin-top:8px;">
+    <strong>Picking.</strong> The pixel under the pointer is read straight from the canvas, so a JPEG's compression
+    noise is included — hover a flat area and you will still see slightly different values from pixel to pixel. The
+    magnifier shows the 11 × 11 pixels around the pointer with the centre pixel outlined, and the arrow keys move the
+    pick one pixel at a time once you have clicked.
+  </p>
+  <p>
+    <strong>Palette.</strong> The image is sampled down to at most 40,000 pixels and run through <em>median cut</em>: all
+    pixels start in one box; the box with the widest colour range is split at its median along that channel, repeatedly,
+    until there are as many boxes as colours requested. Each swatch is the average of its box, ordered by how many pixels
+    it represents (the percentage shown). Near-transparent pixels are ignored. Different tools use different algorithms
+    (k-means, octree) and different sample sizes, so expect similar — not identical — palettes elsewhere.
+  </p>
+  <p>
+    <strong>Copying.</strong> CSS output uses <code>--color-1</code> … names for the palette and <code>--picked-1</code>
+    … for your clicks. Each swatch shows whether black or white text reads better on it (WCAG relative luminance).
+  </p>
+  <p>
+    <strong>Privacy.</strong> The image is decoded in this page only; it is never uploaded and nothing about it is
+    stored. Pasting a screenshot from the clipboard works in Chrome, Edge and Firefox.
+  </p>
+</details>
+
+<style>
+#icpk-root .icpk-btn{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.9);cursor:pointer;font-size:13px;font-weight:600;}
+#icpk-root .icpk-btn:hover{background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#icpk-root .icpk-sw{display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:none;cursor:pointer;padding:0;color:rgba(230,250,255,0.8);font-size:.72rem;font-family:ui-monospace,Menlo,Consolas,monospace;}
+#icpk-root .icpk-sw span:first-child{width:44px;height:44px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;}
+#icpk-root .icpk-sw:hover span:first-child{outline:2px solid var(--accent);outline-offset:1px;}
+#icpk-root #icpk-drop.icpk-over{border-color:var(--accent);background:rgba(45,212,255,0.08);}
+#icpk-root button:focus-visible,#icpk-root [tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+</style>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('icpk-root');
+  if (!root) return;
+  var $ = function (id) { return root.querySelector('#' + id); };
+  var canvas = $('icpk-canvas'), loupe = $('icpk-loupe');
+  var ctx = canvas && canvas.getContext ? canvas.getContext('2d', { willReadFrequently: true }) : null;
+  var lctx = loupe && loupe.getContext ? loupe.getContext('2d') : null;
+  var img = null, palette = [], picked = [], locked = null, hasImage = false;
+  var MAX_W = 1400;
+
+  function hex(r, g, b) { return '#' + [r, g, b].map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''); }
+  function hsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b), h = 0, s = 0, l = (max + min) / 2;
+    if (max !== min) {
+      var d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = (g - b) / d + (g < b ? 6 : 0); else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4;
+      h *= 60;
+    }
+    return [Math.round(h), Math.round(s * 100), Math.round(l * 100)];
+  }
+  function luminance(r, g, b) {
+    var f = function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  }
+  function textOn(r, g, b) { return luminance(r, g, b) > 0.179 ? '#000' : '#fff'; }
+
+  function show(r, g, b, x, y) {
+    var h = hex(r, g, b), s = hsl(r, g, b);
+    $('icpk-swatch').style.background = h;
+    $('icpk-hex').textContent = h;
+    $('icpk-rgb').textContent = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+    $('icpk-hsl').textContent = 'hsl(' + s[0] + ', ' + s[1] + '%, ' + s[2] + '%)';
+    $('icpk-pos').textContent = 'x ' + x + ', y ' + y + (locked ? ' · locked — arrow keys nudge, click to move' : ' · click to keep') + ' · best text: ' + (textOn(r, g, b) === '#000' ? 'black' : 'white');
+    drawLoupe(x, y);
+  }
+
+  function drawLoupe(x, y) {
+    if (!lctx) return;
+    var N = 11, half = 5, cell = loupe.width / N;
+    lctx.imageSmoothingEnabled = false;
+    lctx.fillStyle = '#111'; lctx.fillRect(0, 0, loupe.width, loupe.height);
+    var sx = Math.max(0, Math.min(canvas.width - N, x - half)), sy = Math.max(0, Math.min(canvas.height - N, y - half));
+    try { lctx.drawImage(canvas, sx, sy, N, N, 0, 0, loupe.width, loupe.height); } catch (e) {}
+    var cx = (x - sx) * cell, cy = (y - sy) * cell;
+    lctx.strokeStyle = '#fff'; lctx.lineWidth = 2; lctx.strokeRect(cx + 1, cy + 1, cell - 2, cell - 2);
+    lctx.strokeStyle = '#000'; lctx.lineWidth = 1; lctx.strokeRect(cx - 0.5, cy - 0.5, cell + 1, cell + 1);
+  }
+
+  function pixelAt(x, y) {
+    if (!ctx) return null;
+    x = Math.max(0, Math.min(canvas.width - 1, x)); y = Math.max(0, Math.min(canvas.height - 1, y));
+    var d;
+    try { d = ctx.getImageData(x, y, 1, 1).data; } catch (e) { return null; }
+    return { r: d[0], g: d[1], b: d[2], x: x, y: y };
+  }
+
+  function canvasPoint(e) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left, cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x: Math.floor(cx * canvas.width / rect.width), y: Math.floor(cy * canvas.height / rect.height) };
+  }
+
+  // ---- median cut -----------------------------------------------------
+  function extract(n) {
+    if (!ctx || !hasImage) return [];
+    var w = canvas.width, h = canvas.height, step = Math.max(1, Math.floor(Math.sqrt((w * h) / 40000)));
+    var data;
+    try { data = ctx.getImageData(0, 0, w, h).data; } catch (e) { return []; }
+    var px = [];
+    for (var y = 0; y < h; y += step) for (var x = 0; x < w; x += step) {
+      var i = (y * w + x) * 4;
+      if (data[i + 3] < 128) continue;
+      px.push([data[i], data[i + 1], data[i + 2]]);
+    }
+    if (!px.length) return [];
+    var boxes = [px];
+    function range(box) {
+      var mn = [255, 255, 255], mx = [0, 0, 0];
+      for (var k = 0; k < box.length; k++) for (var c = 0; c < 3; c++) { if (box[k][c] < mn[c]) mn[c] = box[k][c]; if (box[k][c] > mx[c]) mx[c] = box[k][c]; }
+      var r = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]];
+      var ch = r[0] >= r[1] && r[0] >= r[2] ? 0 : r[1] >= r[2] ? 1 : 2;
+      return { ch: ch, span: r[ch] };
+    }
+    while (boxes.length < n) {
+      var bi = -1, best = -1;
+      boxes.forEach(function (b, i) { if (b.length < 2) return; var rg = range(b); if (rg.span === 0) return; var s = rg.span * Math.sqrt(b.length); if (s > best) { best = s; bi = i; } });
+      if (bi < 0) break; // every remaining box is a single colour — nothing left to split
+      var box = boxes[bi], ch = range(box).ch;
+      box.sort(function (a, b) { return a[ch] - b[ch]; });
+      var mid = box.length >> 1;
+      boxes.splice(bi, 1, box.slice(0, mid), box.slice(mid));
+    }
+    var total = px.length, seen = {}, out = [];
+    boxes.forEach(function (b) {
+      var s = [0, 0, 0]; b.forEach(function (p) { s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; });
+      var c = { r: Math.round(s[0] / b.length), g: Math.round(s[1] / b.length), b: Math.round(s[2] / b.length), share: b.length / total };
+      var k = c.r + ',' + c.g + ',' + c.b; // merge boxes that averaged to the identical colour
+      if (seen[k]) seen[k].share += c.share; else { seen[k] = c; out.push(c); }
+    });
+    return out.sort(function (a, b) { return b.share - a.share; });
+  }
+
+  function swatchButton(c, label, onClick) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'icpk-sw';
+    var h = hex(c.r, c.g, c.b);
+    var sq = document.createElement('span'); sq.style.background = h; sq.style.color = textOn(c.r, c.g, c.b); sq.textContent = label || '';
+    var t = document.createElement('span'); t.textContent = h;
+    b.appendChild(sq); b.appendChild(t); b.title = 'Copy ' + h; b.setAttribute('aria-label', 'Copy ' + h + (label ? ', ' + label : ''));
+    b.addEventListener('click', function () { onClick ? onClick(c) : copyText(h, 'Copied ' + h); });
+    return b;
+  }
+
+  function renderPalette() {
+    var box = $('icpk-palette'); while (box.firstChild) box.removeChild(box.firstChild);
+    palette.forEach(function (c) { box.appendChild(swatchButton(c, Math.round(c.share * 100) + '%')); });
+    if (palette.length) {
+      var s = [0, 0, 0]; palette.forEach(function (c) { s[0] += c.r * c.share; s[1] += c.g * c.share; s[2] += c.b * c.share; });
+      $('icpk-avg').textContent = 'weighted average ' + hex(Math.round(s[0]), Math.round(s[1]), Math.round(s[2]));
+    } else $('icpk-avg').textContent = '';
+  }
+  function renderPicked() {
+    var box = $('icpk-picked'); while (box.firstChild) box.removeChild(box.firstChild);
+    if (!picked.length) { box.textContent = 'Click the image to collect colours here.'; return; }
+    picked.forEach(function (c, i) { box.appendChild(swatchButton(c, String(i + 1), function () { copyText(hex(c.r, c.g, c.b), 'Copied ' + hex(c.r, c.g, c.b)); })); });
+  }
+
+  function copyText(text, msg) {
+    var done = function () { $('icpk-status').textContent = msg || 'Copied'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
+    else { var ta = document.createElement('textarea'); ta.value = text; root.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} root.removeChild(ta); done(); }
+  }
+  function allColours() {
+    return { palette: palette.map(function (c) { return hex(c.r, c.g, c.b); }), picked: picked.map(function (c) { return hex(c.r, c.g, c.b); }) };
+  }
+
+  function draw() {
+    if (!ctx || !img) return;
+    var scale = Math.min(1, MAX_W / img.naturalWidth);
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    hasImage = true; locked = null; picked = [];
+    palette = extract(parseInt($('icpk-n').value, 10));
+    renderPalette(); renderPicked();
+    var mid = pixelAt(canvas.width >> 1, canvas.height >> 1); if (mid) show(mid.r, mid.g, mid.b, mid.x, mid.y);
+  }
+
+  function loadFile(file) {
+    if (!file || !/^image\//.test(file.type)) { $('icpk-status').textContent = 'That is not an image file.'; return; }
+    var url = URL.createObjectURL(file); // blob: URL, read locally — never fetched
+    var im = document.createElement('img');
+    im.onload = function () { img = im; URL.revokeObjectURL(url); $('icpk-hint').textContent = file.name + ' · ' + im.naturalWidth + ' × ' + im.naturalHeight + ' px' + (im.naturalWidth > MAX_W ? ' (analysed at ' + MAX_W + ' px wide)' : ''); draw(); };
+    im.onerror = function () { URL.revokeObjectURL(url); $('icpk-status').textContent = 'Could not read that image.'; };
+    im.src = url;
+  }
+
+  function sample() {
+    if (!ctx) return;
+    img = null; canvas.width = 640; canvas.height = 400;
+    var g = ctx.createLinearGradient(0, 0, 640, 400);
+    g.addColorStop(0, '#0f172a'); g.addColorStop(0.5, '#2dd4ff'); g.addColorStop(1, '#f59e0b');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 640, 400);
+    ctx.fillStyle = '#ff4d6d'; ctx.beginPath(); ctx.arc(160, 130, 80, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#39ff14'; ctx.fillRect(380, 60, 180, 120);
+    ctx.fillStyle = '#9d4edd'; ctx.beginPath(); ctx.moveTo(320, 380); ctx.lineTo(460, 220); ctx.lineTo(600, 380); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(40, 300, 120, 60);
+    hasImage = true; locked = null; picked = [];
+    palette = extract(parseInt($('icpk-n').value, 10)); renderPalette(); renderPicked();
+    $('icpk-hint').textContent = 'Sample image — hover to read colours, click to keep one.';
+    var mid = pixelAt(320, 200); if (mid) show(mid.r, mid.g, mid.b, mid.x, mid.y);
+  }
+
+  canvas.addEventListener('mousemove', function (e) { if (!hasImage || locked) return; var p = canvasPoint(e), c = pixelAt(p.x, p.y); if (c) show(c.r, c.g, c.b, c.x, c.y); });
+  canvas.addEventListener('click', function (e) {
+    if (!hasImage) return;
+    var p = canvasPoint(e), c = pixelAt(p.x, p.y); if (!c) return;
+    locked = { x: c.x, y: c.y }; show(c.r, c.g, c.b, c.x, c.y);
+    picked.push({ r: c.r, g: c.g, b: c.b }); if (picked.length > 24) picked.shift(); renderPicked();
+    $('icpk-status').textContent = 'Kept ' + hex(c.r, c.g, c.b) + '. Move the mouse to keep reading — press Esc to unlock.';
+  });
+  canvas.addEventListener('touchstart', function (e) { if (!hasImage) return; var p = canvasPoint(e), c = pixelAt(p.x, p.y); if (c) { locked = { x: c.x, y: c.y }; show(c.r, c.g, c.b, c.x, c.y); } }, { passive: true });
+  canvas.addEventListener('touchmove', function (e) { if (!hasImage) return; var p = canvasPoint(e), c = pixelAt(p.x, p.y); if (c) { locked = { x: c.x, y: c.y }; show(c.r, c.g, c.b, c.x, c.y); } }, { passive: true });
+  canvas.addEventListener('mouseleave', function () { if (locked) { var c = pixelAt(locked.x, locked.y); if (c) show(c.r, c.g, c.b, c.x, c.y); } });
+  $('icpk-drop').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { if (e.target === $('icpk-drop')) { e.preventDefault(); $('icpk-file').click(); } return; }
+    if (e.key === 'Escape') { locked = null; return; }
+    if (!locked || !hasImage) return;
+    var dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0, dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+    if (!dx && !dy) return;
+    e.preventDefault();
+    var c = pixelAt(locked.x + dx, locked.y + dy); if (c) { locked = { x: c.x, y: c.y }; show(c.r, c.g, c.b, c.x, c.y); }
+  });
+  root.addEventListener('keydown', function (e) { if (e.key === 'Escape') locked = null; });
+  $('icpk-choose').addEventListener('click', function () { $('icpk-file').click(); });
+  $('icpk-drop').addEventListener('dblclick', function () { $('icpk-file').click(); });
+  $('icpk-file').addEventListener('change', function () { if (this.files && this.files[0]) loadFile(this.files[0]); });
+  ['dragenter', 'dragover'].forEach(function (ev) { $('icpk-drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.add('icpk-over'); }); });
+  ['dragleave', 'drop'].forEach(function (ev) { $('icpk-drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.remove('icpk-over'); }); });
+  $('icpk-drop').addEventListener('drop', function (e) { var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadFile(f); });
+  root.addEventListener('paste', function (e) {
+    var items = e.clipboardData && e.clipboardData.items; if (!items) return;
+    for (var i = 0; i < items.length; i++) { if (items[i].type.indexOf('image/') === 0) { loadFile(items[i].getAsFile()); e.preventDefault(); break; } }
+  });
+  $('icpk-sample').addEventListener('click', sample);
+  $('icpk-n').addEventListener('change', function () { if (hasImage) { palette = extract(parseInt(this.value, 10)); renderPalette(); } });
+  $('icpk-copyhex').addEventListener('click', function () { copyText($('icpk-hex').textContent, 'Copied ' + $('icpk-hex').textContent); });
+  $('icpk-clearpicked').addEventListener('click', function () { picked = []; renderPicked(); });
+  $('icpk-copycss').addEventListener('click', function () {
+    var c = allColours(); if (!c.palette.length && !c.picked.length) { $('icpk-status').textContent = 'Load an image first.'; return; }
+    var lines = [':root {'];
+    c.palette.forEach(function (h, i) { lines.push('  --color-' + (i + 1) + ': ' + h + ';'); });
+    c.picked.forEach(function (h, i) { lines.push('  --picked-' + (i + 1) + ': ' + h + ';'); });
+    lines.push('}'); copyText(lines.join('\n'), 'Copied ' + (c.palette.length + c.picked.length) + ' CSS variables');
+  });
+  $('icpk-copyjson').addEventListener('click', function () { var c = allColours(); copyText(JSON.stringify(c, null, 2), 'Copied JSON'); });
+  $('icpk-copylist').addEventListener('click', function () { var c = allColours(); copyText(c.palette.concat(c.picked).join('\n'), 'Copied hex list'); });
+
+  if (ctx) { ctx.fillStyle = '#0d1620'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = 'rgba(230,250,255,0.5)'; ctx.font = '600 22px Inter, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('Drop an image here', canvas.width / 2, canvas.height / 2); }
+})();
+</script>

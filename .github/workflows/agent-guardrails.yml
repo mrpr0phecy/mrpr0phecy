@@ -1,9 +1,24 @@
 name: Agent guardrails
 
+# Runs the whole gate on every push and PR: `bash scripts/verify.sh --deep`
+# is ~15 s, so there is no longer a reason for a fast pass that checks nothing.
+#
+# History, because the old comment here said "~3 minutes" and disabled itself:
+# the suite used to be 22 sections and took about three minutes, so on
+# 2026-09-19 the owner had the automatic run reduced to a notice that ran no
+# checks at all. On 2026-09-20 the suite was cut to eight checks (~4 s) with
+# the slow audits behind --deep (~14 s), the staff/AI-developer machinery and
+# deleted, and the automatic run was switched back on. CI is now stricter than
+# it has ever been and still finishes in seconds.
+#
+# The workflow and job names are unchanged so a "Repo checks" required status
+# check in branch protection keeps resolving.
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,16 +27,28 @@ jobs:
   verify:
     name: Repo checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
-      - name: Run verify.sh (includes staff configuration and regression tests)
-        run: bash scripts/verify.sh
+      # The card checks (inline handlers, and anything driven through jsdom)
+      # need jsdom, which is deliberately NOT a repository dependency — the site
+      # ships zero dependencies and AGENTS.md keeps the module out of the tree.
+      # The suites SKIP loudly without it, which meant "repo checks passed"
+      # while the handler sweep had not run at all. Install it outside the
+      # checkout, where every script already looks first.
+      - name: Install jsdom (outside the repository)
+        run: |
+          mkdir -p /tmp/tenv
+          cd /tmp/tenv
+          npm init -y >/dev/null 2>&1
+          npm install jsdom --no-audit --no-fund --loglevel=error
+      - name: Verify (gate + deep audits)
+        run: bash scripts/verify.sh --deep
       - name: Attach catalogue report
         if: always()
         run: python3 scripts/check-cards.py | tee -a "$GITHUB_STEP_SUMMARY"

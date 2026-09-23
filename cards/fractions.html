@@ -652,6 +652,38 @@ function fracDisplayResults(card, result, operation, showSteps, showVisual, outp
       visualHTML = fracGenerateCompareVisual(result);
       break;
       
+    case 'subtract':
+      resultsHTML = fracGenerateSubtractOutput(result, outputFormat, decimalPlaces);
+      stepsHTML = fracGenerateSubtractSteps(result);
+      visualHTML = fracGenerateOperationVisual(result, 'subtract');
+      break;
+      
+    case 'divide':
+      resultsHTML = fracGenerateDivideOutput(result, outputFormat, decimalPlaces);
+      stepsHTML = fracGenerateDivideSteps(result);
+      visualHTML = fracGenerateOperationVisual(result, 'divide');
+      break;
+      
+    case 'mixed':
+      resultsHTML = fracGenerateMixedOutput(result);
+      stepsHTML = fracGenerateMixedSteps(result);
+      break;
+      
+    case 'improper':
+      resultsHTML = fracGenerateImproperOutput(result);
+      stepsHTML = fracGenerateImproperSteps(result);
+      break;
+      
+    case 'common-denominator':
+      resultsHTML = fracGenerateCommonDenominatorOutput(result);
+      stepsHTML = fracGenerateCommonDenominatorSteps(result);
+      break;
+      
+    case 'reciprocal':
+      resultsHTML = fracGenerateReciprocalOutput(result);
+      stepsHTML = fracGenerateReciprocalSteps(result);
+      break;
+      
     default:
       resultsHTML = `<div style="color:var(--accent);text-align:center;padding:20px;">Operation "${operation}" result will be displayed here</div>`;
   }
@@ -843,6 +875,397 @@ function fracGenerateOperationVisual(result, operation) {
   return visual;
 }
 
+// The Multiply, Compare, Decimal, Percentage and Simplify-with-picture modes
+// called nine generators that were never written, so `resultsHTML` stayed
+// undefined and those modes rendered nothing at all. They follow the shape of
+// the ones that do exist.
+function fracGenerateMultiplyOutput(result, format, decimalPlaces) {
+  const { numerator, denominator, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">${original.aNum}/${original.aDen} × ${original.bNum}/${original.bDen} =</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${numerator}/${denominator}</div>`;
+  html += `</div>`;
+
+  const rawProduct = (original.aNum * original.bNum) / (original.aDen * original.bDen);
+  const simplifiedProduct = numerator / denominator;
+  if (Math.abs(rawProduct - simplifiedProduct) > 0.0001) {
+    html += `<div style="padding:12px;background:rgba(57,255,20,0.05);border-radius:8px;margin-bottom:12px;">`;
+    html += `<div class="small" style="color:#39ff14;">Simplified from ${rawProduct.toFixed(4)}</div>`;
+    html += `</div>`;
+  }
+
+  if (format === 'all' || format === 'decimal') {
+    html += `<div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;">`;
+    html += `<span style="color:var(--accent);">Decimal:</span> ${simplifiedProduct.toFixed(decimalPlaces)}`;
+    html += `</div>`;
+  }
+  if (format === 'all' || format === 'percentage') {
+    html += `<div style="margin-top:6px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;">`;
+    html += `<span style="color:var(--accent);">Percentage:</span> ${(simplifiedProduct * 100).toFixed(2)}%`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateMultiplySteps(result) {
+  const { numerator, denominator, original } = result;
+  const rawNum = original.aNum * original.bNum;
+  const rawDen = original.aDen * original.bDen;
+  const gcd = fracGCD(rawNum, rawDen);
+
+  let steps = `Step 1: Multiply the numerators\n`;
+  steps += `       ${original.aNum} × ${original.bNum} = ${rawNum}\n`;
+  steps += `Step 2: Multiply the denominators\n`;
+  steps += `       ${original.aDen} × ${original.bDen} = ${rawDen}\n`;
+  steps += `Step 3: Write the product\n`;
+  steps += `       ${original.aNum}/${original.aDen} × ${original.bNum}/${original.bDen} = ${rawNum}/${rawDen}\n`;
+  steps += `Step 4: Simplify by the GCD (${gcd})\n`;
+  steps += `       ${rawNum} ÷ ${gcd} = ${numerator}, ${rawDen} ÷ ${gcd} = ${denominator}\n`;
+  steps += `Step 5: Result\n`;
+  steps += `       ${numerator}/${denominator}`;
+
+  return steps;
+}
+
+function fracGenerateCompareSteps(result) {
+  const { valueA, valueB, comparison, original } = result;
+  const lcm = fracLCM(original.aDen, original.bDen);
+  const symbol = comparison === 'equal' ? '=' : comparison === 'greater' ? '>' : '<';
+
+  let steps = `Step 1: Compare the two fractions\n`;
+  steps += `       ${original.aNum}/${original.aDen}  ?  ${original.bNum}/${original.bDen}\n`;
+  steps += `Step 2: Find the LCM of the denominators\n`;
+  steps += `       LCM(${original.aDen}, ${original.bDen}) = ${lcm}\n`;
+  steps += `Step 3: Convert to the common denominator\n`;
+  steps += `       ${original.aNum}/${original.aDen} = ${original.aNum * (lcm / original.aDen)}/${lcm}\n`;
+  steps += `       ${original.bNum}/${original.bDen} = ${original.bNum * (lcm / original.bDen)}/${lcm}\n`;
+  steps += `Step 4: Compare the numerators\n`;
+  steps += `       ${original.aNum * (lcm / original.aDen)} ${symbol} ${original.bNum * (lcm / original.bDen)}\n`;
+  steps += `Step 5: Check as decimals\n`;
+  steps += `       ${valueA.toFixed(4)} ${symbol} ${valueB.toFixed(4)}\n`;
+  steps += `Step 6: Result\n`;
+  steps += `       ${original.aNum}/${original.aDen} ${symbol} ${original.bNum}/${original.bDen}`;
+
+  return steps;
+}
+
+function fracGenerateCompareVisual(result) {
+  const { valueA, valueB, comparison, original } = result;
+  const colour = comparison === 'equal' ? '#39ff14' : comparison === 'greater' ? '#2dd4ff' : '#ffa500';
+
+  // Two bars, drawn to the same scale, so the comparison is visible.
+  const width = v => Math.max(2, Math.min(100, Math.abs(v) * 100));
+  let visual = `<div style="padding:10px;">`;
+  visual += `<div style="margin-bottom:6px;" class="small">${original.aNum}/${original.aDen} = ${valueA.toFixed(4)}</div>`;
+  visual += `<div style="height:14px;background:rgba(255,255,255,0.06);border-radius:7px;overflow:hidden;margin-bottom:14px;">`;
+  visual += `<div style="height:100%;width:${width(valueA)}%;background:var(--accent);"></div></div>`;
+  visual += `<div style="margin-bottom:6px;" class="small">${original.bNum}/${original.bDen} = ${valueB.toFixed(4)}</div>`;
+  visual += `<div style="height:14px;background:rgba(255,255,255,0.06);border-radius:7px;overflow:hidden;">`;
+  visual += `<div style="height:100%;width:${width(valueB)}%;background:${colour};"></div></div>`;
+  visual += `</div>`;
+
+  return visual;
+}
+
+function fracGenerateDecimalOutput(result, format, decimalPlaces) {
+  const { decimal, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">${original.aNum}/${original.aDen} =</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${decimal.toFixed(decimalPlaces)}</div>`;
+  html += `</div>`;
+
+  html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:var(--accent);">Fraction</div>`;
+  html += `<div style="font-size:20px;">${original.aNum}/${original.aDen}</div>`;
+  html += `</div>`;
+
+  if (format === 'all' || format === 'percentage') {
+    html += `<div style="margin-top:10px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;">`;
+    html += `<span style="color:var(--accent);">Percentage:</span> ${(decimal * 100).toFixed(2)}%`;
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateDecimalSteps(result) {
+  const { decimal, original } = result;
+  let steps = `Step 1: A fraction is a division\n`;
+  steps += `       ${original.aNum}/${original.aDen} means ${original.aNum} ÷ ${original.aDen}\n`;
+  steps += `Step 2: Divide the numerator by the denominator\n`;
+  steps += `       ${original.aNum} ÷ ${original.aDen} = ${decimal}\n`;
+  steps += `Step 3: Result\n`;
+  steps += `       ${original.aNum}/${original.aDen} = ${decimal}`;
+  return steps;
+}
+
+function fracGeneratePercentageOutput(result, format, decimalPlaces) {
+  const { percentage, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">${original.aNum}/${original.aDen} =</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${percentage.toFixed(decimalPlaces === 'full' ? 4 : decimalPlaces)}%</div>`;
+  html += `</div>`;
+
+  html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:var(--accent);">As a decimal</div>`;
+  html += `<div style="font-size:20px;">${(percentage / 100).toFixed(4)}</div>`;
+  html += `</div>`;
+
+  html += `</div>`;
+  return html;
+}
+
+function fracGeneratePercentageSteps(result) {
+  const { percentage, original } = result;
+  let steps = `Step 1: Convert the fraction to a decimal\n`;
+  steps += `       ${original.aNum}/${original.aDen} = ${original.aNum} ÷ ${original.aDen} = ${(original.aNum / original.aDen).toFixed(4)}\n`;
+  steps += `Step 2: Multiply by 100 to make it a percentage\n`;
+  steps += `       ${(original.aNum / original.aDen).toFixed(4)} × 100 = ${percentage.toFixed(4)}%\n`;
+  steps += `Step 3: Result\n`;
+  steps += `       ${original.aNum}/${original.aDen} = ${percentage.toFixed(4)}%`;
+  return steps;
+}
+
+function fracGenerateSimplifyVisual(result) {
+  const { numerator, denominator, original } = result;
+
+  // Two pies: the fraction as entered, and the same amount in lowest terms.
+  const pie = (num, den, colour, label) => {
+    const slices = Math.min(den, 24);
+    const filled = Math.round((num / den) * slices);
+    let wedges = '';
+    for (let i = 0; i < slices; i++) {
+      const a0 = (i / slices) * 2 * Math.PI - Math.PI / 2;
+      const a1 = ((i + 1) / slices) * 2 * Math.PI - Math.PI / 2;
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const x0 = 50 + 44 * Math.cos(a0), y0 = 50 + 44 * Math.sin(a0);
+      const x1 = 50 + 44 * Math.cos(a1), y1 = 50 + 44 * Math.sin(a1);
+      wedges += `<path d="M50,50 L${x0.toFixed(2)},${y0.toFixed(2)} A44,44 0 ${large},1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${i < filled ? colour : 'rgba(255,255,255,0.06)'}" stroke="rgba(0,0,0,0.3)" stroke-width="0.5"/>`;
+    }
+    return `<div style="text-align:center;">
+      <svg viewBox="0 0 100 100" width="120" height="120" role="img" aria-label="${label}" style="max-width:100%;">${wedges}</svg>
+      <div class="small" style="color:${colour};">${label}</div>
+    </div>`;
+  };
+
+  let visual = `<div style="display:flex;align-items:center;justify-content:center;gap:24px;flex-wrap:wrap;">`;
+  visual += pie(original.aNum, original.aDen, 'rgba(45,212,255,0.75)', `${original.aNum}/${original.aDen}`);
+  visual += `<div style="font-size:28px;color:var(--accent);">=</div>`;
+  visual += pie(numerator, denominator, 'rgba(57,255,20,0.75)', `${numerator}/${denominator}`);
+  visual += `</div>`;
+
+  return visual;
+}
+
+// The remaining six operations in the picker fell through to the "result will
+// be displayed here" placeholder: the display switch only knew about six of its
+// own twelve operations.
+function fracGenerateSubtractOutput(result, format, decimalPlaces) {
+  const { numerator, denominator, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">${original.aNum}/${original.aDen} − ${original.bNum}/${original.bDen} =</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${numerator}/${denominator}</div>`;
+  html += `</div>`;
+  const diff = numerator / denominator;
+  const rawDiff = (original.aNum / original.aDen) - (original.bNum / original.bDen);
+  if (Math.abs(rawDiff - diff) > 0.0001) {
+    html += `<div style="padding:12px;background:rgba(57,255,20,0.05);border-radius:8px;margin-bottom:12px;">`;
+    html += `<div class="small" style="color:#39ff14;">Simplified from ${rawDiff.toFixed(4)}</div>`;
+    html += `</div>`;
+  }
+  if (format === 'all' || format === 'decimal') {
+    html += `<div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;">`;
+    html += `<span style="color:var(--accent);">Decimal:</span> ${diff.toFixed(decimalPlaces)}`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateSubtractSteps(result) {
+  const { numerator, denominator, lcm, original } = result;
+  const aConv = original.aNum * (lcm / original.aDen);
+  const bConv = original.bNum * (lcm / original.bDen);
+  let steps = `Step 1: Find the LCM of the denominators\n`;
+  steps += `       LCM(${original.aDen}, ${original.bDen}) = ${lcm}\n`;
+  steps += `Step 2: Convert both fractions to that denominator\n`;
+  steps += `       ${original.aNum}/${original.aDen} = ${aConv}/${lcm}\n`;
+  steps += `       ${original.bNum}/${original.bDen} = ${bConv}/${lcm}\n`;
+  steps += `Step 3: Subtract the numerators\n`;
+  steps += `       ${aConv} − ${bConv} = ${aConv - bConv}\n`;
+  steps += `Step 4: Simplify\n`;
+  steps += `       Result: ${numerator}/${denominator}`;
+  return steps;
+}
+
+function fracGenerateDivideOutput(result, format, decimalPlaces) {
+  const { numerator, denominator, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">${original.aNum}/${original.aDen} ÷ ${original.bNum}/${original.bDen} =</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${numerator}/${denominator}</div>`;
+  html += `</div>`;
+  if (original.bNum === 0) {
+    html += `<div style="padding:12px;background:rgba(255,77,77,0.08);border-radius:8px;color:#ff4d4d;">Dividing by zero is undefined — the second fraction has a numerator of 0.</div>`;
+  }
+  const quotient = denominator === 0 ? NaN : numerator / denominator;
+  if (Number.isFinite(quotient) && (format === 'all' || format === 'decimal')) {
+    html += `<div style="margin-top:12px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;">`;
+    html += `<span style="color:var(--accent);">Decimal:</span> ${quotient.toFixed(decimalPlaces)}`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateDivideSteps(result) {
+  const { numerator, denominator, original } = result;
+  let steps = `Step 1: Dividing by a fraction is multiplying by its reciprocal\n`;
+  steps += `       ${original.aNum}/${original.aDen} ÷ ${original.bNum}/${original.bDen} = ${original.aNum}/${original.aDen} × ${original.bDen}/${original.bNum}\n`;
+  steps += `Step 2: Multiply the numerators\n`;
+  steps += `       ${original.aNum} × ${original.bDen} = ${original.aNum * original.bDen}\n`;
+  steps += `Step 3: Multiply the denominators\n`;
+  steps += `       ${original.aDen} × ${original.bNum} = ${original.aDen * original.bNum}\n`;
+  steps += `Step 4: Simplify\n`;
+  steps += `       Result: ${numerator}/${denominator}`;
+  return steps;
+}
+
+function fracGenerateMixedOutput(result) {
+  const { whole, numerator, denominator, original } = result;
+  const shown = whole === 0 ? `${numerator}/${denominator}` : `${whole} ${numerator}/${denominator}`;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">${original.aNum}/${original.aDen} =</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${shown}</div>`;
+  html += `<div class="small" style="color:rgba(230,250,255,0.7);">Mixed number</div>`;
+  html += `</div>`;
+  if (whole === 0) {
+    html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;">The numerator is smaller than the denominator, so this is already a proper fraction — there is no whole part.</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateMixedSteps(result) {
+  const { whole, numerator, denominator, original } = result;
+  let steps = `Step 1: Divide the numerator by the denominator\n`;
+  steps += `       ${original.aNum} ÷ ${original.aDen} = ${whole} remainder ${original.aNum % original.aDen}\n`;
+  steps += `Step 2: The quotient is the whole number\n`;
+  steps += `       Whole = ${whole}\n`;
+  steps += `Step 3: The remainder over the denominator is the fraction\n`;
+  steps += `       Fraction = ${numerator}/${denominator}\n`;
+  steps += `Step 4: Result\n`;
+  steps += `       ${whole === 0 ? `${numerator}/${denominator}` : `${whole} ${numerator}/${denominator}`}`;
+  return steps;
+}
+
+function fracGenerateImproperOutput(result) {
+  const { numerator, denominator, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);">${numerator}/${denominator}</div>`;
+  html += `<div class="small" style="color:rgba(230,250,255,0.7);">${numerator >= denominator ? 'Improper fraction' : 'Proper fraction'}</div>`;
+  html += `</div>`;
+  html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:var(--accent);">As entered</div>`;
+  html += `<div style="font-size:20px;">${original.aNum}/${original.aDen}</div>`;
+  html += `</div>`;
+  if (numerator >= denominator) {
+    html += `<div style="margin-top:10px;padding:10px;background:rgba(255,255,255,0.05);border-radius:6px;">`;
+    html += `<span style="color:var(--accent);">As a mixed number:</span> ${fracToMixed(numerator, denominator).whole} ${numerator % denominator}/${denominator}`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateImproperSteps(result) {
+  const { numerator, denominator } = result;
+  let steps = `Step 1: An improper fraction has a numerator at least as big as its denominator\n`;
+  steps += `       ${numerator} ${numerator >= denominator ? '≥' : '<'} ${denominator}\n`;
+  steps += `Step 2: This one is therefore ${numerator >= denominator ? 'improper' : 'proper'}\n`;
+  if (numerator >= denominator) {
+    const m = fracToMixed(numerator, denominator);
+    steps += `Step 3: Divide to get the whole part\n`;
+    steps += `       ${numerator} ÷ ${denominator} = ${m.whole} remainder ${numerator % denominator}\n`;
+    steps += `Step 4: Result\n`;
+    steps += `       ${numerator}/${denominator} = ${m.whole} ${numerator % denominator}/${denominator}`;
+  } else {
+    steps += `Step 3: Result\n`;
+    steps += `       ${numerator}/${denominator} stays as it is`;
+  }
+  return steps;
+}
+
+function fracGenerateCommonDenominatorOutput(result) {
+  const { lcm, aEquivalent, bEquivalent, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  html += `<div style="text-align:center;margin-bottom:16px;">`;
+  html += `<div class="small" style="color:rgba(230,250,255,0.7);">Lowest common denominator</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);">${lcm}</div>`;
+  html += `</div>`;
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
+  html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;text-align:center;">`;
+  html += `<div class="small" style="color:var(--accent);">${original.aNum}/${original.aDen}</div>`;
+  html += `<div style="font-size:24px;font-weight:600;">${aEquivalent.numerator}/${aEquivalent.denominator}</div>`;
+  html += `</div>`;
+  html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;text-align:center;">`;
+  html += `<div class="small" style="color:var(--accent);">${original.bNum}/${original.bDen}</div>`;
+  html += `<div style="font-size:24px;font-weight:600;">${bEquivalent.numerator}/${bEquivalent.denominator}</div>`;
+  html += `</div>`;
+  html += `</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateCommonDenominatorSteps(result) {
+  const { lcm, aEquivalent, bEquivalent, original } = result;
+  let steps = `Step 1: The denominator is the LCM of ${original.aDen} and ${original.bDen}\n`;
+  steps += `       LCM = ${lcm}\n`;
+  steps += `Step 2: Scale each fraction by (LCM ÷ its denominator)\n`;
+  steps += `       ${original.aNum}/${original.aDen} × ${lcm / original.aDen}/${lcm / original.aDen} = ${aEquivalent.numerator}/${lcm}\n`;
+  steps += `       ${original.bNum}/${original.bDen} × ${lcm / original.bDen}/${lcm / original.bDen} = ${bEquivalent.numerator}/${lcm}\n`;
+  steps += `Step 3: Both now sit over ${lcm}, so they can be added or compared directly`;
+  return steps;
+}
+
+function fracGenerateReciprocalOutput(result) {
+  const { numerator, denominator, original } = result;
+  let html = `<div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:20px;border:1px solid rgba(45,212,255,0.2);">`;
+  html += `<div style="text-align:center;margin-bottom:20px;">`;
+  html += `<div style="font-size:32px;color:rgba(230,250,255,0.8);">Reciprocal of ${original.aNum}/${original.aDen}</div>`;
+  html += `<div style="font-size:48px;font-weight:600;color:var(--accent);margin-top:8px;">${numerator}/${denominator}</div>`;
+  html += `</div>`;
+  html += `<div style="padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;">`;
+  html += `<div class="small" style="color:var(--accent);">Multiplying a fraction by its reciprocal</div>`;
+  html += `<div style="font-size:20px;">${original.aNum}/${original.aDen} × ${numerator}/${denominator} = 1</div>`;
+  html += `</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function fracGenerateReciprocalSteps(result) {
+  const { numerator, denominator, original } = result;
+  let steps = `Step 1: The reciprocal swaps the numerator and the denominator\n`;
+  steps += `       ${original.aNum}/${original.aDen} becomes ${original.aDen}/${original.aNum}\n`;
+  steps += `Step 2: Simplify if the numerator and denominator share a factor\n`;
+  steps += `       Result: ${numerator}/${denominator}\n`;
+  steps += `Step 3: Check it\n`;
+  steps += `       ${original.aNum}/${original.aDen} × ${numerator}/${denominator} = 1`;
+  return steps;
+}
+
 // Reset form
 function fracReset(btn) {
   const card = btn.closest('.card') || document;
@@ -1002,10 +1425,14 @@ function fracGeneratePractice() {
   card.querySelector('#frac-operation').value = operation;
   fracUpdateOperationHint();
   
-  const hint = card.querySelector('#et-hint');
-  hint.textContent = `Practice problem: ${aNum}/${aDen} ${operation === 'simplify' ? 'simplify' : operation === 'add' ? '+' : operation === 'subtract' ? '−' : operation === 'multiply' ? '×' : '÷'} ${operation !== 'simplify' ? `${bNum}/${bDen}` : ''}`;
-  hint.style.color = '#ffa500';
-  setTimeout(() => hint.textContent = '', 3000);
+  // This looked up `#et-hint`, which belongs to a different card: the Practice
+  // button always threw on the last line, after it had filled the form.
+  const hint = card.querySelector('#frac-hint');
+  if (hint) {
+    hint.textContent = `Practice problem: ${aNum}/${aDen} ${operation === 'simplify' ? 'simplify' : operation === 'add' ? '+' : operation === 'subtract' ? '−' : operation === 'multiply' ? '×' : '÷'} ${operation !== 'simplify' ? `${bNum}/${bDen}` : ''}`;
+    hint.style.color = '#ffa500';
+    setTimeout(() => { if (hint.isConnected) hint.textContent = ''; }, 3000);
+  }
 }
 
 // Show equivalent fractions
@@ -1035,7 +1462,11 @@ function fracShowEquivalent() {
 // Helper function to show messages
 function fracShowMessage(message, color) {
   const card = document.currentScript?.closest('.card') || document;
+  // Called from timers (and after the visitor has moved on), where
+  // document.currentScript is null and `card` has fallen back to `document`:
+  // the hint is then not there to write to.
   const hint = card.querySelector('#frac-hint');
+  if (!hint) return;
   hint.textContent = message;
   hint.style.color = color;
   setTimeout(() => {

@@ -389,7 +389,11 @@ section('money tools — stale statutory figures');
   // Only user-visible labels count — a comment noting "frozen since 2021/22"
   // is a factual reference, not a stale label, so comment lines are skipped.
   const STALE = /(?:tax (?:year|bands?|rates?)|bands?|rates?|thresholds?)[^\n]{0,20}20(1\d|2[0-5])\s*[-/]\s*2?\d/gi;
-  const moneyCards = ['tax.html', 'salary.html', 'salarycompare.html', 'studentloan.html', 'retirement.html'];
+  // salarycompare.html and studentloan.html were merged into tax.html. Naming a
+  // card that is gone is not a no-op: the loop below skipped it, so this check
+  // covered three files while reading as though it covered five.
+  const moneyCards = ['tax.html', 'salary.html', 'retirement.html'];
+  const gone = moneyCards.filter(f => !fs.existsSync(path.join(ROOT, 'cards', f)));
   let stale = [];
   for (const f of moneyCards) {
     const p = path.join(ROOT, 'cards', f);
@@ -401,13 +405,14 @@ section('money tools — stale statutory figures');
     const hits = (body.match(STALE) || []);
     if (hits.length) stale.push(`${f}: ${[...new Set(hits)].join(', ')}`);
   }
-  if (stale.length === 0) pass('no stale tax-year labels in the money cards');
+  if (gone.length) fail(`money-card list names cards that are not in the repository: ${gone.join(', ')} — update the list; a merged card otherwise shrinks this check in silence`);
+  else if (stale.length === 0) pass('no stale tax-year labels in the money cards');
   else fail(`stale tax-year labels — ${stale.join(' | ')}`);
 }
 
 section('truthfulness — privacy claims (staffroom D-002)');
 {
-  /* BINDING: staff/DECISIONS.md D-002 as amended by D-007 — "no page may
+  /* BINDING owner ruling (CONSTRAINTS.md, hard line 1) — "no page may
      make a privacy claim that is false where it stands". GA stays on the
      pages that carry it (it is NOT sitewide), so each page is judged
      against what it itself loads:
@@ -460,15 +465,27 @@ section('truthfulness — privacy claims (staffroom D-002)');
   }
 
   /* Whatever the top-level pages do, the tool cards must stay clean: that
-     is what makes the surviving "runs in your browser" claim true. */
+     is what makes the surviving "runs in your browser" claim true
+     (D-007: tool.html, 404.html, the tool cards and standalone
+     experiments stay free of GA). */
   const ANALYTICS = /googletagmanager|gtag\(|plausible\.io|www\.google-analytics\.com|analytics\.js/;
 
-  /* The tool cards are the load-bearing part of the promise: whatever the
-     index pages do, the tools themselves must stay clean. */
+  /* Reserved documentation domains (RFC 2606: example.com/org/net) can never
+     serve a real tracker, so a reference to one is sample text, not a load.
+     Evidence: cards/cookie-consent-banner-builder.html's gateExample()
+     template generates an INERT sample —
+     <script type="text/plain" src="https://example.com/analytics.js"> —
+     to show users where their tracking scripts get parked after consent.
+     The card itself loads nothing. Stripping those sample references keeps
+     this guard sensitive to real loaders (googletagmanager, gtag(),
+     google-analytics.com, plausible.io, any real analytics.js URL) instead
+     of noisy; a guard people learn to ignore is worse than a noisy one. */
+  const SAMPLE_TRACKER_REFS = /https?:\/\/(?:example\.(?:com|org|net)|localhost)[^"'\s<>]*analytics\.js/gi;
+
   const cardDir = path.join(ROOT, 'cards');
   const dirty = fs.existsSync(cardDir)
     ? fs.readdirSync(cardDir).filter(f => f.endsWith('.html'))
-        .filter(f => ANALYTICS.test(fs.readFileSync(path.join(cardDir, f), 'utf8')))
+        .filter(f => ANALYTICS.test(fs.readFileSync(path.join(cardDir, f), 'utf8').replace(SAMPLE_TRACKER_REFS, '')))
     : [];
   if (dirty.length) {
     fail(`tool cards must contain no analytics, found in: ${dirty.slice(0, 5).join(', ')}`);
@@ -623,9 +640,24 @@ section('sponsorship — the 5% rule');
      than several on a cluttered one, so this guard protects revenue as much as
      it protects the reader. Encoded here so erosion has to be deliberate. */
   const SPONSOR_MARK = /<!--\s*SPONSOR-SLOT\s*-->/g;
+
+  /* Two shapes carry a sponsorship position, and both are checked the same
+     way: a card fragment (an actual placement, marked with the comment) and
+     the list pages' `.xp-sponsor` invitation block — the note that says a
+     placement is available. The invitation is not a paid placement, but it is
+     how a page gets *two* placements one honest-sounding edit at a time
+     ("just label the invitation Sponsored too"), so it counts towards the
+     same one-per-page budget. */
   const cardFiles = fs.existsSync(path.join(ROOT, 'cards'))
     ? fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith('.html'))
     : [];
+  const listFiles = ['index.html', 'tools.html', 'tools-index.html',
+    'popular.html', 'new.html', 'use-case.html']
+    .filter(f => fs.existsSync(path.join(ROOT, f)))
+    .concat(fs.existsSync(path.join(ROOT, 'categories'))
+      ? fs.readdirSync(path.join(ROOT, 'categories'))
+        .filter(f => f.endsWith('.html')).map(f => path.join('categories', f))
+      : []);
   let multi = [];
   let unlabelled = [];
   for (const f of cardFiles) {
@@ -633,6 +665,13 @@ section('sponsorship — the 5% rule');
     const slots = (txt.match(SPONSOR_MARK) || []).length;
     if (slots > 1) multi.push(`${f} (${slots})`);
     if (slots === 1 && !/Sponsored/.test(txt)) unlabelled.push(f);
+  }
+  for (const f of listFiles) {
+    const txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const slots = (txt.match(SPONSOR_MARK) || []).length;
+    const invitations = (txt.match(/class="[^"]*xp-sponsor/g) || []).length;
+    const total = slots + invitations;
+    if (total > 1) multi.push(`${f} (${total})`);
   }
   if (multi.length) {
     fail(`more than one sponsor slot on: ${multi.join(', ')} — the 5% rule allows one per page`);
@@ -778,7 +817,8 @@ section('money tools — advice disclaimer present');
   // Anything that outputs a monetary decision needs to say it is not advice.
   // This is both good practice and, for regulated-adjacent topics, prudent.
   const needDisclaimer = ['tax.html', 'mortgage.html', 'retirement.html', 'investment.html',
-                          'fire-financial-independence-calc.html', 'debtpayoff.html', 'studentloan.html'];
+                          'fire-financial-independence-calc.html', 'debtpayoff.html'];
+  const gone = needDisclaimer.filter(f => !fs.existsSync(path.join(ROOT, 'cards', f)));
   let missing = [];
   for (const f of needDisclaimer) {
     const p = path.join(ROOT, 'cards', f);
@@ -787,7 +827,8 @@ section('money tools — advice disclaimer present');
     const ok = /not (financial |tax |investment )?advice|estimate|guidance only|consult a|professional advice|indicative/.test(txt);
     if (!ok) missing.push(f);
   }
-  if (missing.length === 0) pass('all checked money tools carry an estimate/advice caveat');
+  if (gone.length) fail(`disclaimer list names cards that are not in the repository: ${gone.join(', ')} — update the list; a merged card otherwise shrinks this check in silence`);
+  else if (missing.length === 0) pass('all checked money tools carry an estimate/advice caveat');
   else fail(`no advice caveat found in: ${missing.join(', ')}`);
 }
 

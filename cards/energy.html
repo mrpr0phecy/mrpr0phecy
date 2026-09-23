@@ -344,6 +344,13 @@
    - Prefix: eu
 */
 
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a dialog or a toast parked there stays on screen over the
+   next tool, with its own Close button still pointing at this card's markup. */
+const euRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
+
 // Appliance presets with power ratings and icons
 const euAppliancePresets = {
     'refrigerator': { power: 150, icon: '❄️', tips: 'Keep temperature at 4-5°C. Avoid placing near heat sources. Defrost regularly.' },
@@ -767,7 +774,7 @@ function euCompareEfficiency() {
         </div>
     `;
     
-    document.body.appendChild(modal);
+    euRoot.appendChild(modal);
 }
 
 function euReset() {
@@ -806,6 +813,10 @@ function euReset() {
 
 // Add keyboard shortcut (Enter to calculate)
 document.addEventListener('keydown', function(e) {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('energy-usage-calculator-title')) return;
     if (e.key === 'Enter' && !e.target.matches('textarea, input[type="text"]')) {
         e.preventDefault();
         euCalculate();
@@ -813,8 +824,11 @@ document.addEventListener('keydown', function(e) {
 });
 
 // Initialize
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function energyInit() {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('eu-appliance-icon')) return;
         euInitializeSliders();
         
         // Add CSS animations
@@ -853,7 +867,12 @@ if (document.readyState === 'loading') {
         document.getElementById('eu-appliance-icon').textContent = '⚡';
         
         console.log('Energy Usage Calculator ready');
-    });
+    
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', energyInit);
+} else {
+    energyInit();
 }
 </script>
 

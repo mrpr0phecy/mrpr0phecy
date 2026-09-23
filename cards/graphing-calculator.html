@@ -59,7 +59,7 @@
       <input id="gc-expression" type="text" placeholder="e.g., sin(x)*exp(-x/5)*cos(3*x)" 
              style="width:100%;padding:12px 40px 12px 12px;border-radius:8px;border:2px solid var(--border);background:var(--glass);color:var(--text);font-size:16px;" 
              aria-describedby="expression-help" />
-      <button onclick="gcVoiceInput()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--accent);cursor:pointer;padding:4px;" title="Voice input">
+      <button type="button" onclick="gcVoiceInput()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--accent);cursor:pointer;padding:4px;" title="Voice input">
         🎤
       </button>
     </div>
@@ -262,12 +262,12 @@
         <div>
           <h4 style="color:var(--accent);font-size:13px;margin:0 0 8px 0;">🎨 Graph Colors</h4>
           <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;">
-            <button onclick="gcSetColor('graph', '#0077cc')" style="height:30px;background:#0077cc;border:none;border-radius:4px;cursor:pointer;"></button>
-            <button onclick="gcSetColor('graph', '#ff2d55')" style="height:30px;background:#ff2d55;border:none;border-radius:4px;cursor:pointer;"></button>
-            <button onclick="gcSetColor('graph', '#00ff99')" style="height:30px;background:#00ff99;border:none;border-radius:4px;cursor:pointer;"></button>
-            <button onclick="gcSetColor('graph', '#9d4edd')" style="height:30px;background:#9d4edd;border:none;border-radius:4px;cursor:pointer;"></button>
-            <button onclick="gcSetColor('graph', '#ff9500')" style="height:30px;background:#ff9500;border:none;border-radius:4px;cursor:pointer;"></button>
-            <button onclick="gcSetColor('graph', '#5ac8fa')" style="height:30px;background:#5ac8fa;border:none;border-radius:4px;cursor:pointer;"></button>
+            <button type="button" aria-label="Set graph colour to #0077cc" onclick="gcSetColor('graph', '#0077cc')" style="height:30px;background:#0077cc;border:none;border-radius:4px;cursor:pointer;"></button>
+            <button type="button" aria-label="Set graph colour to #ff2d55" onclick="gcSetColor('graph', '#ff2d55')" style="height:30px;background:#ff2d55;border:none;border-radius:4px;cursor:pointer;"></button>
+            <button type="button" aria-label="Set graph colour to #00ff99" onclick="gcSetColor('graph', '#00ff99')" style="height:30px;background:#00ff99;border:none;border-radius:4px;cursor:pointer;"></button>
+            <button type="button" aria-label="Set graph colour to #9d4edd" onclick="gcSetColor('graph', '#9d4edd')" style="height:30px;background:#9d4edd;border:none;border-radius:4px;cursor:pointer;"></button>
+            <button type="button" aria-label="Set graph colour to #ff9500" onclick="gcSetColor('graph', '#ff9500')" style="height:30px;background:#ff9500;border:none;border-radius:4px;cursor:pointer;"></button>
+            <button type="button" aria-label="Set graph colour to #5ac8fa" onclick="gcSetColor('graph', '#5ac8fa')" style="height:30px;background:#5ac8fa;border:none;border-radius:4px;cursor:pointer;"></button>
           </div>
         </div>
         
@@ -278,7 +278,7 @@
             <button onclick="gcAnimateParameter()" style="padding:6px 12px;background:var(--glass);border:1px solid var(--border);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">
               Animate
             </button>
-            <input id="gc-animation-speed" type="range" min="1" max="100" value="50" style="flex:1;" />
+            <input id="gc-animation-speed" type="range" min="1" max="100" value="50" aria-label="Animation speed" style="flex:1;" />
             <span style="font-size:12px;color:var(--muted);">Speed</span>
           </div>
         </div>
@@ -293,7 +293,7 @@
             <button onclick="gcExportLaTeX()" style="padding:6px 10px;font-size:11px;background:var(--glass);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">
               LaTeX
             </button>
-            <button onclick="gcShareLink()" style="padding:6px 10px;font-size:11px;background:var(--glass);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">
+            <button onclick="gcShareGraph()" style="padding:6px 10px;font-size:11px;background:var(--glass);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">
               Share Link
             </button>
           </div>
@@ -350,6 +350,12 @@
    - Touch/mobile optimized
    - Screen reader support
 */
+
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a modal, a share dialog or a live region parked there stays
+   behind after the visitor moves to another tool. */
+const gcRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
 
 // ========== GLOBAL STATE ==========
 const gc = {
@@ -474,6 +480,10 @@ const gc = {
 
 // ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('gc-canvas')) return;
   // Initialize canvas
   gc.canvas = document.getElementById('gc-canvas');
   gc.ctx = gc.canvas.getContext('2d');
@@ -505,6 +515,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initial plot
   setTimeout(() => {
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!document.getElementById('gc-expression')) return;
     document.getElementById('gc-expression').value = 'sin(x) + 0.5*cos(2*x)';
     gcPlot();
   }, 500);
@@ -546,6 +559,9 @@ function initEventListeners() {
 
 // ========== CORE PLOTTING FUNCTIONS ==========
 function gcPlot() {
+  // tool.html clears the card's container on the next navigation and
+  // cannot cancel this timer: bail out rather than write to what is gone.
+  if (!document.getElementById('gc-expression')) return;
   try {
     const expr = document.getElementById('gc-expression').value.trim();
     const mode = document.getElementById('gc-mode').value;
@@ -654,6 +670,73 @@ function plotExplicit(expr, samples) {
 }
 
 // ========== UTILITY FUNCTIONS ==========
+// `^` cannot simply become `**`. JavaScript rejects `-x**2` ("unary operator
+// used immediately before exponentiation expression"), so the card's own Bell
+// Curve button — exp(-x^2) — did not plot at all, and a leftover `^` inside a
+// nested power silently became a BITWISE XOR (e^(-x^2) drew a wrong curve with
+// no error). So: base and exponent each get parenthesised, nested powers are
+// converted recursively, and a unary sign in front of the base is lifted
+// outside the power — `-x^2` is `-(x²)`, which is what the maths says and what
+// keeps exp(-x^2) a bell curve rather than an exploding one.
+function powerToJs(expr) {
+  let out = '';
+  let i = 0;
+  while (i < expr.length) {
+    if (expr[i] !== '^') { out += expr[i++]; continue; }
+
+    // ---- base: an identifier, number, or balanced bracket group
+    const trimmed = out.replace(/\s+$/, '');
+    let edge = trimmed.length;
+    let from = edge;
+    if (trimmed[edge - 1] === ')') {
+      let depth = 0;
+      let j = edge - 1;
+      for (; j >= 0; j--) {
+        if (trimmed[j] === ')') depth++;
+        else if (trimmed[j] === '(') { depth--; if (depth === 0) break; }
+      }
+      let k = j - 1;
+      while (k >= 0 && /[A-Za-z0-9_$]/.test(trimmed[k])) k--;
+      from = /[A-Za-z_$]/.test(trimmed[j - 1] || '') ? k + 1 : j;
+    } else {
+      while (from > 0 && /[A-Za-z0-9_$.]/.test(trimmed[from - 1])) from--;
+    }
+    const base = powerToJs(trimmed.slice(from));
+    const before = trimmed.slice(0, from);
+
+    // ---- exponent: optional sign, then a number/identifier or a group
+    i++;
+    while (i < expr.length && /\s/.test(expr[i])) i++;
+    let sign = '';
+    while (i < expr.length && (expr[i] === '-' || expr[i] === '+')) { sign += expr[i++]; }
+    let expText;
+    if (expr[i] === '(') {
+      let depth = 0;
+      const at = i;
+      for (; i < expr.length; i++) {
+        if (expr[i] === '(') depth++;
+        else if (expr[i] === ')') { depth--; if (depth === 0) { i++; break; } }
+      }
+      expText = expr.slice(at, i);
+    } else {
+      const at = i;
+      while (i < expr.length && /[A-Za-z0-9_$.]/.test(expr[i])) i++;
+      expText = expr.slice(at, i);
+    }
+    const power = '(' + base + ')**' + sign + '(' + powerToJs(expText) + ')';
+
+    // A sign sitting directly in front of the base belongs to the whole power.
+    const signMatch = /([-+!~])\s*$/.exec(before);
+    const beforeSign = signMatch ? before.slice(0, signMatch.index) : null;
+    const unary = signMatch &&
+      (signMatch.index === 0 || /[(*\/+,<>=!&|?:{\[]\s*$/.test(beforeSign));
+    out = unary
+      ? beforeSign + signMatch[1] + '(' + power + ')'
+      : before + power;
+  }
+  return out;
+}
+
 function makeEvaluator(expr, params = ['x']) {
   // Safe expression evaluator
   const safeMath = {
@@ -666,18 +749,19 @@ function makeEvaluator(expr, params = ['x']) {
     pi: Math.PI, e: Math.E
   };
   
-  // Replace ^ with **
-  let processed = expr.replace(/\^/g, '**');
+  // Turn ^ into a parenthesised ** (see powerToJs)
+  let processed = powerToJs(expr);
   
   try {
-    const fnBody = `
-      with (Math) {
-        return (${processed});
-      }
-    `;
-    
-    const fn = new Function(...params, fnBody);
-    
+    // `with (Math)` was the scope here, while the safeMath object built above —
+    // the one holding `pi` and `e` — was never used at all. So `pi` threw
+    // "pi is not defined" and an expression such as `sin(pi*x)` could not be
+    // plotted on a graphing calculator. The object goes in as a parameter and
+    // `with` resolves against it.
+    const fnBody = `with (safeMath) { return (${processed}); }`;
+    const raw = new Function(...params, 'safeMath', fnBody);
+    const fn = (...args) => raw(...args, safeMath);
+
     // Test the function
     const testInput = params.map(() => 1);
     const result = fn(...testInput);
@@ -796,6 +880,10 @@ function startDrag(event) {
 }
 
 function doDrag(event) {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('graphing-calculator-title')) return;
   if (!gc.isDragging) return;
   
   const dx = event.clientX - gc.dragStart.x;
@@ -869,6 +957,120 @@ function handleZoom(event) {
 }
 
 // ========== UI ENHANCEMENT FUNCTIONS ==========
+// Three controls in the Animation and Export panels called functions that were
+// never written — pressing them threw a ReferenceError. ("Share Link" pointed at
+// gcShareLink(), while the working implementation was called gcShareGraph();
+// the button now calls that.)
+function gcExportData() {
+  try {
+    const expr = document.getElementById('gc-expression').value.trim();
+    if (!expr) {
+      updateOutput('Plot an expression first — there is no data to export.', 'warning');
+      return;
+    }
+
+    const f = makeEvaluator(expr, ['x']);
+    const [xMin, xMax] = gc.bounds;
+    const steps = 200;
+    const rows = ['x,' + expr.replace(/,/g, ' ')];
+
+    for (let i = 0; i <= steps; i++) {
+      const x = xMin + (xMax - xMin) * (i / steps);
+      let y;
+      try { y = f(x); } catch (e) { y = NaN; }
+      rows.push(`${x.toFixed(4)},${Number.isFinite(y) ? y.toFixed(6) : ''}`);
+    }
+
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `graph-data-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    updateOutput(`Exported ${steps + 1} points from ${xMin} to ${xMax} as CSV.`, 'success');
+  } catch (error) {
+    updateOutput('Export failed: ' + error.message, 'error');
+  }
+}
+
+function gcExportLaTeX() {
+  const expr = document.getElementById('gc-expression').value.trim();
+  if (!expr) {
+    updateOutput('Plot an expression first — there is nothing to convert.', 'warning');
+    return;
+  }
+
+  // A small, honest transform for the shapes people type here: it does not
+  // claim to handle arbitrary input.
+  let latex = expr
+    .replace(/\bsqrt\s*\(([^()]*)\)/g, '\\sqrt{$1}')
+    .replace(/\bpi\b/g, '\\pi ')
+    .replace(/\*\*/g, '^')
+    .replace(/\^\s*(-?\d+(?:\.\d+)?)/g, '^{$1}')
+    .replace(/\*/g, ' \\cdot ');
+
+  const display = `\\( ${latex} \\)`;
+
+  const finish = () => updateOutput('LaTeX copied to clipboard: ' + display, 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(display).then(finish).catch(() => {
+      updateOutput('LaTeX: ' + display, 'info');
+    });
+  } else {
+    updateOutput('LaTeX: ' + display, 'info');
+  }
+}
+
+// Sweeps a parameter through the graph. The expression has to name one — `a` by
+// default (a*sin(x), x^2 + a) — which is stated in the panel rather than
+// pretending there is something to animate in a plain y = sin(x).
+function gcAnimateParameter() {
+  const exprInput = document.getElementById('gc-expression');
+  if (!exprInput) return;
+  const expr = exprInput.value.trim();
+
+  if (gc.animationTimer) {
+    cancelAnimationFrame(gc.animationTimer);
+    gc.animationTimer = null;
+    exprInput.value = gc.animationBaseExpr || expr;
+    gcPlot();
+    updateOutput('Animation stopped.', 'info');
+    return;
+  }
+
+  if (!/\ba\b/.test(expr)) {
+    updateOutput('Add a parameter named "a" to the expression to animate it, for example a*sin(x).', 'warning');
+    return;
+  }
+
+  const speedInput = document.getElementById('gc-animation-speed');
+  const speed = speedInput ? parseInt(speedInput.value) : 50;
+  const frameMs = Math.max(16, 400 - speed * 3.5);
+  gc.animationBaseExpr = expr;
+  gc.animationPhase = 0;
+  let last = 0;
+
+  const step = timestamp => {
+    if (!document.getElementById('gc-expression')) { gc.animationTimer = null; return; }
+    if (timestamp - last >= frameMs) {
+      last = timestamp;
+      gc.animationPhase += 0.12;
+      const value = (5 * Math.sin(gc.animationPhase)).toFixed(3);
+      exprInput.value = expr.replace(/\ba\b/g, `(${value})`);
+      gcPlot();
+    }
+    gc.animationTimer = requestAnimationFrame(step);
+  };
+
+  gc.animationTimer = requestAnimationFrame(step);
+  updateOutput('Animating parameter a (press Animate again to stop).', 'success');
+}
+
 function gcClear() {
   gc.ctx.clearRect(0, 0, gc.canvas.width, gc.canvas.height);
   updateOutput('Canvas cleared.', 'info');
@@ -1168,7 +1370,7 @@ function gcShareGraph() {
             </div>
           </div>
         `;
-        document.body.appendChild(shareDiv);
+        gcRoot.appendChild(shareDiv);
       });
   }
 }
@@ -1276,7 +1478,7 @@ function gcShowExamples() {
   html += '<button onclick="this.parentElement.remove()" style="margin-top:15px;padding:8px 16px;background:var(--glass);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;width:100%;">Close</button>';
   
   exampleDiv.innerHTML = html;
-  document.body.appendChild(exampleDiv);
+  gcRoot.appendChild(exampleDiv);
 }
 
 function gcQuickExpression(expr) {
@@ -1322,6 +1524,10 @@ function gcToggleTips() {
 // ========== HELPER FUNCTIONS ==========
 function updateOutput(message, type = 'info') {
   const output = document.getElementById('gc-output');
+  // A deferred caller can outlive the card: tool.html clears the container and
+  // this function is still reached from a timer or a rejected promise. Without
+  // the bail it throws on `.innerHTML` of null in the tool the visitor moved to.
+  if (!output) return;
   const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   
   let color;
@@ -1369,7 +1575,7 @@ function announceToScreenReader(message) {
     liveRegion.setAttribute('aria-live', 'polite');
     liveRegion.setAttribute('aria-atomic', 'true');
     liveRegion.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;';
-    document.body.appendChild(liveRegion);
+    gcRoot.appendChild(liveRegion);
   }
   
   liveRegion.textContent = message;
@@ -1509,10 +1715,6 @@ graphingCalculatorStyle.textContent = `
   }
   
   @media (max-width: 768px) {
-    .dashboard .card {
-      grid-template-columns: 1fr;
-    }
-    
     #gc-canvas {
       height: 300px;
     }

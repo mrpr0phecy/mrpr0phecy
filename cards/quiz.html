@@ -271,6 +271,10 @@ let qgQuizTitle = "My Quiz";
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('qg-question-type')) return;
     console.log('Quiz Generator ready');
     
     // Load saved quiz if available
@@ -308,13 +312,12 @@ function qgToggleQuestionType() {
     
     // If multiple choice, ensure at least 2 options
     if (type === 'multiple-choice') {
-        const options = document.querySelectorAll('.option-item');
-        if (options.length < 2) {
-            // Add default options if needed
-            while (document.querySelectorAll('.option-item').length < 2) {
-                qgAddOption();
-            }
-        }
+        const optionsContainer = document.getElementById('qg-options-container');
+        const have = optionsContainer.querySelectorAll('.option-item').length;
+        // Add default options if needed. qgAddOption() refuses past six (and
+        // alerts), so a `while` that waits for the count to reach two can never
+        // finish once the container is full — ask for what is missing, once.
+        for (let i = have; i < 2; i++) qgAddOption();
     }
 }
 
@@ -366,7 +369,11 @@ function qgRemoveOption(btn) {
 function qgAddQuestion() {
     const questionText = document.getElementById('qg-question').value.trim();
     const type = document.getElementById('qg-question-type').value;
-    const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+    // Belt and braces: the group has a default selection, and this falls back
+    // to it rather than throwing if some future path leaves nothing checked.
+    const difficultyPick = document.querySelector('input[name="difficulty"]:checked')
+        || document.querySelector('input[name="difficulty"]');
+    const difficulty = difficultyPick ? difficultyPick.value : 'easy';
     const category = document.getElementById('qg-category').value.trim();
     
     if (!questionText) {
@@ -455,18 +462,26 @@ function qgClearCurrent() {
     document.getElementById('qg-short-answer-input').value = '';
     document.getElementById('qg-open-ended-input').value = '';
     
-    // Reset radio buttons
-    document.querySelectorAll('input[type="radio"]').forEach(radio => {
-        radio.checked = false;
-    });
+    // Reset the ANSWER radios only, and put the difficulty group back on its
+    // default. This used to uncheck every radio in the document, difficulty
+    // included — and qgAddQuestion reads `input[name="difficulty"]:checked`
+    // before it looks at anything else, so after adding one question the next
+    // Add Question threw on a null lookup and added nothing. The first
+    // question worked, the second silently did not.
+    document.querySelectorAll('input[name="correct-option"], input[name="true-false"]')
+        .forEach(radio => { radio.checked = false; });
+    const defaultDifficulty = document.querySelector('input[name="difficulty"][value="easy"]');
+    if (defaultDifficulty) defaultDifficulty.checked = true;
     
     // Reset multiple choice options to 2
     const container = document.getElementById('qg-options-container');
-    const options = container.querySelectorAll('.option-item');
-    
-    // Remove extra options beyond 2
+    // `querySelectorAll` hands back a STATIC list: its length never changes as
+    // nodes are removed, so the loop below used to call remove() on the same
+    // (already detached) node for ever. Adding a third option and pressing
+    // Clear froze the tab. Walk a copy and shrink it, or re-query every pass.
+    const options = Array.from(container.querySelectorAll('.option-item'));
     while (options.length > 2) {
-        options[options.length - 1].remove();
+        options.pop().remove();
     }
     
     // Clear option text
@@ -703,6 +718,12 @@ function qgShowQuestion(index) {
 // Check answer
 function qgCheckAnswer() {
     const question = qgQuestions[qgCurrentQuestionIndex];
+    // Nothing generated yet (or the list was cleared): there is no question to
+    // check, and reading .type off it threw.
+    if (!question) {
+        alert('Generate a quiz first.');
+        return;
+    }
     let userAnswer = '';
     const feedback = document.getElementById('qg-quiz-feedback');
     

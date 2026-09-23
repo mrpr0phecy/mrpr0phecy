@@ -1,0 +1,284 @@
+<h2 id="teamg-title" style="margin-top:0;color:var(--accent);">👥 Random Team Generator & Group Splitter</h2>
+
+<div id="teamg-root">
+<form aria-describedby="teamg-desc" onsubmit="event.preventDefault();" style="margin-bottom:12px;">
+  <p id="teamg-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:14px;">
+    Paste a list of names and split it into fair random teams — by number of teams or people per team. Add an
+    optional skill rating to balance sides, pick captains, and copy the result to the group chat.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start;">
+    <div>
+      <label for="teamg-names" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:600;font-size:14px;">
+        Names — one per line (or comma-separated) <span id="teamg-count" style="color:rgba(230,250,255,0.55);font-weight:400;">(0)</span>
+      </label>
+      <textarea id="teamg-names" rows="11" spellcheck="false"
+        placeholder="Alice&#10;Bob, 4&#10;Charlie&#10;Dana, 2&#10;&#10;Add ', 1' to ', 5' after a name to rate skill (optional)"
+        style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:14px;line-height:1.5;resize:vertical;font-family:inherit;"></textarea>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" id="teamg-example" class="teamg-btn">Example list</button>
+        <button type="button" id="teamg-dedupe" class="teamg-btn">Remove duplicates</button>
+        <button type="button" id="teamg-clearnames" class="teamg-btn">Clear</button>
+      </div>
+    </div>
+
+    <div>
+      <fieldset style="border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px 14px;margin:0 0 12px;">
+        <legend style="color:var(--accent);font-weight:600;font-size:14px;padding:0 6px;">Split by</legend>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;"><input type="radio" name="teamg-mode" id="teamg-mode-teams" value="teams" checked> Number of teams</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;"><input type="radio" name="teamg-mode" id="teamg-mode-size" value="size"> People per team</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+          <label for="teamg-n" id="teamg-nlabel" style="font-size:0.9rem;color:rgba(230,250,255,0.8);min-width:9em;">Teams</label>
+          <input type="number" id="teamg-n" min="1" max="100" value="2" style="width:90px;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:14px;">
+          <span id="teamg-preview" style="font-size:0.82rem;color:rgba(230,250,255,0.55);"></span>
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px 14px;margin:0 0 12px;">
+        <legend style="color:var(--accent);font-weight:600;font-size:14px;padding:0 6px;">Options</legend>
+        <div style="display:grid;gap:8px;font-size:0.9rem;color:rgba(230,250,255,0.85);">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="teamg-balance" checked> Balance by skill rating where given</label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="teamg-captains"> Pick a captain for each team</label>
+          <label for="teamg-naming" style="display:flex;align-items:center;gap:8px;">Team names
+            <select id="teamg-naming" style="padding:6px;border-radius:6px;border:1px solid rgba(45,212,255,0.25);background:#070f18;color:var(--text);font-size:13px;">
+              <option value="numbers">Team 1, Team 2…</option>
+              <option value="colours">Colours</option>
+              <option value="animals">Animals</option>
+              <option value="letters">A, B, C…</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="teamg-go" style="flex:1;min-width:160px;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;font-size:15px;">🎲 Generate teams</button>
+        <button type="button" id="teamg-again" class="teamg-btn" disabled>Shuffle again</button>
+        <button type="button" id="teamg-copy" class="teamg-btn" disabled>Copy</button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div id="teamg-status" aria-live="polite" style="font-size:0.9rem;color:rgba(230,250,255,0.75);margin:6px 0 10px;min-height:1.4em;"></div>
+<div id="teamg-out" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;"></div>
+
+<details style="margin-top:14px;color:rgba(230,250,255,0.55);font-size:0.85rem;">
+  <summary style="cursor:pointer;">How teams are made fair, how skill balancing works, and the small print</summary>
+  <p style="margin-top:8px;">
+    <strong>Plain random.</strong> Names are shuffled with a Fisher–Yates shuffle driven by
+    <code>crypto.getRandomValues</code>, then dealt round-robin — so sizes never differ by more than one person and
+    every name has the same chance of landing anywhere. If 13 people go into 3 teams you get 5, 4 and 4, and the
+    status line tells you so.
+  </p>
+  <p>
+    <strong>Skill balancing.</strong> Add a rating from 1 (beginner) to 5 (strong) after a name — <code>Bob, 4</code>
+    or <code>Bob 4</code> or <code>Bob (4)</code> all work. Rated players are sorted strongest first (ties broken at
+    random) and dealt in a snake draft: 1-2-3-3-2-1-1-2-3… which is the standard way to keep totals close. Unrated
+    people count as 3, the middle of the scale. Each team's total and average rating is shown so you can eyeball the
+    result. Re-shuffling keeps the balance but changes who lands where.
+  </p>
+  <p>
+    <strong>Captains.</strong> A captain is chosen at random from each team and marked with a ©. If skill ratings are in
+    use the captain is still random, not the strongest player — change it by hand if you prefer.
+  </p>
+  <p>
+    <strong>Privacy and limits.</strong> The name list is kept in this browser's local storage so it is still there
+    next week; nothing is uploaded and there is no account. Up to 500 names and 100 teams. Blank lines are ignored;
+    "Remove duplicates" is case-insensitive.
+  </p>
+</details>
+
+<style>
+#teamg-root .teamg-btn{padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.9);cursor:pointer;font-size:13px;font-weight:600;}
+#teamg-root .teamg-btn:hover:not(:disabled){background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#teamg-root .teamg-btn:disabled{opacity:.45;cursor:not-allowed;}
+#teamg-root .teamg-team{background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:12px;border-top:3px solid var(--accent);}
+#teamg-root .teamg-team h3{margin:0 0 8px;font-size:1rem;color:var(--text);display:flex;justify-content:space-between;align-items:baseline;gap:8px;}
+#teamg-root .teamg-team h3 small{font-weight:400;color:rgba(230,250,255,0.5);font-size:.75rem;white-space:nowrap;}
+#teamg-root .teamg-team ul{margin:0;padding-left:18px;font-size:.92rem;line-height:1.6;color:rgba(230,250,255,0.9);}
+#teamg-root .teamg-team li span{color:rgba(230,250,255,0.45);font-size:.78rem;margin-left:4px;}
+#teamg-root button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+</style>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('teamg-root');
+  if (!root) return;
+  var $ = function (id) { return root.querySelector('#' + id); };
+  var KEY = 'teamg.list.v1';
+  var COLOURS = ['Red', 'Blue', 'Green', 'Yellow', 'Orange', 'Purple', 'Black', 'White', 'Pink', 'Teal', 'Gold', 'Silver', 'Maroon', 'Navy', 'Lime', 'Grey'];
+  var ANIMALS = ['Wolves', 'Eagles', 'Tigers', 'Sharks', 'Bears', 'Foxes', 'Hawks', 'Lions', 'Otters', 'Panthers', 'Ravens', 'Bison', 'Cobras', 'Dolphins', 'Falcons', 'Jaguars'];
+  var SWATCH = ['#2dd4ff', '#ff4d6d', '#39ff14', '#ffd700', '#ff8c42', '#9d4edd', '#60a5fa', '#f472b6', '#00c2a8', '#a3e635', '#fb7185', '#c084fc'];
+  var lastTeams = null;
+
+  function randomUnit() {
+    try { var u = new Uint32Array(1); crypto.getRandomValues(u); return u[0] / 4294967296; } catch (e) { return Math.random(); }
+  }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(randomUnit() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+
+  // "Bob, 4" | "Bob 4" | "Bob (4)" | "Bob:4" -> {name:'Bob', skill:4, rated:true}
+  function parsePerson(raw) {
+    var m = raw.match(/^(.*?)[\s,:(\-]+([1-5])\)?\s*$/);
+    if (m && m[1].trim()) return { name: m[1].trim(), skill: parseInt(m[2], 10), rated: true };
+    return { name: raw.trim(), skill: 3, rated: false };
+  }
+
+  function readNames() {
+    var text = $('teamg-names').value;
+    var parts = text.indexOf('\n') === -1 && text.indexOf(',') !== -1 && !/,\s*[1-5]\s*$/.test(text) ? text.split(',') : text.split(/\r?\n/);
+    var people = [];
+    parts.forEach(function (p) { p = p.trim(); if (p) people.push(parsePerson(p)); });
+    if (people.length > 500) people.length = 500;
+    return people;
+  }
+
+  function updateCount() {
+    var people = readNames();
+    $('teamg-count').textContent = '(' + people.length + ')';
+    preview(people.length);
+  }
+
+  function mode() { return $('teamg-mode-size').checked ? 'size' : 'teams'; }
+
+  function teamCountFor(nPeople) {
+    var n = Math.max(1, parseInt($('teamg-n').value, 10) || 1);
+    if (mode() === 'size') return Math.max(1, Math.ceil(nPeople / n));
+    return Math.min(100, n);
+  }
+
+  function preview(nPeople) {
+    var el = $('teamg-preview');
+    if (!nPeople) { el.textContent = ''; return; }
+    var k = teamCountFor(nPeople);
+    if (k > nPeople) { el.textContent = 'more teams than people'; return; }
+    var base = Math.floor(nPeople / k), extra = nPeople % k;
+    el.textContent = k + ' team' + (k === 1 ? '' : 's') + ' → ' + (extra ? extra + '×' + (base + 1) + ' and ' + (k - extra) + '×' + base : k + '×' + base);
+  }
+
+  function teamName(i, style) {
+    if (style === 'colours') return COLOURS[i % COLOURS.length] + (i >= COLOURS.length ? ' ' + (Math.floor(i / COLOURS.length) + 1) : '');
+    if (style === 'animals') return ANIMALS[i % ANIMALS.length] + (i >= ANIMALS.length ? ' ' + (Math.floor(i / ANIMALS.length) + 1) : '');
+    if (style === 'letters') return 'Team ' + String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26) + 1 : '');
+    return 'Team ' + (i + 1);
+  }
+
+  function generate() {
+    var people = readNames();
+    if (people.length < 2) { $('teamg-status').textContent = 'Add at least two names.'; return; }
+    var k = teamCountFor(people.length);
+    if (k > people.length) { $('teamg-status').textContent = 'That is more teams than people — lower the number.'; return; }
+    var anyRated = people.some(function (p) { return p.rated; });
+    var balance = $('teamg-balance').checked && anyRated;
+    var teams = [];
+    for (var i = 0; i < k; i++) teams.push([]);
+
+    shuffle(people);
+    if (balance) {
+      people.sort(function (a, b) { return b.skill - a.skill; }); // stable in modern engines; ties keep the shuffled order
+      var idx = 0, dir = 1;
+      people.forEach(function (p) {
+        teams[idx].push(p);
+        idx += dir;
+        if (idx === k) { idx = k - 1; dir = -1; } else if (idx < 0) { idx = 0; dir = 1; }
+      });
+    } else {
+      people.forEach(function (p, j) { teams[j % k].push(p); });
+    }
+    teams.forEach(function (t) { shuffle(t); });
+    if ($('teamg-captains').checked) teams.forEach(function (t) { if (t.length) t[Math.floor(randomUnit() * t.length)].captain = true; });
+
+    lastTeams = { teams: teams, balance: balance, naming: $('teamg-naming').value };
+    render();
+    $('teamg-again').disabled = false;
+    $('teamg-copy').disabled = false;
+    save();
+  }
+
+  function render() {
+    var out = $('teamg-out');
+    while (out.firstChild) out.removeChild(out.firstChild);
+    if (!lastTeams) return;
+    var teams = lastTeams.teams, sizes = {};
+    teams.forEach(function (t) { sizes[t.length] = (sizes[t.length] || 0) + 1; });
+    var sizeText = Object.keys(sizes).sort(function (a, b) { return b - a; }).map(function (s) { return sizes[s] + ' team' + (sizes[s] === 1 ? '' : 's') + ' of ' + s; }).join(', ');
+    var total = teams.reduce(function (n, t) { return n + t.length; }, 0);
+    $('teamg-status').textContent = total + ' people → ' + teams.length + ' teams (' + sizeText + ')' + (lastTeams.balance ? ' · balanced by skill' : '') + '.';
+
+    teams.forEach(function (t, i) {
+      var box = document.createElement('div'); box.className = 'teamg-team'; box.style.borderTopColor = SWATCH[i % SWATCH.length];
+      var h = document.createElement('h3'); h.textContent = teamName(i, lastTeams.naming);
+      var small = document.createElement('small');
+      var sum = t.reduce(function (n, p) { return n + p.skill; }, 0);
+      small.textContent = t.length + (lastTeams.balance ? ' · skill ' + sum + ' (avg ' + (t.length ? (sum / t.length).toFixed(1) : '0') + ')' : '');
+      h.appendChild(small); box.appendChild(h);
+      var ul = document.createElement('ul');
+      t.forEach(function (p) {
+        var li = document.createElement('li'); li.textContent = (p.captain ? '© ' : '') + p.name;
+        if (lastTeams.balance && p.rated) { var s = document.createElement('span'); s.textContent = '★' + p.skill; li.appendChild(s); }
+        ul.appendChild(li);
+      });
+      box.appendChild(ul); out.appendChild(box);
+    });
+  }
+
+  function asText() {
+    if (!lastTeams) return '';
+    return lastTeams.teams.map(function (t, i) {
+      return teamName(i, lastTeams.naming) + '\n' + t.map(function (p) { return '  - ' + (p.captain ? '(C) ' : '') + p.name; }).join('\n');
+    }).join('\n\n');
+  }
+
+  function copy() {
+    var text = asText(); if (!text) return;
+    var done = function () { $('teamg-status').textContent = 'Copied ' + lastTeams.teams.length + ' teams to the clipboard.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
+    else { var ta = document.createElement('textarea'); ta.value = text; root.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} root.removeChild(ta); done(); }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ text: $('teamg-names').value, mode: mode(), n: $('teamg-n').value,
+        balance: $('teamg-balance').checked, captains: $('teamg-captains').checked, naming: $('teamg-naming').value }));
+    } catch (e) {}
+  }
+  function load() {
+    var s = null; try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    if (!s) return;
+    if (typeof s.text === 'string') $('teamg-names').value = s.text;
+    if (s.mode === 'size') $('teamg-mode-size').checked = true;
+    if (s.n) $('teamg-n').value = s.n;
+    $('teamg-balance').checked = s.balance !== false;
+    $('teamg-captains').checked = !!s.captains;
+    if (s.naming) $('teamg-naming').value = s.naming;
+  }
+  function syncModeLabel() { $('teamg-nlabel').textContent = mode() === 'size' ? 'People per team' : 'Teams'; updateCount(); }
+
+  $('teamg-go').addEventListener('click', generate);
+  $('teamg-again').addEventListener('click', generate);
+  $('teamg-copy').addEventListener('click', copy);
+  $('teamg-names').addEventListener('input', function () { updateCount(); save(); });
+  $('teamg-n').addEventListener('input', function () { updateCount(); save(); });
+  $('teamg-mode-teams').addEventListener('change', function () { syncModeLabel(); save(); });
+  $('teamg-mode-size').addEventListener('change', function () { syncModeLabel(); save(); });
+  ['teamg-balance', 'teamg-captains', 'teamg-naming'].forEach(function (id) { $(id).addEventListener('change', save); });
+  $('teamg-example').addEventListener('click', function () {
+    $('teamg-names').value = ['Alice, 5', 'Bob, 3', 'Charlie, 4', 'Dana, 2', 'Eli, 3', 'Farah, 5', 'Gus, 1', 'Hana, 4', 'Ivan, 2', 'Jo, 3'].join('\n');
+    updateCount(); save();
+  });
+  $('teamg-dedupe').addEventListener('click', function () {
+    var seen = {}, keep = [];
+    $('teamg-names').value.split(/\r?\n/).forEach(function (l) { var k = parsePerson(l).name.toLowerCase(); if (l.trim() && !seen[k]) { seen[k] = 1; keep.push(l.trim()); } });
+    $('teamg-names').value = keep.join('\n'); updateCount(); save();
+  });
+  $('teamg-clearnames').addEventListener('click', function () { $('teamg-names').value = ''; lastTeams = null; render(); $('teamg-status').textContent = ''; $('teamg-again').disabled = true; $('teamg-copy').disabled = true; updateCount(); save(); });
+
+  load();
+  syncModeLabel();
+})();
+</script>

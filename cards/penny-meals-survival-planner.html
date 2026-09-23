@@ -1,0 +1,310 @@
+<h2 id="pmsp-title" style="margin-top:0;color:var(--accent);">🍲 Penny Meals: Survival Food Planner</h2>
+
+<form aria-describedby="pmsp-desc" onsubmit="event.preventDefault();">
+  <p id="pmsp-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Turn a tiny weekly food budget into a full 7-day meal plan for your household. Built from the cheapest
+    nutritious staples on earth, with calories, protein and a priced shopping list worked out for you.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="pmsp-cur" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Currency</label>
+      <input id="pmsp-cur" type="text" value="£" maxlength="3" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pmsp-budget" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Weekly budget</label>
+      <input id="pmsp-budget" type="number" min="1" step="0.5" value="25" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pmsp-adults" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Adults</label>
+      <input id="pmsp-adults" type="number" min="1" max="12" step="1" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pmsp-kids" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Children</label>
+      <input id="pmsp-kids" type="number" min="0" max="12" step="1" value="2" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="pmsp-diet" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Diet</label>
+      <select id="pmsp-diet" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;">
+        <option value="any">Anything meat-free</option>
+        <option value="veg">Vegetarian (egg + dairy OK)</option>
+        <option value="vegan">Vegan (no egg/dairy)</option>
+      </select>
+    </div>
+    <div>
+      <label for="pmsp-eq" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cooking gear</label>
+      <select id="pmsp-eq" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;">
+        <option value="full">Hob + oven + microwave</option>
+        <option value="hob">Hob only</option>
+        <option value="micro">Microwave / kettle only</option>
+        <option value="none">No cooking at all</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:12px;font-size:0.82rem;">
+    <label style="display:flex;gap:6px;align-items:center;cursor:pointer;">
+      <input id="pmsp-gf" type="checkbox" style="width:16px;height:16px;accent-color:#2dd4ff;" /> Gluten-free needed
+    </label>
+    <span style="color:var(--text-secondary);font-size:0.76rem;">All plans are meat-free: meat is the most expensive calorie in the shop. Nothing here needs fancy equipment.</span>
+  </div>
+
+  <details style="margin-bottom:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;">
+    <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--accent);">🏷️ Local prices — tap to match your shops (plan reprices instantly)</summary>
+    <div id="pmsp-prices" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;"></div>
+    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:8px;">Defaults are rough UK budget-shop prices. Change them to your local prices and every cost below updates.</div>
+  </details>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button type="button" id="pmsp-go" style="flex:1;min-width:180px;padding:12px;background:linear-gradient(135deg,rgba(45,212,255,0.25),rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.5);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">🍲 Build my week of meals</button>
+    <button type="button" id="pmsp-save" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">💾 Save</button>
+    <button type="button" id="pmsp-load" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">📂 Load</button>
+  </div>
+</form>
+
+<div id="pmsp-out" aria-live="polite" style="margin-top:16px;"></div>
+
+<div style="margin-top:10px;font-size:0.74rem;color:var(--text-secondary);line-height:1.5;">
+  ⚠️ Costs, calories and protein are honest estimates from typical values, not lab analysis or medical advice.
+  Dried kidney beans must boil hard for 10 minutes then simmer till soft — never eat them raw or slow-cook from dry.
+  Runs offline · your entries stay in this browser.
+</div>
+
+<script>
+(function(){
+'use strict';
+/* Penny Meals: survival food planner. Data-driven generator. No globals. */
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function money(n, cur){ return cur + (Math.round(n*100)/100).toFixed(2); }
+
+/* Staples: key -> {label, unit label, default price per unit}. Amounts in meals use these units. */
+var STAPLES = [
+  ['rice',   'Rice (long grain)', 'kg', 1.10],
+  ['pasta',  'Pasta', 'kg', 1.00],
+  ['oats',   'Porridge oats', 'kg', 1.20],
+  ['flour',  'Plain flour', 'kg', 0.90],
+  ['bread',  'Bread loaf (800g)', 'loaf', 0.55],
+  ['redlent','Red lentils (dry)', 'kg', 1.60],
+  ['kidney', 'Kidney beans (dry)', 'kg', 1.80],
+  ['chick',  'Chickpeas (dry)', 'kg', 2.00],
+  ['potato', 'Potatoes', 'kg', 0.80],
+  ['onion',  'Onions', 'kg', 0.90],
+  ['carrot', 'Carrots', 'kg', 0.70],
+  ['cabbage','Cabbage', 'each', 0.85],
+  ['tin',    'Tinned tomatoes (400g)', 'tin', 0.45],
+  ['egg',    'Eggs', 'each', 0.18],
+  ['milk',   'Milk', 'litre', 1.25],
+  ['oil',    'Cooking oil', 'litre', 2.20],
+  ['pb',     'Peanut butter', 'kg', 3.50],
+  ['peas',   'Frozen peas', 'kg', 1.40],
+  ['banana', 'Bananas', 'each', 0.15],
+  ['apple',  'Apples', 'each', 0.30],
+  ['sugar',  'Sugar', 'kg', 1.10]
+];
+/* Flat seasoning allowance per serving (salt, pepper, spices you own). */
+var SEASON = 0.03;
+
+/* Meal: {n:name, c:'B'|'M', eq:[], vegan:bool, veg:bool(always true here unless egg/dairy), gf:bool,
+   ing:[[staple,amt]], kcal, pro, steps:[], tip} */
+var MEALS = [
+{n:'Porridge + banana',c:'B',eq:['hob','micro'],vegan:false,veg:true,gf:false,ing:[['oats',0.06],['milk',0.15],['banana',0.5],['sugar',0.005]],kcal:430,pro:12,steps:['Simmer oats in milk + a splash of water 5 min, stirring.','Slice half a banana on top with a spoon of sugar.'],tip:'Double oats, half milk + water to cut cost further.'},
+{n:'Peanut porridge',c:'B',eq:['hob','micro'],vegan:true,veg:true,gf:false,ing:[['oats',0.06],['pb',0.02],['sugar',0.005]],kcal:450,pro:14,steps:['Cook oats in water 5 min.','Stir in peanut butter + sugar off the heat.'],tip:'Highest-protein vegan breakfast here. Keeps you full till lunch.'},
+{n:'Overnight oats (no cooking)',c:'B',eq:['none','hob','micro'],vegan:false,veg:true,gf:false,ing:[['oats',0.07],['milk',0.2],['banana',0.5],['pb',0.01]],kcal:520,pro:16,steps:['Mix everything in a bowl or jar the night before.','Leave covered overnight (cool place or fridge). Eat cold.'],tip:'No-cook and no-fire. Great if fuel costs money too.'},
+{n:'Vegan overnight oats (no cooking)',c:'B',eq:['none','hob','micro'],vegan:true,veg:true,gf:false,ing:[['oats',0.07],['pb',0.02],['banana',0.5],['sugar',0.005]],kcal:500,pro:13,steps:['Mix oats with water to cover + peanut butter + sugar.','Rest overnight, top with banana.'],tip:'Water works fine — the oats go creamy by morning.'},
+{n:'Savoury oats + peas',c:'B',eq:['hob','micro'],vegan:true,veg:true,gf:false,ing:[['oats',0.06],['peas',0.05],['onion',0.03],['oil',0.005]],kcal:380,pro:13,steps:['Soften chopped onion in oil 3 min.','Add oats + water + peas, simmer 5 min. Salt well.'],tip:'One of the cheapest hot meals possible. Add any leftover veg.'},
+{n:'Potato + egg hash',c:'B',eq:['hob'],vegan:false,veg:true,gf:true,ing:[['potato',0.25],['onion',0.05],['egg',1],['oil',0.01]],kcal:480,pro:15,steps:['Fry diced potato + onion in oil 12-15 min till crisp.','Push aside, fry the egg in the same pan.'],tip:'A heavy pan + lid cooks the potato through with less oil.'},
+{n:'PB + banana sandwich (no cooking)',c:'B',eq:['none','hob','micro'],vegan:true,veg:true,gf:false,ing:[['bread',0.15],['pb',0.04],['banana',1]],kcal:610,pro:16,steps:['Spread peanut butter thickly on bread.','Top with sliced banana.'],tip:'Highest-calorie no-cook breakfast. Good before physical work.'},
+{n:'Red lentil dal + rice',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['redlent',0.08],['rice',0.075],['onion',0.05],['tin',0.25],['oil',0.01]],kcal:640,pro:24,steps:['Boil rice 12 min. Fry onion in oil 5 min.','Add lentils + 400ml water per serving + tomato. Simmer 20 min till thick. Salt well.'],tip:'Lentils + rice = complete protein. Red lentils need no soaking.'},
+{n:'Rice + bean chilli',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['rice',0.075],['kidney',0.07],['tin',0.5],['onion',0.05],['oil',0.005]],kcal:660,pro:22,steps:['Soak beans 8-12h. BOIL hard 10 min, then simmer 45-60 min till soft.','Fry onion, add beans + tomato, simmer 15 min. Serve on rice.'],tip:'Cook a big pot of beans once; use across 3 meals this week.'},
+{n:'Chickpea curry + rice',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['chick',0.07],['rice',0.075],['tin',0.25],['onion',0.05],['oil',0.01]],kcal:680,pro:20,steps:['Soak chickpeas overnight; simmer 60-90 min till soft (or pressure cook 20 min).','Fry onion + spices, add chickpeas + tomato + water. Simmer 20 min.'],tip:'Save the chickpea cooking water (aquafaba) for soups.'},
+{n:'Tomato pasta',c:'M',eq:['hob'],vegan:true,veg:true,gf:false,ing:[['pasta',0.1],['tin',0.5],['onion',0.04],['oil',0.005]],kcal:620,pro:18,steps:['Boil pasta 10-12 min. Fry onion, add tomato, simmer 10 min.','Toss together with a splash of pasta water.'],tip:'Pasta water makes the sauce cling. Fastest dinner here (15 min).'},
+{n:'Lentil bolognese',c:'M',eq:['hob'],vegan:true,veg:true,gf:false,ing:[['pasta',0.09],['redlent',0.05],['tin',0.5],['carrot',0.05],['onion',0.04],['oil',0.005]],kcal:640,pro:24,steps:['Fry onion + grated carrot 5 min. Add lentils + tomato + water.','Simmer 25 min. Serve over pasta.'],tip:'Tastes richer the next day — cook double for lunch.'},
+{n:'Potato + cabbage stew',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['potato',0.3],['cabbage',0.15],['onion',0.05],['oil',0.01],['flour',0.01]],kcal:520,pro:10,steps:['Fry onion, add cubed potato + water to cover. Simmer 15 min.','Add shredded cabbage + flourाठी. Simmer 10 min.'],tip:'Cabbage is the cheapest fresh vegetable per kilo almost everywhere.'},
+{n:'Carrot + lentil soup + bread',c:'M',eq:['hob'],vegan:true,veg:true,gf:false,ing:[['redlent',0.06],['carrot',0.12],['onion',0.05],['oil',0.005],['bread',0.1]],kcal:520,pro:18,steps:['Soften onion + carrot in oil 5 min.','Add lentils + 500ml water per serving. Simmer 25 min. Serve with bread.'],tip:'Blend half for a creamy texture without cream.'},
+{n:'Egg fried rice',c:'M',eq:['hob'],vegan:false,veg:true,gf:true,ing:[['rice',0.075],['egg',1],['peas',0.06],['carrot',0.04],['oil',0.01],['onion',0.03]],kcal:620,pro:20,steps:['Scramble the egg, set aside. Stir-fry veg in hot oil 3 min.','Add day-old cooked rice + egg. Fry 3 min, salt/soy if you have it.'],tip:'Day-old fridge rice fries best and wastes nothing.'},
+{n:'Peanut noodles',c:'M',eq:['hob'],vegan:true,veg:true,gf:false,ing:[['pasta',0.1],['pb',0.03],['cabbage',0.08],['carrot',0.04],['oil',0.005]],kcal:700,pro:22,steps:['Boil pasta; add shredded veg for the last 3 min.','Stir peanut butter + hot pasta water into a sauce. Toss.'],tip:'Highest-calorie dinner here — good for very physical days.'},
+{n:'Bean + veg soup + bread',c:'M',eq:['hob'],vegan:true,veg:true,gf:false,ing:[['kidney',0.06],['potato',0.15],['carrot',0.06],['onion',0.04],['bread',0.1],['oil',0.005]],kcal:600,pro:20,steps:['Use pre-boiled beans (see bean chilli). Simmer veg 15 min.','Add beans + more water, simmer 10 min. Serve with bread.'],tip:'Batch-cook beans once a week and soups get fast.'},
+{n:'Cabbage fried rice + egg',c:'M',eq:['hob'],vegan:false,veg:true,gf:true,ing:[['rice',0.075],['cabbage',0.15],['egg',1],['oil',0.01],['onion',0.03]],kcal:600,pro:19,steps:['Fry cabbage + onion fast and hot 4 min.','Add cooked rice + egg, toss 3 min till egg sets.'],tip:'Half a cabbage + leftover rice feeds the whole household.'},
+{n:'Potato lentil curry + rice',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['potato',0.2],['redlent',0.05],['rice',0.06],['onion',0.04],['tin',0.25],['oil',0.01]],kcal:640,pro:20,steps:['Fry onion + spices 4 min. Add potato + lentils + water.','Simmer 25 min. Serve over rice.'],tip:'Any curry powder works: turmeric + cumin + coriander if you buy spices.'},
+{n:'Homemade bean wraps',c:'M',eq:['hob'],vegan:true,veg:true,gf:false,ing:[['flour',0.08],['kidney',0.06],['cabbage',0.08],['carrot',0.04],['oil',0.005]],kcal:650,pro:22,steps:['Mix flour + water + pinch salt; rest 10 min. Roll thin, dry-fry 1 min/side.','Fill with mashed seasoned beans + raw shredded veg.'],tip:'Homemade wraps cost a tenth of shop ones.'},
+{n:'Tomato rice + peas',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['rice',0.08],['tin',0.5],['peas',0.08],['onion',0.04],['oil',0.01]],kcal:600,pro:16,steps:['Fry onion in oil, add rice, stir 1 min.','Add tomato + water (2x rice volume). Lid on, low, 15 min. Add peas last 5 min.'],tip:'One-pot: less washing up, less fuel.'},
+{n:'Potato soup + bread',c:'M',eq:['hob'],vegan:false,veg:true,gf:false,ing:[['potato',0.3],['onion',0.06],['milk',0.1],['bread',0.1],['oil',0.005]],kcal:560,pro:14,steps:['Simmer potato + onion in water 15 min till falling apart.','Mash in the pot, stir in milk. Serve with bread.'],tip:'No blender needed — a fork and a hot pot do it.'},
+{n:'Chickpea + potato stew + rice',c:'M',eq:['hob'],vegan:true,veg:true,gf:true,ing:[['chick',0.05],['potato',0.15],['rice',0.06],['onion',0.04],['tin',0.25],['oil',0.005]],kcal:640,pro:19,steps:['Use pre-cooked chickpeas. Fry onion, add everything + water.','Simmer 25 min. Serve over rice.'],tip:'Stretch chickpeas with potato: same pot, lower cost.'},
+{n:'Baked potato + lentil topping',c:'M',eq:['oven'],vegan:true,veg:true,gf:true,ing:[['potato',0.35],['redlent',0.04],['tin',0.25]],kcal:600,pro:19,steps:['Bake potatoes 60 min at 200°C (or microwave 10 min + crisp in pan).','Simmer lentils + tomato 20 min. Split potato, load topping.'],tip:'Big potatoes + lentils is the cheapest oven dinner per calorie.'},
+{n:'Bread + raw veg plate (no cooking)',c:'M',eq:['none','hob','micro'],vegan:true,veg:true,gf:false,ing:[['bread',0.2],['cabbage',0.1],['carrot',0.08],['oil',0.01],['pb',0.02]],kcal:580,pro:15,steps:['Shred cabbage + grate carrot. Dress with oil + salt + vinegar/lemon if you have it.','Eat with bread + peanut butter.'],tip:'A genuine no-fire meal: raw cabbage slaw keeps 2 days covered.'},
+{n:'Microwave tomato rice bowl',c:'M',eq:['micro'],vegan:true,veg:true,gf:true,ing:[['rice',0.08],['tin',0.5],['peas',0.06],['oil',0.005]],kcal:560,pro:15,steps:['Microwave rice + double water, covered, 10-12 min. Rest 3 min.','Stir in tomato + peas. Microwave 3 min more.'],tip:'A microwave + a bowl is enough to eat properly.'}
+];
+
+/* Fix a typo that slipped into one step (kept readable for translators). */
+MEALS.forEach(function(m){ m.steps = m.steps.map(function(s){ return s.replace('flourाठी','flour + salt'); }); });
+
+var EQ_SETS = { full:['hob','oven','micro','none'], hob:['hob','none'], micro:['micro','none'], none:['none'] };
+
+function prices(){ var p={}, i, el; for(i=0;i<STAPLES.length;i++){ el=$('pmsp-p-'+STAPLES[i][0]); p[STAPLES[i][0]] = el ? (parseFloat(el.value)||0) : STAPLES[i][3]; } return p; }
+function mealCost(m, pr){ var c=SEASON, i; for(i=0;i<m.ing.length;i++){ c += pr[m.ing[i][0]]*m.ing[i][1]; } return c; }
+
+function buildPriceGrid(){
+  var box=$('pmsp-prices'); box.innerHTML='';
+  STAPLES.forEach(function(s){
+    var wrap=document.createElement('div');
+    var lab=document.createElement('label');
+    lab.setAttribute('for','pmsp-p-'+s[0]);
+    lab.style.cssText='display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:2px;';
+    lab.textContent=s[1]+' / '+s[2];
+    var inp=document.createElement('input');
+    inp.id='pmsp-p-'+s[0]; inp.type='number'; inp.min='0'; inp.step='0.01'; inp.value=s[3];
+    inp.style.cssText='width:100%;padding:7px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:#070f18;color:inherit;font-size:0.82rem;';
+    inp.addEventListener('change', function(){ if($('pmsp-out').dataset.built==='1') generate(false); });
+    wrap.appendChild(lab); wrap.appendChild(inp); box.appendChild(wrap);
+  });
+}
+
+function filteredMeals(pr){
+  var diet=$('pmsp-diet').value, gf=$('pmsp-gf').checked, eqset=EQ_SETS[$('pmsp-eq').value]||EQ_SETS.full;
+  return MEALS.filter(function(m){
+    if(diet==='vegan' && !m.vegan) return false;
+    if(gf && !m.gf) return false;
+    return m.eq.some(function(e){ return eqset.indexOf(e)>-1; });
+  }).map(function(m){ return {m:m, cost:mealCost(m,pr)}; }).sort(function(a,b){ return a.cost-b.cost; });
+}
+
+function generate(scroll){
+  var cur=($('pmsp-cur').value||'£').slice(0,3);
+  var budget=parseFloat($('pmsp-budget').value)||0;
+  var adults=Math.max(1, parseInt($('pmsp-adults').value,10)||1);
+  var kids=Math.max(0, parseInt($('pmsp-kids').value,10)||0);
+  var servings=adults+kids*0.6;
+  var pr=prices();
+  var pool=filteredMeals(pr);
+  var Bs=pool.filter(function(x){return x.m.c==='B';});
+  var Ms=pool.filter(function(x){return x.m.c==='M';});
+  var out=$('pmsp-out'); out.dataset.built='1';
+
+  if(!Bs.length || !Ms.length){
+    out.innerHTML='<div style="padding:12px;border:1px solid var(--error);border-radius:8px;color:var(--error);">Not enough matching meals for these filters. Try allowing a hob, or turning off gluten-free.</div>';
+    return;
+  }
+  /* Build week: rotate cheapest breakfasts; mains cheapest-first, max 2 uses each, egg meals >=2 if available. */
+  var days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var uses={}, week=[];
+  function pick(list, dayIdx, wantEgg){
+    var cands=list.filter(function(x){return (uses[x.m.n]||0)<2;});
+    if(!cands.length){ uses={}; cands=list.slice(); }
+    if(wantEgg){ var eggs=cands.filter(function(x){return x.m.ing.some(function(g){return g[0]==='egg';});}); if(eggs.length) return eggs[0]; }
+    /* vary from yesterday */
+    if(week.length){ var yest=week[week.length-1]; var alt=cands.filter(function(x){return x.m.n!==yest.b.m.n && x.m.n!==yest.l.m.n && x.m.n!==yest.d.m.n;}); if(alt.length) cands=alt; }
+    return cands[dayIdx % cands.length] || cands[0];
+  }
+  var eggMains=Ms.filter(function(x){return x.m.ing.some(function(g){return g[0]==='egg';});}).length;
+  for(var d=0; d<7; d++){
+    var b=pick(Bs,d,false);
+    var l=pick(Ms,d,(d===1||d===4) && eggMains>0 && $('pmsp-diet').value!=='vegan');
+    var dd=pick(Ms,d+3,false);
+    if(dd.m.n===l.m.n){ var alt2=Ms.filter(function(x){return x.m.n!==l.m.n && (uses[x.m.n]||0)<2;}); if(alt2.length) dd=alt2[0]; }
+    uses[b.m.n]=(uses[b.m.n]||0)+1; uses[l.m.n]=(uses[l.m.n]||0)+1; uses[dd.m.n]=(uses[dd.m.n]||0)+1;
+    week.push({b:b,l:l,d:dd});
+  }
+  var dayServ=servings, total=0, kcal=0, pro=0, shop={};
+  week.forEach(function(w){
+    [w.b,w.l,w.d].forEach(function(x){
+      total+=x.cost*dayServ; kcal+=x.m.kcal*dayServ; pro+=x.m.pro*dayServ;
+      x.m.ing.forEach(function(g){ shop[g[0]]=(shop[g[0]]||0)+g[1]*dayServ; });
+    });
+  });
+  var perPersonDay=total/7/servings;
+  var kcalPP=kcal/7/servings, proPP=pro/7/servings;
+  var kcalT=adults*2000+kids*1500, kcalTarget=kcalT/(servings||1)*1; /* per full-serving approx */
+  kcalTarget=(adults*2000+kids*1500)/7/((adults+kids)||1); /* per person per day target, rough */
+  var proTarget=(adults*50+kids*35)/((adults+kids)||1);
+
+  var emPrev=emergencyMeals(pr, $('pmsp-diet').value, $('pmsp-gf').checked, EQ_SETS[$('pmsp-eq').value]||EQ_SETS.full);
+  var emAvg=0; emPrev.forEach(function(x){ emAvg+=x.cost; }); emAvg=emPrev.length?emAvg/emPrev.length:0;
+  var emWeek=emAvg*3*7*servings;
+  var ok=total<=budget;
+  var banner = ok
+    ? '<div style="padding:12px;border:1px solid var(--success);border-radius:8px;background:rgba(57,255,20,0.06);margin-bottom:12px;"><b style="color:var(--success);">✓ Week cost '+money(total,cur)+' — inside your '+money(budget,cur)+' budget</b><br><span style="font-size:0.8rem;color:var(--text-secondary);">'+money(perPersonDay,cur)+' per person per day · ~'+Math.round(kcalPP)+' kcal &amp; '+Math.round(proPP)+'g protein per person/day (targets ~'+Math.round(kcalTarget)+' kcal / '+Math.round(proTarget)+'g)</span></div>'
+    : '<div style="padding:12px;border:1px solid var(--error);border-radius:8px;background:rgba(255,77,77,0.06);margin-bottom:12px;"><b style="color:var(--error);">⚠ Cheapest full week costs '+money(total,cur)+' — '+money(total-budget,cur)+' over budget</b><br><span style="font-size:0.8rem;color:var(--text-secondary);">This is already the cheapest combination. The emergency 3-meal rotation below would cost ~'+money(emWeek,cur)+'/week for your household. The Hard Times Navigator card can help you find food aid near you.</span></div>';
+
+  var h=banner;
+  h+='<div style="overflow-x:auto;margin-bottom:12px;"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:0.8rem;">';
+  h+='<tr style="color:var(--accent);text-align:left;"><th style="padding:6px;border-bottom:1px solid rgba(45,212,255,0.3);">Day</th><th style="padding:6px;border-bottom:1px solid rgba(45,212,255,0.3);">Breakfast</th><th style="padding:6px;border-bottom:1px solid rgba(45,212,255,0.3);">Lunch</th><th style="padding:6px;border-bottom:1px solid rgba(45,212,255,0.3);">Dinner</th><th style="padding:6px;border-bottom:1px solid rgba(45,212,255,0.3);text-align:right;">Day cost</th></tr>';
+  var DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  week.forEach(function(w,i){
+    var dc=(w.b.cost+w.l.cost+w.d.cost)*dayServ;
+    function cell(x){ return '<b>'+esc(x.m.n)+'</b><br><span style="color:var(--text-secondary);font-size:0.72rem;">'+money(x.cost*dayServ,cur)+' · '+Math.round(x.m.kcal*dayServ)+' kcal</span><br><span style="font-size:0.72rem;color:var(--text-secondary);">'+esc(x.m.steps.join(' '))+'</span>'; }
+    h+='<tr style="border-bottom:1px solid rgba(255,255,255,0.07);vertical-align:top;"><td style="padding:8px 6px;color:var(--accent);font-weight:700;">'+DAYS[i]+'</td><td style="padding:8px 6px;">'+cell(w.b)+'</td><td style="padding:8px 6px;">'+cell(w.l)+'</td><td style="padding:8px 6px;">'+cell(w.d)+'</td><td style="padding:8px 6px;text-align:right;white-space:nowrap;">'+money(dc,cur)+'</td></tr>';
+  });
+  h+='</table></div>';
+
+  /* Shopping list */
+  var rows=Object.keys(shop).map(function(k){ var meta=null,i; for(i=0;i<STAPLES.length;i++){ if(STAPLES[i][0]===k) meta=STAPLES[i]; } return {k:k,meta:meta,qty:shop[k],cost:shop[k]*pr[k]}; }).sort(function(a,b){return b.cost-a.cost;});
+  h+='<h3 style="color:var(--accent);font-size:0.95rem;margin:6px 0 8px;">🛒 Shopping list (one week, '+esc(String(adults))+' adults + '+esc(String(kids))+' children)</h3>';
+  h+='<div style="overflow-x:auto;margin-bottom:12px;"><table style="width:100%;min-width:380px;border-collapse:collapse;font-size:0.8rem;">';
+  rows.forEach(function(r){
+    var q=r.qty>=10?Math.round(r.qty*10)/10:(Math.round(r.qty*100)/100);
+    h+='<tr style="border-bottom:1px solid rgba(255,255,255,0.06);"><td style="padding:6px;">'+esc(r.meta[1])+'</td><td style="padding:6px;white-space:nowrap;">'+q+' '+esc(r.meta[2])+'</td><td style="padding:6px;text-align:right;">'+money(r.cost,cur)+'</td></tr>';
+  });
+  h+='<tr><td style="padding:8px 6px;font-weight:700;" colspan="2">Estimated total</td><td style="padding:8px 6px;text-align:right;font-weight:700;color:var(--accent);">'+money(total,cur)+'</td></tr></table></div>';
+
+  /* Emergency rotation */
+  var em=emergencyMeals(pr, $('pmsp-diet').value, $('pmsp-gf').checked, EQ_SETS[$('pmsp-eq').value]||EQ_SETS.full);
+  h+='<div style="background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.35);border-radius:8px;padding:12px;margin-bottom:12px;font-size:0.82rem;">';
+  h+='<b style="color:var(--premium);">🆘 If money runs out: the 3 cheapest survival meals</b><br><span style="color:var(--text-secondary);">Rotate these and a person can eat for days on almost nothing. Costs are per serving at your prices:</span><ul style="margin:8px 0 4px;padding-left:18px;">';
+  em.forEach(function(x){ h+='<li><b>'+esc(x.m.n)+'</b> — '+money(x.cost,cur)+'/serving · '+x.m.kcal+' kcal · '+esc(x.m.tip)+'</li>'; });
+  h+='</ul></div>';
+
+  h+='<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+  h+='<button type="button" id="pmsp-copy" style="padding:10px 14px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.35);border-radius:8px;color:var(--success);cursor:pointer;">📋 Copy plan + list</button>';
+  h+='<button type="button" id="pmsp-print" style="padding:10px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">🖨️ Print</button></div>';
+  h+='<div id="pmsp-msg" style="margin-top:8px;font-size:0.8rem;color:var(--success);min-height:1.2em;"></div>';
+  out.innerHTML=h;
+
+  $('pmsp-copy').addEventListener('click', function(){
+    var t='PENNY MEALS — WEEK PLAN ('+money(total,cur)+' for '+adults+' adults + '+kids+' children)\n\n';
+    week.forEach(function(w,i){ t+=DAYS[i]+': '+w.b.m.n+' / '+w.l.m.n+' / '+w.d.m.n+'\n'; });
+    t+='\nSHOPPING LIST:\n';
+    rows.forEach(function(r){ t+='- '+r.meta[1]+': '+(Math.round(r.qty*100)/100)+' '+r.meta[2]+' (~'+money(r.cost,cur)+')\n'; });
+    copyText(t, 'Plan + shopping list copied!');
+  });
+  $('pmsp-print').addEventListener('click', function(){ try{ window.print(); }catch(e){} });
+  if(scroll && out.scrollIntoView){ try{ out.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} }
+}
+function emergencyMeals(pr, diet, gf, eqset){
+  return MEALS.filter(function(m){
+    if(diet==='vegan' && !m.vegan) return false;
+    if(gf && !m.gf) return false;
+    return m.eq.some(function(e){ return eqset.indexOf(e)>-1; });
+  }).map(function(m){ return {m:m, cost:mealCost(m,pr)}; }).sort(function(a,b){ return (a.cost/a.m.kcal)-(b.cost/b.m.kcal); }).slice(0,3);
+}
+function emergencyCost(pr){ var e=emergencyMeals(pr,'any',false,EQ_SETS.full); var s=0,i; for(i=0;i<e.length;i++) s+=e[i].cost; return e.length?s/e.length:0; }
+function copyText(t, okMsg){
+  function done(){ var m=$('pmsp-msg'); if(m) m.textContent=okMsg; }
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done, function(){ fallback(); }); } else fallback();
+  function fallback(){ var ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){} document.body.removeChild(ta); }
+}
+var KEY='pmsp-save-v1';
+function save(){
+  var d={cur:$('pmsp-cur').value,budget:$('pmsp-budget').value,adults:$('pmsp-adults').value,kids:$('pmsp-kids').value,diet:$('pmsp-diet').value,eq:$('pmsp-eq').value,gf:$('pmsp-gf').checked,pr:{}};
+  STAPLES.forEach(function(s){ var el=$('pmsp-p-'+s[0]); if(el) d.pr[s[0]]=el.value; });
+  try{ localStorage.setItem(KEY, JSON.stringify(d)); }catch(e){}
+  var m=$('pmsp-msg'); if(m) m.textContent='Saved in this browser.';
+  else { generate(false); var m2=$('pmsp-msg'); if(m2) m2.textContent='Saved in this browser.'; }
+}
+function load(){
+  var d=null; try{ d=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){}
+  if(!d) return;
+  $('pmsp-cur').value=d.cur||'£'; $('pmsp-budget').value=d.budget||25; $('pmsp-adults').value=d.adults||2;
+  $('pmsp-kids').value=d.kids||0; $('pmsp-diet').value=d.diet||'any'; $('pmsp-eq').value=d.eq||'full'; $('pmsp-gf').checked=!!d.gf;
+  if(d.pr) Object.keys(d.pr).forEach(function(k){ var el=$('pmsp-p-'+k); if(el) el.value=d.pr[k]; });
+  generate(false);
+}
+
+buildPriceGrid();
+(function init(){ var d=null; try{ d=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){} if(d) load(); })();
+$('pmsp-go').addEventListener('click', function(){ generate(true); });
+$('pmsp-save').addEventListener('click', save);
+$('pmsp-load').addEventListener('click', load);
+})();
+</script>

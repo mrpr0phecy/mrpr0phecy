@@ -1,0 +1,241 @@
+<h2 id="lod-title" style="margin-top:0;color:var(--accent);">📊 Load Offer Decider &amp; Counter-Offer</h2>
+
+<form aria-describedby="lod-desc" onsubmit="event.preventDefault();" style="margin-bottom:16px;">
+  <p id="lod-desc" class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Three offers on the table, one honest answer. Puts the deadhead into the rate, subtracts what the truck costs
+    to run, turns it into money per hour, and tells you the exact number to ask for if the offer is close but not there.
+  </p>
+
+  <div style="background:rgba(45,212,255,0.05);border:1px solid rgba(45,212,255,0.18);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="color:var(--accent);font-weight:600;font-size:0.9rem;margin-bottom:10px;">Your minimums</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;">
+      <div>
+        <label for="lod-cpm" style="display:block;margin-bottom:6px;color:rgba(230,250,255,0.8);font-size:14px;">All-in cost per <span class="du">mile</span></label>
+        <input id="lod-cpm" type="number" min="0" step="0.05" value="2.00" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="lod-minp" style="display:block;margin-bottom:6px;color:rgba(230,250,255,0.8);font-size:14px;">Minimum profit per <span class="du">mile</span></label>
+        <input id="lod-minp" type="number" min="0" step="0.05" value="0.30" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="lod-minh" style="display:block;margin-bottom:6px;color:rgba(230,250,255,0.8);font-size:14px;">Minimum per hour</label>
+        <input id="lod-minh" type="number" min="0" step="1" value="45" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="lod-speed" style="display:block;margin-bottom:6px;color:rgba(230,250,255,0.8);font-size:14px;">Average speed (mph/km-h)</label>
+        <input id="lod-speed" type="number" min="10" step="1" value="50" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="lod-dock" style="display:block;margin-bottom:6px;color:rgba(230,250,255,0.8);font-size:14px;">Dock time per end (hours)</label>
+        <input id="lod-dock" type="number" min="0" step="0.25" value="1.5" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+      <div>
+        <label for="lod-cur" style="display:block;margin-bottom:6px;color:rgba(230,250,255,0.8);font-size:14px;">Currency</label>
+        <input id="lod-cur" type="text" maxlength="3" value="$" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;" />
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <button type="button" id="lod-km" class="small-btn" style="padding:8px 14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:rgba(230,250,255,0.8);cursor:pointer;font-weight:600;">Switch to kilometres</button>
+    </div>
+  </div>
+
+  <div id="lod-offers" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px;"></div>
+
+  <button type="button" id="lod-go" style="width:100%;padding:12px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;">Decide</button>
+</form>
+
+<div class="results" aria-live="polite" style="background:rgba(0,0,0,0.3);border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,0.05);">
+  <div id="lod-out" style="font-size:0.9rem;line-height:1.7;color:rgba(230,250,255,0.8);">
+    Three example offers are loaded below. Replace them with the ones in front of you.
+  </div>
+</div>
+
+<details class="small" style="margin-top:12px;color:rgba(230,250,255,0.55);">
+  <summary style="cursor:pointer;">Why the loaded mile lies</summary>
+  <p style="margin-top:8px;">
+    A load paying $2.60 a loaded mile with 180 deadhead miles in front of it is really 520 miles of work for
+    $1,040: <strong>$2.00 a total mile</strong>, not $2.60. Then the truck takes its cost per mile out of that,
+    and the hours &mdash; drive time plus the two dock waits &mdash; decide whether the day was worth it at all.
+    Two loads with the same headline rate can differ by several dollars an hour depending on where the deadhead
+    is and how long the docks take, which is why this tool ranks on net profit per hour, not on the rate.
+  </p>
+  <p>
+    <strong>Where the counter-offer comes from:</strong> the rate that makes your minimum is
+    <span style="font-family:ui-monospace,monospace;color:var(--accent);">(cost per mile + minimum profit per mile) &times; total miles &minus; extras</span>,
+    and the rate that makes your minimum per hour is
+    <span style="font-family:ui-monospace,monospace;color:var(--accent);">minimum per hour &times; hours + cost per mile &times; total miles &minus; extras</span>.
+    Whichever is higher is the number to say out loud. Brokers negotiate on rate per mile; you negotiate on
+    profit per hour.
+  </p>
+  <p style="color:#ffa500;">Information, not financial advice. Rates, fuel surcharges, accessorials and detention
+  terms are contractual &mdash; read the rate confirmation, all of it, before the wheels turn.</p>
+</details>
+
+<script>
+(function () {
+  var card = document.currentScript.parentNode;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var KM = false;
+
+  var OFFERS = [
+    { name: 'Offer A', from: 'Memphis, TN', to: 'Nashville, TN', loaded: 210, dead: 40, rate: 620, extra: 60 },
+    { name: 'Offer B', from: 'Memphis, TN', to: 'Little Rock, AR', loaded: 140, dead: 12, rate: 480, extra: 0 },
+    { name: 'Offer C', from: 'Memphis, TN', to: 'Atlanta, GA', loaded: 390, dead: 155, rate: 1050, extra: 100 }
+  ];
+
+  function unit() { return KM ? 'km' : 'mi'; }
+  function num(n, d) {
+    var dec = d == null ? 0 : d;
+    var f = Math.pow(10, dec);
+    var r = Math.round(n * f) / f;
+    return r.toLocaleString('en-GB', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function money(v, d) { return $('lod-cur').value + num(v, d == null ? 2 : d); }
+  function v(id) { return Math.max(0, parseFloat($(id).value) || 0); }
+
+  function renderOffers() {
+    var host = $('lod-offers');
+    host.innerHTML = OFFERS.map(function (o, i) {
+      return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(45,212,255,0.18);border-radius:10px;padding:12px;">' +
+        '<div style="color:var(--accent);font-weight:600;margin-bottom:8px;">' + o.name + '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+        '<div><label for="lod-f' + i + '" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">From</label><input id="lod-f' + i + '" type="text" value="' + esc(o.from) + '" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '<div><label for="lod-t' + i + '" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">To</label><input id="lod-t' + i + '" type="text" value="' + esc(o.to) + '" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '<div><label for="lod-l' + i + '" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">Loaded <span class="du">' + unit() + '</span></label><input id="lod-l' + i + '" type="number" min="0" step="1" value="' + o.loaded + '" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '<div><label for="lod-d' + i + '" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">Deadhead <span class="du">' + unit() + '</span></label><input id="lod-d' + i + '" type="number" min="0" step="1" value="' + o.dead + '" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '<div><label for="lod-r' + i + '" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">Line-haul rate</label><input id="lod-r' + i + '" type="number" min="0" step="10" value="' + o.rate + '" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '<div><label for="lod-x' + i + '" style="display:block;font-size:12px;color:rgba(230,250,255,0.7);margin-bottom:3px;">Extras (FSC, stop pay)</label><input id="lod-x' + i + '" type="number" min="0" step="10" value="' + o.extra + '" style="width:100%;padding:7px;border-radius:7px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;"></div>' +
+        '</div></div>';
+    }).join('');
+    ['lod-f0', 'lod-t0', 'lod-l0', 'lod-d0', 'lod-r0', 'lod-x0',
+     'lod-f1', 'lod-t1', 'lod-l1', 'lod-d1', 'lod-r1', 'lod-x1',
+     'lod-f2', 'lod-t2', 'lod-l2', 'lod-d2', 'lod-r2', 'lod-x2'].forEach(function (id) {
+      $(id).addEventListener('input', decide);
+    });
+  }
+
+  function scale() {
+    // when switching to km, convert the offer distances once
+    return KM ? 1.60934 : 0.621371;
+  }
+
+  function decide() {
+    var cpm = v('lod-cpm');
+    var minProfit = v('lod-minp');
+    var minHourly = v('lod-minh');
+    var speed = Math.max(10, v('lod-speed'));
+    var dock = v('lod-dock');
+    var U = unit();
+
+    var results = [];
+    [0, 1, 2].forEach(function (i) {
+      var loaded = Math.max(0, parseFloat($('lod-l' + i).value) || 0);
+      var dead = Math.max(0, parseFloat($('lod-d' + i).value) || 0);
+      var rate = Math.max(0, parseFloat($('lod-r' + i).value) || 0);
+      var extra = Math.max(0, parseFloat($('lod-x' + i).value) || 0);
+      var totalMiles = loaded + dead;
+      if (totalMiles <= 0) return;
+      var revenue = rate + extra;
+      var cost = cpm * totalMiles;
+      var net = revenue - cost;
+      var hours = totalMiles / speed + dock * 2;
+      var perLoaded = loaded > 0 ? revenue / loaded : 0;
+      var perTotal = revenue / totalMiles;
+      var netPerMile = net / totalMiles;
+      var netHourly = hours > 0 ? net / hours : 0;
+      var grossHourly = hours > 0 ? revenue / hours : 0;
+      var needRate = (cpm + minProfit) * totalMiles - extra;
+      var needHourly = minHourly * hours + cost - extra;
+      var askFor = Math.ceil(Math.max(needRate, needHourly));   // nobody quotes cents on a rate call
+      var verdict, colour;
+      if (net <= 0) { verdict = 'Pass &mdash; below cost'; colour = 'red'; }
+      else if (netPerMile >= minProfit && netHourly >= minHourly) { verdict = 'Take it'; colour = 'green'; }
+      else if (netPerMile >= minProfit * 0.75 || netHourly >= minHourly * 0.85) { verdict = 'Marginal &mdash; counter'; colour = 'amber'; }
+      else { verdict = 'Pass'; colour = 'red'; }
+      results.push({
+        i: i, name: OFFERS[i].name, from: $('lod-f' + i).value, to: $('lod-t' + i).value,
+        loaded: loaded, dead: dead, totalMiles: totalMiles, revenue: revenue, cost: cost, net: net,
+        hours: hours, perLoaded: perLoaded, perTotal: perTotal, netPerMile: netPerMile,
+        netHourly: netHourly, grossHourly: grossHourly, askFor: askFor, needRate: needRate, needHourly: needHourly,
+        verdict: verdict, colour: colour, rate: rate, extra: extra
+      });
+    });
+
+    if (!results.length) {
+      $('lod-out').innerHTML = '<div style="color:#ffa500;">Enter at least one offer with some distance on it.</div>';
+      return;
+    }
+
+    var best = results.slice().sort(function (a, b) { return b.netHourly - a.netHourly; })[0];
+
+    function row(r) {
+      var col = r.colour === 'red' ? '#ff4d4d' : r.colour === 'amber' ? '#ffa500' : '#39ff14';
+      var isBest = r.name === best.name;
+      return '<div style="background:' + (isBest ? 'rgba(57,255,20,0.06)' : 'rgba(255,255,255,0.03)') + ';border:1px solid ' + (isBest ? 'rgba(57,255,20,0.35)' : 'rgba(255,255,255,0.08)') + ';border-radius:10px;padding:12px;margin-bottom:10px;">' +
+        '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">' +
+          '<div style="font-weight:700;color:var(--accent);">' + esc(r.from || r.name) + ' &rarr; ' + esc(r.to || '') + (isBest ? ' <span style="color:#39ff14;font-size:0.75rem;">BEST PER HOUR</span>' : '') + '</div>' +
+          '<div style="font-weight:700;color:' + col + ';font-size:0.9rem;">' + r.verdict + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          tile('Loaded rate', money(r.perLoaded), money(r.rate) + ' over ' + num(r.loaded) + ' ' + U, 'var(--accent)') +
+          tile('Rate, all miles', money(r.perTotal), num(r.totalMiles) + ' ' + U + ' with the deadhead', r.perTotal < 1.5 ? '#ffa500' : 'var(--accent)') +
+          tile('Net after cost', money(r.net), money(r.cost) + ' of cost', r.net > 0 ? '#39ff14' : '#ff4d4d') +
+          tile('Net per ' + U, money(r.netPerMile), 'you want ' + money(minProfit), r.netPerMile >= minProfit ? '#39ff14' : '#ffa500') +
+          tile('Net per hour', money(r.netHourly), num(r.hours, 1) + ' h door to door', r.netHourly >= minHourly ? '#39ff14' : '#ffa500') +
+          tile('Ask for', money(r.askFor, 0), 'to hit your minimums', '#ffd700') +
+        '</div>' +
+        (r.rate < r.askFor
+          ? '<div style="margin-top:8px;padding:8px 10px;background:rgba(255,215,0,0.08);border-left:3px solid #ffd700;border-radius:6px;font-size:0.85rem;color:rgba(230,250,255,0.88);">' +
+            'As offered this pays <strong>' + money(r.net) + '</strong> (' + money(r.netHourly, 2) + '/hour). To make your minimums it needs <strong>' + money(r.askFor, 0) + '</strong> all-in &mdash; ' +
+            (r.needHourly > r.needRate ? 'the hours are what break this one, so ask for ' + money(r.askFor, 0) + ' or get the dock time down.' : 'the miles are what break this one, so ask for ' + money(r.askFor, 0) + ' or find a shorter deadhead.') +
+            '</div>'
+          : '<div style="margin-top:8px;padding:8px 10px;background:rgba(57,255,20,0.06);border-left:3px solid #39ff14;border-radius:6px;font-size:0.85rem;color:rgba(230,250,255,0.88);">Pays <strong>' + money(r.net) + '</strong> over the truck costs and <strong>' + money(r.netHourly) + '</strong> an hour. Take it before someone else does.</div>') +
+      '</div>';
+    }
+
+    var summary = '<div style="padding:10px 12px;background:rgba(45,212,255,0.07);border:1px solid rgba(45,212,255,0.25);border-radius:8px;margin-bottom:12px;color:rgba(230,250,255,0.92);">' +
+      'Best of the three on money per hour: <strong>' + esc(best.from || best.name) + ' &rarr; ' + esc(best.to || '') + '</strong> at ' + money(best.netHourly) + ' an hour net, ' +
+      money(best.net) + ' for ' + num(best.hours, 1) + ' hours of your day. ' +
+      (results.some(function (r) { return r.verdict.indexOf('Pass') === 0; }) ? 'At least one of the others is a pass &mdash; running it costs you money you will not get back.' : 'All three are workable; pick the one that ends where the next load is.') +
+      '</div>';
+
+    var copy = 'LOAD OFFERS ' + new Date().toISOString().slice(0, 10) + '\n' + results.map(function (r) {
+      return (r.from + ' to ' + r.to) + ': ' + num(r.totalMiles) + ' ' + U + ' total (' + num(r.dead) + ' deadhead), ' +
+        money(r.revenue) + ' revenue, ' + money(r.net) + ' net, ' + money(r.netHourly, 2) + '/hr, verdict ' + r.verdict.replace(/&mdash;/g, '-') + ', ask ' + money(r.askFor, 0);
+    }).join('\n');
+
+    $('lod-out').innerHTML = summary + results.map(row).join('') +
+      '<details style="margin-top:10px;color:rgba(230,250,255,0.6);font-size:0.85rem;">' +
+      '<summary style="cursor:pointer;color:var(--accent);">Copy the comparison for dispatch</summary>' +
+      '<textarea id="lod-copy" readonly style="width:100%;height:120px;margin-top:8px;padding:8px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.4);color:var(--text);font-family:ui-monospace,monospace;font-size:12px;">' + esc(copy) + '</textarea></details>';
+  }
+
+  function tile(label, value, sub, colour) {
+    return '<div style="flex:1;min-width:108px;background:rgba(45,212,255,0.06);border:1px solid rgba(45,212,255,0.15);border-radius:8px;padding:9px;text-align:center;">' +
+      '<div style="font-size:1rem;font-weight:700;color:' + (colour || 'var(--accent)') + ';">' + value + '</div>' +
+      '<div style="font-size:0.63rem;color:rgba(230,250,255,0.55);text-transform:uppercase;letter-spacing:0.04em;">' + label + '</div>' +
+      (sub ? '<div style="font-size:0.66rem;color:rgba(230,250,255,0.42);margin-top:3px;">' + sub + '</div>' : '') + '</div>';
+  }
+
+  $('lod-km').addEventListener('click', function () {
+    var f = scale();
+    [0, 1, 2].forEach(function (i) {
+      $('lod-l' + i).value = Math.round(parseFloat($('lod-l' + i).value) * f);
+      $('lod-d' + i).value = Math.round(parseFloat($('lod-d' + i).value) * f);
+    });
+    $('lod-speed').value = KM ? 50 : 80;
+    KM = !KM;
+    this.textContent = KM ? 'Switch to miles' : 'Switch to kilometres';
+    var labels = card.querySelectorAll('.du');
+    for (var i = 0; i < labels.length; i++) labels[i].textContent = unit();
+    decide();
+  });
+  ['lod-cpm', 'lod-minp', 'lod-minh', 'lod-speed', 'lod-dock'].forEach(function (id) { $(id).addEventListener('input', decide); });
+  $('lod-cur').addEventListener('input', decide);
+  $('lod-go').addEventListener('click', decide);
+
+  renderOffers();
+  decide();
+})();
+</script>

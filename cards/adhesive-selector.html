@@ -1,0 +1,498 @@
+<h2 id="adh-title" style="margin-top:0;color:var(--accent);">🧴 Adhesive Selector — Which Glue Sticks This to That?</h2>
+
+<p id="adh-desc" class="small" style="color:var(--text-secondary);margin-bottom:16px;">
+  Pick the two things you are joining and the conditions it has to survive, and this works out which
+  adhesive will actually hold — with open time, clamp time, full cure and the surface prep that makes
+  the difference between a joint that lasts and one that falls off in a week. Runs entirely on your
+  device: no search, no account, no upload.
+</p>
+
+<form onsubmit="event.preventDefault();" aria-label="Adhesive selector">
+
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;">
+    <div style="flex:1 1 190px;min-width:0;">
+      <label for="adh-a" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">First material</label>
+      <select id="adh-a" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;"></select>
+    </div>
+    <div style="flex:0 0 auto;padding-bottom:9px;color:var(--accent);font-weight:800;">+</div>
+    <div style="flex:1 1 190px;min-width:0;">
+      <label for="adh-b" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">Second material</label>
+      <select id="adh-b" style="width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;"></select>
+    </div>
+    <div style="flex:0 1 150px;min-width:130px;">
+      <label for="adh-load" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:4px;">How hard must it hold?</label>
+      <select id="adh-load" style="width:100%;padding:9px 10px;border-radius:8px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);color:var(--text);font-size:.88rem;">
+        <option value="light">Light — craft, paper, trim</option>
+        <option value="medium" selected>Medium — household repair</option>
+        <option value="structural">Structural — must bear weight</option>
+      </select>
+    </div>
+  </div>
+
+  <fieldset id="adh-cond-label" style="border:1px solid rgba(255,255,255,.10);border-radius:10px;margin:0 0 14px;padding:9px 11px;">
+    <legend id="adh-cond-legend" style="font-size:.75rem;color:var(--text-secondary);padding:0 6px;">Conditions it has to survive (tick everything that applies)</legend>
+    <div id="adh-cond" role="group" aria-labelledby="adh-cond-legend" style="display:flex;flex-wrap:wrap;gap:7px 8px;"></div>
+  </fieldset>
+
+  <div id="adh-warn" role="status" aria-live="polite" style="font-size:.8rem;color:#ffb347;margin-bottom:12px;min-height:1.1em;"></div>
+
+  <div id="adh-results" style="display:grid;gap:10px;"></div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+    <button type="button" id="adh-copy" style="padding:8px 13px;border-radius:8px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.4);color:var(--accent);font-size:.78rem;font-weight:700;cursor:pointer;">📋 Copy recommendation</button>
+    <button type="button" id="adh-all" style="padding:8px 13px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text-secondary);font-size:.78rem;cursor:pointer;">Show every adhesive that works</button>
+  </div>
+</form>
+
+<details style="margin-top:14px;color:rgba(230,250,255,.6);font-size:.8rem;">
+  <summary style="cursor:pointer;">How the recommendation is worked out — and where judgement still matters</summary>
+  <div style="margin-top:8px;line-height:1.6;">
+    <p style="margin:0 0 8px;">
+      Every material is scored against every adhesive in the table below (0 = hopeless, 5 = ideal). A joint is only
+      as good as its weakest side, so the two scores are combined with the lower one weighted most heavily. Each
+      condition you tick then adds weight to the adhesives that carry that property and removes the ones that
+      cannot do it at all, and the load you choose filters out anything too weak for the job.
+    </p>
+    <p style="margin:0 0 8px;">
+      Two things the table cannot do for you. <b style="color:var(--text);">Low-surface-energy plastics</b>
+      (polyethylene, polypropylene, PTFE and most "non-stick" surfaces) resist almost everything; they need a
+      specialised adhesive plus a primer, flame or plasma treatment, or mechanical fixing — the warnings above
+      flag them. And <b style="color:var(--text);">surface prep beats adhesive choice</b>: clean, dry, degreased
+      and lightly abraded will outperform an expensive glue on a greasy surface every time.
+    </p>
+    <p style="margin:0;">
+      Cure times assume room temperature and average humidity; cold and thick glue lines slow everything down.
+      This is guidance for household, workshop and craft work — for anything structural, load-bearing,
+      safety-critical or involving gas, water pressure or vehicles, follow the manufacturer's data sheet and use a
+      rated product. Nothing you type here leaves the device.
+    </p>
+  </div>
+</details>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- materials: id, label, group --------------------------------------
+  var MATERIALS = [
+    { id: 'wood',      label: 'Wood (softwood / hardwood)', group: 'Porous' },
+    { id: 'mdf',       label: 'MDF / chipboard / particle board', group: 'Porous' },
+    { id: 'ply',       label: 'Plywood', group: 'Porous' },
+    { id: 'cork',      label: 'Cork', group: 'Porous' },
+    { id: 'paper',     label: 'Paper / card', group: 'Porous' },
+    { id: 'cardboard', label: 'Corrugated cardboard', group: 'Porous' },
+    { id: 'fabric',    label: 'Fabric / felt', group: 'Porous' },
+    { id: 'canvas',    label: 'Canvas (artist / deckchair)', group: 'Porous' },
+    { id: 'leather',   label: 'Leather / suede', group: 'Porous' },
+    { id: 'carpet',    label: 'Carpet / rug backing', group: 'Porous' },
+    { id: 'plaster',   label: 'Plaster / drywall / skim', group: 'Porous' },
+    { id: 'brick',     label: 'Brick / mortar / paving', group: 'Porous' },
+    { id: 'concrete',  label: 'Concrete / screed', group: 'Porous' },
+    { id: 'stone',     label: 'Stone / slate / marble', group: 'Non-porous' },
+    { id: 'ceramic',   label: 'Ceramic / porcelain / pottery', group: 'Non-porous' },
+    { id: 'tile',      label: 'Glazed tile', group: 'Non-porous' },
+    { id: 'glass',     label: 'Glass', group: 'Non-porous' },
+    { id: 'mirror',    label: 'Mirror (backing is copper/silver)', group: 'Non-porous' },
+    { id: 'metal',     label: 'Metal — steel / iron', group: 'Non-porous' },
+    { id: 'alu',       label: 'Aluminium / non-ferrous metal', group: 'Non-porous' },
+    { id: 'acrylic',   label: 'Acrylic / Perspex / rigid PVC', group: 'Plastic' },
+    { id: 'polystyrene', label: 'Polystyrene / expanded foam', group: 'Plastic' },
+    { id: 'polyolefin', label: 'Polyethylene / polypropylene (low-energy)', group: 'Plastic' },
+    { id: 'pu foam',   label: 'Upholstery / mattress foam', group: 'Plastic' },
+    { id: 'rubber',    label: 'Rubber / neoprene', group: 'Plastic' },
+    { id: 'vinyl',     label: 'Vinyl / PVC sheet flooring', group: 'Plastic' },
+    { id: 'magnet',    label: 'Magnet / ferrite', group: 'Non-porous' }
+  ];
+
+  // ---- adhesives: score per material (0-5) + properties -------------------
+  // flags: water (waterproof), gap (gap filling), flex (stays flexible),
+  //        heat (heat resistant), uv (outdoor/UV), removable, food, clear,
+  //        struct (structural), fast (sets quickly), sand (sandable/paintable)
+  var ADHESIVES = [
+    {
+      name: 'PVA wood glue (type II / waterproof)', short: 'PVA wood glue',
+      open: '5–10 min', clamp: '30–60 min', cure: '24 h',
+      prep: 'Both faces clean, dry and close-fitting — PVA needs a tight joint.',
+      score: { wood: 5, ply: 5, mdf: 4, cork: 4, paper: 4, cardboard: 4, fabric: 3, canvas: 3, leather: 2, carpet: 2, plaster: 2, brick: 2, concrete: 2, stone: 1, ceramic: 1, tile: 1, glass: 1, mirror: 0, metal: 0, alu: 0, acrylic: 0, polystyrene: 0, 'polyolefin': 0, 'pu foam': 1, rubber: 0, vinyl: 0, magnet: 0 },
+      flags: ['water', 'sand'], best: 'Any indoor woodwork, joinery and furniture repair.'
+    },
+    {
+      name: 'Aliphatic resin (yellow "carpenter\'s" glue)', short: 'Yellow wood glue',
+      open: '5–10 min', clamp: '30 min', cure: '24 h',
+      prep: 'Tight-fitting joint, dry wood, clamp firmly — it grabs faster than white PVA.',
+      score: { wood: 5, ply: 5, mdf: 4, cork: 4, paper: 4, cardboard: 4, fabric: 3, canvas: 3, leather: 2, carpet: 1, plaster: 2, brick: 1, concrete: 1, stone: 1, ceramic: 1, tile: 1, glass: 1, mirror: 0, metal: 0, alu: 0, acrylic: 0, polystyrene: 0, 'polyolefin': 0, 'pu foam': 1, rubber: 0, vinyl: 0, magnet: 0 },
+      flags: ['sand', 'fast'], best: 'Fast wood assembly where you want to sand and finish the same day.'
+    },
+    {
+      name: 'Two-part epoxy (5-minute, general purpose)', short: '5-minute epoxy',
+      open: '3–5 min', clamp: '10–20 min', cure: '24 h (handling in 1 h)',
+      prep: 'Abrade glossy faces, degrease with isopropyl alcohol, mix equal parts thoroughly.',
+      score: { wood: 4, ply: 4, mdf: 3, cork: 2, paper: 2, cardboard: 2, fabric: 2, canvas: 2, leather: 2, carpet: 2, plaster: 3, brick: 4, concrete: 4, stone: 5, ceramic: 5, tile: 4, glass: 4, mirror: 1, metal: 5, alu: 5, acrylic: 3, polystyrene: 0, 'polyolefin': 0, 'pu foam': 1, rubber: 2, vinyl: 1, magnet: 5 },
+      flags: ['water', 'gap', 'heat', 'struct', 'fast'], best: 'Hard, rigid, high-strength bonds across mixed materials.'
+    },
+    {
+      name: 'Slow-cure structural epoxy (30–60 min)', short: 'Structural epoxy',
+      open: '20–40 min', clamp: '4–8 h', cure: '5–7 days',
+      prep: 'Abrade and degrease both faces. Warmer room = faster cure; below 15 °C it crawls.',
+      score: { wood: 5, ply: 5, mdf: 3, cork: 3, paper: 2, cardboard: 2, fabric: 2, canvas: 2, leather: 2, carpet: 2, plaster: 3, brick: 5, concrete: 5, stone: 5, ceramic: 5, tile: 4, glass: 5, mirror: 1, metal: 5, alu: 5, acrylic: 3, polystyrene: 0, 'polyolefin': 0, 'pu foam': 1, rubber: 2, vinyl: 2, magnet: 5 },
+      flags: ['water', 'gap', 'heat', 'uv', 'struct'], best: 'The strongest option here — load-bearing, outdoor and marine repairs.'
+    },
+    {
+      name: 'Cyanoacrylate (thin super glue)', short: 'Thin super glue',
+      open: '10–30 s', clamp: 'Hold 30 s', cure: '24 h',
+      prep: 'Perfectly flat, clean faces — it needs a film thinner than a hair. A puff of breath accelerates it.',
+      score: { wood: 3, ply: 3, mdf: 2, cork: 2, paper: 3, cardboard: 3, fabric: 1, canvas: 2, leather: 3, carpet: 1, plaster: 2, brick: 1, concrete: 2, stone: 2, ceramic: 4, tile: 3, glass: 3, mirror: 0, metal: 4, alu: 4, acrylic: 4, polystyrene: 0, 'polyolefin': 0, 'pu foam': 0, rubber: 4, vinyl: 2, magnet: 4 },
+      flags: ['fast', 'clear'], best: 'Small, tight, non-porous parts — clean breaks in ceramics, plastics and metal.'
+    },
+    {
+      name: 'Gel cyanoacrylate + activator (spray)', short: 'Gel super glue',
+      open: '1–2 min', clamp: 'Hold 30–60 s', cure: '24 h',
+      prep: 'Gel tolerates small gaps and vertical faces misted with activator.',
+      score: { wood: 3, ply: 3, mdf: 3, cork: 3, paper: 3, cardboard: 3, fabric: 2, canvas: 2, leather: 3, carpet: 2, plaster: 3, brick: 2, concrete: 3, stone: 3, ceramic: 5, tile: 4, glass: 4, mirror: 1, metal: 5, alu: 5, acrylic: 4, polystyrene: 1, 'polyolefin': 0, 'pu foam': 1, rubber: 4, vinyl: 2, magnet: 5 },
+      flags: ['gap', 'fast', 'clear'], best: 'Chips and cracks on vertical or slightly uneven surfaces.'
+    },
+    {
+      name: 'Expanding polyurethane glue', short: 'PU glue',
+      open: '10–20 min', clamp: '1–4 h', cure: '24 h',
+      prep: 'Dampen one face — moisture cures it. It foams, so clamp and expect squeeze-out. Wear gloves.',
+      score: { wood: 5, ply: 5, mdf: 4, cork: 4, paper: 2, cardboard: 2, fabric: 2, canvas: 2, leather: 2, carpet: 2, plaster: 3, brick: 4, concrete: 4, stone: 4, ceramic: 3, tile: 2, glass: 2, mirror: 0, metal: 3, alu: 3, acrylic: 2, polystyrene: 3, 'polyolefin': 0, 'pu foam': 3, rubber: 2, vinyl: 1, magnet: 3 },
+      flags: ['water', 'gap', 'uv', 'sand'], best: 'Outdoor woodwork, gap-filling joints and damp-prone timber.'
+    },
+    {
+      name: 'MS polymer / hybrid sealant-adhesive', short: 'MS polymer',
+      open: '10–15 min', clamp: 'Support 12–24 h', cure: '2–3 days',
+      prep: 'Clean and degrease. It bridges gaps and stays flexible — support the weight while it cures.',
+      score: { wood: 4, ply: 4, mdf: 3, cork: 3, paper: 2, cardboard: 2, fabric: 2, canvas: 2, leather: 2, carpet: 3, plaster: 4, brick: 5, concrete: 5, stone: 5, ceramic: 4, tile: 4, glass: 4, mirror: 3, metal: 5, alu: 5, acrylic: 3, polystyrene: 2, 'polyolefin': 1, 'pu foam': 3, rubber: 3, vinyl: 3, magnet: 4 },
+      flags: ['water', 'gap', 'flex', 'uv', 'struct'], best: 'The all-rounder for fixing almost anything to almost anything, indoors or out.'
+    },
+    {
+      name: 'Construction / grab adhesive (cartridge)', short: 'Grab adhesive',
+      open: '10–15 min', clamp: 'Support 24 h', cure: '3–7 days',
+      prep: 'Clean, dry, sound surfaces. Apply in beads — it needs air to cure, so do not fully seal the back.',
+      score: { wood: 5, ply: 5, mdf: 4, cork: 3, paper: 2, cardboard: 2, fabric: 2, canvas: 2, leather: 1, carpet: 2, plaster: 5, brick: 5, concrete: 5, stone: 5, ceramic: 4, tile: 4, glass: 2, mirror: 4, metal: 4, alu: 4, acrylic: 3, polystyrene: 4, 'polyolefin': 1, 'pu foam': 3, rubber: 2, vinyl: 3, magnet: 3 },
+      flags: ['water', 'gap', 'uv', 'struct'], best: 'Fixing panels, skirting, coving, battens and tile-to-wall without nails.'
+    },
+    {
+      name: 'Neutral-cure silicone sealant', short: 'Neutral silicone',
+      open: '5–10 min', clamp: 'Support 24 h', cure: '2–3 days',
+      prep: 'Degrease with isopropyl alcohol; tool the bead within 5 minutes. Acidic (acetoxy) silicone attacks mirrors and metal.',
+      score: { wood: 2, ply: 2, mdf: 1, cork: 1, paper: 1, cardboard: 1, fabric: 1, canvas: 1, leather: 0, carpet: 1, plaster: 3, brick: 3, concrete: 3, stone: 3, ceramic: 4, tile: 4, glass: 5, mirror: 5, metal: 3, alu: 4, acrylic: 2, polystyrene: 1, 'polyolefin': 0, 'pu foam': 1, rubber: 2, vinyl: 2, magnet: 2 },
+      flags: ['water', 'flex', 'heat', 'uv'], best: 'Glass, mirrors, sanitary sealing and anywhere the joint must stay watertight.'
+    },
+    {
+      name: 'Contact cement (neoprene)', short: 'Contact cement',
+      open: '15–20 min (after both coats flash off)', clamp: 'Instant — one chance only', cure: '24–72 h',
+      prep: 'Coat both faces, let them go touch-dry, then bring together accurately. You cannot reposition it.',
+      score: { wood: 4, ply: 4, mdf: 3, cork: 4, paper: 2, cardboard: 2, fabric: 4, canvas: 4, leather: 5, carpet: 4, plaster: 2, brick: 2, concrete: 2, stone: 2, ceramic: 2, tile: 2, glass: 2, mirror: 0, metal: 4, alu: 4, acrylic: 2, polystyrene: 0, 'polyolefin': 0, 'pu foam': 2, rubber: 5, vinyl: 4, magnet: 3 },
+      flags: ['water', 'flex', 'heat'], best: 'Large flat laminations — worktops, veneer, leather, rubber and sheet flooring.'
+    },
+    {
+      name: 'Hot-melt glue (high-temp gun)', short: 'Hot glue',
+      open: '20–60 s', clamp: 'Hold 20 s', cure: 'Minutes',
+      prep: 'Surfaces warm, clean and dry. Use high-temp guns and sticks; low-temp bonds creep in heat.',
+      score: { wood: 3, ply: 3, mdf: 3, cork: 3, paper: 5, cardboard: 5, fabric: 4, canvas: 3, leather: 2, carpet: 2, plaster: 2, brick: 1, concrete: 1, stone: 1, ceramic: 2, tile: 1, glass: 2, mirror: 0, metal: 2, alu: 2, acrylic: 2, polystyrene: 4, 'polyolefin': 1, 'pu foam': 3, rubber: 2, vinyl: 1, magnet: 2 },
+      flags: ['gap', 'fast'], best: 'Craft, packaging and quick tacking while something else sets.'
+    },
+    {
+      name: 'Glue stick / paper adhesive', short: 'Glue stick',
+      open: '1–2 min', clamp: 'Press flat', cure: 'Minutes',
+      prep: 'Flat, dry paper. Rub from the centre outwards to push out wrinkles.',
+      score: { wood: 1, ply: 1, mdf: 1, cork: 1, paper: 5, cardboard: 4, fabric: 2, canvas: 2, leather: 1, carpet: 1, plaster: 0, brick: 0, concrete: 0, stone: 0, ceramic: 0, tile: 0, glass: 0, mirror: 0, metal: 0, alu: 0, acrylic: 0, polystyrene: 1, 'polyolefin': 0, 'pu foam': 0, rubber: 0, vinyl: 0, magnet: 0 },
+      flags: ['removable', 'clear'], best: 'Paper, card, photos and school projects — no soaking, no wrinkling.'
+    },
+    {
+      name: 'Spray adhesive (repositionable / permanent)', short: 'Spray adhesive',
+      open: '1–5 min', clamp: 'Roll flat', cure: '1–24 h',
+      prep: 'Mask around the work, spray in light even coats in a ventilated space.',
+      score: { wood: 2, ply: 2, mdf: 2, cork: 3, paper: 5, cardboard: 4, fabric: 4, canvas: 4, leather: 3, carpet: 4, plaster: 1, brick: 1, concrete: 1, stone: 1, ceramic: 1, tile: 1, glass: 1, mirror: 0, metal: 2, alu: 2, acrylic: 1, polystyrene: 2, 'polyolefin': 0, 'pu foam': 2, rubber: 2, vinyl: 2, magnet: 1 },
+      flags: ['removable'], best: 'Covering large flat areas evenly — fabric, foam, posters and carpet tiles.'
+    },
+    {
+      name: 'Epoxy putty / steel-filled repair stick', short: 'Epoxy putty',
+      open: '3–5 min', clamp: 'Shape immediately', cure: '1 h (machinable), 24 h full',
+      prep: 'Knead until one colour. Works under water once mixed; press firmly into the defect.',
+      score: { wood: 4, ply: 4, mdf: 3, cork: 2, paper: 1, cardboard: 1, fabric: 1, canvas: 1, leather: 1, carpet: 1, plaster: 4, brick: 4, concrete: 5, stone: 4, ceramic: 4, tile: 4, glass: 3, mirror: 1, metal: 5, alu: 5, acrylic: 2, polystyrene: 0, 'polyolefin': 0, 'pu foam': 1, rubber: 2, vinyl: 2, magnet: 4 },
+      flags: ['water', 'gap', 'heat', 'struct', 'sand'], best: 'Rebuilding missing material — stripped threads, cracked castings, leaking pipes as an emergency fix.'
+    },
+    {
+      name: 'Solvent cement for rigid PVC / acrylic', short: 'Plastic solvent cement',
+      open: '30–60 s', clamp: 'Hold 1 min', cure: '24 h',
+      prep: 'Only for the matching plastic — it welds the faces together. Ventilate; keep off skin.',
+      score: { wood: 0, ply: 0, mdf: 0, cork: 0, paper: 0, cardboard: 0, fabric: 0, canvas: 0, leather: 0, carpet: 0, plaster: 0, brick: 0, concrete: 0, stone: 0, ceramic: 0, tile: 0, glass: 0, mirror: 0, metal: 0, alu: 0, acrylic: 5, polystyrene: 2, 'polyolefin': 0, 'pu foam': 0, rubber: 0, vinyl: 3, magnet: 0 },
+      flags: ['water', 'clear', 'struct'], best: 'A genuine weld on acrylic or PVC — stronger than any glue on those plastics.'
+    },
+    {
+      name: 'Fabric glue / hem tape (iron-on)', short: 'Fabric adhesive',
+      open: '2–5 min', clamp: 'Press or iron', cure: '24 h (washable)',
+      prep: 'Wash fabric without softener first — softener leaves a film that stops adhesion.',
+      score: { wood: 1, ply: 1, mdf: 1, cork: 1, paper: 2, cardboard: 2, fabric: 5, canvas: 5, leather: 3, carpet: 3, plaster: 0, brick: 0, concrete: 0, stone: 0, ceramic: 0, tile: 0, glass: 1, mirror: 0, metal: 1, alu: 1, acrylic: 1, polystyrene: 0, 'polyolefin': 0, 'pu foam': 2, rubber: 1, vinyl: 1, magnet: 0 },
+      flags: ['flex'], best: 'Hems, patches and appliqué without a needle — it survives the wash.'
+    },
+    {
+      name: 'Double-sided tape (VHB / acrylic foam)', short: 'Foam mounting tape',
+      open: 'Instant', clamp: 'Press hard 30 s', cure: '24 h to full strength',
+      prep: 'Degrease both faces with isopropyl alcohol; apply firm pressure; avoid below 10 °C.',
+      score: { wood: 3, ply: 3, mdf: 3, cork: 2, paper: 3, cardboard: 2, fabric: 1, canvas: 1, leather: 1, carpet: 1, plaster: 3, brick: 2, concrete: 2, stone: 3, ceramic: 3, tile: 3, glass: 4, mirror: 5, metal: 5, alu: 5, acrylic: 5, polystyrene: 2, 'polyolefin': 1, 'pu foam': 2, rubber: 2, vinyl: 3, magnet: 4 },
+      flags: ['water', 'flex', 'uv', 'clear'], best: 'Mounting panels, mirrors and trim cleanly with no cure time and no mess.'
+    },
+    {
+      name: 'Removable poster putty / hanging strips', short: 'Removable adhesive',
+      open: 'Instant', clamp: 'Press 30 s', cure: 'Instant',
+      prep: 'Clean, dry, smooth surfaces only — it will not hold on flaky paint or textured walls.',
+      score: { wood: 2, ply: 2, mdf: 2, cork: 3, paper: 4, cardboard: 4, fabric: 2, canvas: 2, leather: 1, carpet: 1, plaster: 3, brick: 1, concrete: 1, stone: 2, ceramic: 3, tile: 3, glass: 3, mirror: 2, metal: 3, alu: 3, acrylic: 3, polystyrene: 3, 'polyolefin': 1, 'pu foam': 1, rubber: 1, vinyl: 2, magnet: 2 },
+      flags: ['removable', 'clear'], best: 'Rentals, posters and displays you want to take down without a mark.'
+    },
+    {
+      name: 'Tile adhesive (thin-set mortar)', short: 'Thin-set mortar',
+      open: '10–20 min', clamp: 'Bed the tile, use spacers', cure: '24–48 h before grouting',
+      prep: 'Sound, dust-free, primed substrate; notch trowel; do not spot-fix — butter the whole back.',
+      score: { wood: 1, ply: 3, mdf: 0, cork: 1, paper: 0, cardboard: 0, fabric: 0, canvas: 0, leather: 0, carpet: 0, plaster: 4, brick: 5, concrete: 5, stone: 5, ceramic: 5, tile: 5, glass: 2, mirror: 0, metal: 1, alu: 1, acrylic: 0, polystyrene: 2, 'polyolefin': 0, 'pu foam': 0, rubber: 0, vinyl: 0, magnet: 0 },
+      flags: ['water', 'gap', 'heat', 'uv', 'struct'], best: 'Setting ceramic, porcelain and stone tiles on walls and floors.'
+    }
+  ];
+
+  var CONDITIONS = [
+    { id: 'water', label: '💧 Wet / waterproof' },
+    { id: 'uv', label: '☀️ Outdoors / UV' },
+    { id: 'gap', label: '📐 Uneven or gap-filling' },
+    { id: 'flex', label: '〰️ Must stay flexible' },
+    { id: 'heat', label: '🔥 Heat resistant' },
+    { id: 'removable', label: '↩️ Must come apart later' },
+    { id: 'clear', label: '👁️ Dries clear' },
+    { id: 'fast', label: '⚡ Needs to set fast' },
+    { id: 'sand', label: '🪵 Sandable / paintable' }
+  ];
+
+  // Materials that defeat almost every adhesive — warn rather than guess.
+  var HARD = {
+    polyolefin: 'Polyethylene and polypropylene are low-surface-energy plastics: almost nothing sticks to them untreated. Look for a dedicated polyolefin adhesive used with its primer, or treat the surface (flame, plasma or corona) — and mechanically fix anything load-bearing.',
+    rubber: 'Rubber (especially silicone rubber) needs its own primer and a flexible adhesive. Wipe with solvent, abrade, then use a contact cement or a silicone/MS polymer rated for rubber.',
+    mirror: 'Mirror backing is a thin metal film — acetoxy (vinegar-smelling) silicone and some solvent glues eat straight through it and leave black spots. Use neutral-cure silicone or MS polymer only.',
+    polystyrene: 'Solvent-based glues, superglue and spray adhesives melt expanded polystyrene on contact. Use PVA, hot glue (low temp), water-based contact adhesive or a polystyrene-safe cement.',
+    acrylic: 'Acrylic is prone to stress-crazing (fine white cracks). Avoid thin superglue and solvent cement unless you want a weld — use an acrylic solvent cement deliberately, or a two-part acrylic adhesive.'
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var checked = { water: false, uv: false, gap: false, flex: false, heat: false, removable: false, clear: false, fast: false, sand: false };
+  var showAll = false;
+
+  function optGroups(list) {
+    var groups = {};
+    var order = [];
+    list.forEach(function (m) {
+      if (!groups[m.group]) { groups[m.group] = []; order.push(m.group); }
+      groups[m.group].push(m);
+    });
+    return order.map(function (g) {
+      return '<optgroup label="' + g + '">' + groups[g].map(function (m) {
+        return '<option value="' + m.id + '">' + m.label.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</option>';
+      }).join('') + '</optgroup>';
+    }).join('');
+  }
+
+  function buildSelects() {
+    var html = optGroups(MATERIALS);
+    $('adh-a').innerHTML = html;
+    $('adh-b').innerHTML = html;
+    $('adh-a').value = 'wood';
+    $('adh-b').value = 'ceramic';
+  }
+
+  function buildConditions() {
+    var wrap = $('adh-cond');
+    wrap.innerHTML = '';
+    CONDITIONS.forEach(function (c) {
+      var lab = document.createElement('label');
+      lab.setAttribute('style', 'display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);font-size:.76rem;color:var(--text-secondary);cursor:pointer;user-select:none;');
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.value = c.id;
+      box.setAttribute('style', 'accent-color:var(--accent);margin:0;');
+      box.addEventListener('change', function () { checked[c.id] = box.checked; render(); });
+      lab.appendChild(box);
+      lab.appendChild(document.createTextNode(c.label));
+      wrap.appendChild(lab);
+    });
+  }
+
+  function scorePair(ad, a, b) {
+    var sa = ad.score[a] || 0;
+    var sb = ad.score[b] || 0;
+    if (sa === 0 || sb === 0) { return 0; }
+    return Math.min(sa, sb) * 0.75 + Math.max(sa, sb) * 0.25;
+  }
+
+  function isStructural(ad) { return ad.flags.indexOf('struct') !== -1; }
+
+  function reasons(ad, a, b) {
+    var out = [];
+    var wanted = CONDITIONS.filter(function (c) { return checked[c.id]; });
+    wanted.forEach(function (c) {
+      if (ad.flags.indexOf(c.id) !== -1) { out.push('handles ' + c.label.replace(/^\S+\s/, '')); }
+    });
+    var lo = Math.min(ad.score[a] || 0, ad.score[b] || 0);
+    if (lo >= 5) { out.push('excellent on both surfaces'); }
+    else if (lo === 4) { out.push('strong on both surfaces'); }
+    else if (lo === 3) { out.push('workable but not ideal — prepare the surfaces well'); }
+    else { out.push('marginal on one surface — consider a mechanical fix as well'); }
+    return out.slice(0, 4);
+  }
+
+  function impossible(ad) {
+    return CONDITIONS.filter(function (c) {
+      return checked[c.id] && ad.flags.indexOf(c.id) === -1;
+    }).map(function (c) { return c.label.replace(/^\S+\s/, ''); });
+  }
+
+  function resultsFor(a, b, load) {
+    var rows = [];
+    ADHESIVES.forEach(function (ad) {
+      var base = scorePair(ad, a, b);
+      if (base <= 0) { return; }
+      var score = base;
+      var missing = impossible(ad);
+      CONDITIONS.forEach(function (c) {
+        if (!checked[c.id]) { return; }
+        if (ad.flags.indexOf(c.id) !== -1) { score += 1.1; } else { score -= 2.2; }
+      });
+      if (load === 'structural') { score += isStructural(ad) ? 1.4 : -2.0; }
+      if (load === 'light') { score += ad.flags.indexOf('removable') !== -1 ? 0.4 : 0; }
+      if (score <= 0) { return; }
+      rows.push({ ad: ad, score: score, missing: missing });
+    });
+    rows.sort(function (x, y) { return y.score - x.score; });
+    return rows;
+  }
+
+  function bar(v) {
+    var pct = Math.max(0, Math.min(100, Math.round((v / 5) * 100)));
+    var col = pct >= 80 ? '#39ff14' : pct >= 55 ? 'var(--accent)' : pct >= 30 ? '#ffb347' : '#ff6b6b';
+    return '<span style="display:inline-block;width:64px;height:7px;border-radius:4px;background:rgba(255,255,255,.12);vertical-align:middle;overflow:hidden;margin-right:6px;">' +
+      '<span style="display:block;width:' + pct + '%;height:100%;background:' + col + ';"></span></span>';
+  }
+
+  function render() {
+    var a = $('adh-a').value;
+    var b = $('adh-b').value;
+    var load = $('adh-load').value;
+    var rows = resultsFor(a, b, load);
+
+    var warn = '';
+    [a, b].forEach(function (m) { if (HARD[m] && !warn) { warn = HARD[m]; } });
+    if (!warn && rows.length === 0) {
+      warn = 'Nothing in the table will hold those two together under the conditions you ticked. Try relaxing a condition, or fix them mechanically (screw, bolt, rivet, stitch) with adhesive as a back-up.';
+    }
+    $('adh-warn').textContent = warn;
+
+    var list = showAll ? rows : rows.slice(0, 3);
+    $('adh-all').textContent = showAll ? 'Show top 3 only' : 'Show every adhesive that works';
+
+    var host = $('adh-results');
+    host.innerHTML = '';
+    if (rows.length === 0) {
+      host.innerHTML = '<div style="font-size:.85rem;color:var(--text-secondary);padding:14px;border:1px dashed rgba(255,255,255,.18);border-radius:10px;">No match. Loosen a condition above, or switch the load to a lighter duty.</div>';
+      return;
+    }
+
+    list.forEach(function (row, i) {
+      var ad = row.ad;
+      var card = document.createElement('section');
+      card.setAttribute('style', 'border-radius:12px;padding:12px 14px;border:1px solid ' +
+        (i === 0 ? 'rgba(45,212,255,.45)' : 'rgba(255,255,255,.10)') + ';background:' +
+        (i === 0 ? 'rgba(45,212,255,.07)' : 'rgba(255,255,255,.03)') + ';');
+
+      var head = document.createElement('div');
+      head.setAttribute('style', 'display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;justify-content:space-between;');
+      var h3 = document.createElement('h3');
+      h3.setAttribute('style', 'margin:0;font-size:.95rem;color:' + (i === 0 ? 'var(--accent)' : 'var(--text)') + ';');
+      h3.textContent = (i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : '• ') + ad.name;
+      head.appendChild(h3);
+      var sc = document.createElement('span');
+      sc.setAttribute('style', 'font-size:.74rem;color:var(--text-secondary);');
+      sc.innerHTML = bar(row.score) + 'match ' + Math.round((row.score / (5 + CONDITIONS.filter(function (c) { return checked[c.id]; }).length * 1.1 + 1.4)) * 100) + '%';
+      head.appendChild(sc);
+      card.appendChild(head);
+
+      var why = document.createElement('p');
+      why.setAttribute('style', 'margin:6px 0 8px;font-size:.8rem;color:var(--text);');
+      why.textContent = ad.best;
+      card.appendChild(why);
+
+      var rsn = document.createElement('p');
+      rsn.setAttribute('style', 'margin:0 0 8px;font-size:.76rem;color:var(--accent);');
+      rsn.textContent = reasons(ad, a, b).join(' · ');
+      card.appendChild(rsn);
+
+      var grid = document.createElement('div');
+      grid.setAttribute('style', 'display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.76rem;color:var(--text-secondary);margin-bottom:8px;');
+      [['Open time', ad.open], ['Clamp / support', ad.clamp], ['Full cure', ad.cure]].forEach(function (kv) {
+        var s = document.createElement('span');
+        s.textContent = kv[0] + ': ';
+        var b2 = document.createElement('b');
+        b2.setAttribute('style', 'color:var(--text);');
+        b2.textContent = kv[1];
+        s.appendChild(b2);
+        grid.appendChild(s);
+      });
+      card.appendChild(grid);
+
+      var prep = document.createElement('p');
+      prep.setAttribute('style', 'margin:0 0 6px;font-size:.78rem;line-height:1.55;color:var(--text-secondary);');
+      prep.textContent = '🛠 Prep: ' + ad.prep;
+      card.appendChild(prep);
+
+      if (row.missing.length) {
+        var miss = document.createElement('p');
+        miss.setAttribute('style', 'margin:0;font-size:.75rem;color:#ffb347;');
+        miss.textContent = '⚠️ Does not cover: ' + row.missing.join(', ') + '.';
+        card.appendChild(miss);
+      }
+      host.appendChild(card);
+    });
+  }
+
+  function summaryText() {
+    var a = $('adh-a').value, b = $('adh-b').value;
+    var label = function (id) {
+      var m = MATERIALS.filter(function (x) { return x.id === id; })[0];
+      return m ? m.label : id;
+    };
+    var rows = resultsFor(a, b, $('adh-load').value).slice(0, 3);
+    var lines = ['Joining ' + label(a) + ' to ' + label(b)];
+    var wanted = CONDITIONS.filter(function (c) { return checked[c.id]; }).map(function (c) { return c.label.replace(/^\S+\s/, ''); });
+    if (wanted.length) { lines.push('Needs to be: ' + wanted.join(', ')); }
+    lines.push('Load: ' + $('adh-load').options[$('adh-load').selectedIndex].text);
+    lines.push('');
+    rows.forEach(function (r, i) {
+      lines.push((i + 1) + '. ' + r.ad.name);
+      lines.push('   Best for: ' + r.ad.best);
+      lines.push('   Open ' + r.ad.open + ' · clamp ' + r.ad.clamp + ' · full cure ' + r.ad.cure);
+      lines.push('   Prep: ' + r.ad.prep);
+    });
+    lines.push('');
+    lines.push('From the Adhesive Selector on The Most Useful Site In The World.');
+    return lines.join('\n');
+  }
+
+  function bind() {
+    $('adh-a').addEventListener('change', render);
+    $('adh-b').addEventListener('change', render);
+    $('adh-load').addEventListener('change', render);
+    $('adh-all').addEventListener('click', function () { showAll = !showAll; render(); });
+    $('adh-copy').addEventListener('click', function () {
+      var text = summaryText();
+      var done = function () { $('adh-warn').textContent = 'Recommendation copied to your clipboard.'; };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this recommendation', text); });
+        } else { window.prompt('Copy this recommendation', text); }
+      } catch (e) { window.prompt('Copy this recommendation', text); }
+    });
+  }
+
+  buildSelects();
+  buildConditions();
+  bind();
+  render();
+})();
+</script>

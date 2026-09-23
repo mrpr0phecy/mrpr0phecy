@@ -15,7 +15,7 @@
 
 <div style="margin-bottom:20px;">
   <div id="number-theory-desc" style="margin-bottom:16px;">
-    <p style="margin:0 0 12px 0;color:var(--muted);font-size:14px;line-height:1.5;">
+    <p id="number-theory-summary-desc" style="margin:0 0 12px 0;color:var(--muted);font-size:14px;line-height:1.5;">
       <span style="color:var(--accent);font-weight:600;">Comprehensive number theory laboratory</span>: 
       Explore prime numbers, factorization, modular arithmetic, sequences, and advanced mathematical properties. 
       Perfect for students, educators, cryptography enthusiasts, and math lovers.
@@ -509,6 +509,12 @@
    - Educational resources
 */
 
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a modal, a share dialog or a live region parked there stays
+   behind after the visitor moves to another tool. */
+const ntRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
 // ========== GLOBAL STATE ==========
 const nt = {
   // Current state
@@ -554,6 +560,10 @@ const nt = {
 
 // ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('nt-number')) return;
   // Load saved session
   ntLoadSession();
   
@@ -1189,6 +1199,177 @@ function isArmstrong(n) {
 }
 
 // ========== UI INTERACTIONS ==========
+// Three controls in this card called functions that do not exist: "Generate
+// RSA Key Pair", "Calculate a^b mod n" and the Properties operation all threw a
+// ReferenceError (or fell into the default branch) and did nothing.
+function performPropertyAnalysis(n, steps) {
+  const properties = analyzeNumberProperties(n);
+  const digitalRoot = calculateDigitalRoot(n);
+
+  steps.push(`Analysing the properties of ${n}...`);
+  steps.push(`Divisors: ${properties.divisors.length} (${properties.divisors.slice(0, 12).join(', ')}${properties.divisors.length > 12 ? ', …' : ''})`);
+  steps.push(`Digital root: ${digitalRoot}`);
+  steps.push(`Prime: ${properties.isPrime ? 'yes' : 'no'} · Square: ${properties.isSquare ? 'yes' : 'no'} · Triangular: ${properties.isTriangular ? 'yes' : 'no'} · Fibonacci: ${properties.isFibonacci ? 'yes' : 'no'} · Armstrong: ${properties.isArmstrong ? 'yes' : 'no'}`);
+
+  const perfect = properties.divisors.slice(0, -1).reduce((sum, d) => sum + d, 0) === n;
+  if (perfect) {
+    steps.push(`${n} is perfect: its proper divisors sum to itself.`);
+    properties.isPerfect = true;
+    properties.type = nt.numberTypes.perfect;
+  }
+
+  // The summary panel beside the results is driven from here, so it agrees with
+  // whatever the visitor just analysed.
+  const typeEl = document.getElementById('nt-property-type');
+  const divEl = document.getElementById('nt-divisor-count');
+  const rootEl = document.getElementById('nt-digital-root');
+  if (typeEl) typeEl.textContent = String(properties.type).replace(/^./, c => c.toUpperCase());
+  if (divEl) divEl.textContent = properties.divisors.length;
+  if (rootEl) rootEl.textContent = digitalRoot;
+
+  const kind = String(properties.type).replace(/^./, c => c.toUpperCase());
+  let message = `${n} — ${kind}`;
+  if (properties.isPrime) message += ` (prime)`;
+  if (perfect) message = `${n} — Perfect number (its proper divisors sum to ${n})`;
+
+  return {
+    message,
+    divisors: properties.divisors,
+    digitalRoot,
+    properties,
+    primeFactorization: null,
+  };
+}
+
+function ntCalculateModExp() {
+  const baseEl = document.getElementById('nt-mod-exp-base');
+  const expEl = document.getElementById('nt-mod-exp-exp');
+  const modEl = document.getElementById('nt-mod-exp-mod');
+  const output = document.getElementById('nt-output');
+  if (!baseEl || !expEl || !modEl || !output) return;
+
+  const base = parseInt(baseEl.value, 10);
+  const exponent = parseInt(expEl.value, 10);
+  const modulus = parseInt(modEl.value, 10);
+
+  if (!Number.isFinite(base) || !Number.isFinite(exponent) || !Number.isFinite(modulus)) {
+    showNotification('Enter a base, an exponent and a modulus', 'warning');
+    return;
+  }
+  if (modulus <= 0) {
+    showNotification('The modulus must be positive', 'error');
+    return;
+  }
+  if (exponent < 0) {
+    showNotification('This card handles non-negative exponents', 'warning');
+    return;
+  }
+
+  const steps = [];
+  steps.push(`Compute ${base}^${exponent} mod ${modulus}`);
+  const result = modularExponentiation(base, exponent, modulus);
+  steps.push('Square-and-multiply: halve the exponent, squaring the base and keeping every product under the modulus.');
+  steps.push(`Result: ${result}`);
+
+  const inverse = findModularInverse(result, modulus);
+  const exactPow = Math.pow(base, exponent);
+  const bigNote = Number.isFinite(exactPow) && exactPow < Number.MAX_SAFE_INTEGER
+    ? `<div style="color:var(--muted);font-size:13px;margin-top:4px;">${base}^${exponent} = ${exactPow}, and ${exactPow} mod ${modulus} = ${exactPow % modulus}</div>`
+    : '';
+
+  output.innerHTML = `
+    <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+      <div style="color:var(--accent);font-weight:600;font-size:16px;">🔐 Modular Exponentiation</div>
+    </div>
+    <div style="margin-bottom:16px;padding:12px;background:rgba(45,212,255,0.05);border-radius:8px;border:1px solid rgba(45,212,255,0.1);">
+      <div style="color:var(--text);font-size:18px;font-weight:700;">${base}<sup>${exponent}</sup> mod ${modulus} = ${result}</div>
+      ${bigNote}
+    </div>
+    <div style="margin-bottom:12px;color:var(--text);font-size:14px;">
+      Multiplicative inverse of the result mod ${modulus}: ${inverse === null ? 'none — the result shares a factor with the modulus' : inverse}
+    </div>
+    ${nt.showSteps ? `<div style="background:var(--glass);padding:12px;border-radius:8px;border:1px solid var(--border);">
+      ${steps.map((step, i) => `<div style="margin-bottom:6px;color:var(--text);font-size:13px;font-family:'Courier New',monospace;">${i + 1}. ${step}</div>`).join('')}
+    </div>` : ''}
+  `;
+  output.scrollTop = 0;
+  showNotification(`${base}^${exponent} mod ${modulus} = ${result}`, 'success');
+}
+
+function ntGenerateRSA() {
+  const output = document.getElementById('nt-output');
+  if (!output) return;
+
+  // Small primes on purpose: this is a teaching key pair you can read, not a
+  // key you should ever protect anything with.
+  const randomPrime = () => {
+    let candidate;
+    do {
+      candidate = Math.floor(Math.random() * 900) + 100;
+      if (candidate % 2 === 0) candidate++;
+    } while (!isPrime(candidate));
+    return candidate;
+  };
+
+  let p = randomPrime();
+  let q = randomPrime();
+  let guard = 0;
+  while (q === p && guard++ < 50) q = randomPrime();
+
+  const n = p * q;
+  const phi = (p - 1) * (q - 1);
+
+  // e must be coprime with phi; 65537 is the usual choice when it divides
+  let e = 65537 < phi && phi % 65537 !== 0 ? 65537 : 3;
+  while (e < phi && findModularInverse(e, phi) === null) e += 2;
+
+  const d = findModularInverse(e, phi) === null ? null : findModularInverse(e, phi);
+  if (d === null) {
+    showNotification('Could not find an exponent coprime with phi — try again', 'error');
+    return;
+  }
+
+  const example = 42 % n;
+  const encrypted = modularExponentiation(example, e, n);
+  const decrypted = modularExponentiation(encrypted, d, n);
+
+  const row = (label, value, colour) => `
+    <div style="display:flex;justify-content:space-between;gap:12px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;margin-bottom:6px;">
+      <span style="color:var(--muted);font-size:13px;">${label}</span>
+      <span style="color:${colour};font-family:'Courier New',monospace;font-weight:600;word-break:break-all;text-align:right;">${value}</span>
+    </div>`;
+
+  output.innerHTML = `
+    <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+      <div style="color:var(--accent);font-weight:600;font-size:16px;">🔑 RSA Key Pair</div>
+      <div style="color:var(--muted);font-size:12px;margin-top:4px;">Small primes, so the arithmetic fits on screen. Not for real secrets.</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:var(--accent);font-weight:600;margin-bottom:6px;">Public key (n, e)</div>
+      ${row('n = p × q', `${n} = ${p} × ${q}`, '#2dd4ff')}
+      ${row('e (encryption exponent)', e, '#2dd4ff')}
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:#ff9500;font-weight:600;margin-bottom:6px;">Private key (d) — keep this secret</div>
+      ${row('d (decryption exponent)', d, '#ff9500')}
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="color:var(--muted);font-weight:600;margin-bottom:6px;">Working</div>
+      ${row('φ(n) = (p−1)(q−1)', `${(p - 1)} × ${(q - 1)} = ${phi}`, 'var(--text)')}
+      ${row('e × d mod φ(n)', `${e} × ${d} mod ${phi} = ${(e * d) % phi}`, '#39ff14')}
+    </div>
+    <div style="padding:12px;background:rgba(57,255,20,0.05);border-radius:8px;border:1px solid rgba(57,255,20,0.15);">
+      <div style="color:#39ff14;font-weight:600;margin-bottom:6px;">Round trip with the message "${example}"</div>
+      <div style="color:var(--text);font-size:13px;font-family:'Courier New',monospace;">
+        c = ${example}<sup>${e}</sup> mod ${n} = ${encrypted}<br>
+        m = ${encrypted}<sup>${d}</sup> mod ${n} = ${decrypted}
+      </div>
+    </div>
+  `;
+  output.scrollTop = 0;
+  showNotification(`Generated a ${String(n).length}-digit RSA modulus`, 'success');
+}
+
 function ntSelectOperation(operation) {
   nt.currentOperation = operation;
   
@@ -1700,7 +1881,7 @@ function ntShareResults() {
             </div>
           </div>
         `;
-        document.body.appendChild(shareDiv);
+        ntRoot.appendChild(shareDiv);
       });
   }
 }
@@ -1721,6 +1902,116 @@ function ntExportResults() {
   URL.revokeObjectURL(url);
   
   showNotification('Results exported as text file', 'success');
+}
+
+// "Generate Worksheet" called a function that was never written. It builds a
+// printable sheet of questions from the current operation with an answer key,
+// and opens it in a new window the way Print Report does.
+function ntGenerateWorksheet() {
+  const questions = [];
+  const answers = [];
+  const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+  for (let i = 0; i < 12; i++) {
+    switch (nt.currentOperation) {
+      case 'prime-check': {
+        const n = randomInt(20, 500);
+        questions.push(`Is ${n} prime? If it is not, give its prime factorisation.`);
+        if (isPrime(n)) {
+          answers.push(`${n} is prime.`);
+        } else {
+          const factors = [];
+          let rest = n;
+          for (let d = 2; d * d <= rest; d++) {
+            while (rest % d === 0) { factors.push(d); rest /= d; }
+          }
+          if (rest > 1) factors.push(rest);
+          answers.push(`${n} = ${factors.join(' × ')}.`);
+        }
+        break;
+      }
+      case 'factorization': {
+        const n = randomInt(12, 400);
+        questions.push(`Write the prime factorisation of ${n}.`);
+        const factors = [];
+        let rest = n;
+        for (let d = 2; d * d <= rest; d++) {
+          while (rest % d === 0) { factors.push(d); rest /= d; }
+        }
+        if (rest > 1) factors.push(rest);
+        answers.push(`${n} = ${factors.join(' × ')}.`);
+        break;
+      }
+      case 'gcd-lcm': {
+        const a = randomInt(12, 200), b = randomInt(12, 200);
+        questions.push(`Find the GCD and LCM of ${a} and ${b}.`);
+        const gcd = (x, y) => (y === 0 ? Math.abs(x) : gcd(y, x % y));
+        answers.push(`GCD(${a}, ${b}) = ${gcd(a, b)}; LCM(${a}, ${b}) = ${(a * b) / gcd(a, b)}.`);
+        break;
+      }
+      case 'modular': {
+        const a = randomInt(2, 40), b = randomInt(2, 20), m = randomInt(3, 97);
+        questions.push(`Calculate ${a} × ${b} mod ${m}.`);
+        answers.push(`${a} × ${b} = ${a * b}, and ${a * b} mod ${m} = ${(a * b) % m}.`);
+        break;
+      }
+      case 'properties': {
+        const n = randomInt(6, 300);
+        const props = analyzeNumberProperties(n);
+        questions.push(`List the divisors of ${n} and say whether it is prime, square or triangular.`);
+        answers.push(`Divisors: ${props.divisors.join(', ')}. ${props.isPrime ? 'Prime.' : 'Composite.'} ${props.isSquare ? 'A perfect square.' : ''} ${props.isTriangular ? 'A triangular number.' : ''}`.trim());
+        break;
+      }
+      default: { // sequences
+        const start = randomInt(1, 9), step = randomInt(2, 9);
+        questions.push(`Write the first 8 terms of the sequence starting at ${start} with common difference ${step}.`);
+        answers.push(Array.from({ length: 8 }, (_, k) => start + k * step).join(', ') + '.');
+      }
+    }
+  }
+
+  const worksheet = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Number Theory Worksheet</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; max-width: 800px; margin: 32px auto; padding: 0 24px; color: #111; line-height: 1.6; }
+  h1 { font-size: 22px; border-bottom: 2px solid #111; padding-bottom: 8px; }
+  h2 { font-size: 16px; margin-top: 28px; }
+  ol { padding-left: 22px; }
+  li { margin-bottom: 22px; }
+  .work { margin-top: 6px; border-bottom: 1px dotted #999; height: 22px; }
+  .key { page-break-before: always; border-top: 2px solid #111; margin-top: 40px; }
+  .key li { margin-bottom: 6px; }
+  @media print { .work { border-bottom: 1px solid #ccc; } }
+</style>
+</head>
+<body>
+  <h1>Number Theory Worksheet</h1>
+  <p>Topic: ${getOperationName(nt.currentOperation)} · ${questions.length} questions · generated ${new Date().toLocaleDateString()}</p>
+  <h2>Questions</h2>
+  <ol>
+    ${questions.map(q => `<li>${q}<div class="work"></div><div class="work"></div></li>`).join('\n    ')}
+  </ol>
+  <div class="key">
+    <h1>Answer Key</h1>
+    <ol>
+      ${answers.map(a => `<li>${a}</li>`).join('\n      ')}
+    </ol>
+  </div>
+  <p style="margin-top:32px;font-size:12px;color:#555;">The Most Useful Site in the World — number theory worksheet generator</p>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    showNotification('Allow pop-ups for this site to open the worksheet', 'warning');
+    return;
+  }
+  win.document.write(worksheet);
+  win.document.close();
+  win.focus();
 }
 
 function ntExportCSV() {
@@ -1797,6 +2088,7 @@ function ntExportLaTeX() {
 
 function ntPrintReport() {
   const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('Popup blocked: allow popups for this site to print.'); return; }
   const n = document.getElementById('nt-number').value;
   const m = document.getElementById('nt-second').value;
   const operation = getOperationName(nt.currentOperation);
@@ -1883,7 +2175,7 @@ function announceToScreenReader(message) {
     region.setAttribute('aria-live', 'polite');
     region.setAttribute('aria-atomic', 'true');
     region.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;';
-    document.body.appendChild(region);
+    ntRoot.appendChild(region);
     return region;
   })();
   
@@ -1990,15 +2282,6 @@ numberTheoryStyle.textContent = `
     border-radius: 3px;
   }
   
-  @media (max-width: 768px) {
-    .dashboard .card {
-      grid-template-columns: 1fr;
-    }
-    
-    .row {
-      grid-template-columns: 1fr !important;
-    }
-  }
 `;
 document.head.appendChild(numberTheoryStyle);
 

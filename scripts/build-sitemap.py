@@ -11,9 +11,18 @@ Two rules this encodes, both learned the hard way:
    silently drops 644 pages and ships a gutted sitemap.
 
 2. **Never list a `noindex` page.** Submitting a page you have told robots to
-   ignore is a contradictory signal. `404.html`, `hokidea.html` and
-   `indexbeta.html` are excluded automatically by reading their robots meta —
-   not by a hardcoded list that would rot the moment a page changed.
+   ignore is a contradictory signal. `404.html` is excluded automatically by
+   reading its robots meta — not by a hardcoded list that would rot the moment
+   a page changed. The scratch pages this paragraph used to cite (hokidea.html
+   and indexbeta.html) were themselves deleted on 2026-09-20.
+
+3. **`git add` new files before running the build.** Because of rule 1, a file
+   that exists on disk but is not yet tracked is invisible here. This bites in
+   two places that look unrelated: a brand-new `cards/<slug>.html`, and a
+   brand-new `categories/<slug>.html` created by a category that did not exist
+   before. `npm run build` writes the category page and then the sitemap in the
+   same run, so the first build under-counts by one and `verify.sh` fails with
+   `MISSING from sitemap`. Stage, then build again.
 
 This replaces a copy-paste heredoc that lived in ARCHITECTURE.md §6. That
 snippet had no noindex filter, so anyone who followed the documented procedure

@@ -480,6 +480,12 @@
   </div>
 </details>
 
+<!-- Chart.js (UMD global Chart). The comparison chart needs it, and the old
+     markup had no external script tag anywhere, so every load died with
+     "Chart is not defined". tool.html injects src scripts asynchronously, so
+     init waits for window.Chart; if the CDN is unreachable the chart is
+     skipped and the calculator itself still works. -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 /* motor-startup-calculator.html
    Professional motor startup calculator for electrical engineers and technicians
@@ -572,6 +578,10 @@ const msCableCurrentRating = {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('motor-phase')) return;
   // Update phase info
   msUpdatePhaseInfo();
   
@@ -582,9 +592,22 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('motor-eff').addEventListener('input', msUpdateEffInfo);
   document.getElementById('motor-method').addEventListener('change', msUpdateMethodInfo);
   
-  // Generate initial comparison chart
-  msGenerateComparisonChart();
-  
+  // Generate initial comparison chart once Chart.js has arrived (the CDN
+  // script loads async). If it never arrives, skip the chart — the
+  // calculator below it does not need Chart.js.
+  let msChartAttempts = 0;
+  const msChartTimer = setInterval(() => {
+    msChartAttempts++;
+    if (typeof Chart !== 'undefined') {
+      clearInterval(msChartTimer);
+      msGenerateComparisonChart();
+    } else if (msChartAttempts >= 100) {
+      clearInterval(msChartTimer);
+      const canvas = document.getElementById('ms-comparison-chart');
+      if (canvas) canvas.outerHTML = '<div style="padding:20px;text-align:center;color:rgba(230,250,255,0.6);">Comparison chart unavailable (chart library failed to load).</div>';
+    }
+  }, 100);
+
   console.log('Motor Startup Calculator initialized');
 });
 

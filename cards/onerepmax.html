@@ -287,6 +287,9 @@ const ormState = {
 
 // ===== INSTANT CALCULATION ENGINE =====
 function ormCalculate() {
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!document.getElementById('orm-weight')) return;
     const weight = parseFloat(document.getElementById('orm-weight').value) || 0;
     const reps = parseInt(document.getElementById('orm-reps').value, 10) || 1;
     
@@ -428,8 +431,11 @@ function ormReset() {
     document.getElementById('orm-lombardi').textContent = '–';
     document.getElementById('orm-strength-level').textContent = '–';
     
-    // Hide affiliate
-    document.getElementById('orm-affiliate').style.display = 'none';
+    // Hide affiliate. The affiliate box is optional (ormShowAffiliate guards for
+    // its absence too, because the placeholder section in this markup is empty),
+    // so Reset must not assume it exists.
+    const affiliate = document.getElementById('orm-affiliate');
+    if (affiliate) affiliate.style.display = 'none';
     
     // Visual feedback
     const resetBtn = document.querySelector('[onclick="ormReset()"]');
@@ -510,6 +516,7 @@ function ormEmbedTool() {
 // ===== AFFILIATE SYSTEM =====
 function ormShowAffiliate() {
     const affiliate = document.getElementById('orm-affiliate');
+    if (!affiliate) return; // box not in markup — unguarded, this threw
     affiliate.style.display = 'block';
     setTimeout(() => affiliate.classList.add('orm-visible'), 10);
     ormState.affiliateShown = true;
@@ -536,6 +543,10 @@ function ormShowError(message) {
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('orm-weight')) return;
     console.log('🏋️ One-Rep Max Calculator - Ready');
     
     // Calculate immediately
@@ -543,6 +554,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('orm-title')) return;
         if (e.key === 'Enter') ormCalculate();
         if (e.key === 'Escape') ormReset();
         if (e.key === '?' && e.ctrlKey) ormToggleEducation();
@@ -550,7 +565,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Auto-focus weight input
     setTimeout(() => {
-        document.getElementById('orm-weight').focus();
+        // Scheduled at init, so it can outlive the card: the visitor may open
+        // another tool before it runs.
+        const weight = document.getElementById('orm-weight');
+        if (weight) weight.focus();
     }, 200);
 });
 </script>

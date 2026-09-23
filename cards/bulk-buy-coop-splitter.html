@@ -1,0 +1,364 @@
+<h2 id="bbcs-title" style="margin-top:0;color:var(--accent);">🤝 Bulk-Buy Co-op Splitter: Halve Your Food Bills Together</h2>
+
+<form aria-describedby="bbcs-desc" onsubmit="event.preventDefault();">
+  <p id="bbcs-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    One household cannot buy a 25&nbsp;kg sack of rice — but ten can. Start a street buying club:
+    pick wholesale packs, split them fairly between households, and see exactly what everyone pays
+    and saves, with collection tracking, rotas and printable rules.
+  </p>
+
+  <h3 style="color:var(--accent);font-size:0.9rem;margin:0 0 8px;">1 · Your club</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:10px;">
+    <div>
+      <label for="bbcs-cur" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Currency</label>
+      <input id="bbcs-cur" type="text" value="£" maxlength="3" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="bbcs-name" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Club name</label>
+      <input id="bbcs-name" type="text" value="Our Street Food Club" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+    <div>
+      <label for="bbcs-fee" style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Kitty float / order</label>
+      <input id="bbcs-fee" type="number" min="0" step="0.5" value="0" style="width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;" />
+    </div>
+  </div>
+  <div style="font-size:0.8rem;font-weight:600;margin-bottom:6px;">Households (name + shares — a big family takes 2 shares, a single person 1):</div>
+  <div id="bbcs-members" style="display:grid;gap:6px;margin-bottom:8px;"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+    <button type="button" id="bbcs-addm" style="padding:9px 14px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">＋ Add household</button>
+  </div>
+
+  <h3 style="color:var(--accent);font-size:0.9rem;margin:0 0 8px;">2 · This order — tick the packs, set the real prices</h3>
+  <div style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;">Wholesale price = what the big pack actually costs your club. Retail = the normal shop price per unit, so savings are honest. Change any number to match your supplier.</div>
+  <div id="bbcs-packs" style="display:grid;gap:8px;margin-bottom:14px;"></div>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button type="button" id="bbcs-go" style="flex:1;min-width:200px;padding:12px;background:linear-gradient(135deg,rgba(45,212,255,0.25),rgba(45,212,255,0.1));border:1px solid rgba(45,212,255,0.5);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">🤝 Split this order fairly</button>
+    <button type="button" id="bbcs-save" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">💾 Save</button>
+    <button type="button" id="bbcs-load" style="padding:12px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">📂 Load</button>
+  </div>
+</form>
+
+<div id="bbcs-out" aria-live="polite" style="margin-top:16px;"></div>
+
+<div style="margin-top:10px;font-size:0.74rem;color:var(--text-secondary);line-height:1.5;">
+  ⚠️ Prices are editable estimates — wholesale varies by supplier and country. This is a private
+  neighbours-splitting-shopping club, not a business: keep it small, cash-upfront and transparent.
+  Runs offline · your entries stay in this browser.
+</div>
+
+<script>
+(function(){
+'use strict';
+/* Bulk-Buy Co-op Splitter. Wholesale packs -> fair household shares + kit + rotas. No globals. */
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function money(n, cur){ return cur + (Math.round(n*100)/100).toFixed(2); }
+function qty(n){ var r = Math.round(n*100)/100; return (r % 1 === 0) ? String(r) : String(r); }
+
+/* Pack: key, label, pack size + unit, wholesale default, retail per unit default, default ticked */
+var PACKS = [
+  ['rice25',   'Long-grain rice', '25 kg sack', 25, 'kg', 22.50, 1.30, true],
+  ['pasta10',  'Pasta', '10 kg case', 10, 'kg', 9.00, 1.20, true],
+  ['oats10',   'Porridge oats', '10 kg sack', 10, 'kg', 10.50, 1.60, false],
+  ['flour10',  'Plain flour', '10 kg sack', 10, 'kg', 8.50, 1.10, false],
+  ['lentil5',  'Red lentils', '5 kg sack', 5, 'kg', 7.50, 2.10, true],
+  ['chick5',   'Chickpeas (dry)', '5 kg sack', 5, 'kg', 9.00, 2.60, false],
+  ['kidney5',  'Kidney beans (dry)', '5 kg sack', 5, 'kg', 8.50, 2.40, false],
+  ['oil5',     'Cooking oil', '5 litre drum', 5, 'L', 9.50, 2.40, true],
+  ['sugar5',   'Sugar', '5 kg bag', 5, 'kg', 5.50, 1.30, false],
+  ['toms48',   'Tinned tomatoes', 'case of 48 × 400g', 48, 'tin', 19.20, 0.55, true],
+  ['beans48',  'Baked beans', 'case of 48 × 415g', 48, 'tin', 19.20, 0.55, false],
+  ['tuna24',   'Tinned tuna', 'case of 24', 24, 'tin', 19.20, 1.10, false],
+  ['uht24',    'UHT milk', 'case of 24 × 1L', 24, 'L', 24.00, 1.35, false],
+  ['tea1100',  'Tea bags', 'box of 1100', 1100, 'bag', 16.50, 0.03, false],
+  ['soap24',   'Soap bars', 'case of 24', 24, 'bar', 9.60, 0.70, false],
+  ['loo48',    'Toilet rolls', 'case of 48', 48, 'roll', 12.00, 0.45, true]
+];
+var SAVE_KEY = 'bbcs-save-v1';
+var membersBox = $('bbcs-members'), packsBox = $('bbcs-packs');
+var paidState = {};
+
+function memberRow(name, shares){
+  var row = document.createElement('div');
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 90px 40px;gap:8px;align-items:center;';
+  var nm = document.createElement('input');
+  nm.type = 'text'; nm.value = name || '';
+  nm.placeholder = 'Household name (e.g. No. 12)';
+  nm.setAttribute('aria-label', 'Household name');
+  nm.className = 'bbcs-mname';
+  nm.style.cssText = 'padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  var sh = document.createElement('input');
+  sh.type = 'number'; sh.min = '0.5'; sh.step = '0.5'; sh.value = (shares === undefined ? 1 : shares);
+  sh.setAttribute('aria-label', 'Shares for this household');
+  sh.className = 'bbcs-mshares';
+  sh.style.cssText = 'padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+  var x = document.createElement('button');
+  x.type = 'button'; x.textContent = '✕'; x.setAttribute('aria-label', 'Remove household');
+  x.style.cssText = 'padding:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;';
+  x.addEventListener('click', function(){ row.remove(); });
+  row.appendChild(nm); row.appendChild(sh); row.appendChild(x);
+  membersBox.appendChild(row);
+}
+['The Patels (No. 4)', 'Ana (No. 7)', 'Mr Okafor (No. 9)', 'Jo & Sam (No. 12)'].forEach(function(n, i){
+  memberRow(n, i === 0 ? 2 : 1);
+});
+$('bbcs-addm').addEventListener('click', function(){ memberRow('', 1); });
+
+PACKS.forEach(function(p){
+  var key=p[0], label=p[1], pack=p[2], size=p[3], unit=p[4], ws=p[5], rt=p[6], on=p[7];
+  var card = document.createElement('div');
+  card.style.cssText = 'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;';
+  var top = document.createElement('label');
+  top.style.cssText = 'display:flex;gap:8px;align-items:center;cursor:pointer;font-weight:700;font-size:0.86rem;';
+  var tick = document.createElement('input');
+  tick.type = 'checkbox'; tick.checked = on; tick.id = 'bbcs-on-' + key;
+  tick.style.cssText = 'width:17px;height:17px;accent-color:#2dd4ff;';
+  var tt = document.createElement('span');
+  tt.textContent = label + ' — ' + pack;
+  top.appendChild(tick); top.appendChild(tt);
+  var grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px;';
+  function field(id, lab, val, step){
+    var w = document.createElement('div');
+    var l = document.createElement('label');
+    l.style.cssText = 'display:block;font-size:0.74rem;margin-bottom:3px;';
+    l.textContent = lab; l.htmlFor = id;
+    var inp = document.createElement('input');
+    inp.type='number'; inp.min='0'; inp.step=step; inp.value=String(val); inp.id=id;
+    inp.style.cssText = 'width:100%;padding:7px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:inherit;';
+    w.appendChild(l); w.appendChild(inp);
+    return w;
+  }
+  grid.appendChild(field('bbcs-ws-'+key, 'Wholesale cost', ws, '0.01'));
+  grid.appendChild(field('bbcs-rt-'+key, 'Shop price / ' + unit, rt, '0.01'));
+  grid.appendChild(field('bbcs-n-'+key, 'Packs', 1, '1'));
+  var save = document.createElement('div');
+  save.id = 'bbcs-save-' + key;
+  save.style.cssText = 'font-size:0.78rem;color:var(--success);margin-top:6px;';
+  card.appendChild(top); card.appendChild(grid); card.appendChild(save);
+  packsBox.appendChild(card);
+});
+
+function num(id, dflt){ var v = parseFloat($(id).value); return isFinite(v) && v >= 0 ? v : dflt; }
+
+function refreshSavings(){
+  var cur = $('bbcs-cur').value || '£';
+  PACKS.forEach(function(p){
+    var ws = num('bbcs-ws-'+p[0], p[5]), rt = num('bbcs-rt-'+p[0], p[6]);
+    var perUnit = ws / p[3];
+    var pct = rt > 0 ? Math.round((1 - perUnit / rt) * 100) : 0;
+    var el = $('bbcs-save-'+p[0]);
+    if (pct > 0) el.textContent = '✔ ' + money(perUnit, cur) + ' / ' + p[4] + ' vs ' + money(rt, cur) + ' in shops — saves ' + pct + '%';
+    else if (pct === 0 && rt > 0) el.textContent = '= Same as shop price — no saving on this one.';
+    else el.textContent = '⚠️ More expensive than the shops at these prices — skip it.';
+  });
+}
+packsBox.addEventListener('input', refreshSavings);
+$('bbcs-cur').addEventListener('input', refreshSavings);
+refreshSavings();
+
+function copyText(t, btn){
+  function done(){ var o = btn.textContent; btn.textContent = '✓ Copied'; setTimeout(function(){ btn.textContent = o; }, 1600); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand('copy'); done(); } catch(e){} document.body.removeChild(ta);
+  }
+}
+
+function readMembers(){
+  var names = membersBox.querySelectorAll('.bbcs-mname');
+  var shares = membersBox.querySelectorAll('.bbcs-mshares');
+  var out = [];
+  for (var i = 0; i < names.length; i++){
+    var n = names[i].value.trim() || ('Household ' + (i + 1));
+    var s = parseFloat(shares[i].value);
+    if (!isFinite(s) || s <= 0) s = 1;
+    out.push({ name: n, shares: s });
+  }
+  return out;
+}
+
+function build(){
+  var cur = $('bbcs-cur').value || '£';
+  var club = $('bbcs-name').value.trim() || 'Our Food Club';
+  var float = num('bbcs-fee', 0);
+  var members = readMembers();
+  if (!members.length){
+    $('bbcs-out').innerHTML = '<div style="font-size:0.86rem;">Add at least one household first.</div>';
+    return;
+  }
+  var totalShares = members.reduce(function(a, m){ return a + m.shares; }, 0);
+  var lines = [], orderCost = 0, retailCost = 0;
+  PACKS.forEach(function(p){
+    if (!$('bbcs-on-'+p[0]).checked) return;
+    var ws = num('bbcs-ws-'+p[0], p[5]), rt = num('bbcs-rt-'+p[0], p[6]);
+    var n = Math.max(1, Math.round(num('bbcs-n-'+p[0], 1)));
+    var cost = ws * n, ret = rt * p[3] * n;
+    orderCost += cost; retailCost += ret;
+    lines.push({ label: p[1], pack: p[2], n: n, size: p[3], unit: p[4], cost: cost, ret: ret, perShare: cost / totalShares });
+  });
+  if (!lines.length){
+    $('bbcs-out').innerHTML = '<div style="font-size:0.86rem;">Tick at least one pack for this order.</div>';
+    return;
+  }
+  var saving = retailCost - orderCost;
+  var pct = retailCost > 0 ? Math.round(saving / retailCost * 100) : 0;
+
+  var h = '';
+  h += '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(57,255,20,0.4);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:0.86rem;line-height:1.6;">' +
+    '🤝 <b>' + esc(club) + '</b> — ' + members.length + ' households, ' + qty(totalShares) + ' shares.<br/>' +
+    'This order costs <b>' + money(orderCost + float, cur) + '</b>' + (float > 0 ? ' (incl. ' + money(float, cur) + ' kitty float)' : '') +
+    ' vs <b>' + money(retailCost, cur) + '</b> in the shops.<br/>' +
+    (saving > 0 ? '💰 The club saves <b>' + money(saving, cur) + ' (' + pct + '%)</b> — about <b>' + money(saving / totalShares, cur) + '</b> per share.' : '⚠️ At these prices the order costs more than the shops — re-check the wholesale column.') + '</div>';
+
+  /* Per-household bills */
+  h += '<div style="font-weight:700;margin-bottom:8px;">🧾 What everyone pays (tick off as money lands)</div>';
+  h += '<div style="display:grid;gap:6px;margin-bottom:14px;">';
+  members.forEach(function(m, i){
+    var bill = lines.reduce(function(a, l){ return a + l.perShare * m.shares; }, 0) + (float * m.shares / totalShares);
+    var key = 'm' + i;
+    if (paidState[key] === undefined) paidState[key] = false;
+    var gets = lines.map(function(l){
+      var amt = (l.size * l.n * m.shares / totalShares);
+      var show = l.unit === 'kg' || l.unit === 'L' ? (Math.round(amt * 100) / 100) + ' ' + l.unit : Math.round(amt * 10) / 10 + ' ' + l.unit;
+      return esc(l.label) + ' ' + show;
+    }).join(' · ');
+    h += '<div style="display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;font-size:0.84rem;">' +
+      '<input type="checkbox" data-bbcs-paid="' + key + '" ' + (paidState[key] ? 'checked' : '') + ' aria-label="Mark ' + esc(m.name) + ' as paid" style="width:18px;height:18px;accent-color:#39ff14;margin-top:2px;flex-shrink:0;" />' +
+      '<div style="flex:1;"><b>' + esc(m.name) + '</b> <span style="color:var(--text-secondary);">(' + qty(m.shares) + ' share' + (m.shares === 1 ? '' : 's') + ')</span> — pays <b style="color:var(--success);">' + money(bill, cur) + '</b><br/>' +
+      '<span style="font-size:0.78rem;color:var(--text-secondary);">Gets: ' + gets + '</span></div></div>';
+  });
+  h += '</div>';
+
+  /* Split table per pack */
+  h += '<div style="font-weight:700;margin-bottom:8px;">⚖️ The split, pack by pack</div>';
+  h += '<div style="display:grid;gap:6px;margin-bottom:14px;">';
+  lines.forEach(function(l){
+    var perShareAmt = (l.size * l.n / totalShares);
+    var show = l.unit === 'kg' || l.unit === 'L' ? (Math.round(perShareAmt * 100) / 100) + ' ' + l.unit : Math.round(perShareAmt * 10) / 10 + ' ' + l.unit;
+    h += '<div style="font-size:0.84rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;">' +
+      '<b>' + esc(l.label) + '</b> × ' + l.n + ' (' + esc(l.pack) + ') = ' + money(l.cost, cur) +
+      ' — each share gets <b>' + show + '</b> for <b>' + money(l.perShare, cur) + '</b></div>';
+  });
+  h += '</div>';
+
+  /* Collection rota */
+  var jobs = ['🛻 Driving / collecting the order', '⚖️ Splitting + weighing at base', '🧹 Clearing up + returning empties'];
+  h += '<div style="font-weight:700;margin-bottom:8px;">🔁 Suggested rota (rotates every order — change the start order if you like)</div>';
+  h += '<div style="display:grid;gap:6px;margin-bottom:14px;font-size:0.84rem;">';
+  for (var r = 0; r < 3; r++){
+    h += '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 10px;"><b>Order ' + (r + 1) + ':</b> ' +
+      jobs.map(function(j, k){ return j + ': <b>' + esc(members[(r + k) % members.length].name) + '</b>'; }).join(' · ') + '</div>';
+  }
+  h += '</div>';
+
+  /* Starter kit: rules + invite text */
+  h += '<div style="font-weight:700;margin-bottom:8px;">📋 Club starter kit (copy, print, stick on a lamppost)</div>';
+  h += '<div style="display:grid;gap:8px;margin-bottom:14px;">';
+  h += '<details style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--accent);">📜 The 8 rules that keep food clubs alive</summary>' +
+    '<ol style="font-size:0.82rem;line-height:1.7;padding-left:18px;margin:8px 0 0;">' +
+    '<li><b>Cash upfront, always.</b> No pay, no share — no exceptions, no IOUs. Chasing money kills clubs.</li>' +
+    '<li><b>One order rhythm.</b> Same day each fortnight/month. Late additions wait for next time.</li>' +
+    '<li><b>Shares are fixed.</b> 1 share single, 2 shares family. Same split every pack, no cherry-picking.</li>' +
+    '<li><b>Collect on the day.</b> Uncollected shares go to the food bank after 24h — never back in someone’s hallway.</li>' +
+    '<li><b>Jobs rotate.</b> Everyone drives, splits or cleans in turn. No permanent volunteers.</li>' +
+    '<li><b>Receipts in the open.</b> Every pack price is shared with the group before money is collected.</li>' +
+    '<li><b>Bring your own bags, tubs and jars.</b> The club does not buy packaging.</li>' +
+    '<li><b>Allergies are declared.</b> Shared scoops touch everything — anyone with a severe allergy packs first, with clean scoops.</li>' +
+    '</ol></details>';
+  h += '<details style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--accent);">✉️ Invite message (paste into the street chat)</summary>' +
+    '<div id="bbcs-invite" style="font-size:0.82rem;line-height:1.6;white-space:pre-wrap;margin-top:8px;"></div>' +
+    '<button type="button" id="bbcs-copyinvite" style="margin-top:8px;padding:9px 14px;background:rgba(45,212,255,0.12);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:700;">📋 Copy invite</button></details>';
+  h += '<details style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--accent);">🛻 Collection-day checklist</summary>' +
+    '<ul style="font-size:0.82rem;line-height:1.7;padding-left:18px;margin:8px 0 0;">' +
+    '<li>Scales, scoops, funnels, marker pens, tape, spare bags</li>' +
+    '<li>Printed split sheet (this page) + a pen for ticking paid/collected</li>' +
+    '<li>Clean table covers; separate area for open sacks and finished shares</li>' +
+    '<li>Phone photos of every receipt, posted to the group the same day</li>' +
+    '<li>Floor swept, empties flattened for recycling, base left cleaner than found</li>' +
+    '</ul></details>';
+  h += '</div>';
+
+  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+  h += '<button type="button" id="bbcs-copy" style="flex:1;min-width:200px;padding:11px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:var(--success);cursor:pointer;font-weight:700;">📋 Copy the split sheet</button>';
+  h += '<button type="button" id="bbcs-print" style="padding:11px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:inherit;cursor:pointer;">🖨️ Print</button></div>';
+
+  $('bbcs-out').innerHTML = h;
+
+  var boxes = $('bbcs-out').querySelectorAll('[data-bbcs-paid]');
+  for (var b = 0; b < boxes.length; b++){
+    boxes[b].addEventListener('change', function(){
+      paidState[this.getAttribute('data-bbcs-paid')] = this.checked;
+    });
+  }
+
+  var invite = '🤝 ' + club.toUpperCase() + ' — NEIGHBOURS BUYING TOGETHER\n\n' +
+    'We bulk-buy staples (rice, pasta, oil, tins, loo roll) and split them fairly.\n' +
+    'Last order: ' + money(orderCost, cur) + ' for the whole club vs ~' + money(retailCost, cur) + ' in shops — about ' + pct + '% cheaper.\n\n' +
+    'HOW IT WORKS:\n- Order day is fixed. You say how many shares (1 single / 2 family).\n- You pay upfront. No pay = no share, no IOUs.\n- You collect on split day with your own bags, and take a turn driving/splitting/cleaning.\n\n' +
+    'Reply with your name + shares if you want in. First order is small so everyone can see it works.';
+  $('bbcs-invite').textContent = invite;
+  $('bbcs-copyinvite').addEventListener('click', function(){ copyText(invite, $('bbcs-copyinvite')); });
+
+  var sheet = club.toUpperCase() + ' — SPLIT SHEET\n' + members.length + ' households, ' + qty(totalShares) + ' shares. Order total ' + money(orderCost + float, cur) + ' (shops: ~' + money(retailCost, cur) + ').\n\n';
+  members.forEach(function(m){
+    var bill = lines.reduce(function(a, l){ return a + l.perShare * m.shares; }, 0) + (float * m.shares / totalShares);
+    sheet += '[ ] ' + m.name + ' (' + qty(m.shares) + ' sh) — pays ' + money(bill, cur) + '\n';
+  });
+  sheet += '\nPACK SPLITS (per share):\n';
+  lines.forEach(function(l){
+    var per = l.size * l.n / totalShares;
+    sheet += '  - ' + l.label + ' x' + l.n + ': ' + (Math.round(per * 100) / 100) + ' ' + l.unit + ' for ' + money(l.perShare, cur) + '\n';
+  });
+  $('bbcs-copy').addEventListener('click', function(){ copyText(sheet, $('bbcs-copy')); });
+  $('bbcs-print').addEventListener('click', function(){ window.print(); });
+}
+
+function snapshot(){
+  var s = { cur: $('bbcs-cur').value, name: $('bbcs-name').value, fee: $('bbcs-fee').value, m: [], p: {} };
+  var names = membersBox.querySelectorAll('.bbcs-mname'), sh = membersBox.querySelectorAll('.bbcs-mshares');
+  for (var i = 0; i < names.length; i++) s.m.push([names[i].value, sh[i].value]);
+  PACKS.forEach(function(p){ s.p[p[0]] = [$('bbcs-on-'+p[0]).checked, $('bbcs-ws-'+p[0]).value, $('bbcs-rt-'+p[0]).value, $('bbcs-n-'+p[0]).value]; });
+  return s;
+}
+function restore(s){
+  if (!s || !s.m) return false;
+  $('bbcs-cur').value = s.cur || '£'; $('bbcs-name').value = s.name || '';
+  $('bbcs-fee').value = s.fee || 0;
+  membersBox.innerHTML = '';
+  s.m.forEach(function(m){ memberRow(m[0], parseFloat(m[1]) || 1); });
+  PACKS.forEach(function(p){
+    var v = s.p && s.p[p[0]];
+    if (v){ $('bbcs-on-'+p[0]).checked = !!v[0]; $('bbcs-ws-'+p[0]).value = v[1]; $('bbcs-rt-'+p[0]).value = v[2]; $('bbcs-n-'+p[0]).value = v[3]; }
+  });
+  refreshSavings();
+  return true;
+}
+
+$('bbcs-go').addEventListener('click', build);
+$('bbcs-save').addEventListener('click', function(){
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); $('bbcs-save').textContent = '✓ Saved'; }
+  catch(e){ $('bbcs-save').textContent = '✕ No storage'; }
+  setTimeout(function(){
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!$('bbcs-save')) return; $('bbcs-save').textContent = '💾 Save'; }, 1600);
+});
+$('bbcs-load').addEventListener('click', function(){
+  try {
+    var s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (restore(s)){ build(); $('bbcs-load').textContent = '✓ Loaded'; }
+    else $('bbcs-load').textContent = '✕ Nothing saved';
+  } catch(e){ $('bbcs-load').textContent = '✕ Nothing saved'; }
+  setTimeout(function(){
+    // tool.html clears the card's container on the next navigation and cannot
+    // cancel this timer: bail out rather than write to markup that is gone.
+    if (!$('bbcs-load')) return; $('bbcs-load').textContent = '📂 Load'; }, 1600);
+});
+})();
+</script>

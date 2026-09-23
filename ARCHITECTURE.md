@@ -4,14 +4,13 @@
 written so that a human or an AI agent handed a GitHub token can be productive
 within about ten minutes and without breaking anything.
 
-**For AI agents:** start with **[AGENTS.md](AGENTS.md)**, the agent-facing
-operating manual (what to never touch, task sequences, workspace budget).
-If you need GitHub access in a fresh session, see
-**[AGENT_ACCESS.md](AGENT_ACCESS.md)** — the self-service device-flow auth
-(`bash scripts/agent-auth.sh`) plus the sparse-clone recipe. Use it instead of
-asking the owner to paste a token.
+**For AI agents:** start with **[AGENTS.md](AGENTS.md)** — one page: what to
+never touch, the four commands, and the task sequences. If you need GitHub
+access in a fresh session, run `bash scripts/agent-auth.sh` (self-service
+device flow, sparse-clone recipe inside) instead of asking the owner to paste a
+token.
 
-Last substantive update: 2026-09-07.
+Last substantive update: 2026-09-21.
 
 For anything money-related — what earns, what the real numbers are, and what
 was deliberately not built — see **[INCOME.md](INCOME.md)**.
@@ -24,7 +23,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 1159 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 1250 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -35,7 +34,12 @@ establish *which* site first.
 
 - **Live:** <https://www.themostusefulsiteintheworld.com>
 - **Hosting:** GitHub Pages, served straight from `main`. There is no build
-  step, no bundler, no CI, no framework. What is committed is what is served.
+  step, no bundler, no framework, and `.nojekyll` is what keeps that literally
+  true: without it Pages runs the repository through Jekyll, which silently
+  drops every path beginning with `.` or `_` — that is how `.well-known/ai.txt`
+  and `.well-known/security.txt` came to be 404 in production while four pages
+  linked to them (found 2026-09-15). Every tracked file is
+  served at its own path.
 - **Custom domain:** the `CNAME` file. Deleting it breaks the domain.
 - **Deploy latency:** roughly 30–60 seconds after a push. Always verify live
   with `curl` rather than assuming.
@@ -47,17 +51,26 @@ establish *which* site first.
 ```
 /
 ├── index.html              Product A: tool catalogue (search/filter UI)
+├── home-core.js            Homepage chrome: theme, panels, search bridge, deep links
+├── explore.js              The list engine every list page runs (filter/sort/rows)
+├── explore.css             The list layer's styles (rows, toolbar, toolbox, sponsor slot)
+├── toolbox.js              The visitor's own toolbox: a saved slug list, not a running grid
 ├── cards/
-│   ├── cards.json          Generated index of all 1159 tools
-│   └── <tool-name>.html    1159 tool fragments (NOT full documents)
-├── generate-cards-json.js  Rebuilds cards.json from the cards/ directory
+│   ├── cards-lite.json     Generated critical-path tier: name/title/category
+│   ├── cards.json          Generated full index of all 1250 tools (descriptions feed search)
+│   └── <tool-name>.html    1250 tool fragments (NOT full documents)
+├── generate-cards-json.js  Rebuilds cards.json + cards-lite.json from the cards/ directory
 ├── ai.html                 Lantern — standalone AI product. Chat answered on
 │                           the device from the visitor's own documents and
 │                           memory (composed answers are labelled as such),
 │                           real local tools, 18 reasoning methods with visible
 │                           working, a guided tour and lessons, rating-driven
-│                           adaptation, optional WebGPU model. Own name, mark
-│                           and palette: no catalogue data or branding
+│                           adaptation, optional WebGPU model, and a duty of
+│                           care that surfaces verified UK emergency help when
+│                           the visitor's own words describe a dangerous
+│                           situation (never from indexed documents; switch off
+│                           with /duty off). Own name, mark and palette: no
+│                           catalogue data or branding
 ├── agents.html             Machine-use guide for AI agents & developers
 │                           (the former /ai.html; cards and llms.txt link here)
 │
@@ -85,7 +98,7 @@ establish *which* site first.
 │   aiwalker.html, animation.html, birdapp.html, clock.html,
 │   eternalbeffudlementmachine.html, local-ai.html, byte-realistic.html,
 │   byte-realistic-v4.html, slideshowtest.html,
-│   token.html, tool.html, indexbeta.html, hokidea.html, supaviewer.html
+│   token.html, tool.html, supaviewer.html
 │                           Experiments and one-offs. Not linked from the
 │                           catalogue. Safe to ignore; ask before deleting.
 │                           `local-ai.html`, `byte-realistic.html` and
@@ -94,9 +107,6 @@ establish *which* site first.
 │                           `supaviewer.html` is SupaViewer, a standalone
 │                           in-browser virtual-world viewer (docs in
 │                           supaviewer/).
-├── local-ai-knowledge.json  Generated public catalogue/docs context, consumed
-│                           by agents.html and scripts/evaluate-site-brain.py
-├── learning/                Reviewed shared-learning entries
 │   approved.json, README.md
 │
 ├── manifest.json           PWA manifest
@@ -104,13 +114,23 @@ establish *which* site first.
 ├── robots.txt              Allows all, points at the sitemap
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
-├── icon-192.png, icon-512.png, icon-maskable-512.png
-├── logo.png, mrprophecypic.jpg, backgroundpic.jpg
+├── brand/                  the mark's source: mark.py (geometry + rasteriser),
+│                           gen_assets.py (writes every asset below),
+│                           check-mark.py, measure.py — see brand/README.md
+├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
+│   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
+│                           home screen, Android and iOS (§5)
+├── logo-mark.svg           the same mark, vector, at hero scale — linked by
+│                           index.html's lockup and its footer
+├── logo.png                1024² lockup (mark + wordmark). Unreferenced by any
+│                           page — kept deliberately, for press and profiles
+├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
+├── backgroundpic.jpg + backgroundpic.webp (the one the pages use)
+├── og-brand.png, og-tools.png, og-ai.jpg, og-mp.png, luton-og.png,
+│   sonic-og.png          social cards (og-brand.png is index.html's)
 ├── images/                 ~50 MB of photos. Excluded from sparse checkouts.
 ├── README.md               Short public-facing readme
-├── guide.txt               69 KB of older notes; historical, not authoritative
 ├── CV.docx / CV.pdf / cv.pdf / latestcv.docx    Owner's CV files
-└── substitutions/, system/, digitaldetoxcardshtml/    Legacy, unused
 ```
 
 ---
@@ -118,50 +138,264 @@ establish *which* site first.
 ## 3. Product A — the tool catalogue
 
 ### How it works
+**The home page lists tools. It does not run them.** Every tool runs on
+`tool.html`, one page, one tool at a time. Until 2026-09-21 the home page also
+mounted the catalogue in place — 1,205 fragments, each injected into the page
+and executed — and that is what was removed: not a feature, an entire class of
+failure. A page running every tool has a different way to look broken for every
+tool in it (half-drawn cards, a click that lands before its listener exists, a
+phone out of memory), and each of those was a visitor who left believing the
+site was broken.
 
-`index.html` fetches `cards/cards.json` at runtime and renders a searchable
-grid. **The grid itself is never hardcoded.** A tool is discoverable if and
-only if it appears in `cards.json`.
+What is left is a page that links. What that buys:
 
-Each tool opens inside the catalogue shell, which supplies the CSS custom
-properties. That is why cards are fragments rather than whole pages.
+- **First paint no longer waits for a catalogue.** The page renders its own
+  chrome and the first list; nothing monospaced, nothing that needs a
+  stylesheet from another deploy to look finished.
+- **One place a tool can go wrong.** `tool.html` fails the same way for all
+  1,250 tools, and `scripts/check-tool-graph.py` proves every link into it
+  lands on a tool that exists.
+- **A list that scales.** Filtering, sorting, keyboard navigation, density and
+  the toolbox are properties of a *list*. They were impossible to add while the
+  catalogue's first job was to execute 1,205 fragments.
+- **Reachability without the grid.** A tool is still reachable from
+  `tools.html`, `tools-index.html`, its category page, `sitemap.xml`,
+  `embed.html`, `sitemap.html` and `api/tools.json` — the surfaces
+  `check-tool-graph.py` enumerates as `FULL_SURFACES`. The home page was never
+  one of them, so dropping its grid orphaned nothing.
+
+The catalogue tiers (`cards/cards-lite.json`, `cards/cards.json`) still exist
+and still matter — `tool.html` uses them for its shell, the toolbox reads the
+lite tier for titles, and every generator that writes a list reads the full
+tier. What changed is who fetches them: the pages that need them, when they
+need them.
+
+### The list layer — `explore.css`, `explore.js`, `toolbox.js`
+
+Four files, three of them new on 2026-09-21, and they are the whole of the
+catalogue's browsing experience:
+
+| file | job |
+| --- | --- |
+| `explore.css` | the row, the toolbar, the empty state, the toolbox panel, the sponsor slot. Loaded by `index.html`, `tools.html`, `tools-index.html` and all 28 category pages. |
+| `explore.js` | the list engine: filters, sorts, keyboard, URL state, the "show more" reveal |
+| `toolbox.js` | the visitor's saved list — add, remove, reorder, share, export/import — and the ＋ buttons themselves |
+| `home-core.js` | home-page chrome only: theme, panels, the search bridge into the list, deep links, service worker |
+
+Two mount shapes, and the difference is a deliberate performance decision:
+
+- **`data-explore="json"` (the home page).** The rows are *built* from
+  `tools-index.json` when the visitor reaches the list. Nothing is fetched at
+  parse time; the list is 60 rows in the DOM at a time, and "Show 60 more"
+  extends it.
+- **`data-explore="static"` (`tools.html`, `tools-index.html`, category
+  pages).** The rows are already in the served HTML, so the engine never
+  rebuilds them: it decorates them in place (category chip, ＋ button, details
+  toggle) and filters by hiding rows. The reveal is **per group, not global**:
+  `tools.html` is one section per category, so "first 60 by title" would have
+  emptied most categories and overfilled a few. Each category shows its first
+  60; "Show 60 more" extends every one.
+
+The rules that keep it honest, each pinned by a test:
+
+- **A list is a list with JavaScript off too.** Rows are real `<a>` elements
+  written at build time. `tools-index.html` is the extreme case: it is the page
+  linked from `llms.txt` and read by crawlers, so it keeps its zero-JS promise
+  and the layer only *adds* the filter box, the sort and the ＋. A page whose
+  script failed still has every tool.
+- **No dead controls.** Every ＋, ▸ and ↗ is added by `toolbox.js` /
+  `explore.js` at load. A page with scripts off never shows a button that
+  cannot work.
+- **`?card=<slug>` keeps working.** `home-core.js` forwards the old home-page
+  card links to `tool.html?card=<slug>` with `location.replace`, so every link
+  anyone ever shared still lands on the tool.
+
+### What was removed, and the two things that must not come back
+
+Deleted with the grid: `home-app.js` (197 KB, the application that mounted
+cards), `home-features.js` (43 KB, the on-demand UI bundle) and
+`discovery-app.js` (18 KB, the browse chrome). `scripts/tests/no-live-tools.test.js`
+is the tripwire: it fails if `index.html` fetches the catalogue or a card
+fragment, if a mounting surface (`#dashboard`, `#standaloneModal`,
+`#directoryView`, a card grid) reappears, or if any of the three deleted files
+comes back.
+
+**Read this before "just mounting one card".** The grid was not slow because
+it was badly written; it was the most carefully written code in this
+repository (the live window, the park pass, the warm-ahead trickle, the
+per-frame budget — all of it measured and tuned). It was slow because running
+1,205 tools is not something a browser does. A preview card on the home page <!-- historical-count: the grid ran the catalogue as it stood then -->
+would be the first card of a grid, and it would bring the rest back with it.
+
+### The toolbox — a saved list, not a running grid
+
+The toolbox used to hold *live* tools: saving one mounted its card inside the
+panel, which meant the panel could only exist on the one page that had already
+loaded the catalogue, and could only hold a handful of tools before it became a
+second copy of the heaviest page on the site.
+
+It now stores **slugs**. That is the whole data model, and everything else
+follows:
+
+- **`localStorage['mp.toolbox.v1']`** — an ordered array of slugs.
+  Deliberately *not* an `__mp_` key: those are reserved for instrumentation
+  (`docs/INSTRUMENTATION.md`).
+- **It works on every list page.** `toolbox.js` finds the panel if the page
+  ships one (`index.html`'s popover) and builds one if it does not (a floating
+  button on `tools.html`, `tools-index.html` and the category pages).
+- **A toolbox is a URL.** `?toolbox=<base64url slugs>` shares a list. The
+  receiving visitor is *offered* it and nothing is written until they click —
+  an unsolicited write is how a shared link turns into a support email.
+- **Nothing leaves the device.** No account, no sync, no upload — the panel's
+  Export button exists precisely because clearing browser data clears the
+  toolbox, and saying so is more honest than syncing it.
 
 ### First-screen fast path (generated — do not hand-edit)
+**The home page has no card markup and no first-screen bootstrap.** Both were
+removed with the grid (2026-09-21). What it has instead:
 
-`cards.json` is 516 KB raw / ~136 KB gzipped, and it used to gate everything:
-the browser downloaded it, parsed it, built all 1128 placeholders, and only
-then asked for the first tool. On a modelled fast-4G link the first real card
-landed ~870 ms in, behind bytes it did not depend on.
+- **`HOME-FEATURED` and `HOME-TRENDING`** — two generated blocks of static rows
+  (12 featured, 8 most-used) written by `scripts/build-home-prerender.py`. They
+  are plain links in the served HTML, so they paint with the page, they work
+  without scripts, and they cost one line each. The ＋ that keeps one in a
+  toolbox is added by `toolbox.js`, not baked in.
+- **`HOME-CATEGORIES`** — the 29 category hubs, one link each.
+- **`[data-explore="json"]`** — an empty container. Everything below the fold
+  (the filterable list of all 1,250 tools) is fetched on scroll and built 60
+  rows at a time. On a phone with a cold cache the page is useful before that
+  fetch starts.
 
-Two generated blocks in `index.html` break that serialisation. Both are written
-by `scripts/build-home-prerender.py` between marker comments, both are derived
-from `cards.json`, and `bash scripts/verify.sh` fails if either drifts:
+The generator refuses to write from a `tools-index.json` that disagrees with
+`cards/cards.json`, so a stale catalogue cannot half-render the page. Run it
+with `--check` to see drift:
 
-- **`HOME-FAST-PATH`** (in `<head>`) starts the `cards.json` fetch and the first
-  six card-fragment fetches while the head is still parsing. The responses are
-  parked as promises on `window.__mpFastPath` and consumed exactly once by
-  `takePrefetchedCatalogue()` / `takePrefetchedCard()`, so nothing is
-  downloaded twice and a failed or slow prefetch silently falls back to the
-  loader's own fetch. (This replaced a `<link rel="preload" as="fetch">`:
-  reusing a preload depends on its credentials mode matching the later
-  `fetch()`, and a miss downloads 136 KB twice.)
-- **`HOME-PRERENDER`** (in `#dashboard`) ships the first eight cards as real
-  markup — title, category badge, standalone link — so the first screen paints
-  with the HTML instead of after a JSON round trip, and so a crawler sees real
-  tool links. `adoptPrerenderedCards()` adopts these shells during parse and
-  starts rendering into them; `loadCardList()` keeps them and builds the rest
-  of the catalogue around them, dropping any shell whose tool has gone.
+    python3 scripts/build-home-prerender.py           # rewrite the blocks
+    python3 scripts/build-home-prerender.py --check   # fail on drift (verify.sh)
 
-The same script also re-syncs the per-category count badges on the filter pills
-(`updateCategoryCounts()` overwrote them at runtime, so 21 of 27 had silently
-drifted in the HTML that crawlers and no-JS visitors read). `count-all` and
-`heroToolCount` belong to `sync-counts.py` — one number, one owner.
+### What the loader is allowed to do per frame
+### The list reveal — what a page is allowed to build
 
-After the first screen's placeholders exist, the build of the remaining ~1120
-yields while the loader pipeline is busy (`FIRST_SCREEN_CHUNKS` /
-`YIELD_FRAME_LIMIT`), so the catalogue tail no longer competes with the tools
-the user is actually looking at. The yield is bounded, so a busy page cannot
-starve the build.
+The home page's list is the only place rows are built from data, and it builds
+**60 at a time**. Two numbers decide that:
+
+- **60 rows is a screenful and a half.** Enough that scrolling never meets the
+  bottom edge, small enough that the DOM stays in the low thousands of nodes
+  once the visitor has opened a few pages of it.
+- **`display:none` subtrees skip layout.** On the static surfaces all 1,250 rows
+  are in the document (crawlers, find-in-page, no-JS) but only the visible ones
+  are laid out, which is what keeps a half-megabyte page feeling like a 60-row
+  one. The row count is the catalogue's; the size is stated in round terms on
+  purpose — it grows with every tool, and a precise figure here went stale
+  (483 KB) without anyone noticing.
+
+The reveal is per group on grouped pages — see the list-layer section above —
+because a global "first 60" on a page with 28 category headings empties 27 of
+them.
+
+### The live window: density, the park, warm-ahead
+### Density, and what happened to the park
+
+The old grid had four mechanisms for the same problem — too many tools, too
+little screen: `DENSITY` (mosaic vs focus), the park pass (unmounting tools that
+scrolled away), warm-ahead (fetching the next screen early) and an idle trickle.
+Every one of them existed because a *running* tool is expensive.
+
+With nothing running, density is a two-state choice that belongs to the list:
+**comfortable** shows each row's description, **compact** hides it until you
+toggle that row — one line of CSS each, remembered in `localStorage['density']`.
+The park, warm-ahead and the trickle are gone with the code that needed them;
+`scripts/tests/no-live-tools.test.js` fails if they come back.
+
+### The app is split: first screen in one file, on-demand UI in another
+### The home page's four files
+
+The split used to be "core app + on-demand bundle". It is now four files, each
+with one job and none of them large:
+
+| file | size | when it runs |
+| --- | --- | --- |
+| `home.css` | about 43 KB | first-paint rules — render-blocking on purpose |
+| `home-deferred.css` | about 9 KB | rules for containers hidden at first paint; applied after it (13 KB gzip for the pair) |
+| `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
+| `toolbox.js` | about 27 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none) |
+| `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
+| `home-core.js` | about 22 KB | theme/accent, panels, the search bridge, deep links, service worker |
+
+`scripts/check-critical-css.py` holds the two rules that make this safe: the
+first paint's stylesheet must not depend on the deferred one, and every asset
+`index.html` loads must be versioned with the same `?v=` as `CACHE_VERSION` in
+`sw.js`. It fails the build if `home-core.js` loses `APP_VERSION` or if the
+page starts loading an asset the service worker does not precache.
+
+`window.mpExplore` and `window.mpToolbox` are the public seams between them —
+`home-core.js` calls `mpExplore.filter()` when the hero search box is typed in,
+and `mpExplore` calls `mpToolbox.toggle()` when a ＋ is pressed. Neither file
+reaches into the other's DOM.
+
+### The main page's `<head>` is a budget
+### The main page's `<head>` is a budget
+
+`index.html`'s head was once 132,210 bytes — 71% of the document — mostly an
+inline stylesheet. It is now under 16 KB, and the rule that keeps it that way
+is: **bytes in the document cost every visitor on every navigation, so
+rationale lives in this file, not in HTML comments.** A measured example: the
+HTML comments alone were 2,664 bytes gzip (19% of what the page sent).
+
+What lives here instead of in the head:
+
+- **Why the list is fetched from `tools-index.json`, not from
+  `cards/cards-lite.json`.** The list needs titles, descriptions, categories,
+  tags and popularity; the lite tier's `{n,t,c}` is a *shell* format for the one
+  page that used to build 1,205 of them. One fetch, one format, one source.
+- **Why `home-core.js` is external and deferred.** It parses in parallel with
+  the HTML instead of waiting for the whole document, and it is cached
+  separately, so a revalidated page stops re-sending the JS with it.
+- **Why gtag loads at idle.** Its ~28 KB script used to be requested the moment
+  the head's end parsed, while the first rows were still rendering. The
+  `dataLayer` shim is in place immediately, so every `gtag()` call queues and
+  nothing is lost; `page_view` lands a beat later.
+- **Why Inter is self-hosted and preloaded.** The old chain was
+  head → Google CSS (1 RTT) → woff2 (1 RTT) → ~700 ms of font-swap delay on
+  slow 4G. `unicode-range` keeps the latin-ext file unfetched unless a glyph
+  needs it, and `font-display: swap` paints in the system stack meanwhile.
+- **Why the speculation rules prefetch but do not prerender.** Prerendering a
+  tool page runs its whole standalone page on hover — heavy, and it gave us a
+  real bug (2026-09-21): a prerender that wedged behind the service worker
+  meant a click could land on a dead second document, hanging the tab instead
+  of opening the tool. The rules now prefetch the tool responses (`moderate`)
+  and category hubs (`conservative`): nothing to activate, nothing to wedge,
+  and the click is still near-instant because the response — and the service
+  worker's runtime-cache entry — is already warm.
+
+### Where the main page's CSS lives
+### Where the CSS lives
+
+| file | contents | how it is loaded |
+| --- | --- | --- |
+| `home.css` | first-paint rules: base tokens, command bar, hero, search, the browse sections' layout, footer | render-blocking `<link>` (an unstyled first paint is worse than one RTT that overlaps the HTML download) |
+| `home-deferred.css` | rules for containers that are **hidden at first paint**: the palette/contributions panels, the toolbox panel, the footer's music spotlight | `media="print"` + `onload` swap, so it is fetched alongside `home.css` but applied after the first paint; `<noscript>` link for JS-less readers |
+| `explore.css` | the list layer: toolbar, rows, empty state, toolbox panel, the sponsor slot | a normal `<link>` on every list page — five page types share it, so it is cached once and reused |
+
+Three properties make the split safe, and `scripts/check-critical-css.py`
+(verify §15) fails the build if any is broken:
+
+1. **The rules that hide those containers stay in `home.css`.** `.panel`,
+   `.toolbox`, `#directoryView { display: none }` and the modal's
+   `pointer-events: none` are the mechanism, not styling — a late stylesheet
+   must never be what decides whether a container is visible.
+2. **No deferred selector may mention anything else.** The guard's rule is
+   containment, not a sample: every selector in the deferred file must target a
+   container that is hidden at first paint.
+3. **`home.css` carries the tokens the deferred file uses**, and the deferred
+   file may only lean on what `home.css` defines (it always loads first).
+
+Every asset is loaded with `?v=N` where `N` equals `CACHE_VERSION` in `sw.js` —
+the same deploy-consistency rule the service worker enforces for its own
+caches, since a page from one deploy must never run against another deploy's
+CSS or JS. The number is written by `scripts/build-tools-page.py`,
+`scripts/build-category-pages.js` and `scripts/generate-ai-index.js` reading it
+out of `sw.js`: hard-coding it per generator is how `tools.html` once shipped
+`explore.css?v=1` against a `?v=16` homepage.
 
 ### Anatomy of a card
 
@@ -190,7 +424,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1159 cards.** They share one
+2. **Element IDs must be globally unique across all 1250 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -212,14 +446,15 @@ vim cards/my-tool.html
 node generate-cards-json.js
 
 # 3. Re-sync everything derived from the catalogue. Never hand-edit a count
-#    or the home page's generated first screen — these scripts own them and
-#    verify.sh fails on drift.
-python3 scripts/sync-counts.py
-python3 scripts/build-sitemap.py
-python3 scripts/build-home-prerender.py
+#    or the home page's generated first screen — the tool count is the number
+#    of .html files in cards/ (`python3 scripts/sync-counts.py count` prints
+#    it) and verify.sh re-derives any drifted published number in
+#    place instead of failing. Order matters: build-home-prerender.py reads
+#    tools-index.json for the category hub links it writes into index.html.
+npm run build          # every generator, in dependency order (~8 s)
 
 # 4. Verify, commit, push, wait ~50s, then verify live:
-bash scripts/verify.sh
+bash scripts/verify.sh --deep   # ~15 s; plain verify.sh (~4 s) while iterating
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
@@ -249,28 +484,29 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1159 tools)
+### Categories (1250 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 197 | Science & Engineering | | 29 | Museum & Collection |
-| 149 | Productivity & Lifestyle | | 27 | Wellbeing & Community |
-| 81 | Finance & Money | | 23 | Culinary & Food Science |
-| 67 | Algorithms & Computer Science | | 21 | Virtual Worlds & Gaming |
-| 67 | Writing & Language | | 19 | AI & Autonomous Agents |
-| 54 | Mathematics | | 17 | Mind-Blowing Demos |
-| 54 | SaaS & Business Killers | | 12 | Lucid Dreaming & Sleep |
-| 54 | Sports | | 10 | Anime & Otaku Culture |
+| 198 | Science & Engineering | | 29 | MrProphecy Arcade |
+| 159 | Productivity & Lifestyle | | 29 | Museum & Collection |
+| 90 | Finance & Money | | 21 | Virtual Worlds & Gaming |
+| 73 | SaaS & Business Killers | | 19 | AI & Autonomous Agents |
+| 70 | Writing & Language | | 17 | Mind-Blowing Demos |
+| 69 | Algorithms & Computer Science | | 13 | Lucid Dreaming & Sleep |
+| 55 | Sports | | 11 | Survival & Emergency Readiness |
+| 54 | Mathematics | | 10 | Anime & Otaku Culture |
 | 51 | Interactive Art & Living Worlds | | 10 | Aquatics & Fishkeeping |
-| 37 | Home & DIY | | 10 | Birdwatching & Ornithology |
-| 36 | Health & Fitness | | 10 | Dogs & Canine Care |
+| 46 | Health & Fitness | | 10 | Birdwatching & Ornithology |
+| 41 | Home & DIY | | 10 | Dogs & Canine Care |
+| 40 | Music & Audio | | 10 | Fire & Rescue Service |
 | 35 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
-| 35 | Music & Audio | | 10 | Survival & Emergency Readiness |
-| 29 | MrProphecy Arcade | | | |
+| 30 | Culinary & Food Science | | 10 | Trucking & Freight |
+| 30 | Wellbeing & Community | | | |
 
-Total: 1159 tools in 27 categories.
+Total: 1250 tools in 29 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -485,14 +721,11 @@ asked indirectly.
 
 Two distinct aesthetics. Match the one belonging to the page you are editing.
 
-> **Visual Design Expert on duty.** This repo runs an AI Developer staff
-> (`AGENTS.md` §9; roster `scripts/ai-staff.json`). The **Visual Design
-> Expert** owns this section and the hub pages it documents. If you are
-> another agent or a human taking on design work: read this section, run
-> `node scripts/ai-developer.js staff`, then `node scripts/design-audit.js`
-> before changing anything visual. Design edits must respect these rules and
-> the audit, and stay reviewable (hub pages get human-reviewed PRs — the
-> expert's own rule, not an afterthought).
+> **These rules are the design contract.** A "Visual Design Expert" staff role
+> and a 54-check static audit (`scripts/design-audit.js`) used to enforce them;
+> both were deleted with the staff machinery on 2026-09-20. The rules stay.
+> Read this section before changing anything visual, and look at the hub pages
+> in a browser at 360 px and 1440 px — no static check substitutes for that.
 
 ### Product A — tool catalogue: "cyan terminal"
 
@@ -546,8 +779,10 @@ reserved for subscribe actions so the primary CTA is unmistakable.
 - **Respect `prefers-reduced-motion`** — kill animations and smooth scrolling.
 - **Keyboard reachable**, visible focus, real `aria-label`s on icon-only
   controls, one `<h1>` per page and a sensible heading order.
-- **System font stack** (`Inter`, `system-ui`, `-apple-system`, `Segoe UI`).
-  No webfont downloads.
+- **System font stack** (`Inter`, `system-ui`, `-apple-system`, `Segoe UI`)
+  with graceful fallback. Webfonts must be self-hosted: the home page ships
+  the Inter variable woff2 in `fonts/` (preloaded, `unicode-range` subsets,
+  SIL OFL — see `fonts/OFL.txt`). No third-party font CDNs on that page.
 - `loading="lazy"` on below-the-fold images.
 - Every `target="_blank"` needs `rel="noopener noreferrer"`.
 
@@ -577,9 +812,29 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   `setupMobileOptimizations`).
 - **`tool.html`**: `.tool-card-box` and its injected container are
   `min-width:0; max-width:100%` — the second half of the card-overflow fix.
-- **Hero**: `.futuristic-badge` text is `rgba(230,250,255,.85)` on a
-  `rgba(0,243,255,.08)` tint; `.main-search-bar` is 52px tall with a
-  full-height search button; `.futuristic-subtitle` uses `text-wrap:pretty`.
+- **Hero**: rebuilt 2026-09-21 around the brand, in this order — `.hero-brand`
+  (the mark plus `THE MOST USEFUL SITE IN THE WORLD` in 0.8rem/800 with 0.14em
+  of tracking), `h1.futuristic-title` (the promise, not the site's name:
+  "Every tool you need, already in your browser.", `clamp(1.6rem,6.4vw,3.35rem)`,
+  26ch, two balanced lines at every width), `.hero-subtitle`, the search field,
+  the popular chips, then `.hero-facts` (a pulsing dot, the live tool count,
+  the promise) and `.hero-keys`. The badge, its sheen animation (`titleSheen`)
+  and the 🔍 glyph that used to sit in the search field are gone — the icon
+  there is now an inline SVG that takes the accent colour. The catalogue's own
+  emoji are untouched: a tool's emoji belongs to the tool.
+- **One chip per emoji, in the hero and the section headings**: `.section-emoji`
+  (30px, 9px radius) on the headings, `.cat-icon` (32-36px, 10px radius) on the
+  28 category tiles. Flat emoji beside a flat heading is what makes a page look
+  assembled rather than designed. The sticky-bar buttons, the panels and the
+  tool rows keep their own emoji deliberately — those are controls and content,
+  not headings.
+- **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, and it is the
+  same drawing as the favicon, the PWA icons and the social card: one geometry
+  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`), six
+  shipped files. `logo-mark.svg` and `favicon.svg` are byte-identical — one
+  file, two names — and `python3 brand/check-mark.py` (standard library only)
+  fails if the vector and the rasters ever disagree about a radius, a gradient,
+  a stroke or the spark's curve. Edit the mark in `brand/`, never in the SVG.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.
@@ -603,7 +858,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 1197 indexable pages (including 1159 cards). Build it
+`sitemap.xml` lists all 1197 indexable pages (including 1250 cards). Build it
 from git rather than the working tree, so a sparse checkout does not silently
 drop the card pages:
 
@@ -611,12 +866,12 @@ drop the card pages:
 import subprocess, datetime
 base  = "https://www.themostusefulsiteintheworld.com"
 today = datetime.date.today().isoformat()
-# Never list an error page, the 145-byte scratch file with no <title>, or the
-# unlinked beta catalogue (see §7). Re-running without this set silently
-# re-adds all three.
-EXCLUDE = {"404.html", "hokidea.html", "indexbeta.html"}
-files = subprocess.run(['git','ls-files'], capture_output=True, text=True).stdout.split()
-html  = [f for f in files if f.endswith('.html') and f not in EXCLUDE]
+# scan-seo.py scans every *.html in the repository root; cards/ are fragments
+# by design and are skipped. 404.html is an error page, so its missing OG tags
+# are a warning rather than a failure. There is no exclude set — the two files
+# that used to need one (hokidea.html, a 145-byte scratch page with no <title>,
+# and indexbeta.html, an unlinked beta catalogue) were deleted on 2026-09-20,
+# which is also why the scan stopped printing their warnings.
 prio  = {"listen.html":("1.0","weekly"), "music.html":("0.9","weekly"),
          "index.html":("0.9","daily"),   "youtubepromo2.html":("0.7","monthly")}
 urls  = [(p,*prio[p]) for p in prio if p in html]
@@ -640,28 +895,127 @@ Note the `%20` escaping: some filenames in `images/` contain spaces.
 
 Each of these has already cost someone real time.
 
-**`sw.js` is not registered.** No page calls
-`navigator.serviceWorker.register()`. The file is kept correct so that enabling
-it is a one-line change, but right now it does nothing. Before enabling it,
-understand: it uses **network-first for HTML** deliberately. Cache-first on
+**`sw.js` registration traps** (resolved — `home-core.js` registers it from
+the end of its init, during idle; these constraints still govern edits to it): it uses
+**network-first for HTML** deliberately. Cache-first on
 HTML is what makes a static site serve stale pages for days after a deploy. It
 also adds precache entries individually rather than via `cache.addAll()`,
 because `addAll()` is atomic — a single 404 aborts the whole install and the
 worker never activates. The previous version had four 404s in its precache list
-and could never have installed. Bump `CACHE_NAME` on any change.
+and could never have installed. Bump `CACHE_VERSION` on any change, and bump it
+**together with** the `?v=` on `index.html`'s stylesheet and script references —
+`scripts/check-critical-css.py` compares the two, because a page from one deploy
+must never be served against another deploy's `home.css` or `explore.js`.
+
+**The catalogue may never come from a stale cache.** The catalogue decides
+which tools exist, so a cached copy that predates the deploy renders a grid
+with tools missing — the visitor has no way to tell that from a bug. `sw.js`
+therefore routes the catalogue tiers, the card fragments and first-party
+code through `freshFast()`: the cached copy answers instantly only while it is
+inside GitHub Pages' own 10-minute freshness window, after which the network
+decides, with the cache as the fallback if the origin is slower than
+`NETWORK_PATIENCE_MS` (2.5s) or unreachable. This replaced
+stale-while-revalidate, which always handed over the previous deploy's copy and
+only refreshed the cache for the *next* visit — so every newly added tool was
+missing until the visitor happened to load the page twice.
+`scripts/tests/service-worker.test.js` drives the shipped handler and fails if
+a stale catalogue beats the deployed one.
+
+**The precache list must only contain what the fetch handler reads from that
+cache.** Entries are fetched with `cache: 'reload'` (bypassing the HTTP cache)
+on install, so a URL that the handler serves out of `RUNTIME_CACHE` or
+`CARDS_CACHE` is downloaded a second time per install — while the visitor is
+still waiting for the first screen. The service-worker test asserts the list.
+
+**The page's own code needs a second, differently-fetched precache list.**
+`home.css`, `home-deferred.css`, `risk-notices.js`, `explore.css`, `explore.js`,
+`toolbox.js` and `home-core.js` are fetched by a first visit *before* the worker controls
+anything, so the worker's caches never saw them; the next visit offline then
+served the cached `index.html` and 503'd its own stylesheet and script — an
+unstyled page with no cards. Those seven URLs are therefore precached into
+`STATIC_CACHE`, and the fetch handler serves them from there (`PAGE_ASSET_PATHS`
+maps the versioned URL back to the bare pathname), so the precache is the copy
+that gets read rather than a second download nobody looks at.
+
+They are precached **without** `cache: 'reload'`, which is safe and free
+because their URLs carry `?v=${PAGE_VERSION}`, derived from `CACHE_VERSION`:
+a new deploy is a new URL, so no entry under them can be stale — and because
+the URL is new, the HTTP cache cannot hold a wrong copy either, so the
+precache reuses the response the page just downloaded instead of fetching
+~200 KB a second time. Bump `CACHE_VERSION` (and, with it, the `?v=` that
+`scripts/check-critical-css.py` compares) or a deploy quietly precaches the
+previous version's code.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
-**`index.html`'s grid is driven by `cards.json` — except its generated first
-screen.** The eight pre-rendered card shells and the six head-bootstrap
-prefetches do carry real card names: they are written by
-`scripts/build-home-prerender.py` between `HOME-FAST-PATH` and `HOME-PRERENDER`
-markers. Never hand-edit inside those markers — the next run overwrites you,
-and `bash scripts/verify.sh` fails until the blocks match the catalogue. The
-same script owns the per-category count badges. Everything below the first
-screen is still purely data-driven.
+**`index.html`'s link blocks are generated; never hand-edit inside the
+markers.** `HOME-FEATURED`, `HOME-TRENDING` and `HOME-CATEGORIES` are written by
+`scripts/build-home-prerender.py` and `bash scripts/verify.sh` fails until they
+match the catalogue. The catalogue list itself is built at runtime from
+`tools-index.json` and is not in the document at all — `sync-counts.py` owns
+the two numbers on the page (`#heroToolCount`, `#exploreCount`).
 
-**ID collisions across cards.** All 1159 share one DOM. See §3.
+**There is one search box per page and one place it goes.** Every search input
+(the hero box, the sticky bar's, the list's own filter) is a view onto
+`mpExplore.filter()`. `home-core.js` owns the bridge; it resolves boxes by id
+(`#tool-search`, `#stickySearchInput`) and mirrors what it is typed into the
+list. Two rules, both learned the hard way:
+
+- **A new search box is an entry in the bridge, never a fresh
+  `getElementById` sweeping the page.** The old page looked for `#mainSearchInput`
+  on a page that shipped `#tool-search`, so on the real homepage every lookup
+  returned null: the hero box never filtered anything, never synced with the
+  command bar, and `/` threw on every press.
+- **The list is the result surface.** There is no second results panel to keep
+  in agreement with the list; a query filters the list and the browse sections
+  (featured/trending/categories) step aside while it is on.
+
+**`tools-index.json` is about 900 KB and it is every list's data.** The home page
+fetches it when the visitor reaches the list (not at parse time), and
+`tools.html` / `tools-index.html` / the category pages *contain* its output
+already, so they never fetch it at all. It duplicates the
+title/description/category the full catalogue tier carries (about 194 KB gzip
+against the catalogue tier's 149 KB); de-duplicating it means a new signals file plus a drift
+gate — worth doing deliberately or not at all, never half-way.
+
+**The layout numbers live in one place now.** The geometry contract between JS
+and CSS (`DENSITY` in `home-app.js` vs the mosaic block in `home.css`) died with
+the grid: a list's row height is decided by the row's own content, and the only
+size the engine assumes is `PAGE_SIZE = 60`. The park container, the warm-ahead
+trickle and the per-frame load budget went with it — if any of those names come
+back, so has the architecture this file's §3 documents the removal of.
+
+
+**The grid's mechanisms are gone, and their traps with them.** Section 3 records
+what was removed (the park, warm-ahead, the per-frame budget, the four density
+machines). One habit outlives them: a container that a *running tool* measures
+from must never be hidden with `display: none`, because a tool that sizes a
+canvas from `clientWidth` reads zero and keeps it. Nothing on a list page runs
+a tool, so the rule now applies to `tool.html` alone.
+**Skipped boxes report what they were last shown.** With the UA's anchoring off,
+this page has no second opinion about above-the-fold height changes — and every row
+above the viewport is a `content-visibility: auto` box whose layout height is either
+`contain-intrinsic-size` or the size it last rendered at, because the `auto` keyword
+remembers. That is why `adjustCardHeight()`'s inline `min-height` is a contract and
+not an optimisation: a row that has been rendered once carries its true height in the
+document *while skipped*, so un-skipping it on the way back into view changes nothing
+and cannot shove the reader. The one height a skipped row does not carry is a tool's,
+which is why the park stores `data-parked-min-height` instead of re-measuring a
+face, and why every host-side height change — `parkCard`, `resumeParked`, both mount
+mutations, and `showCardError` — is a snapshot taken immediately before the mutation
+and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip with
+no pair, on purpose: it re-tiles a card whose error block is still the content, so
+there is no material delta, and the mount that follows is paired already.
+
+**Top-level name collisions across cards.** Cards are fragments written for a
+shared document: `tool.html` injects one at a time into its own page, so a
+card's inline `<script>` declares into a global scope that outlives the card.
+A global `let`/`const`/`class` cannot be undeclared, so a name two cards share
+kills whichever loads second with `SyntaxError: Identifier 'X' has already been
+declared` — the card renders and does nothing. `scripts/check-card-collisions.py`
+is the guard, and it is exact (see its docstring). Ids are no longer a live
+hazard now that only one card is mounted at a time, but prefix them anyway:
+`scripts/check-cards.py` enforces it and it costs nothing.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -671,10 +1025,12 @@ files reported broken locally are present and serving 200 in production.
 **Filenames contain spaces and en-dashes.** e.g. `images/SOSMrWolfs 21.jpg`,
 `images/carling academy, bristol.jpg`. Quote paths; URL-encode in HTML and XML.
 
-**`guide.txt` is stale.** 69 KB of historical notes. This document supersedes it.
-
-**`hokidea.html`** is a 145-byte scratch file with no `<title>` and no `lang`.
-Harmless, not linked, left deliberately.
+**A literal `%` in a filename is served doubly-encoded.** A file whose name
+stores a branch slash as `%2F` gets the published URL
+`…/arena%252F01a0…json` — requesting it with a single `%2F` decodes to a
+slash before routing and 404s on a file that exists (issue #91). Any tooling
+that turns repo paths into URLs must encode each path segment; see
+`encodeRelUrl()` in `scripts/check-production.js`.
 
 ---
 
@@ -691,7 +1047,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1159 cards):
+# Music work (skip images and the 1250 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -723,6 +1079,33 @@ production curls). The individual manual checks:
 # JS syntax inside a page (extract each <script> and run node --check)
 node --check extracted.js
 
+# Card JavaScript, six questions. Does it parse at all; does every inline
+# `on*=` handler resolve in the window scope it will run in AND compile as
+# JavaScript (a full sweep found 37 attributes like `onclick="fn(), this)"`,
+# which name a function that exists and are not code: the control is dead);
+# does any card index two arrays of different lengths with the same index;
+# does any button submit the form it sits in (fifteen cards, 109 buttons, whose
+# clicks computed and then navigated to the tool's own URL, wiping the answer);
+# and can the card start at all — a `document.readyState === 'loading'` guard
+# with no `else` never runs in a document that finished loading before the
+# fragment was injected, which is what tool.html does (forty-three cards, dead
+# on arrival: tic-tac-toe rendered no board at all); and does anything the card
+# adds to the document outlive it — a modal, a share dialog or a toast parked in
+# document.body stays over the next tool, because tool.html clears the card's
+# container and never the body (six toasts and ten audio wrappers shipped that).
+# Each of the last four is there because a real card shipped the defect while
+# every other check passed — creative-writing's 12/8/8 plot arrays, fitnesscore's
+# "Calculate BMI" reloading the tool, and the sweep of 2026-09-23 that named the
+# 43 dead cards.
+# verify.sh runs all six on changed cards in the gate and over cards/ on
+# --deep.
+python3 scripts/check-card-js.py --all
+node scripts/handler-check.js --all
+node scripts/check-parallel-arrays.js --all
+node scripts/check-form-buttons.js --all
+node scripts/check-card-init.js --all
+node scripts/check-card-leftovers.js --all
+
 # Placeholders that must never ship
 grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
 
@@ -731,6 +1114,16 @@ grep -oE '<a [^>]*target="_blank"[^>]*>' page.html | grep -v noopener
 
 # Validate the sitemap parses
 python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))"
+
+# The hand-maintained surfaces no generator owns. `sync-counts.py` owns every
+# category *number*; these own the *lists* — agents.html's JSON samples (the
+# contract an outside agent parses) and the category enumerations in
+# index.html's JSON-LD and the table above — and the *sizes* quoted in prose,
+# which are checked rather than derived: a bare figure has to be right, a
+# hedged one ("about 89 MB") may be 15% out.
+python3 scripts/check-agents-docs.py
+python3 scripts/build-category-lists.py --check
+python3 scripts/check-size-claims.py
 ```
 
 Headless browser checks (Playwright) are worth it for anything interactive:
@@ -739,7 +1132,25 @@ expected elements exist.
 
 ### Verify after pushing
 
-Pages takes 30–60s. Do not trust a green push:
+Pages takes 30–60s. Do not trust a green push. The **production monitor**
+(`scripts/check-production.js`) does this loop properly: it compares the
+deployed bytes with this repository, parses the live catalogue and sitemap,
+checks the custom 404 and the https upgrade, and raises one alert issue when
+anything stops matching.
+
+```bash
+node scripts/check-production.js            # full contract against the live site
+node scripts/check-production.js --sample 12 --json /tmp/report.json
+```
+
+It runs by itself on every push to `main` — waiting 45 s for Pages and then
+retrying mismatches for about a minute, so propagation is not an alarm — and
+every six hours (`.github/workflows/production-monitor.yml`), and its failure
+modes are pinned
+offline by `scripts/tests/production-monitor.test.js` (section 20 of
+`verify.sh`). What to do when it fails is in
+[docs/OPERATIONS.md](docs/OPERATIONS.md) — triage table, rollback, fix-forward.
+Keep the manual probes for the case where the monitor itself cannot run:
 
 ```bash
 sleep 50
@@ -750,414 +1161,75 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ---
 
-## 9. Current state and known work
+## 9. Current state
 
-**Added 2026-09-02** — a **Sports** category with 53 tools across four batches of
-ten. New tools cover cricket (chase + net run rate), football points-needed,
-tournament brackets, golf (WHS handicap + Stableford), darts (checkout + 501
-average), cycling power/speed, swimming pace/CSS, tennis scorer, basketball
-efficiency, youth team rotation, snooker snookers-required, rugby score builder,
-running cadence, baseball stats, betting each-way, athletics decathlon/
-heptathlon, motorsport (lap time + F1 points), bowling, badminton, volleyball,
-ice hockey goalie, powerlifting DOTS/Wilks, table tennis, archery, round-robin
-fixtures, rowing erg pace, chess Elo, diving, bouldering, gymnastics, triathlon,
-netball, handball, curling, showjumping and weightlifting Sinclair. Thirteen
-existing tools were reclassified into Sports (the ten boxing cards,
-`premier-league`, `bike-gear-calculator` and `race-pace-predictor`).
-`sportsList` in `generate-cards-json.js`; `Sports` in `check-cards.py`; tool
-count is now **602** (updated across README, ARCHITECTURE, INCOME, AGENTS,
-AGENT_ACCESS, index.html, 404.html, tool.html).
+1250 tools in `cards/` across 29 categories, one shared DOM, every derived
+surface regenerated by `npm run build`. The gate is `npm run verify` — seven
+checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
+which is also what CI runs on every push and PR.
 
-**Added 2026-09-02** — ten new **Home & DIY** tools: stud framing, board-foot
-lumber, stair stringer, roof pitch & rafter, drywall, room BTU/HVAC sizing, miter
-& bevel angles, laminate flooring, deck joist span and grout & tile adhesive.
-Added to `homeDIYList` in `generate-cards-json.js`; tool count is now **612**
-(updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS, index.html,
-404.html, tool.html).
+**Do not delete or rename:** `CNAME` (the custom domain), `sw.js` (unregistered
+on purpose), the CV files, `opensourcenews.html`, `token.html`, or any tool in
+`cards/`. Adding is free; retiring is an owner decision.
 
-**Added 2026-09-02** — a new **Mind-Blowing Demos** category with 10 interactive
-demonstrations: Monte Carlo π estimation, Conway's Game of Life, Mandelbrot set
-explorer, logistic-map bifurcation, Fourier series synthesis, Galton board
-(central limit theorem), Buffon's needle, Lorenz attractor, Barnsley fern and
-Euler's identity. Added to `demosList` in `generate-cards-json.js`; tool count is
-now **622** (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
-index.html, 404.html, tool.html).
+Deleted on 2026-09-20 with the owner's approval, after confirming that no page,
+no sitemap entry and no robots rule referenced them: `indexbeta.html`,
+`hokidea.html`, `guide.txt` (69 KB of notes this document superseded),
+`substitutions/`, `system/` and `digitaldetoxcardshtml/`. They are in git
+history if anybody ever wants them back.
 
-**Added 2026-09-02** — a new **Algorithms & Computer Science** category with 10
-interactive tools: sorting algorithm visualizer, pathfinding visualizer (BFS/DFS/
-Dijkstra/A*), Towers of Hanoi, a neural-network playground that learns XOR, a
-Big-O complexity explorer, elementary cellular automata (rules 30/90/110/184),
-Huffman coding, a classical cipher suite, recursion & memoization explorer and a
-binary/bitwise playground. Added to `csList` in `generate-cards-json.js`; tool
-count is now **632** (updated across README, ARCHITECTURE, INCOME, AGENTS,
-AGENT_ACCESS, index.html, 404.html, tool.html).
+This section used to be a 725-line dated changelog — "Added 2026-09-02, ten new
+Home & DIY tools…", "Changed 2026-09-18, the main page is a live window…" — and
+it was removed on 2026-09-20. `git log` is the changelog. The narrative copy
+went stale in place: it cited deleted files, repeated the same rework four
+times, and had to be *frozen* against `scripts/sync-counts.py` so its
+past-tense counts (562, 622, 1128) would not be "corrected" into lies. History
+belongs in git; this file describes the site as it is.
 
-**Added 2026-09-03** — two more tools: a **laundry care & stain solver**
-(fabric-based wash settings, a 12-stain step-by-step treatment guide and a
-care-label symbol decoder) and the **Go Outsideometer** (a tongue-in-cheek
-cabin-fever gauge with a go-outside prescription). Both join Productivity &
-Lifestyle; tool count is now **634** (updated across README, ARCHITECTURE,
-INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html, tool.html).
+---
 
-**Added 2026-09-03** — ten more quirky-but-useful tools, all in Productivity &
-Lifestyle: a **Memento Mori life ticker** (your life as a grid of weeks plus
-“how many more summers/books/roasts” conversions), a **cost-per-use “should I
-buy it”** decider, a **price-in-work-hours** converter (“that coffee = 22 minutes
-of your life”), a **Thing Namer** (band/pet/D&D/startup/WiFi/boat/pub-quiz names),
-a **houseplant matchmaker**, a **flat-pack confidence meter**, a **3am worry
-sorter**, an **emoji-meaning decoder**, a **caffeine half-life bedtime check** and
-a **coat-or-no-coat weather** advisor. Tool count is now **644** (updated across
-README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html,
-tool.html).
+## MostUsefulMaps (`maps.html`)
 
-**Added 2026-09-05** — ten tools in **SaaS & Business Killers**, each one a
-browser replacement for something people pay a monthly subscription for, and
-each one fully offline (no network calls, no uploads):
+`maps.html` is the site's own map: an open-data alternative to the big map
+products, built so the catalogue's tools can use it too.
 
-| Card | Replaces |
-|---|---|
-| `csv-data-studio` | spreadsheet-to-JSON/SQL converters — RFC 4180 parsing, column profiling, chart, 6 export formats |
-| `json-to-typescript-interface-generator` | quicktype — JSON → TypeScript / Zod / Python / Go / C# / JSON Schema |
-| `image-optimiser-studio` | TinyPNG-style image CDNs — batch canvas resize/re-encode with real byte counts |
-| `json-ld-structured-data-generator` | paid schema builders — 10 schema.org types, validation, SERP preview |
-| `ab-test-significance-calculator` | Optimizely/VWO calculators — z-test, sample size + duration, Bayesian win chance |
-| `startup-runway-burn-rate-simulator` | financial-model spreadsheets — 36-month cash curve, break-even, burn multiple, 3 scenarios |
-| `brand-logo-mark-generator` | Looka/Tailor Brands — 22 original icons, SVG/PNG/favicon export |
-| `email-signature-generator` | signature SaaS — table-layout HTML, rich clipboard copy for Gmail/Outlook/Apple Mail |
-| `business-model-canvas-builder` | facilitated canvas workshops — BMC + Lean Canvas, localStorage, coaching, exports |
-| `markdown-slide-deck-builder` | Gamma/Beautiful.ai — text-to-deck with speaker notes, present mode, standalone HTML export |
-
-All ten were added to `saasKillerList` in `generate-cards-json.js` (the category
-is 11 → **21**). `sitemap.xml` regeneration now carries an explicit `EXCLUDE`
-set for `404.html`, `hokidea.html` and `indexbeta.html` — re-running the §6
-script without it silently adds all three to the sitemap. Tool count is now
-**654** and the sitemap has **694** URLs (updated across README, ARCHITECTURE,
-INCOME, AGENTS, AGENT_ACCESS, index.html, 404.html, tool.html, donate.html,
-sponsor.html).
-
-**Added 2026-09-05** — a new **Survival & Emergency Readiness** category with 10
-tools for staying safe when things go wrong. These are advice-and-calculation
-tools, not first-aid training: each one states the emergency number it relies on
-and none of them pretend to replace a professional.
-
-| Card | What it does |
-|---|---|
-| `water-purification-treatment-calculator` | Storage volumes, bleach dosing in drops and mL, boiling and filtration rules, roof rainwater yield |
-| `heat-cold-exposure-survival-calc` | NWS wind chill + Rothfusz heat index, frostbite onset bands, clothing/wetness/activity correction |
-| `fire-escape-smoke-safety-planner` | 14-hazard home score, prioritised fixes, printable two-route escape plan |
-| `gas-leak-carbon-monoxide-response` | Leak protocol, weighted CO symptom checker, alarm and appliance checklist |
-| `poison-chemical-exposure-response` | 22-substance database with route-specific first steps and a read-out-loud call summary |
-| `driving-emergency-survival-guide` | 11 emergencies with the trained response and the instinct that makes it worse, plus a flood-depth verdict |
-| `emergency-comms-radio-planner` | Radio-horizon range, battery runtime, what to buy, check-in protocol, NATO phonetic and distress vocabulary |
-| `evacuation-go-bag-planner` | Three tiers weighed against a quarter-body-weight carry limit, printable checklist |
-| `personal-safety-awareness-planner` | Journey risk score, followed protocol, de-escalation wording, Cooper colour code, local incident log |
-| `cold-water-ice-drowning-rescue` | Cold-shock/incapacitation/hypothermia timeline, reach-throw-row, ice thickness, rip currents, buoyancy ratings |
-
-Deduped against the existing `crisis-offline-triage`, `household-emergency-plan`,
-`scam-sense-checker`, `hike-time-planner` and `food-shelf-life-storage-vault`
-cards — no overlap.
-
-Two things worth copying if you add another safety tool. First, `survivalList` in
-`generate-cards-json.js` is matched with **exact** `.includes(name)` rather than
-the substring `.some(s => name.includes(s))` most other lists use, and is checked
-before `homeDIYList`, so no broader list can claim one of these slugs. Second,
-every card here had to pass a check that the dangerous folk advice is *absent*:
-no "induce vomiting", no mixing bleach, no drinking flood water. That check
-strips markup and scans backwards from each match, because a prohibition reads
-"Never: a, b, c" — a colon introducing the very list it negates — so splitting on
-a colon throws the negation away.
-
-**Fixed while adding them:** `fire-escape-smoke-safety-planner` originally let a
-home with **no smoke alarm at all** still score "Needs work", because good habits
-elsewhere offset it. Nothing compensates for not being woken up, so `alarm ===
-'none'` now floors the risk at 60 ("Genuinely risky") regardless of the rest.
-
-At that point, the tool count reached **664** across **27 categories**, and the sitemap had **704**
-URLs (updated across README, ARCHITECTURE, INCOME, AGENTS, AGENT_ACCESS,
-index.html including its JSON-LD `ItemList`, 404.html, tool.html, donate.html,
-sponsor.html, plus the `KNOWN_CATEGORIES` set in `scripts/check-cards.py` and a
-new `count-survival` pill in `index.html`).
-
-**Added 2026-09-07** — ten high-intent, privacy-first web utilities aimed at practical developer, designer and content-creator searches. All are self-contained browser tools in **SaaS & Business Killers** — no API calls, accounts, tracking or uploads:
-
-| Card | What it does |
-|---|---|
-| `text-case-slug-converter` | Human-readable, code-style and URL-slug case conversion with per-format copying |
-| `uuid-ulid-generator` | Cryptographically random UUID v4, UUID v7 and ULID batches with copy/download |
-| `unix-timestamp-date-converter` | Seconds/milliseconds ↔ local date, UTC, ISO 8601 and relative time conversion |
-| `url-encoder-query-builder` | Component/full-URL encoding plus editable query-string parsing and rebuilding |
-| `html-entity-encoder-decoder` | HTML escaping, entity decoding, optional numeric encoding and a Unicode character inspector |
-| `lorem-ipsum-placeholder-generator` | Classic or readable placeholder copy in text, HTML or Markdown |
-| `text-diff-checker` | Local LCS-based line/word diff with whitespace/case options and copyable unified output |
-| `css-box-shadow-generator` | Live visual shadow controls, presets, inset support and copyable CSS |
-| `css-grid-layout-generator` | Live grid-track, gap, alignment and featured-cell span controls with copyable CSS |
-| `robots-sitemap-generator` | Valid robots.txt and same-host sitemap.xml generation from an entered URL list |
-
-`saasKillerList` then held **31** cards. The catalogue reached **674 tools** across
-**27 categories**; `sitemap.xml` had **714 URLs**. Counts, the homepage ItemList,
-category pill and supporting page metadata were synchronized.
-
-**Added 2026-09-07, second utility batch** — ten more high-intent, local-first
-browser utilities for developer, designer and business workflows. They were
-checked against the existing catalogue to avoid duplicating its JSON formatter,
-fluid typography and related CSS utilities:
-
-| Card | What it does |
-|---|---|
-| `css-border-radius-generator` | Linked or independent corner controls, presets and compact copyable CSS shorthand |
-| `css-flexbox-playground` | Live direction, alignment, wrapping, gap and item-count Flexbox preview with CSS export |
-| `css-filter-generator` | Adjustable CSS image filters, named presets and copyable `filter` declaration |
-| `favicon-svg-icon-generator` | Local SVG favicon creation with shape, colours, gradient, character mark and data-URI export |
-| `sql-formatter-query-helper` | Browser-only SQL formatter/minifier with indentation and keyword-case controls; never runs a query |
-| `mock-data-generator` | Seeded fictional customer, product or event records exported as JSON, CSV or SQL inserts |
-| `html-table-generator` | Accessible table markup from editable headers/rows, live preview and safe HTML escaping |
-| `curl-command-builder` | Validated HTTP request settings, editable headers, JSON-body validation and shell-safe cURL output |
-| `email-subject-line-tester` | Mobile/desktop inbox previews, transparent writing score and editing prompts — not a deliverability claim |
-| `css-animation-generator` | Keyframes, timing controls, replayable preview and reduced-motion fallback CSS |
-
-`saasKillerList` now holds **41** cards. The catalogue now has **684 tools**
-across **27 categories**; `sitemap.xml` has **724 URLs**. Counts, homepage
-structured data, category pills and supporting page metadata were synchronized.
-
-**Added 2026-09-07, inspiration & learning batch** — twelve fun, informative
-and educational tools, each pushed in its own commit so the catalogue stayed
-usable throughout. All are self-contained and offline (localStorage only):
-
-| Card | Category | What it does |
-|---|---|---|
-| `speed-reading-rsvp-trainer` | Writing & Language | RSVP word flasher (100–800 WPM) over true science/history passages, with comprehension quizzes |
-| `geography-flag-capital-quiz` | Science & Engineering | 40-country flashcards plus capital and flag quizzes with streaks and fun facts |
-| `mental-math-sprint-trainer` | Mathematics | 60-second arithmetic sprints, 3 levels, streak bonuses, missed-question review |
-| `memory-palace-loci-builder` | Productivity & Lifestyle | Method-of-loci palace builder with walkthrough and self-test modes |
-| `daily-curiosity-fact-deck` | Productivity & Lifestyle | 48 verified facts, fact of the day, favourites, category quiz |
-| `socratic-thinking-coach` | Writing & Language | Claim interrogator, steelman builder, 10-fallacy spotter quiz |
-| `probability-paradox-lab` | Mathematics | Playable + simulated Monty Hall, birthday paradox and coin-streak experiments |
-| `kitchen-science-experiments` | Science & Engineering | 10 safe home experiments with steps, real science and safety notes |
-| `typing-story-sprint` | Writing & Language | Typing test over educational mini-stories with WPM, accuracy and tricky keys |
-| `great-minds-quote-explorer` | Productivity & Lifestyle | 40 quotes with context, themes, search, quote of the day, favourites |
-| `logic-detective-puzzle-club` | Mind-Blowing Demos | 8 classic logic puzzles with progressive hints, solutions, rank tracking |
-| `story-dice-plot-twister` | Writing & Language | Hero/setting/object/twist dice, challenge constraints, starters, saved prompts |
-
-`mathList` gained 1 card, `writingList` 4, `demosList` 1;
-`geography-flag-capital-quiz`, `probability-paradox-lab` and
-`kitchen-science-experiments` map to Science & Engineering via the existing
-substring lists, and the remaining three default to Productivity & Lifestyle.
-Writing & Language is now **51**, Mathematics **30**, Science & Engineering
-**124**, Mind-Blowing Demos **11**, Productivity & Lifestyle **113**. The
-catalogue now has **696 tools** across **27 categories**; `sitemap.xml` has
-**736 URLs**. Counts, homepage structured data, category pills and supporting
-page metadata were synchronized.
-
-**Added 2026-09-07, software-3D batch** — twelve quirky tools that render real-time 3D with hand-rolled Canvas-2D maths (zero WebGL anywhere on the site), each pushed in its own commit so the catalogue stayed usable throughout. All are self-contained and offline:
-
-| Card | Category | What it does |
-|---|---|---|
-| `impossible-object-viewer` | Mind-Blowing Demos | Necker cube, Penrose triangle and endless stairs with the impossible over/under draw order |
-| `hypercube-4d-explorer` | Mind-Blowing Demos | Tesseract + 16-cell with XW/YW/ZW 4D rotation sliders and perspective projection |
-| `function-terrain-3d-explorer` | Mathematics | z=f(x,y) plotter with a safe recursive-descent parser (no eval) and hypsometric shading |
-| `klein-bottle-mobius-lab` | Mathematics | Parametric Möbius (1/3/5 twists), Klein bottle, torus and (p,q) torus knots in points/wire/solid |
-| `raycast-pocket-dungeon` | Virtual Worlds & Gaming | Wolfenstein-style DDA raycaster: generated maze, orb pickups, portal exit, minimap, touch controls |
-| `polyhedral-dice-3d-roller` | Virtual Worlds & Gaming | True D4–D20 platonic solids; the die physically rotates the rolled face to camera, plus fairness stats |
-| `dna-helix-3d-builder` | Science & Engineering | Editable sequence → spinning helix with H-bonds, GC/Tm stats, mRNA + protein translation, mutation button |
-| `molecule-3d-viewer` | Science & Engineering | 11 ball-and-stick molecules; bonds auto-detected from covalent radii, double/triple bonds, molar masses |
-| `starfield-warp-drive` | Mind-Blowing Demos | Warp-throttle starfield with steering, hyperspace jumps, redshift streaks, exoplanet flyby ticker |
-| `heightmap-3d-sculptor` | Interactive Art & Living Worlds | Paint-a-map terrain sculptor: procedural islands/ridges/craters, erosion, animated water |
-| `planet-ring-designer-3d` | Astronomy & Space | Gas/rocky/ice/lava worlds with storms, tilted Keplerian rings, moons, generated names |
-| `extruded-3d-text-studio` | Productivity & Lifestyle | 3D logo maker with true perspective slice-rendering, extrusion, presets and PNG export |
-
-`demosList` gained 3 cards, `mathList` 2, `slList` 2, `scienceList` 2, `astronomyList` 1, `interactiveArtList` 1; `extruded-3d-text-studio` defaults to Productivity & Lifestyle. Mind-Blowing Demos is now **14**, Mathematics **32**, Virtual Worlds & Gaming **9**, Science & Engineering **126**, Astronomy & Space **11**, Interactive Art & Living Worlds **12**, Productivity & Lifestyle **114**. The catalogue now has **708 tools** across **27 categories**; `sitemap.xml` has **748 URLs**. Counts, homepage structured data, category pills and supporting page metadata were synchronized.
-
-Also in this pass: a responsive hardening of `index.html` — the sticky search input can now shrink (`min-width: 0`), toolbar actions wrap, the directory grid drops to one column at ≤480px, the standalone modal goes icon-only at ≤640px, notifications clamp to the viewport, rating footers get room for their vote counts, and the header dock pills become a horizontal scroll strip at ≤700px.
-
-**Fixed 2026-09-07 — whole cards spinning.** Card fragments share one DOM, and six of them defined a global `.loading` CSS class (notably `censorship-monitor`'s `animation: spin`). The catalogue shell also used `class="loading"` on unloaded card placeholders, so injected card styles made entire cards rotate. The shell now uses `card-pending`, censorship-monitor's live spinner is scoped to `.censor-loading`, and the five dead `.loading` rules (dog-photo-viewer, microbiology, sheet-music, transformer-calculator, youtube-dj) were deleted. Lesson: never use a bare generic class name for shell chrome — any card can hijack it.
-
-**Redesigned 2026-09-07 — aurora glass homepage.** Dramatic pure-CSS overhaul of `index.html` chrome: two slowly drifting aurora background layers, frosted-glass hero panel with an animated sheen title, glass search/dock/category/toolbar pills, smoked-glass cards with neon hover glow, and matching directory/footer/sticky/modal treatments. No IDs, classes or JS behaviour changed — search, filters, lazy-load, toolbox and modal all work as before. Cards deliberately have no per-card `backdrop-filter` (perf with hundreds of cards); translucency carries the effect. `prefers-reduced-motion` freezes all of it via the existing global kill-switch.
-
-**Recently fixed** (2026-08-30): every YouTube embed on the site was a
-placeholder — including a Rickroll (`dQw4w9WgXcQ`) sitting in the Marathi page —
-now replaced with the real catalogue; a 404'd `og:image`; a mangled duplicated
-stylesheet URL and several newline-corrupted JS string literals in
-`sonicfansite.html` that broke all scripting on that page; 50 unprotected
-`target="_blank"` links; missing canonicals and hreflang across 12 language
-pages; insecure `http://` OG URLs; a service worker that could never install;
-and a PWA manifest pointing at a 1024px JPEG for its 192px and 512px icons.
-`robots.txt` and `sitemap.xml` did not exist at all before this.
-
-Also this date: added **[AGENT_ACCESS.md](AGENT_ACCESS.md)** (agent
-authentication & bootstrap), **AGENTS.md** (agent operating manual),
-`scripts/agent-auth.sh`, `scripts/verify.sh` (+ catalogue/SEO scanners) and a
-check-only `.github/workflows/agent-guardrails.yml`; refreshed the stale tool
-counts to the real **500** (README, ARCHITECTURE, INCOME).
-
-Found by the new `scripts/verify.sh` and fixed: `index.html` had **no**
-canonical/OG/Twitter/theme-color meta at all — added; `youtubepromo2.html`
-canonical + `og:url` pointed at `youtubepromo3.html` on the non-www host —
-corrected; four `target="_blank"` links missing `rel=noopener` (bpm-counter,
-chord-finder, christmas-card-maker, probability) — hardened.
-
-**Open Source News rebuild (2026-08-30, owner-requested)** — `opensourcenews.html`
-now carries: a **live headlines rail** (click any story to play it, category
-chips, per-story sources + corroboration count + age, "N stories · M sources"
-status); **viewer transport controls** (PAUSE/RESUME — Space, SKIP — N, Esc
-pauses, all in the top chrome); **live captions** (source + headline bar,
-toggle CC, persisted across reloads); **"READ ORIGINAL" links** to every story's
-source article (links are now captured from all three feed parse paths);
-**category-agnostic main desk** (previously the desk only narrated `world`, so
-science/tech/finance/weather stories never aired); **mute-friendly pacing**
-(cards hold for the full story duration instead of cycling every 800 ms);
-a visually-hidden `<h1>` (the page had none); and `prefers-reduced-motion`
-support, a mobile rail toggle, a `fetchTimeout` fallback for browsers without
-`AbortSignal.timeout`, and a `rail-hidden` auto-dodge during sports/weather/
-finance segments. Validated in headless Chromium against the real RSS feeds:
-124 stories / 35 sources, zero console or page errors.
-
-**Fixed 2026-08-31 (commits `ce0c880`, `bb32e34`)**
-
-- **hreflang cluster repaired.** `listen.html`, `chinese.html`,
-  `japanese.html` and `portuguese.html` declared **zero** alternates while the
-  other nine pages pointed at them. Google requires reciprocity, so the whole
-  cluster was unreliable. All 13 pages now declare an identical set of 14
-  (12 languages + `en` + `x-default`); verified byte-identical across pages.
-- **`theme-color`** added to the 12 language pages + `youtubepromo2.html`
-  (13 pages had none). Every top-level page now has one.
-- **Full SEO blocks** (description, canonical, OG set, Twitter card,
-  `theme-color`, JSON-LD) added to 11 pages that were near-bare:
-  `aiwalker`, `animation`, `beachsimulator`, `birdapp`, `citysimulator`,
-  `clock`, `eternalbeffudlementmachine`, `fightsimulator`, `mpnews`,
-  `slideshowtest`, `tool`. `mpnews.html` also got its missing `<h1>`, closing
-  the open question below.
-- **Visually-hidden `<h1>`** added to the 6 pages that had none.
-- **Structured data**: `index.html` gained `WebSite` + `CollectionPage`/`ItemList`
-  JSON-LD (20 categories, 500 tools); `thisorthat.html` gained `WebApplication`.
-  27 JSON-LD blocks site-wide, all validated as parseable JSON.
-- **og:image normalised to 1200×630.** `logo.png` (1054 KB, 1024×1024) and
-  `icon-512.png` (219 KB, 512×512) were being used as social cards — wrong
-  aspect ratio, so every platform letterboxed them. Replaced with new
-  `og-tools.png` / `og-mp.png` (37 KB, 1200×630) on 14 pages. `logo.png` is
-  now referenced by nothing and can be deleted.
-- **`404.html` added** — the site previously served GitHub's generic page.
-  Branded, self-contained (no external requests), `noindex,follow`, links both
-  products, respects `prefers-reduced-motion`.
-- **Accessibility/perf**: 4 `<img>` tags had no `alt` (now 0 missing across
-  151); `loading="lazy"` added to the 12 language-page hero images.
-- **sitemap.xml** regenerated: 542 → 540 entries. `hokidea.html`,
-  `indexbeta.html` and `404.html` are `noindex` and were removed from it.
-- SEO scan warnings: **134 → 20**. The remainder are on two `noindex` pages
-  (where the tags are pointless) and `token.html` (left alone deliberately).
-
-**Fixed 2026-08-31, second pass (commits `f9c252c`, `ea5a028`)**
-
-- **Seven cards were completely dead in production.** Each had a JavaScript
-  syntax error that killed its entire `<script>` block, so the tool rendered but
-  did nothing at all:
-  `qrtool`, `social-preview`, `christmas-card-maker`, `ohms-law`, `onerepmax`,
-  `oscilloscope` (all the same bug — a botched removal of "AFFILIATE FUNCTIONS"
-  left `function xxTrackAffiliate(){});` plus a dangling brace), and
-  `proofreading` (`severityColor = var('--accent')` — CSS syntax in JS).
-  `math-universe-explorer` also had an unquoted `∞` object key, which is not a
-  valid JS identifier. **`node --check` now runs clean across all 473 script
-  blocks in all 510 cards.**
-- **The catalogue was not 500 distinct tools.** Five pairs of card files were
-  byte-identical, and three of them were the wrong tool in the wrong category:
-
-  | File | Listed as | Actually contained |
-  |---|---|---|
-  | `music-theory` | Music & Audio | 🚚 Ultimate Moving Planner |
-  | `lease` | Finance & Money | Lean Body Mass Calculator |
-  | `qr` | Productivity & Lifestyle | 📝 Punctuation Mastery Guide |
-  | `salarycompare` | Finance & Money | duplicate of `salary` |
-  | `essay` | Writing & Language | duplicate of `essay-templates` |
-
-  `sequences-series` was a copy of the Science Quiz Generator sitting in
-  Mathematics (zero maths content), and `logarithms` was a *third* sequences
-  calculator — so the catalogue advertised a logarithms tool it did not have.
-  All seven files were rewritten as genuine new tools: Circle of Fifths
-  Explorer, Lease vs Buy, Barcode Check Digit Validator, Take-Home Pay
-  Breakdown, Argument Mapper, Sequences & Series, and Logarithm Calculator.
-  Four more same-title collisions (`vocab`, `interest`, `unit-converter`,
-  `unitconverter`) got distinct titles. **All 500 titles are now unique.**
-- **Duplicate element IDs: 244 → 5.** 279 colliding ids renamed across 38 cards
-  (prefix + original token, so `cc-voltage` in `cable-length` became
-  `cablelcc-voltage`). Since all cards share one DOM these were live bugs —
-  `getElementById` could bind to the wrong tool. The 5 remaining warnings are
-  template-literal ids (`${item.id}`) that are unique at runtime, not
-  collisions.
-- **`generate-cards-json.js` was losing data on every run.** `cards.json` had
-  been hand-curated, and regenerating silently reverted emoji titles, curated
-  descriptions and the whole "Museum & Collection" category — which the script
-  did not know about even though `check-cards.py` did. Added a `museumList`,
-  hoisted its check above `mathList`/`scienceList` (the substring matcher let
-  `'statistics'` and `'energy'` steal two cards), and moved the curated titles
-  and descriptions into the cards' own `<h2>`/`<p>` so regeneration is now
-  idempotent. `3d-spirograph-nebula` belongs to `interactiveArtList`, not the
-  museum.
-- **Favicon.** Only 3 of 43 pages declared an icon and `/favicon.ico` 404'd, so
-  every page load made a failing request. Generated a real multi-resolution
-  `favicon.ico` (16/32/48) and added the existing inline SVG data URI icon to
-  all 43 pages — zero extra requests.
-- **Dead affiliate link** in `probability.html` pointing at `/affiliates`,
-  which 404s, and which INCOME.md's growth policy excludes anyway. Removed.
-- **24 meta descriptions were 165–477 chars** (Google truncates around 160).
-  All trimmed at sentence boundaries; none are now out of range.
-- **Broken reference** in `mrprophecy-name-that-track.html`: `href="listen.html"`
-  resolved to `/cards/listen.html` (404). Now `../listen.html`.
-- `vocab.html` had **no heading element at all**, so its catalogue title was a
-  filename-derived fallback. Added a proper `<h2>`.
-
-**Verification method used** (worth keeping): `jsdom` installed to `/tmp`, never
-the workspace, driving each card in a minimal shell. That is what caught the
-Lease vs Buy verdict being sign-inverted — totals said buying was £4,595
-cheaper while the headline said "Leasing is cheaper". All 7 new tools now pass
-15 interaction assertions (valid/invalid EAN-13, log₂(1024)=10, arithmetic and
-geometric sums, convergence detection, both lease verdict branches).
-
-**Open — needs a decision or a dedicated pass**
-
-- **17 `<label for=...>` associations point at no element** (they label button
-  groups, e.g. `sub-status`, `tdee-gender`). Screen readers cannot associate
-  them. Low severity; fix is converting the button groups to radio inputs or
-  adding `aria-labelledby`. Since all 644 cards share one DOM, `getElementById` can bind to the
-  wrong tool. Worst offenders are whole-file collisions:
-  `leanbodymass.html`↔`lease.html` (26 ids), `moving.html`↔`music-theory.html`
-  (~40), `essay-templates.html`↔`essay.html`, `salary.html`↔`salarycompare.html`,
-  `punctuation-guide.html`↔`qr.html`, `science-quiz.html`↔`sequences-series.html`.
-  Looks like cards were copied and their id prefixes never renamed. Mechanical
-  to fix (rename prefix + every JS reference) but it touches working tools, so
-  it deserves its own commit and a headless-browser check.
-- **`indexbeta.html`** — a second homepage-like app ("My Toolbox" UI, no
-  `cards.json` fetch), linked from nowhere, competing with `index.html` for the
-  same query. Now `noindex,follow` + canonical → `/`, and out of the sitemap.
-  Decide whether it ships publicly or goes.
-- **`hokidea.html`** — 145-byte stub that hot-linked `https://webneko.net/n20171213.js`
-  (third-party JS on your domain, no SRI, no CSP). Wrapped in valid HTML with a
-  `<title>` and `noindex`, and removed from the sitemap, but the third-party
-  script is still there. Delete the file, or vendor the script locally.
-- **Four CV files, none linked from any page**: `CV.docx` (12.8 KB),
-  `CV.pdf` (83.8 KB), `cv.pdf` (2393.8 KB), `latestcv.docx` (39.6 KB). On
-  Linux `CV.pdf` and `cv.pdf` are distinct files, which is a footgun. ~2.4 MB of
-  dead weight; confirm before removing.
-- **`viewport-fit=cover` on 1/42 pages, `color-scheme` on 0/42.** Worth adding
-  to the full-bleed dark pages for notched phones and native dark scrollbars,
-  but it changes layout, so it wants visual testing rather than a blind sweep.
-- **`sw.js` is still unregistered** — see the open question below. For a site of
-  644 offline-first tools it is a large caching win (network-first for HTML,
-  cache-first for cards), but it must be rolled out carefully.
-- **8 pages use `i.ytimg.com/vi/<id>/maxresdefault.jpg` as their og:image**
-  (both ids verified live today). Fine while the videos exist; if one is ever
-  deleted the share card silently breaks.
-
-**Deliberately left alone**
-
-- (Nothing here now forbids touching `opensourcenews.html`: on 2026-08-30 the
-  owner asked for it to be upgraded. See the build notes below.)
-
-**Open questions for the owner**
-
-- `mpnews.html` has no `<h1>`, canonical or structured data, and is not in the
-  nav cluster. It needs the same treatment the other music pages have had.
-- The 12 language pages are thin and machine-translated. Thin translated pages
-  can attract a manual action from Google. Either enrich them with genuinely
-  localised content or consider consolidating.
-- `sw.js` is correct but unregistered — enable it or delete it.
-- Legacy directories `substitutions/`, `system/`, `digitaldetoxcardshtml/` and
-  the duplicate CV files look like dead weight. Confirm before removing.
+- The engine lives in `maps/core/` and is dependency-free: WGS84 geodesics,
+  Plus Codes, OS grid references, NOAA sun times, offline place search.
+- Two renderers, on purpose: `maps/localmap.js` draws Natural Earth boundaries
+  on a canvas with no library and no network (and is what every card uses), and
+  `maps/livemap.js` layers MapLibre GL with OpenFreeMap's OpenStreetMap vector
+  tiles on top when the visitor is online. Failure of the live layer is
+  invisible: the offline map was already there.
+- `maps/embed.js` exposes `window.MostUsefulMaps` so any card can drop in a
+  map (`MostUsefulMaps.mount(...)`) or borrow the maths
+  (`distance`, `measure`, `plusCode`, `sunTimes`, `parse`, `searchPlaces`).
+  Nothing loads until a card asks: the map layer is a few hundred KB, and no
+  page should pay for it merely because a card might want a map.
+- `maps/core/speed.js` and `maps/core/drive.js` are the driving layer: a
+  vehicle-aware speed-limit engine (OSM `maxspeed`/`maxspeed:type`, national
+  default tables per vehicle, the Welsh 20 mph default, every answer carrying
+  its basis) and a navigation session that runs entirely on the device
+  (progress, manoeuvres, off-route detection, ETA, breaks, sun glare, trip log,
+  GPX). Guidance consults no service once the route is loaded, so a dead spot,
+  a tunnel or a border costs nothing.
+- `MM.providers.driveRoute` adds Valhalla to the routing chain for the Drive
+  tab (vehicle dimensions, route shape, avoid preferences, alternatives), with
+  the OSRM chain behind it and a labelled straight line behind that. The Route
+  tab uses those open profiles for driving, cycling and walking, with
+  fastest/shortest/quieter choices, explicit avoid preferences and any
+  alternatives the router returns. A real route in any of the three modes can
+  feed the same on-device guidance session. Speed limits come from Overpass,
+  traffic only from a key-free feed that exists (TfL, London), weather from
+  Open-Meteo at the hour you reach each sampled point. Where no key-free feed
+  exists the page says so rather than estimating: national timings are labelled
+  free-flow everywhere outside London.
+- Selecting a place also enables a compact enrichment layer in the place card:
+  Open-Meteo Air Quality gives a modelled European AQI and pollutants,
+  Environment Agency returns nearby England-focused flood warnings, Wikimedia
+  Commons supplies geotagged cultural thumbnails with individual credit and
+  licence links, and KartaView supplies optional historical user-contributed
+  street imagery with capture dates. All four are coordinate-and-radius
+  requests made only after selection, cached and labelled; absence is never
+  presented as safety, coverage or completeness.
+- Provenance, licences, the provider list, the driving layering, the offline
+  matrix and the limits of what CI can test are in `docs/MAPS.md`.

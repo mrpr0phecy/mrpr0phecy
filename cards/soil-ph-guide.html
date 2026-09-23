@@ -23,19 +23,19 @@ RULE: Proper Eternal Ethos card structure
     <!-- Tab Navigation -->
     <div class="tab-navigation" style="margin-bottom:var(--space-lg);">
         <div class="tab-buttons glass glass-md" style="display:grid;grid-template-columns:repeat(5, 1fr);border-radius:var(--radius-md) var(--radius-md) 0 0;overflow:hidden;">
-            <button class="tab-button active" onclick="ttShowTab('ph-guide')">
+            <button class="tab-button active" onclick="ttShowTab('ph-guide', this)">
                 📊 pH
             </button>
-            <button class="tab-button" onclick="ttShowTab('soil-types')">
+            <button class="tab-button" onclick="ttShowTab('soil-types', this)">
                 🏜️ Soil
             </button>
-            <button class="tab-button" onclick="ttShowTab('plant-finder')">
+            <button class="tab-button" onclick="ttShowTab('plant-finder', this)">
                 🌿 Plants
             </button>
-            <button class="tab-button" onclick="ttShowTab('amendments')">
+            <button class="tab-button" onclick="ttShowTab('amendments', this)">
                 ⚗️ Amend
             </button>
-            <button class="tab-button" onclick="ttShowTab('calculator')">
+            <button class="tab-button" onclick="ttShowTab('calculator', this)">
                 🧮 Calc
             </button>
         </div>
@@ -74,11 +74,21 @@ RULE: Proper Eternal Ethos card structure
 
 <!-- ===== 4. JAVASCRIPT ===== -->
 <script>
+
+// The toast lives INSIDE the card, not in document.body.
+// tool.html clears the card's container on every navigation and cannot clear
+// the body, so a toast parked there stays behind — and the next visit finds the
+// stale node by id and reuses it instead of building a fresh one.
+const soilToastRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
 // Tab management
-function ttShowTab(tabId) {
+  // This reached for the legacy global `event` to find the button that was
+  // clicked. Firefox has never had window.event, so the handler threw (or the
+  // `if (!event)` guard returned) and the button did nothing there. The element
+  // is passed in from the markup instead.
+function ttShowTab(tabId, trigger) {
     const buttons = document.querySelectorAll('.tab-button');
     buttons.forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+    trigger && trigger.classList.add('active');
     
     // Load tab content
     loadTabContent(tabId);
@@ -190,6 +200,9 @@ function initializeTab(tabId) {
 
 function updatePH(value) {
     const marker = document.getElementById('ph-marker');
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!marker) return;
     const percentage = ((value - 4) / (8.5 - 4)) * 100;
     marker.style.left = `${percentage}%`;
     
@@ -203,6 +216,32 @@ function setPH(value) {
     const slider = document.getElementById('ph-slider');
     slider.value = value;
     updatePH(value);
+}
+
+// Toast notifications. Called by the share/embed actions below but never
+// defined — clicking them threw a ReferenceError. Created on demand.
+function showNotification(message, type) {
+    let toast = document.getElementById('soil-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'soil-toast';
+        toast.setAttribute('role', 'status');
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);' +
+            'padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:1000;' +
+            'opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;' +
+            'background:#141e28;border:1px solid #2dd4ff;color:#e6faff;max-width:min(90vw,420px);text-align:center;';
+        soilToastRoot.appendChild(toast);
+    }
+    const colors = { success: '#39ff14', error: '#ff4d4d', warning: '#ffb700', info: '#2dd4ff' };
+    toast.style.borderColor = colors[type] || '#2dd4ff';
+    toast.textContent = message;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+    clearTimeout(toast._hide);
+    toast._hide = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(10px)';
+    }, 2500);
 }
 
 function ttShareGuide() {
@@ -228,6 +267,10 @@ function ttEmbedGuide() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('soilphtt-title')) return;
     // Load first tab
     loadTabContent('ph-guide');
 });

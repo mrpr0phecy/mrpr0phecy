@@ -293,6 +293,21 @@ function gbChangePeople(delta) {
   gbUpdateSuggestions();
 }
 
+// One place that writes the status line and clears it again. Each of the four
+// callers below scheduled its own timer with a fresh querySelector, and those
+// timers fire after tool.html has cleared the container — where querySelector
+// returns null, so the write threw in whatever tool the visitor opened next.
+function gbSetStatus(message, color, clearAfter = 2000) {
+  const status = document.querySelector('#gb-status');
+  if (!status) return;
+  status.textContent = message;
+  if (color) status.style.color = color;
+  setTimeout(() => {
+    const live = document.querySelector('#gb-status');
+    if (live && live.textContent === message) live.textContent = '';
+  }, clearAfter);
+}
+
 function gbAddGift() {
   const giftFor = document.querySelector('#gb-gift-for').value.trim();
   const giftItem = document.querySelector('#gb-gift-item').value.trim();
@@ -335,11 +350,7 @@ function gbAddGift() {
   gbUpdateSuggestions();
   
   // Update status
-  document.querySelector('#gb-status').textContent = `✅ Added gift for ${giftFor}`;
-  document.querySelector('#gb-status').style.color = '#39ff14';
-  setTimeout(() => {
-    document.querySelector('#gb-status').textContent = '';
-  }, 2000);
+  gbSetStatus(`✅ Added gift for ${giftFor}`, '#39ff14');
 }
 
 function gbUpdateGiftList() {
@@ -441,11 +452,7 @@ function gbUpdateStatus(id, status) {
     gift.status = status;
     gbUpdateGiftList();
     
-    document.querySelector('#gb-status').textContent = `✅ Updated ${gift.for}'s gift status`;
-    document.querySelector('#gb-status').style.color = '#39ff14';
-    setTimeout(() => {
-      document.querySelector('#gb-status').textContent = '';
-    }, 2000);
+    gbSetStatus(`✅ Updated ${gift.for}'s gift status`, '#39ff14');
   }
 }
 
@@ -564,11 +571,11 @@ function gbLoadIdea(budgetRange) {
   const categories = ["Family", "Friends", "Colleagues", "Kids", "Partner", "Parents"];
   document.querySelector('#gb-gift-for').placeholder = `e.g., ${categories[Math.floor(Math.random() * categories.length)]}`;
   
-  document.querySelector('#gb-status').textContent = `💡 Suggested: ${randomIdea.name} ($${randomIdea.price})`;
-  document.querySelector('#gb-status').style.color = '#39ff14';
-  setTimeout(() => {
-    document.querySelector('#gb-status').textContent = '';
-  }, 3000);
+  // Three seconds, not the usual two — and the same guarded writer as the
+  // rest: this carried its own hand-written bail-out for the timer, but the
+  // write above it was unguarded, so the callback was safe and the caller was
+  // not.
+  gbSetStatus(`💡 Suggested: ${randomIdea.name} ($${randomIdea.price})`, '#39ff14', 3000);
 }
 
 function gbOptimizeBudget() {
@@ -600,16 +607,10 @@ function gbOptimizeBudget() {
     const message = suggestions.join('\n• ');
     alert(`Budget Optimization Suggestions:\n\n• ${message}\n\nTotal potential savings: ~$${Math.floor(gbSpent * 0.15)}`);
     
-    document.querySelector('#gb-status').textContent = '✅ Budget optimized with suggestions';
-    document.querySelector('#gb-status').style.color = '#39ff14';
+    gbSetStatus('✅ Budget optimized with suggestions', '#39ff14', 3000);
   } else {
-    document.querySelector('#gb-status').textContent = '🎄 Your budget is already well optimized!';
-    document.querySelector('#gb-status').style.color = '#39ff14';
+    gbSetStatus('🎄 Your budget is already well optimized!', '#39ff14', 3000);
   }
-  
-  setTimeout(() => {
-    document.querySelector('#gb-status').textContent = '';
-  }, 3000);
 }
 
 function gbClearAll() {
@@ -621,11 +622,7 @@ function gbClearAll() {
   gbUpdateGiftList();
   gbUpdateStats();
   
-  document.querySelector('#gb-status').textContent = '✅ All gifts cleared';
-  document.querySelector('#gb-status').style.color = '#39ff14';
-  setTimeout(() => {
-    document.querySelector('#gb-status').textContent = '';
-  }, 2000);
+  gbSetStatus('✅ All gifts cleared', '#39ff14');
 }
 
 function gbExportPlan() {
@@ -658,11 +655,7 @@ function gbExportPlan() {
   link.href = dataUri;
   link.click();
   
-  document.querySelector('#gb-status').textContent = '✅ Plan exported successfully';
-  document.querySelector('#gb-status').style.color = '#39ff14';
-  setTimeout(() => {
-    document.querySelector('#gb-status').textContent = '';
-  }, 2000);
+  gbSetStatus('✅ Plan exported successfully', '#39ff14');
 }
 
 function gbFindDeals() {
@@ -693,16 +686,15 @@ function gbFindDeals() {
   
   document.querySelector('#gb-compare-savings').textContent = potentialSavings;
   
-  document.querySelector('#gb-status').textContent = `💎 Found ${dealsFound} potential savings strategies`;
-  document.querySelector('#gb-status').style.color = '#39ff14';
-  setTimeout(() => {
-    document.querySelector('#gb-status').textContent = '';
-  }, 3000);
+  gbSetStatus(`💎 Found ${dealsFound} potential savings strategies`, '#39ff14', 3000);
 }
 
 // Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
+function xmasGiftBudgetInit() {
+    // This handler listens on the DOCUMENT, and tool.html dispatches these
+    // events again every time the visitor opens a tool. Bail out once
+    // the card is gone instead of dereferencing markup that was removed.
+    if (!document.getElementById('gb-gift-for')) return;
     // Set default values
     gbUpdateBudget(1000);
     gbUpdateStats();
@@ -727,7 +719,12 @@ if (document.readyState === 'loading') {
         });
       }, 500);
     }
-  });
+  
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', xmasGiftBudgetInit);
+} else {
+    xmasGiftBudgetInit();
 }
 </script>
 

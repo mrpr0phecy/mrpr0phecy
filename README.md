@@ -1,16 +1,13 @@
 # The Most Useful Site in the World + MrProphecy
 
-One GitHub Pages site serving two separate products from the same domain:
+**1,250 free tools that run entirely in your browser — no backend, no signup, no tracking, no ads.**
 
-- **The Most Useful Site In The World** — 1159 free, self-contained browser
-  tools. Entry point: [`index.html`](index.html)
-- **MrProphecy** — UK hip hop and animated soundscapes from Luton.
-  Entry point: [`listen.html`](listen.html)
+Live: **<https://www.themostusefulsiteintheworld.com>** — one static domain, two deliberately separate products that never cross-promote.
 
-The two are kept deliberately separate. See the architecture guide before
-mixing them.
+- **The Most Useful Site in the World** — 1,250 self-contained tools across **29 categories** (calculators, converters, generators, health, finance, STEM, productivity …). Every tool is a fragment in [`cards/`](cards/) that runs offline in the page; the catalogue at [`index.html`](index.html) → `tool.html?card=` is the entry point. Also [`ai.html`](ai.html) **Lantern** — private, on-device AI that answers from *your* documents and memory, with an optional WebGPU model. Nothing leaves the browser.
+- **MrProphecy** — UK hip hop and animated soundscapes from **Luton** — 233 videos, 1,360+ subscribers. Entry point: [`listen.html`](listen.html) → `radio.html` / `youtubepromo.html`.
 
-Live: <https://www.themostusefulsiteintheworld.com>
+Zero framework, zero build step in production, zero runtime dependencies. `main` *is* the deploy — GitHub Pages serves it in ~60 s. The repo is mature and stable: tool count is derived from `cards/cards.json`, not a growth target.
 
 ---
 
@@ -23,30 +20,22 @@ traps that have already cost people time.
 
 Start there whether you are a human or an AI agent.
 
-## Site Staff / AI Developer
-
-**[STAFF.md](STAFF.md)** is the operations entry point: the site's purpose,
-accountable specialist profiles, work claims, handovers and binding decisions.
-The permanent **AI Developer** workflow runs Mon & Thu 06:00 UTC or on demand.
-It gathers evidence, prioritises useful work and can propose verified numeric
-count maintenance — not unreviewed generated tools.
+## Working on the site
 
 ```bash
-node scripts/ai-developer.js staff    # missions, responsibilities, review limits
-node scripts/ai-developer.js plan     # read-only audits + actionable priorities
-python3 staff/scan.py --mine          # cached branch and working-tree overlaps
+npm run build          # regenerate every derived file (~8 s)
+npm run verify         # the gate: 8 checks, ~4 s — run it after every edit
+npm run verify:deep    # + the slow audits (~15 s) — CI runs this on every push
+npm test               # the product test suite
 ```
 
-Open `ai-developer/reports/latest.html` for the searchable offline dashboard;
-JSON/Markdown evidence is saved alongside it and uploaded as Actions artifacts
-even on failed checks. No API key is needed. Profiles are **not** separate live
-agents; inherited failing tests are reported honestly rather than hidden.
-Scheduled auto mode never calls a provider; optional drafts require an explicit
-brief, model, key, passing gates and human review.
+[AGENTS.md](AGENTS.md) is the one-page rulebook and
+[CONTRIBUTING.md](CONTRIBUTING.md) the short guide.
 
-[Staff operating guide](staff/README.md) ·
-[Automation setup](docs/AI-DEVELOPER-SETUP.md) ·
-[Research and rationale](staff/RESEARCH.md)
+The "Site Staff / AI Developer" facility that used to run from here — profiles,
+a scoreboard, a claims ledger, an audit engine and a Mon/Thu workflow — was
+removed on 2026-09-20 at the owner's instruction. It was governance about
+governance, and no visitor ever saw any of it.
 
 ## Lantern — the standalone AI
 
@@ -75,9 +64,13 @@ chat. Nothing is uploaded, no account or API key exists, and private memory
 stays in the visitor's browser; the live page cannot write back to the
 repository.
 
-The checked-in `local-ai-knowledge.json` grounds the *catalogue* brain used by
-the machine guide; `learning/approved.json` is the reviewed shared-learning
-channel. The former Byte companion pages (`local-ai.html`,
+The machine guide for outside agents is [`agents.html`](agents.html): the
+manifests, URL patterns and embed codes. The catalogue-side retrieval brain it
+used to advertise (`local-ai-knowledge.json`, 4.5 MB, plus `learning/` and the
+scripts that generated them) was removed on 2026-09-20 — nothing on the site
+read it, and `llms.txt`, `cards/cards.json`, `tools-index.json`,
+`api/tools*.json` and `related.json` do the same job in a fraction of the
+bytes. The former Byte companion pages (`local-ai.html`,
 `byte-realistic.html`, `byte-realistic-v4.html`) are `noindex` redirect stubs
 to `ai.html`, and the old agent/developer machine guide now lives at
 [`agents.html`](agents.html).
@@ -92,10 +85,15 @@ money-related.
 
 | | |
 |---|---|
-| Stack | Static HTML/CSS/JS. No build step, no framework, no dependencies. |
-| Hosting | GitHub Pages, served directly from `main`. Deploys in 30–60s. |
-| Tool inventory | Derived from `cards/cards.json`; not a growth target |
-| Add a tool | Follow ARCHITECTURE.md; generate the index, then re-sync the derived artefacts (`scripts/sync-counts.py`, `scripts/build-sitemap.py`, `scripts/build-home-prerender.py`) and verify |
+| **Live** | <https://www.themostusefulsiteintheworld.com> · <https://www.mrprophecy.com> (same repo, `CNAME`) |
+| **Stack** | Static HTML/CSS/JS — **no build step in production, no framework, no dependencies, no backend**. All 1,250 tools are fragments in `cards/` |
+| **Catalogue** | **1,250 tools · 29 categories · 67 top-level pages** — everything derived from `cards/cards.json` via `npm run build`. Tool count is not a growth target |
+| **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
+| **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
+| **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
+| **Quality gate** | `npm run verify` (7 checks, ~3 s) after every edit · `npm run verify:deep` before push · CI runs `--deep` + production monitor |
+| **Operations** | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage / rollback / fix-forward. `node scripts/check-production.js` probes the *live* site after every deploy and every 6 h (self-closing alert issue) |
+| **Add a tool** | `bash scripts/add-tool.sh <slug> \"<Category>\" \"<msg>\"` or follow `ARCHITECTURE.md` §4 then `npm run build && npm run verify:deep` |
 
 ## Local preview
 

@@ -8,7 +8,7 @@ The full sequence, in order, with the work and the dependencies. **You cannot co
 
 **Goal:** prep the launch assets, line up the press, set the metrics baseline.
 
-- [ ] Confirm the catalogue is the size you want it at launch (currently 562; can go higher if you want to time the launch with a milestone)
+- [ ] Confirm the catalogue is the size you want it at launch (currently 1,250 tools; can go higher if you want to time the launch with a milestone)
 - [ ] Write the Show HN post (draft is at `show-hn.md`); get 3-5 people to read it and tell you what\'s wrong
 - [ ] Write the 3 subreddit posts (drafts are at `reddit-r-selfhosted.md`); same review
 - [ ] Write the Product Hunt post (draft at `product-hunt.md`); same review
@@ -167,7 +167,7 @@ The full sequence, in order, with the work and the dependencies. **You cannot co
   - AI citations (Perplexity, ChatGPT, Google AI Overviews — search the 10 long-tail queries and record which engines cite which guides)
 - [ ] Write a 1-page retro: what worked, what didn\'t, what to do differently next time
 - [ ] File the retro in `INCOME.md` under a new "Launch 1 retro" heading
-- [ ] Plan the next launch (the next milestone: 600 tools, or a major feature, or a year anniversary)
+- [ ] Plan the next launch (the next milestone: 1,300 tools, or a major feature, or a year anniversary) <-- historical-count: a target, not a claim -->
 
 **Time:** ~3 hours
 

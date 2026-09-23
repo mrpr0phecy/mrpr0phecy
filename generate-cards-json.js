@@ -6,6 +6,13 @@ const path = require('path');
 
 const cardsDir = path.join(__dirname, 'cards');
 const outputFile = path.join(cardsDir, 'cards.json');
+// Two-tier catalogue: cards.json is the full index (title, description,
+// category, ...); cards-lite.json holds name/title/category only — small
+// enough to be the home page's critical path. The grid builds from the lite
+// file; search fetches the full file in the background. Short keys because
+// it is machine-only (generated here, consumed by index.html). Compact by
+// design: no indent, no whitespace.
+const liteOutputFile = path.join(cardsDir, 'cards-lite.json');
 
 const files = fs.readdirSync(cardsDir).filter(f => f.endsWith('.html'));
 
@@ -175,6 +182,83 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-21 — ten fire-service tools (new Fire & Rescue Service category, on the
+  // Trucking & Freight precedent). A keyword audit of all 1,240 existing cards found no
+  // hydrant, nozzle, gpm, friction-loss, SCBA, tanker, WBGT, hazmat, ventilation, confined
+  // space, firefighter or fire-flow tool of any kind. Adjacent but distinct: wildfire-behaviour-lab
+  // (Rothermel cellular automaton, Interactive Art), flue-draft-stove-sizing-calculator
+  // (chimney draft, Science & Engineering), room-btu-hvac-calculator, bar-psi-kpa-pressure-converter.
+  'required-fire-flow-calculator': 'Fire & Rescue Service',
+  'fire-hose-friction-loss-pump-pressure': 'Fire & Rescue Service',
+  'hydrant-flow-test-water-supply': 'Fire & Rescue Service',
+  'tanker-shuttle-calculator': 'Fire & Rescue Service',
+  'drafting-static-water-supply': 'Fire & Rescue Service',
+  'scba-air-management-turnaround': 'Fire & Rescue Service',
+  'ground-ladder-placement-reach': 'Fire & Rescue Service',
+  'firefighter-rehab-wbgt-heat-stress': 'Fire & Rescue Service',
+  'hazmat-concentration-exposure-converter': 'Fire & Rescue Service',
+  'foam-proportioning-application': 'Fire & Rescue Service',
+  // 2026-09-21 — ten clinician-facing tools. A keyword audit of all 1,230 existing cards
+  // (slug + title + description) found zero coverage of clinical decision support: the whole
+  // Health & Fitness category is consumer wellness (BMI, BMR, macros, sleep), and the only
+  // clinician-adjacent cards were MAP, QTc, BSA, HbA1c and blood-pressure categories. These
+  // fill the highest-frequency arithmetic a doctor or nurse does by hand or on a phone app:
+  // renal function and dosing, infusion rates, weight-based doses, fluids, gases,
+  // electrolytes and the four scores used most often at the bedside.
+  'egfr-creatinine-clearance-calculator': 'Health & Fitness',
+  'iv-drip-rate-infusion-calculator': 'Health & Fitness',
+  'weight-based-dose-calculator': 'Health & Fitness',
+  'clinical-fluid-requirements-calculator': 'Health & Fitness',
+  'abg-blood-gas-interpreter': 'Health & Fitness',
+  'anion-gap-electrolyte-corrector': 'Health & Fitness',
+  'glasgow-coma-scale-calculator': 'Health & Fitness',
+  'news2-early-warning-score': 'Health & Fitness',
+  'apgar-score-calculator': 'Health & Fitness',
+  'chads2vasc-hasbled-calculator': 'Health & Fitness',
+  // 2026-09-21 — ten everyday gap fills chosen by keyword audit against all 1,220 existing
+  // cards: the highest-intent utilities the catalogue still lacked (a picker wheel, team
+  // splitter, plain notepad and to-do list, meme maker, image eyedropper, device check,
+  // reflex tests, a sound machine and plain hours-and-minutes arithmetic).
+  'spin-the-wheel-random-picker': 'Productivity & Lifestyle',
+  'random-team-generator': 'Productivity & Lifestyle',
+  'online-notepad-autosave': 'Productivity & Lifestyle',
+  'simple-todo-list': 'Productivity & Lifestyle',
+  'meme-generator': 'Productivity & Lifestyle',
+  'time-duration-calculator': 'Productivity & Lifestyle',
+  'image-color-picker-palette-extractor': 'Algorithms & Computer Science',
+  'mic-speaker-webcam-test': 'Algorithms & Computer Science',
+  'reaction-time-click-speed-test': 'Sports',
+  'white-noise-sleep-sound-generator': 'Lucid Dreaming & Sleep',
+  // 2026-09-21 — fourteen "most useful" gap fills: everyday, high-intent tools the
+  // catalogue did not have (audited against all 1,209 existing cards). Kitchen timers,
+  // money savers, health motivation, and the classic moving/candle/compost calculators.
+  'egg-timer-perfect-boiled-eggs': 'Culinary & Food Science',
+  'tea-brew-temperature-steep-guide': 'Culinary & Food Science',
+  'spice-blend-scaler': 'Culinary & Food Science',
+  'appliance-running-cost-calculator': 'Finance & Money',
+  'phone-contract-vs-sim-only-calculator': 'Finance & Money',
+  'wedding-budget-planner': 'Finance & Money',
+  'uk-prescription-prepayment-checker': 'Finance & Money',
+  'council-tax-band-checker': 'Finance & Money',
+  'smoking-cost-quit-savings-planner': 'Health & Fitness',
+  'twenty-twenty-twenty-eye-rest-timer': 'Health & Fitness',
+  'resignation-letter-generator': 'Writing & Language',
+  'moving-house-box-estimator': 'Home & DIY',
+  'compost-carbon-nitrogen-balancer': 'Home & DIY',
+  'candle-making-supplies-calculator': 'Productivity & Lifestyle',
+  // 2026-09-21 — ten trucking tools (new Trucking & Freight category): everything a driver
+  // needs between the loading dock and the scale house.
+  'truck-duty-clock-planner': 'Trucking & Freight',
+  'truck-axle-weight-bridge-formula': 'Trucking & Freight',
+  'truck-tyre-load-pressure-selector': 'Trucking & Freight',
+  'truck-load-planner': 'Trucking & Freight',
+  'truck-stopping-distance': 'Trucking & Freight',
+  'truck-grade-descent-speed': 'Trucking & Freight',
+  'truck-cost-per-mile': 'Trucking & Freight',
+  'truck-load-offer-decider': 'Trucking & Freight',
+  'truck-pretrip-inspection': 'Trucking & Freight',
+  'truck-breakdown-triage': 'Trucking & Freight',
+  'police-legal-jargon-decoder': 'Wellbeing & Community',
   // Added 2026-09-14 — five subject gaps with no existing coverage at all:
   // no ADHD/neurodivergence tool, no ingredient-allergen decoder, no knitting
   // or crochet tool, no hearing/tinnitus tool and no childcare-cost tool
@@ -254,10 +338,65 @@ const categoryMap = {
   'vocal-compression-sidechain-calculator': 'Music & Audio',
   'multisyllabic-rhyme-cadence-flow-builder': 'Music & Audio',
   'sample-chop-cue-point-calculator': 'Music & Audio',
+  'stereo-mono-compatibility-analyzer': 'Music & Audio',
+  'loop-seam-checker': 'Music & Audio',
+  'peak-normalizer-wav-export': 'Music & Audio',
+  'sample-delay-alignment-calculator': 'Music & Audio',
+  'lufs-target-headroom-planner': 'Music & Audio',
   'equalizer-frequency-masking-allocator': 'Music & Audio',
   'reverb-pre-delay-decay-calculator': 'Music & Audio',
   'trap-drill-hihat-roll-pattern-generator': 'Music & Audio',
-  'lofi-saturation-bitcrush-texture-lab': 'Music & Audio'
+  'lofi-saturation-bitcrush-texture-lab': 'Music & Audio',
+  // 2026-09-16 — three high-intent gap fills (SDLT, stopwatch, rent-vs-buy)
+  'uk-stamp-duty-calculator': 'Finance & Money',
+  'stopwatch-precision-timer': 'Productivity & Lifestyle',
+  'rent-vs-buy-calculator': 'Finance & Money',
+  // 2026-09-16 — ten tools inspired by the "365 REALLY useful websites" list.
+  // Each one replaces a named site (thistothat, animatedknots, ripetrack,
+  // printablepaper, bubbl.us, wordle.net, 750words, rulesofthumb,
+  // nameideasgenerator, adobe sign) with a local, offline version.
+  'adhesive-selector': 'Home & DIY',
+  'knot-tying-guide': 'Survival & Emergency Readiness',
+  'seasonal-produce-calendar': 'Culinary & Food Science',
+  'printable-paper-generator': 'Productivity & Lifestyle',
+  'mind-map-studio': 'Productivity & Lifestyle',
+  'word-cloud-generator': 'Writing & Language',
+  'daily-writing-streak': 'Writing & Language',
+  'rules-of-thumb': 'Productivity & Lifestyle',
+  'business-name-generator': 'SaaS & Business Killers',
+  'signature-pad': 'SaaS & Business Killers',
+  // 2026-09-16 — five anti-hunger / anti-poverty tools (owner-requested set).
+  'penny-meals-survival-planner': 'Culinary & Food Science',
+  'micro-garden-food-planner': 'Home & DIY',
+  'leftover-rescue-kitchen': 'Culinary & Food Science',
+  'zero-capital-income-starter': 'Finance & Money',
+  'hard-times-help-navigator': 'Wellbeing & Community',
+  // 2026-09-16 — second anti-hunger / anti-poverty set (owner-requested): parcel
+  // stretching, street buying clubs, community fridges, payday triage, hardship letters.
+  'food-parcel-stretcher': 'Culinary & Food Science',
+  'bulk-buy-coop-splitter': 'Wellbeing & Community',
+  'community-fridge-starter-kit': 'Wellbeing & Community',
+  'payday-stretch-triage': 'Finance & Money',
+  'hardship-letter-writer': 'Finance & Money',
+  // 2026-09-16 — ten professional-grade production tools (offline SaaS killers)
+  'pro-image-compressor-studio': 'SaaS & Business Killers',
+  'pro-audio-studio': 'SaaS & Business Killers',
+  'pro-password-vault-studio': 'SaaS & Business Killers',
+  'pro-color-theme-studio': 'SaaS & Business Killers',
+  'pro-json-api-workbench': 'SaaS & Business Killers',
+  'pro-seo-audit-toolkit': 'SaaS & Business Killers',
+  'pro-regex-studio': 'SaaS & Business Killers',
+  'pro-doc-scanner-studio': 'SaaS & Business Killers',
+  'pro-video-toolkit': 'SaaS & Business Killers',
+  'pro-invoice-recurring-studio': 'SaaS & Business Killers',
+  // 2026-09-16 — six more pro studios (Canva, Typeform, Miro, Anki, Carrd, BeeFree killers)
+  'pro-design-canvas-studio': 'SaaS & Business Killers',
+  'pro-form-builder-studio': 'SaaS & Business Killers',
+  'pro-whiteboard-studio': 'SaaS & Business Killers',
+  'pro-flashcard-spaced-repetition-studio': 'SaaS & Business Killers',
+  'pro-landing-page-builder-studio': 'SaaS & Business Killers',
+  'pro-email-visual-builder-studio': 'SaaS & Business Killers',
+  'pro-database-grid-studio': 'SaaS & Business Killers'
 };
 
 // Wellbeing & Community — tools for the moments when people are scared, confused or alone
@@ -395,7 +534,26 @@ const saasKillerList = [
   'magic-background-eraser-pro',
   'transcribe-subtitle-studio-pro',
   'contract-sentinel-pro',
-  'clientflow-pro'
+  'clientflow-pro',
+  // 2026-09-16 — ten professional-grade production tools
+  'pro-image-compressor-studio',
+  'pro-audio-studio',
+  'pro-password-vault-studio',
+  'pro-color-theme-studio',
+  'pro-json-api-workbench',
+  'pro-seo-audit-toolkit',
+  'pro-regex-studio',
+  'pro-doc-scanner-studio',
+  'pro-video-toolkit',
+  'pro-invoice-recurring-studio',
+  // 2026-09-16 — six more pro studios
+  'pro-design-canvas-studio',
+  'pro-form-builder-studio',
+  'pro-whiteboard-studio',
+  'pro-flashcard-spaced-repetition-studio',
+  'pro-landing-page-builder-studio',
+  'pro-email-visual-builder-studio',
+  'pro-database-grid-studio'
 ];
 
 // 2026-09-05 — ten survival & emergency-readiness tools. Matched exactly
@@ -875,6 +1033,10 @@ const importedSalvageMap = {
   'mime-type-lookup-table': 'Algorithms & Computer Science',
   'mohs-hardness-gallery': 'Museum & Collection',
   'moon-phases-eclipse-geometry': 'Astronomy & Space',
+  'mostusefulmaps': 'Science & Engineering',   // the site's own map: offline world map, geodesic
+                                                // measuring, Plus Codes, grid refs, and a driving
+                                                // layer (vehicle-aware routes, OSM speed limits,
+                                                // live traffic where it is free, weather at ETA)
   'mortgage-overpayment-calculator': 'Finance & Money',
   'mulch-coverage-calculator': 'Home & DIY',
   'museum-tombstone-label': 'Museum & Collection',
@@ -1058,6 +1220,21 @@ function decodeEntities(str) {
     .replace(/&mdash;/g, '\u2014')
     .replace(/&ndash;/g, '\u2013')
     .replace(/&hellip;/g, '\u2026')
+    .replace(/&ldquo;/g, '\u201C')
+    .replace(/&rdquo;/g, '\u201D')
+    .replace(/&lsquo;|&rsquo;/g, '\u2019')
+    .replace(/&thinsp;/g, '\u2009')
+    .replace(/&times;/g, '\u00D7')
+    .replace(/&deg;/g, '\u00B0')
+    .replace(/&minus;/g, '\u2212')
+    .replace(/&plusmn;/g, '\u00B1')
+    .replace(/&frac12;/g, '\u00BD')
+    .replace(/&frac14;/g, '\u00BC')
+    .replace(/&frac34;/g, '\u00BE')
+    .replace(/&sup2;/g, '\u00B2')
+    .replace(/&sup3;/g, '\u00B3')
+    .replace(/&prime;/g, '\u2032')
+    .replace(/&Prime;/g, '\u2033')
     .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(parseInt(d, 10)))
     .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)));
 }
@@ -1106,5 +1283,45 @@ const manifest = files.map(file => {
   };
 });
 
-fs.writeFileSync(outputFile, JSON.stringify(manifest, null, 2));
+// --check: rebuild the manifest from the card files and verify the checked-in
+// cards/cards.json still matches (drift gate for verify.sh). No writes.
+const CHECK = process.argv.includes('--check');
+const serialized = JSON.stringify(manifest, null, 2);
+const liteManifest = manifest.map(m => ({ n: m.name, t: m.title, c: m.category }));
+const liteSerialized = JSON.stringify(liteManifest);
+
+if (CHECK) {
+  let onDisk = null;
+  try { onDisk = fs.readFileSync(outputFile, 'utf8'); } catch (e) { onDisk = null; }
+  let liteOnDisk = null;
+  try { liteOnDisk = fs.readFileSync(liteOutputFile, 'utf8'); } catch (e) { liteOnDisk = null; }
+  if (liteOnDisk !== liteSerialized) {
+    console.error('DRIFT: cards/cards-lite.json is stale or missing — run: node generate-cards-json.js');
+    process.exit(1);
+  }
+  if (onDisk !== serialized) {
+    const disk = onDisk !== null ? JSON.parse(onDisk) : [];
+    const byName = new Map(disk.map(c => [c.name, c]));
+    let shown = 0;
+    for (const c of manifest) {
+      const d = byName.get(c.name);
+      const differs = !d || JSON.stringify(d) !== JSON.stringify(c);
+      if (differs && shown < 10) {
+        console.error(`DRIFT: ${c.name} — ${d ? 'content differs' : 'missing from cards.json'}`);
+        shown += 1;
+      }
+    }
+    if (disk.length !== manifest.length) {
+      console.error(`DRIFT: entry count — cards.json has ${disk.length}, files produce ${manifest.length}`);
+    }
+    console.error('catalogue stale — run: node generate-cards-json.js');
+    process.exit(1);
+  }
+  console.log(`catalogue OK — cards.json matches all ${manifest.length} card files`);
+  process.exit(0);
+}
+
+fs.writeFileSync(outputFile, serialized);
+fs.writeFileSync(liteOutputFile, liteSerialized);
 console.log(`✅ cards.json updated with ${manifest.length} cards`);
+console.log(`✅ cards-lite.json updated — ${(liteSerialized.length / 1024).toFixed(0)} KB compact (name/title/category only)`);

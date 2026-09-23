@@ -15,7 +15,7 @@
 
 <form aria-describedby="moving-desc" style="margin-bottom:16px;">
   <div id="moving-desc" style="margin-bottom:20px;">
-    <p style="margin:0 0 12px 0;color:var(--muted);font-size:14px;line-height:1.5;">
+    <p id="moving-summary-desc" style="margin:0 0 12px 0;color:var(--muted);font-size:14px;line-height:1.5;">
       <span style="color:var(--accent);font-weight:600;">Complete moving organization tool</span>: Create checklists, track inventory, manage budget, schedule tasks, and coordinate with family/friends. Make your move stress-free!
     </p>
     
@@ -131,11 +131,11 @@
     <div id="mp-quick-tasks" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
       <div style="color:var(--muted);font-size:13px;margin-bottom:8px;">Common Moving Tasks:</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button onclick="mpQuickTask('Book moving truck', 'logistics', 'high')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Book Truck</button>
-        <button onclick="mpQuickTask('Pack fragile items', 'packing', 'high')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Pack Fragile</button>
-        <button onclick="mpQuickTask('Change address', 'administrative', 'medium')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Change Address</button>
-        <button onclick="mpQuickTask('Clean old apartment', 'cleaning', 'low')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Clean Old</button>
-        <button onclick="mpQuickTask('Setup internet', 'setup', 'medium')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Setup Internet</button>
+        <button type="button" onclick="mpQuickTask('Book moving truck', 'logistics', 'high')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Book Truck</button>
+        <button type="button" onclick="mpQuickTask('Pack fragile items', 'packing', 'high')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Pack Fragile</button>
+        <button type="button" onclick="mpQuickTask('Change address', 'administrative', 'medium')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Change Address</button>
+        <button type="button" onclick="mpQuickTask('Clean old apartment', 'cleaning', 'low')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Clean Old</button>
+        <button type="button" onclick="mpQuickTask('Setup internet', 'setup', 'medium')" style="padding:6px 10px;background:rgba(45,212,255,0.1);border:1px solid rgba(45,212,255,0.3);border-radius:6px;color:var(--accent);cursor:pointer;font-size:12px;">Setup Internet</button>
       </div>
     </div>
   </div>
@@ -376,6 +376,12 @@
    - Data persistence
 */
 
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a modal, a share dialog or a live region parked there stays
+   behind after the visitor moves to another tool. */
+const movRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
 // ========== GLOBAL STATE ==========
 const mp = {
   // Core data
@@ -436,6 +442,10 @@ const mp = {
 
 // ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('mp-date')) return;
   // Load saved data
   mpLoadData();
   
@@ -561,7 +571,7 @@ Change address | administrative | medium | | 2024-12-10 | 0"
     </div>
   `;
   
-  document.body.appendChild(modal);
+  movRoot.appendChild(modal);
   modal.querySelector('textarea').focus();
 }
 
@@ -765,7 +775,7 @@ function mpEditTask(taskId) {
     </div>
   `;
   
-  document.body.appendChild(modal);
+  movRoot.appendChild(modal);
 }
 
 function mpSaveTaskEdit(taskId) {
@@ -944,7 +954,7 @@ function updateStats() {
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   
   // Update progress bar
-  document.getElementById('mp-overall-progress').textContent = `${progress}%`;
+  document.getElementById('moving-overall-progress').textContent = `${progress}%`;
   
   // Update stats numbers
   document.getElementById('moving-stats-tasks').textContent = totalTasks;
@@ -1328,6 +1338,7 @@ function mpImportData() {
 
 function mpPrintPlan() {
   const printWindow = window.open('', '_blank');
+  if (!printWindow) { alert('Popup blocked: allow popups for this site to print.'); return; }
   printWindow.document.write(`
     <html>
       <head>
@@ -1409,7 +1420,7 @@ function mpSharePlan() {
             </div>
           </div>
         `;
-        document.body.appendChild(shareDiv);
+        movRoot.appendChild(shareDiv);
       });
   }
 }
@@ -1514,7 +1525,7 @@ function mpOpenInventory() {
     </div>
   `;
   
-  document.body.appendChild(modal);
+  movRoot.appendChild(modal);
 }
 
 function mpUpdateInventory(type, change) {
@@ -1757,7 +1768,7 @@ function announceToScreenReader(message) {
     region.setAttribute('aria-live', 'polite');
     region.setAttribute('aria-atomic', 'true');
     region.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;';
-    document.body.appendChild(region);
+    movRoot.appendChild(region);
     return region;
   })();
   
@@ -1829,15 +1840,6 @@ style.textContent = `
     border-radius: 3px;
   }
   
-  @media (max-width: 768px) {
-    .dashboard .card {
-      grid-template-columns: 1fr;
-    }
-    
-    .row {
-      grid-template-columns: 1fr !important;
-    }
-  }
 `;
 document.head.appendChild(style);
 

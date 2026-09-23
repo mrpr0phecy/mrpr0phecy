@@ -304,6 +304,9 @@ function slrmvDebugMode() {
 
 // Load the map
 async function slrmvLoadMap() {
+    // tool.html clears the card on the next navigation and cannot cancel
+    // this callback: bail out rather than write to a DOM that is gone.
+    if (!document.getElementById('slrmv-region-name')) return;
     const regionInput = document.getElementById('slrmv-region-name').value.trim();
     const directUrl = document.getElementById('slrmv-direct-url').value.trim();
     const imageSource = document.getElementById('slrmv-image-source').value;
@@ -424,6 +427,9 @@ async function slrmvLoadMap() {
         slrmvDrawPlaceholder(regionName);
     } finally {
         // Hide loading
+        // tool.html clears the card on the next navigation and cannot cancel
+        // this callback: bail out rather than write to a DOM that is gone.
+        if (!document.getElementById('slrmv-loading')) return;
         document.getElementById('slrmv-loading').style.display = 'none';
     }
 }
@@ -777,8 +783,11 @@ slrmvCanvas.addEventListener('mousemove', (e) => {
 });
 
 // Initialize
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function slRegionMapInit() {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('slrmv-region-name')) return;
         // Initialize canvas
         slrmvResizeCanvas();
         window.addEventListener('resize', slrmvResizeCanvas);
@@ -806,7 +815,12 @@ if (document.readyState === 'loading') {
         });
         
         console.log('Second Life Region Map Viewer initialized');
-    });
+    
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', slRegionMapInit);
+} else {
+    slRegionMapInit();
 }
 </script>
 
