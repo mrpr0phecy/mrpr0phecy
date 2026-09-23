@@ -166,6 +166,17 @@ state.rows = rows;
   assert(/URLSearchParams/.test(SOURCE) && /history\.replaceState/.test(SOURCE),
     'filters live in the URL, so a filtered list can be linked and reloaded');
   assert(/'cat'/.test(SOURCE) && /'sort'/.test(SOURCE), 'category and sort survive a reload too');
+
+  // The catalogue fetch is bounded and recoverable. A stalled download once
+  // wedged the home list on "Searching the catalogue…" with no timeout and no
+  // retry — and the rejected promise stayed cached, so the list could never
+  // appear without a reload. The fetch carries an abort window spanning
+  // headers and body, a failed load re-arms instead of caching the failure,
+  // and the empty state offers a retry next to the directory link.
+  assert(/CATALOGUE_TIMEOUT_MS/.test(SOURCE) && /AbortController/.test(SOURCE),
+    'the catalogue fetch must time out instead of hanging the list');
+  assert(/data-xp-retry/.test(SOURCE),
+    'a failed catalogue load must offer a retry next to the directory link');
 }
 
 console.log('explore-list: filtering, sorting, escaping and the list contracts all hold');

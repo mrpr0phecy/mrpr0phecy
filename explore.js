@@ -29,6 +29,14 @@
   'use strict';
 
   var PAGE_SIZE = 60;
+  // The catalogue fetch is allowed this long for headers AND body: a download
+  // that stalls — the headers arrive, the body never follows — must surface
+  // the error UI, not "Searching the catalogue…" forever. The worker bounds
+  // the headers at UNCACHED_PATIENCE_MS and fails fast; this covers a body
+  // that stops arriving after them (and any browser the worker does not
+  // control yet). Generous on purpose: the file is ~1 MB and a slow radio
+  // link still gets its chance; past it, the list offers a retry.
+  var CATALOGUE_TIMEOUT_MS = 12000;
   var SORTS = {
     az: 'A–Z',
     za: 'Z–A',
@@ -923,19 +931,55 @@
         document.dispatchEvent(new CustomEvent('mp:explore-ready'));
       }
       function fail() {
-        catalogueReady = true;
+        // Re-armed, not dead. `loading` used to keep the rejected promise and
+        // `catalogueReady` claimed success, so one failed fetch meant the list
+        // could never appear without a reload — the next search just replayed
+        // the same settled promise against zero rows. Now the next search,
+        // scroll or tap retries the fetch, and the list itself says what
+        // happened, with a retry next to the directory link.
+        loading = null;
+        catalogueReady = false;
+        paintKey = '';
+        paintCount = -1;
         bar.innerHTML = '<span class="xp-count">The full list could not load here. ' +
           '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">Open the plain directory →</a></span>';
+        if (els.list) {
+          els.list.innerHTML = '<li class="xp-row"><div class="xp-empty">' +
+            '<strong>The list could not load.</strong><br>Check your connection, then ' +
+            '<button type="button" class="xp-btn" data-xp-retry>try again</button> or ' +
+            '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the plain directory</a>.' +
+            '</div></li>';
+        }
       }
       function loadCatalogue() {
         if (loading) return loading;
-        loading = fetch('tools-index.json')
+        // The abort window spans the fetch AND the body read: headers that
+        // arrive with a body that never follows are the same hang from the
+        // visitor's side. Without AbortController (very old browsers) this is
+        // a plain fetch — the worker's own bound is still the backstop.
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, CATALOGUE_TIMEOUT_MS) : null;
+        var clearTimer = function () { if (timer) { clearTimeout(timer); timer = null; } };
+        loading = fetch('tools-index.json', ctrl ? { signal: ctrl.signal } : undefined)
           .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
-          .then(finish)
-          .catch(fail);
+          .then(function (data) { clearTimer(); finish(data); })
+          .catch(function (err) { clearTimer(); fail(err); });
         return loading;
       }
       ensureCatalogue = loadCatalogue;
+      // Retry for a failed catalogue load: delegated from the wrapper because
+      // fail() replaces both the bar and the list contents, while the wrapper
+      // itself is stable across failure and success. A tap while a fetch is
+      // already in flight just rejoins it (loadCatalogue dedupes on `loading`).
+      els.wrap.addEventListener('click', function (e) {
+        if (!e.target.closest || !e.target.closest('[data-xp-retry]')) return;
+        e.preventDefault();
+        bar.innerHTML = '<span class="xp-count">Loading the full list…</span>';
+        if (els.list) els.list.innerHTML = '<li class="xp-row"><div class="xp-empty xp-pending">Loading the catalogue…</div></li>';
+        paintKey = '';
+        paintCount = -1;
+        loadCatalogue();
+      });
       if (wantsNow()) return loadCatalogue();
       bar.innerHTML = '<span class="xp-count">The full list loads as you reach it.</span>';
       var section = document.getElementById('all-tools-section') || container;

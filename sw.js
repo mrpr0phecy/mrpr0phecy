@@ -81,7 +81,19 @@
 // deep link, the list, or idle, and scrolling no longer measures chrome on
 // every frame. Those fixes live in home-core.js / explore.js / home.css, so
 // the precache has to move with them or a returning visitor keeps the old pair.
-const CACHE_VERSION = 'v20-2026-09-21';
+// v21: v19 bounded the navigations that already had a cached copy and left the
+// uncached path open — and the report came back: browse back and forth between
+// the index and a few tools and the tab hangs. Every first visit to a URL (each
+// new tool.html?card=* leg of exactly that browse) awaited the network with no
+// bound, so one stalled socket was a white screen forever; the catalogue,
+// fragments, fonts and fallback fetches had the same hole, and explore.js
+// waited on tools-index.json with no timeout of its own, wedging the home list
+// on "Searching the catalogue…". Nothing here awaits the network unbounded any
+// more: uncached navigations fall back to the cached index past
+// UNCACHED_PATIENCE_MS (the same fallback an offline visit gets), uncached
+// subresources fail fast so the page renders its error UI, and a navigation
+// preload that never settles no longer stops the fetch from starting.
+const CACHE_VERSION = 'v21-2026-09-23';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -135,6 +147,13 @@ const FRESH_WINDOW_MS = 10 * 60 * 1000;
 // If the network has not answered by then, a cached copy wins: a slow origin
 // must not hold the grid hostage.
 const NETWORK_PATIENCE_MS = 2500;
+// The bound for fetches with NO cached copy to fall back on. Longer than the
+// one above, because a first visit has no alternative worth racing toward and
+// a slow origin still gets its chance — but it exists: past it, a navigation
+// falls back to the cached index (the same page an offline visit gets) and a
+// subresource fails fast (503) so the page renders its error UI and its retry
+// instead of hanging. Nothing in this worker awaits the network forever.
+const UNCACHED_PATIENCE_MS = 8000;
 
 // Install — precache critical assets
 self.addEventListener('install', (event) => {
@@ -291,12 +310,24 @@ async function cacheFirst(request, cacheName, maxAge) {
         }
     }
     try {
-        const net = await fetch(request);
-        if (net.ok) cache.put(request, net.clone());
-        return net;
+        // Uncached and stalled is the same hang as everywhere else: bound it.
+        // A settled response — even a 404 — still passes through untouched.
+        const net = await bounded(fetch(request), UNCACHED_PATIENCE_MS);
+        if (net && net.ok) cache.put(request, net.clone());
+        return net || new Response('Offline', { status: 503 });
     } catch {
         return cached || new Response('Offline', { status: 503 });
     }
+}
+
+// A promise that resolves (with null) after ms. The work it races is NOT
+// cancelled: a slow fetch still lands in the cache for the visit after this
+// one — the bound only decides what THIS response waits for.
+function after(ms) {
+    return new Promise((resolve) => setTimeout(() => resolve(null), ms));
+}
+function bounded(promise, ms) {
+    return Promise.race([promise, after(ms)]);
 }
 
 // Navigations: network-first with the catalogue's patience. The browser's
@@ -308,12 +339,20 @@ async function cacheFirst(request, cacheName, maxAge) {
 //
 // The unbounded version of this handler is what hung the second click on a
 // tool (see the v19 note at the top): with a cached copy available, a stalled
-// socket now costs 2.5 seconds, not the rest of the session.
+// socket now costs 2.5 seconds, not the rest of the session. v21 bounds the
+// uncached path the same way (see below): a stalled first visit falls back to
+// the cached index instead of hanging the tab on a white screen.
 async function navigateFast(request, preload) {
     const cache = await caches.open(RUNTIME_CACHE);
     const cached = await cache.match(request);
-    const network = (preload || Promise.resolve(null))
-        .then((p) => p || fetch(request))
+    // Navigation preload normally settles first and saves a round trip — but
+    // the fetch below must never wait on it forever. If the preload has not
+    // answered within the usual patience, skip it and fetch directly; in the
+    // pathological case that costs one duplicate request, and everywhere else
+    // it costs nothing because the preload already won the race.
+    const PRELOAD_SKIP = 'mp-preload-skip';
+    const network = Promise.race([preload || Promise.resolve(null), after(NETWORK_PATIENCE_MS).then(() => PRELOAD_SKIP)])
+        .then((p) => (p === PRELOAD_SKIP || !p ? fetch(request) : p))
         .then((res) => {
             if (res && res.ok) cache.put(request, res.clone()).catch(() => {});
             return res || null;
@@ -321,27 +360,34 @@ async function navigateFast(request, preload) {
         .catch(() => null);
 
     if (!cached) {
-        // Nothing cached: the network is the only honest answer (a 404 must
-        // pass through untouched — falling back to the index here would show
-        // the home page at a dead URL). Only a failed fetch falls back, and
-        // then to the offline index the visitor can actually navigate.
-        const net = await network;
+        // Nothing cached: the network is the honest answer (a 404 must pass
+        // through untouched — falling back to the index for a settled 404
+        // would show the home page at a dead URL). But it is not allowed
+        // forever: every new tool.html?card=* leg of a back-and-forth browse
+        // arrives here, and one stalled socket used to hold the tab hostage
+        // with a white screen. Past UNCACHED_PATIENCE_MS the stall is treated
+        // like offline, and the visitor gets the cached index they can
+        // navigate instead of a navigation that never resolves.
+        const net = await bounded(network, UNCACHED_PATIENCE_MS);
         if (net) return net;
-        const staticCache = await caches.open(STATIC_CACHE);
-        // The install handler requests './index.html', which the Cache API
-        // stores resolved against the worker's URL — '/index.html'. Try the
-        // absolute form first, then the literal ones, then '/'.
-        const index = await staticCache.match('/index.html')
-            || await staticCache.match('./index.html')
-            || await staticCache.match('/');
-        return index || new Response('Offline', { status: 503, statusText: 'Offline' });
+        return cachedIndex();
     }
 
-    const winner = await Promise.race([
-        network,
-        new Promise((resolve) => setTimeout(() => resolve(null), NETWORK_PATIENCE_MS))
-    ]);
+    const winner = await bounded(network, NETWORK_PATIENCE_MS);
     return winner || cached;
+}
+
+// The offline navigation fallback: the cached index the visitor can actually
+// navigate, whatever leg of the browse failed. The install handler requests
+// './index.html', which the Cache API stores resolved against the worker's
+// URL — '/index.html'. Try the absolute form first, then the literal ones,
+// then '/'.
+async function cachedIndex() {
+    const staticCache = await caches.open(STATIC_CACHE);
+    const index = await staticCache.match('/index.html')
+        || await staticCache.match('./index.html')
+        || await staticCache.match('/');
+    return index || new Response('Offline', { status: 503, statusText: 'Offline' });
 }
 
 // How old the stored copy is, in ms. GitHub Pages sends Date (and Age when a
@@ -378,25 +424,31 @@ async function freshFast(request, cacheName) {
         .catch(() => null);
 
     if (!cached) {
-        const net = await network;
+        // No copy at all: the network must answer, but — as with navigations
+        // above — it is not allowed forever. A stall here used to hang the
+        // page's own fetch with it: explore.js waited on tools-index.json with
+        // no timeout of its own, so the home list sat on "Searching the
+        // catalogue…" until the tab was reloaded. Failing fast lets the page
+        // render its error UI (and its retry) instead.
+        const net = await bounded(network, UNCACHED_PATIENCE_MS);
         return net || new Response('Offline', { status: 503, statusText: 'Offline' });
     }
     if (ageOf(cached) < FRESH_WINDOW_MS) return cached;
 
-    const winner = await Promise.race([
-        network,
-        new Promise((resolve) => setTimeout(() => resolve(null), NETWORK_PATIENCE_MS))
-    ]);
+    const winner = await bounded(network, NETWORK_PATIENCE_MS);
     return winner || cached;
 }
 
 async function staleWhileRevalidate(request, cacheName) {
     const cache = await caches.open(cacheName);
     const cached = await cache.match(request);
-    const fetchPromise = fetch(request).then(net => {
+    // A cached hit returns immediately (the revalidation dangles harmlessly);
+    // with nothing cached, the fetch gets the same bound as every other
+    // uncached fetch rather than hanging the response forever.
+    const fetchPromise = bounded(fetch(request).then(net => {
         if (net.ok) cache.put(request, net.clone());
         return net;
-    }).catch(() => null);
+    }).catch(() => null), UNCACHED_PATIENCE_MS);
     return cached || (await fetchPromise) || new Response('Offline', { status: 503 });
 }
 
