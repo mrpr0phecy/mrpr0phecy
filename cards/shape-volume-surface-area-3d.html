@@ -1,0 +1,214 @@
+<!--
+  3D Shape Volume & Surface Area Calculator — 12 solids rendered as shaded,
+  rotatable 3D models. Volume, total/lateral surface area, diagonals, slant
+  heights, unit conversion and the working. No network.
+-->
+<style>
+  .svs-wrap{--svs-acc:#34d399;font-family:var(--sans,system-ui,-apple-system,Segoe UI,sans-serif);color:var(--text,#e6faff)}
+  .svs-wrap h2.svs-h{margin:0 0 4px;color:var(--svs-acc);font-size:1.45rem;letter-spacing:-.01em}
+  .svs-wrap .svs-desc{margin:0 0 12px;color:var(--muted,#9fb4c8);font-size:.93rem;line-height:1.55}
+  .svs-chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 10px}
+  .svs-chip{padding:6px 13px;border-radius:999px;font:600 12.5px/1.2 inherit;font-family:inherit;cursor:pointer;color:var(--text,#e6faff);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);transition:border-color .15s,background .15s}
+  .svs-chip:hover,.svs-chip:focus-visible{border-color:var(--svs-acc);color:var(--svs-acc);outline:none}
+  .svs-chip.svs-on{background:color-mix(in srgb,var(--svs-acc) 18%,transparent);border-color:var(--svs-acc);color:#fff;box-shadow:0 0 14px color-mix(in srgb,var(--svs-acc) 35%,transparent)}
+  .svs-stage{position:relative;height:500px;border-radius:16px;overflow:hidden;border:1px solid color-mix(in srgb,var(--svs-acc) 30%,transparent);background:radial-gradient(120% 90% at 50% 30%,#0f3a33 0%,#08101f 55%,#03050b 100%);box-shadow:inset 0 0 80px rgba(0,0,0,.55),0 10px 40px rgba(0,0,0,.35)}
+  .svs-stage:fullscreen{height:100vh;border-radius:0}
+  .svs-stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}
+  .svs-stage canvas.is-drag{cursor:grabbing}
+  .svs-stage canvas:focus-visible{box-shadow:inset 0 0 0 2px var(--svs-acc)}
+  .svs-hud{position:absolute;left:12px;top:10px;max-width:calc(100% - 150px);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#bfeaff;background:rgba(3,8,18,.62);border:1px solid rgba(255,255,255,.08);padding:6px 10px;border-radius:9px;pointer-events:none;backdrop-filter:blur(4px);white-space:pre-wrap}
+  .svs-hint{position:absolute;right:12px;bottom:10px;font-size:11px;color:#7f93aa;background:rgba(3,8,18,.5);padding:4px 9px;border-radius:7px;pointer-events:none}
+  .svs-tools{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+  .svs-tb{min-width:34px;height:32px;padding:0 9px;border-radius:9px;border:1px solid rgba(255,255,255,.16);background:rgba(3,8,18,.62);color:#dff6ff;font:600 12px/1 inherit;font-family:inherit;cursor:pointer}
+  .svs-tb:hover,.svs-tb:focus-visible{border-color:var(--svs-acc);color:var(--svs-acc);outline:none}
+  .svs-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px}
+  .svs-panel{background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 15px}
+  .svs-panel h3{margin:0 0 10px;font-size:.8rem;text-transform:uppercase;letter-spacing:.12em;color:var(--svs-acc)}
+  .svs-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:10px}
+  .svs-f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted,#9fb4c8)}
+  .svs-f input,.svs-f select{width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e6faff;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .svs-f input[type=range]{padding:0;accent-color:var(--svs-acc);background:none;border:0}
+  .svs-f input:focus,.svs-f select:focus{outline:none;border-color:var(--svs-acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--svs-acc) 25%,transparent)}
+  .svs-vec{display:grid;grid-template-columns:minmax(64px,auto) repeat(3,minmax(0,1fr));gap:6px;align-items:center;margin-bottom:6px;font-size:12px}
+  .svs-vec b{font:700 12.5px ui-monospace,monospace}
+  .svs-vec input{width:100%;box-sizing:border-box;padding:7px 5px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e6faff;font:13px ui-monospace,monospace;text-align:center}
+  .svs-vec input:focus{outline:none;border-color:var(--svs-acc)}
+  .svs-out{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+  .svs-out dt{color:var(--muted,#9fb4c8)}
+  .svs-out dd{margin:0;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#f2fbff;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .svs-out dd.svs-good{color:#6ee7b7}.svs-out dd.svs-warn{color:#fbbf24}.svs-out dd.svs-big{color:var(--svs-acc);font-size:15px;font-weight:700}
+  .svs-out dt.svs-sec{grid-column:1/-1;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08);color:var(--svs-acc);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  .svs-steps{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.25);font:12px/1.7 ui-monospace,monospace;color:#cfe6f5;white-space:pre-wrap;word-break:break-word}
+  .svs-btn{padding:8px 14px;border-radius:9px;border:1px solid color-mix(in srgb,var(--svs-acc) 45%,transparent);background:color-mix(in srgb,var(--svs-acc) 12%,transparent);color:#e6faff;font:600 13px inherit;font-family:inherit;cursor:pointer}
+  .svs-btn:hover,.svs-btn:focus-visible{background:color-mix(in srgb,var(--svs-acc) 24%,transparent);outline:none}
+  .svs-learn{margin-top:14px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:4px 16px}
+  .svs-learn summary{cursor:pointer;padding:10px 0;font-weight:700;color:var(--svs-acc)}
+  .svs-learn p{font-size:13.5px;line-height:1.65;color:#c9dcea}
+  .svs-learn code{font-family:ui-monospace,monospace;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:5px;color:#e6faff}
+  @media (max-width:760px){.svs-cols{grid-template-columns:1fr}.svs-stage{height:380px}.svs-hint{display:none}.svs-hud{font-size:11px;top:50px;left:8px;max-width:calc(100% - 16px)}.svs-panel{padding:12px}}
+</style>
+<div class="svs-wrap" id="svs-root">
+  <h2 id="svs-title" class="svs-h">🧊 3D Shape Volume &amp; Surface Area Calculator</h2>
+  <p id="svs-desc" class="svs-desc">Pick a solid, type its dimensions and watch it rebuild in 3D. Get the volume, total and lateral surface area, capacity in litres and gallons, diagonals and slant heights — with the formula and working shown. Cube, cuboid, sphere, hemisphere, cylinder, cone, frustum, square pyramid, triangular prism, hexagonal prism, torus and ellipsoid.</p>
+  <div class="svs-chips" id="svs-shapes" role="group" aria-label="Shape"></div>
+  <div class="svs-stage" id="svs-stage">
+    <canvas id="svs-canvas" tabindex="0" aria-label="Rotatable 3D model of the selected shape. Drag to orbit."></canvas>
+    <div class="svs-hud" id="svs-hud" aria-live="polite"></div>
+    <div class="svs-tools"><button type="button" class="svs-tb" id="svs-spin" aria-label="Toggle auto-rotate">❚❚</button><button type="button" class="svs-tb" id="svs-reset" aria-label="Reset view">⟲</button><button type="button" class="svs-tb" id="svs-png" aria-label="Save view as PNG">PNG</button><button type="button" class="svs-tb" id="svs-fs" aria-label="Toggle fullscreen">⤢</button></div><div class="svs-hint">drag to orbit · scroll / pinch to zoom · arrows + space when focused</div>
+  </div>
+  <div class="svs-cols">
+    <div class="svs-panel">
+      <h3>Dimensions</h3>
+      <div class="svs-row" id="svs-dims"></div>
+      <div class="svs-row">
+        <div class="svs-f"><label for="svs-unit">Unit</label><select id="svs-unit"><option value="0.001">mm</option><option value="0.01" selected>cm</option><option value="1">m</option><option value="0.0254">in</option><option value="0.3048">ft</option><option value="0.9144">yd</option></select></div>
+        <div class="svs-f"><label for="svs-dp">Decimals</label><select id="svs-dp"><option>2</option><option selected>3</option><option>4</option><option>6</option></select></div>
+      </div>
+      <div class="svs-steps" id="svs-steps" aria-live="polite"></div>
+    </div>
+    <div class="svs-panel"><h3>Results</h3><dl class="svs-out" id="svs-out"></dl></div>
+  </div>
+  <details class="svs-learn">
+    <summary>Formulas &amp; worked example</summary>
+    <p><b>Prisms and cylinders</b> all share <code>V = base area × height</code>. <b>Pyramids and cones</b> are exactly a third of that: <code>V = ⅓ × base × h</code>. A <b>sphere</b> is <code>V = 4⁄3 πr³</code>, <code>A = 4πr²</code> — Archimedes showed it fills two-thirds of its bounding cylinder, volume and area alike.</p>
+    <p><b>Frustum</b> (a cone with the top cut off): <code>V = ⅓πh(R² + Rr + r²)</code>, slant <code>s = √(h² + (R−r)²)</code>, lateral area <code>π(R + r)s</code>. <b>Torus</b>: <code>V = 2π²Rr²</code>, <code>A = 4π²Rr</code> (Pappus's theorems). <b>Ellipsoid</b> area has no closed form; we use Knud Thomsen's approximation (error &lt; 1.1%).</p>
+    <p><b>Capacity</b>: 1 litre = 1000 cm³ = 0.001 m³. 1 US gallon = 3.785 L, 1 imperial gallon = 4.546 L.</p>
+    <p><b>Worked example:</b> a cylinder with r = 5 cm, h = 10 cm has V = π × 25 × 10 ≈ 785.398 cm³ (0.785 L) and total area 2π × 5 × (5 + 10) ≈ 471.239 cm².</p>
+  </details>
+</div>
+
+<script>
+(function(){
+/* ---- tiny canvas 3D engine: orbit camera, shaded faces, depth-sorted. No network. ---- */
+function V3(x,y,z){return [x,y,z];}
+function add(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];}
+function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function scl(a,s){return [a[0]*s,a[1]*s,a[2]*s];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function crs(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function len(a){return Math.sqrt(dot(a,a));}
+function nrm(a){var l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];}
+function Scene(canvas,opt){
+  var S=this,ctx=canvas.getContext('2d');S.yaw=opt.yaw||0.7;S.pitch=opt.pitch||0.45;S.dist=opt.dist||9;S.spin=opt.spin!==false;S.items=[];S.target=opt.target||[0,0,0];
+  S.home={yaw:S.yaw,pitch:S.pitch,dist:S.dist};S.onFrame=null;var W=0,H=0,dpr=1,drag=null,pinch=0,dirty=true,last=0,idle=0;
+  function size(){var r=canvas.getBoundingClientRect();dpr=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;canvas.width=Math.max(1,W*dpr|0);canvas.height=Math.max(1,H*dpr|0);dirty=true;}
+  S.size=size;
+  S.basis=function(){var cy=Math.cos(S.yaw),sy=Math.sin(S.yaw),cp=Math.cos(S.pitch),sp=Math.sin(S.pitch);
+    var f=[-cp*cy,-cp*sy,-sp],r=nrm(crs(f,[0,0,1])),u=crs(r,f);return {f:f,r:r,u:u,eye:sub(S.target,scl(f,S.dist))};};
+  S.proj=function(p,B){var d=sub(p,B.eye),z=dot(d,B.f);if(z<0.05)z=0.05;var k=Math.min(W,H)*1.1/z;return [W/2+dot(d,B.r)*k,H/2-dot(d,B.u)*k,z];};
+  S.clear=function(){S.items=[];dirty=true;};
+  S.face=function(pts,col,alpha,opt2){S.items.push({t:'f',p:pts,c:col,a:alpha==null?1:alpha,o:opt2||{}});};
+  S.line=function(a,b,col,w,dash){S.items.push({t:'l',p:[a,b],c:col,w:w||1.5,d:dash});};
+  S.dotp=function(p,col,r){S.items.push({t:'d',p:[p],c:col,r:r||5});};
+  S.text=function(p,s,col){S.items.push({t:'x',p:[p],s:s,c:col||'#e6faff'});};
+  S.arrow=function(a,b,col,w){S.line(a,b,col,w||2.5);S.items.push({t:'h',p:[a,b],c:col});};
+  S.mesh=function(m,col,alpha,edges){for(var i=0;i<m.length;i++)S.face(m[i],col,alpha,{edge:edges});};
+  S.grid=function(n,step){n=n||5;step=step||1;for(var i=-n;i<=n;i++){var c=i===0?'rgba(160,200,255,.28)':'rgba(140,180,255,.09)';S.line([i*step,-n*step,0],[i*step,n*step,0],c,1);S.line([-n*step,i*step,0],[n*step,i*step,0],c,1);}};
+  S.axes=function(L){L=L||4;S.arrow([0,0,0],[L,0,0],'#f87171',1.6);S.arrow([0,0,0],[0,L,0],'#4ade80',1.6);S.arrow([0,0,0],[0,0,L],'#60a5fa',1.6);S.text([L*1.08,0,0],'x','#f87171');S.text([0,L*1.08,0],'y','#4ade80');S.text([0,0,L*1.08],'z','#60a5fa');};
+  function shade(c,n,B){var L=nrm([0.4,-0.3,0.85]),k=Math.abs(dot(n,L))*0.65+0.35,rim=Math.pow(1-Math.abs(dot(n,B.f)),2)*0.35;return 'rgb('+[0,1,2].map(function(i){return Math.min(255,Math.round(c[i]*k+255*rim*0.5));}).join(',')+')';}
+  S.render=function(){if(!W)return;var B=S.basis();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+    var list=[];for(var i=0;i<S.items.length;i++){var it=S.items[i],pp=it.p.map(function(p){return S.proj(p,B);}),z=0;for(var j=0;j<pp.length;j++)z+=pp[j][2];z/=pp.length;
+      if(it.t==='l'||it.t==='h')z-=0.01;if(it.t==='d'||it.t==='x')z-=0.05;list.push({it:it,pp:pp,z:z});}
+    list.sort(function(a,b){return b.z-a.z;});
+    for(i=0;i<list.length;i++){var o=list[i],it2=o.it,pp2=o.pp;ctx.globalAlpha=1;
+      if(it2.t==='f'){var P=it2.p,n=nrm(crs(sub(P[1],P[0]),sub(P[2],P[0])));ctx.beginPath();ctx.moveTo(pp2[0][0],pp2[0][1]);for(j=1;j<pp2.length;j++)ctx.lineTo(pp2[j][0],pp2[j][1]);ctx.closePath();
+        ctx.globalAlpha=it2.a;ctx.fillStyle=shade(it2.c,n,B);ctx.fill();if(it2.o.edge){ctx.globalAlpha=Math.min(1,it2.a+0.2);ctx.strokeStyle=it2.o.edge;ctx.lineWidth=0.7;ctx.stroke();}else if(it2.a>0.9){ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=0.6;ctx.stroke();}}
+      else if(it2.t==='l'){ctx.beginPath();ctx.moveTo(pp2[0][0],pp2[0][1]);ctx.lineTo(pp2[1][0],pp2[1][1]);ctx.strokeStyle=it2.c;ctx.lineWidth=it2.w;ctx.setLineDash(it2.d?[5,5]:[]);ctx.stroke();ctx.setLineDash([]);}
+      else if(it2.t==='h'){var a=pp2[0],b=pp2[1],ang=Math.atan2(b[1]-a[1],b[0]-a[0]),s=10;ctx.beginPath();ctx.moveTo(b[0],b[1]);ctx.lineTo(b[0]-s*Math.cos(ang-0.4),b[1]-s*Math.sin(ang-0.4));ctx.lineTo(b[0]-s*Math.cos(ang+0.4),b[1]-s*Math.sin(ang+0.4));ctx.closePath();ctx.fillStyle=it2.c;ctx.fill();}
+      else if(it2.t==='d'){var g=ctx.createRadialGradient(pp2[0][0],pp2[0][1],0,pp2[0][0],pp2[0][1],it2.r*2.6);g.addColorStop(0,'#fff');g.addColorStop(0.3,it2.c);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(pp2[0][0],pp2[0][1],it2.r*2.6,0,6.2832);ctx.fill();}
+      else if(it2.t==='x'){ctx.font='600 12px ui-monospace,Menlo,Consolas,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.8)';ctx.strokeText(it2.s,pp2[0][0],pp2[0][1]);ctx.fillStyle=it2.c;ctx.fillText(it2.s,pp2[0][0],pp2[0][1]);}}
+    dirty=false;};
+  S.redraw=function(){dirty=true;};
+  S.reset=function(){S.yaw=S.home.yaw;S.pitch=S.home.pitch;S.dist=S.home.dist;dirty=true;};
+  function clampP(){S.pitch=Math.max(-1.45,Math.min(1.45,S.pitch));S.dist=Math.max(2,Math.min(80,S.dist));dirty=true;}
+  canvas.addEventListener('pointerdown',function(e){drag={x:e.clientX,y:e.clientY};idle=0;canvas.classList.add('is-drag');try{canvas.setPointerCapture(e.pointerId);}catch(_){}});
+  canvas.addEventListener('pointermove',function(e){if(!drag||pinch)return;S.yaw-=(e.clientX-drag.x)*0.01;S.pitch+=(e.clientY-drag.y)*0.01;drag={x:e.clientX,y:e.clientY};clampP();});
+  function up(){drag=null;canvas.classList.remove('is-drag');}
+  canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+  canvas.addEventListener('wheel',function(e){e.preventDefault();S.dist*=Math.exp(e.deltaY*0.001);clampP();},{passive:false});
+  canvas.addEventListener('touchmove',function(e){if(e.touches.length===2){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinch)S.dist*=pinch/d;pinch=d;clampP();e.preventDefault();}},{passive:false});
+  canvas.addEventListener('touchend',function(){pinch=0;});
+  canvas.addEventListener('keydown',function(e){var k=e.key;if(k==='ArrowLeft')S.yaw+=0.1;else if(k==='ArrowRight')S.yaw-=0.1;else if(k==='ArrowUp')S.pitch+=0.1;else if(k==='ArrowDown')S.pitch-=0.1;else if(k==='+'||k==='=')S.dist*=0.9;else if(k==='-')S.dist*=1.1;else if(k===' '){S.spin=!S.spin;}else return;e.preventDefault();clampP();});
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(reduce)S.spin=false;
+  function loop(t){if(!canvas.isConnected)return;var dt=Math.min(0.05,(t-last)/1000||0);last=t;if(S.spin&&!drag){idle+=dt;if(idle>0.6){S.yaw+=dt*0.25;dirty=true;}}if(S.onFrame)S.onFrame(dt);if(dirty)S.render();requestAnimationFrame(loop);}
+  if(window.ResizeObserver)new ResizeObserver(size).observe(canvas);else window.addEventListener('resize',size);
+  size();requestAnimationFrame(loop);
+}
+function fmt(x,d){if(!isFinite(x))return '—';d=d==null?4:d;var a=Math.abs(x);if(a!==0&&(a>=1e7||a<1e-4))return x.toExponential(3);var s=(+x.toFixed(d)).toString();return s==='-0'?'0':s;}
+function hexrgb(h){h=h.replace('#','');return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)];}
+function outRows(dl,rows,P){while(dl.firstChild)dl.removeChild(dl.firstChild);rows.forEach(function(r){if(typeof r==='string'){var s=document.createElement('dt');s.className=P+'-sec';s.textContent=r;dl.appendChild(s);return;}
+  var dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=r[0];dd.textContent=r[1];if(r[2])dd.className=P+'-'+r[2];dl.appendChild(dt);dl.appendChild(dd);});}
+function wire(S){$('spin').addEventListener('click',function(){S.spin=!S.spin;this.textContent=S.spin?'❚❚':'▶';});$('reset').addEventListener('click',S.reset);
+$('png').addEventListener('click',function(){S.render();var a=document.createElement('a');a.download='svs-3d.png';a.href=$('canvas').toDataURL('image/png');a.click();});
+$('fs').addEventListener('click',function(){var st=$('stage');if(document.fullscreenElement)document.exitFullscreen();else if(st.requestFullscreen)st.requestFullscreen();});}
+function $(id){return document.getElementById('svs-'+id);}
+var PI=Math.PI,S,cur='cylinder',D={};
+var SH={
+ cube:{n:'Cube',d:[['a','Edge a',4]]},
+ cuboid:{n:'Cuboid',d:[['l','Length l',6],['w','Width w',4],['h','Height h',3]]},
+ sphere:{n:'Sphere',d:[['r','Radius r',3]]},
+ hemisphere:{n:'Hemisphere',d:[['r','Radius r',3]]},
+ cylinder:{n:'Cylinder',d:[['r','Radius r',5],['h','Height h',10]]},
+ cone:{n:'Cone',d:[['r','Radius r',3],['h','Height h',6]]},
+ frustum:{n:'Frustum',d:[['R','Bottom radius R',4],['r','Top radius r',2],['h','Height h',5]]},
+ pyramid:{n:'Square pyramid',d:[['a','Base edge a',5],['h','Height h',6]]},
+ triprism:{n:'Triangular prism',d:[['a','Triangle side a',4],['b','Side b',4],['c','Side c',4],['l','Length l',7]]},
+ hexprism:{n:'Hexagonal prism',d:[['a','Hex edge a',2],['h','Height h',5]]},
+ torus:{n:'Torus',d:[['R','Major radius R',4],['r','Tube radius r',1.3]]},
+ ellipsoid:{n:'Ellipsoid',d:[['a','Semi-axis a',4],['b','Semi-axis b',2.5],['c','Semi-axis c',2]]}
+};
+function calc(k,d){var r={},x;switch(k){
+ case 'cube':r.V=Math.pow(d.a,3);r.A=6*d.a*d.a;r.L=4*d.a*d.a;r.extra=[['Space diagonal',d.a*Math.sqrt(3)],['Face diagonal',d.a*Math.SQRT2]];r.f='V = a³ = '+d.a+'³\nA = 6a²';break;
+ case 'cuboid':r.V=d.l*d.w*d.h;r.A=2*(d.l*d.w+d.l*d.h+d.w*d.h);r.L=2*d.h*(d.l+d.w);r.extra=[['Space diagonal',Math.sqrt(d.l*d.l+d.w*d.w+d.h*d.h)]];r.f='V = l·w·h = '+d.l+'·'+d.w+'·'+d.h+'\nA = 2(lw + lh + wh)';break;
+ case 'sphere':r.V=4/3*PI*Math.pow(d.r,3);r.A=4*PI*d.r*d.r;r.extra=[['Diameter',2*d.r],['Great-circle circumference',2*PI*d.r]];r.f='V = 4⁄3·π·r³ = 4⁄3·π·'+d.r+'³\nA = 4πr²';break;
+ case 'hemisphere':r.V=2/3*PI*Math.pow(d.r,3);r.A=3*PI*d.r*d.r;r.L=2*PI*d.r*d.r;r.extra=[['Base area',PI*d.r*d.r]];r.f='V = 2⁄3·π·r³\nA = 3πr² (curved 2πr² + base πr²)';break;
+ case 'cylinder':r.V=PI*d.r*d.r*d.h;r.A=2*PI*d.r*(d.r+d.h);r.L=2*PI*d.r*d.h;r.extra=[['Base area',PI*d.r*d.r],['Diagonal',Math.sqrt(4*d.r*d.r+d.h*d.h)]];r.f='V = π·r²·h = π·'+d.r+'²·'+d.h+'\nA = 2πr(r + h)';break;
+ case 'cone':x=Math.sqrt(d.r*d.r+d.h*d.h);r.V=PI*d.r*d.r*d.h/3;r.L=PI*d.r*x;r.A=r.L+PI*d.r*d.r;r.extra=[['Slant height s',x],['Apex half-angle',Math.atan(d.r/d.h)*180/PI,'°']];r.f='V = ⅓·π·r²·h\ns = √(r² + h²)\nA = πr(r + s)';break;
+ case 'frustum':x=Math.sqrt(d.h*d.h+Math.pow(d.R-d.r,2));r.V=PI*d.h*(d.R*d.R+d.R*d.r+d.r*d.r)/3;r.L=PI*(d.R+d.r)*x;r.A=r.L+PI*(d.R*d.R+d.r*d.r);r.extra=[['Slant height s',x]];r.f='V = ⅓·π·h·(R² + Rr + r²)\ns = √(h² + (R − r)²)\nA = π(R + r)s + πR² + πr²';break;
+ case 'pyramid':x=Math.sqrt(d.h*d.h+d.a*d.a/4);r.V=d.a*d.a*d.h/3;r.L=2*d.a*x;r.A=r.L+d.a*d.a;r.extra=[['Slant height (face)',x],['Lateral edge',Math.sqrt(d.h*d.h+d.a*d.a/2)]];r.f='V = ⅓·a²·h\ns = √(h² + (a/2)²)\nA = a² + 2as';break;
+ case 'triprism':var s=(d.a+d.b+d.c)/2,t=s*(s-d.a)*(s-d.b)*(s-d.c);if(t<=0){r.err='Those three sides cannot form a triangle (triangle inequality).';break;}x=Math.sqrt(t);r.V=x*d.l;r.L=(d.a+d.b+d.c)*d.l;r.A=r.L+2*x;r.extra=[['Triangle area (Heron)',x]];r.f='Heron: T = √(s(s−a)(s−b)(s−c)), s = '+fmt(s)+'\nV = T·l\nA = 2T + (a+b+c)·l';break;
+ case 'hexprism':x=3*Math.sqrt(3)/2*d.a*d.a;r.V=x*d.h;r.L=6*d.a*d.h;r.A=r.L+2*x;r.extra=[['Hexagon area',x],['Across flats',d.a*Math.sqrt(3)]];r.f='Hex area = (3√3⁄2)·a²\nV = hex·h\nA = 2·hex + 6ah';break;
+ case 'torus':if(d.r>d.R){r.err='Tube radius r must not exceed major radius R.';break;}r.V=2*PI*PI*d.R*d.r*d.r;r.A=4*PI*PI*d.R*d.r;r.extra=[['Outer diameter',2*(d.R+d.r)],['Hole diameter',2*(d.R-d.r)]];r.f='V = 2π²·R·r²\nA = 4π²·R·r';break;
+ case 'ellipsoid':var p=1.6075,ap=Math.pow(d.a,p),bp=Math.pow(d.b,p),cp=Math.pow(d.c,p);r.V=4/3*PI*d.a*d.b*d.c;r.A=4*PI*Math.pow((ap*bp+ap*cp+bp*cp)/3,1/p);r.approx=1;r.f='V = 4⁄3·π·a·b·c\nA ≈ 4π((aᵖbᵖ + aᵖcᵖ + bᵖcᵖ)/3)^(1/p), p = 1.6075';break;}
+ return r;}
+/* ---------- meshes ---------- */
+function rev(prof,seg){var m=[];for(var i=0;i<seg;i++){var a0=i/seg*2*PI,a1=(i+1)/seg*2*PI;for(var j=0;j<prof.length-1;j++){var p=prof[j],q=prof[j+1];
+  var A=[p[0]*Math.cos(a0),p[0]*Math.sin(a0),p[1]],B=[p[0]*Math.cos(a1),p[0]*Math.sin(a1),p[1]],C=[q[0]*Math.cos(a1),q[0]*Math.sin(a1),q[1]],E=[q[0]*Math.cos(a0),q[0]*Math.sin(a0),q[1]];
+  if(p[0]<1e-9)m.push([A,C,E]);else if(q[0]<1e-9)m.push([A,B,C]);else m.push([A,B,C,E]);}}return m;}
+function prism(poly,h){var m=[],n=poly.length,bot=poly.map(function(p){return [p[0],p[1],0];}),top=poly.map(function(p){return [p[0],p[1],h];});
+  m.push(bot.slice().reverse());m.push(top);for(var i=0;i<n;i++){var j=(i+1)%n;m.push([bot[i],bot[j],top[j],top[i]]);}return m;}
+function build(k,d){var seg=40,i,pr=[];switch(k){
+ case 'cube':return prism([[-d.a/2,-d.a/2],[d.a/2,-d.a/2],[d.a/2,d.a/2],[-d.a/2,d.a/2]],d.a);
+ case 'cuboid':return prism([[-d.l/2,-d.w/2],[d.l/2,-d.w/2],[d.l/2,d.w/2],[-d.l/2,d.w/2]],d.h);
+ case 'sphere':for(i=0;i<=18;i++){var t=-PI/2+i/18*PI;pr.push([d.r*Math.cos(t),d.r+d.r*Math.sin(t)]);}return rev(pr,seg);
+ case 'hemisphere':pr.push([0,0]);for(i=0;i<=10;i++){var t2=i/10*PI/2;pr.push([d.r*Math.cos(t2),d.r*Math.sin(t2)]);}return rev(pr,seg);
+ case 'cylinder':return rev([[0,0],[d.r,0],[d.r,d.h],[0,d.h]],seg);
+ case 'cone':return rev([[0,0],[d.r,0],[0,d.h]],seg);
+ case 'frustum':return rev([[0,0],[d.R,0],[d.r,d.h],[0,d.h]],seg);
+ case 'pyramid':var a=d.a/2,T=[0,0,d.h],b=[[-a,-a,0],[a,-a,0],[a,a,0],[-a,a,0]];return [b.slice().reverse(),[b[0],b[1],T],[b[1],b[2],T],[b[2],b[3],T],[b[3],b[0],T]];
+ case 'triprism':var cx=(d.a*d.a+d.c*d.c-d.b*d.b)/(2*d.a),cy=Math.sqrt(Math.max(0,d.c*d.c-cx*cx)),P=[[0,0],[d.a,0],[cx,cy]],mx=(d.a+cx)/3,my=cy/3;
+   return prism(P.map(function(p){return [p[0]-mx,p[1]-my];}),d.l).map(function(f){return f.map(function(v){return [v[0],v[2]-d.l/2,v[1]+my];});});
+ case 'hexprism':var hp=[];for(i=0;i<6;i++)hp.push([d.a*Math.cos(i*PI/3),d.a*Math.sin(i*PI/3)]);return prism(hp,d.h);
+ case 'torus':var m=[],n1=40,n2=18;for(i=0;i<n1;i++)for(var j=0;j<n2;j++){var u0=i/n1*2*PI,u1=(i+1)/n1*2*PI,v0=j/n2*2*PI,v1=(j+1)/n2*2*PI;
+   var q=function(u,v){return [(d.R+d.r*Math.cos(v))*Math.cos(u),(d.R+d.r*Math.cos(v))*Math.sin(u),d.r+d.r*Math.sin(v)];};m.push([q(u0,v0),q(u1,v0),q(u1,v1),q(u0,v1)]);}return m;
+ case 'ellipsoid':for(i=0;i<=18;i++){var t3=-PI/2+i/18*PI;pr.push([Math.cos(t3),1+Math.sin(t3)]);}return rev(pr,seg).map(function(f){return f.map(function(v){return [v[0]*d.a,v[1]*d.b,v[2]*d.c];});});}
+ return [];}
+function draw(){var sh=SH[cur],d={};sh.d.forEach(function(x){d[x[0]]=D[cur][x[0]];});var dp=+$('dp').value,uS=$('unit').selectedOptions[0].text,u=+$('unit').value,r=calc(cur,d);
+ var m=build(cur,d),mx=0;m.forEach(function(f){f.forEach(function(v){mx=Math.max(mx,Math.abs(v[0]),Math.abs(v[1]),v[2]);});});var k=mx>0?4/mx:1;
+ S.clear();S.grid(5,1);m.forEach(function(f){S.face(f.map(function(v){return scl(v,k);}),hexrgb('#34d399'),0.82,'rgba(190,255,230,.35)');});S.target=[0,0,Math.min(2.2,mx*k/2)];S.redraw();
+ if(r.err){outRows($('out'),[['Error',r.err,'warn']],'svs');$('steps').textContent='';$('hud').textContent=r.err;return;}
+ var m3=Math.pow(u,3),rows=[[ 'Volume',fmt(r.V,dp)+' '+uS+'³','big'],['Total surface area',(r.approx?'≈ ':'')+fmt(r.A,dp)+' '+uS+'²','big']];
+ if(r.L!=null)rows.push(['Lateral / curved area',fmt(r.L,dp)+' '+uS+'²']);
+ (r.extra||[]).forEach(function(e){rows.push([e[0],fmt(e[1],dp)+(e[2]||' '+uS)]);});
+ rows.push('Capacity',['Litres',fmt(r.V*m3*1000,dp)+' L'],['Cubic metres',fmt(r.V*m3,dp+2)+' m³'],['US gallons',fmt(r.V*m3*1000/3.785411784,dp)],['Imperial gallons',fmt(r.V*m3*1000/4.54609,dp)],['Area/volume ratio',fmt(r.A/r.V,dp)+' /'+uS]);
+ outRows($('out'),rows,'svs');$('steps').textContent=r.f+'\n\n→ V = '+fmt(r.V,dp)+' '+uS+'³\n→ A = '+fmt(r.A,dp)+' '+uS+'²';
+ $('hud').textContent=sh.n+'\nV = '+fmt(r.V,dp)+' '+uS+'³   A = '+fmt(r.A,dp)+' '+uS+'²';}
+function pick(k){cur=k;var box=$('dims');while(box.firstChild)box.removeChild(box.firstChild);
+ SH[k].d.forEach(function(x){var w=document.createElement('div');w.className='svs-f';var l=document.createElement('label');l.textContent=x[1];l.htmlFor='svs-d-'+x[0];var i=document.createElement('input');i.type='number';i.min='0';i.step='any';i.id='svs-d-'+x[0];i.value=D[k][x[0]];
+  i.addEventListener('input',function(){var v=parseFloat(i.value);if(isFinite(v)&&v>0){D[k][x[0]]=Math.min(1e9,v);draw();}});w.appendChild(l);w.appendChild(i);box.appendChild(w);});
+ Array.prototype.forEach.call($('shapes').children,function(b){b.classList.toggle('svs-on',b.dataset.k===k);b.setAttribute('aria-pressed',b.dataset.k===k);});draw();}
+function init(){Object.keys(SH).forEach(function(k){D[k]={};SH[k].d.forEach(function(x){D[k][x[0]]=x[2];});var b=document.createElement('button');b.type='button';b.className='svs-chip';b.dataset.k=k;b.textContent=SH[k].n;b.addEventListener('click',function(){pick(k);});$('shapes').appendChild(b);});
+ S=new Scene($('canvas'),{dist:11,pitch:0.5});wire(S);$('unit').addEventListener('change',draw);$('dp').addEventListener('change',draw);pick('cylinder');}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){if(document.getElementById('svs-root'))init();});}else if(document.getElementById('svs-root'))init();
+})();
+</script>

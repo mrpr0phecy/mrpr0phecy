@@ -182,6 +182,9 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'coordinate-converter-3d': 'Mathematics',
+  'lines-planes-3d-calculator': 'Mathematics',
+  'shape-volume-surface-area-3d': 'Mathematics',
   // 2026-09-23 — "roots of the system" trio: circular economy, food sovereignty,
   // and bank-free community money. Keyword audit found no existing tool doing each job.
   'repair-or-replace': 'Home & DIY',
