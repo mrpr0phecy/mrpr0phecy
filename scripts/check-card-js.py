@@ -20,6 +20,11 @@ Efficiency: every block is compiled in a SINGLE node process (vm.Script), not
 one `node --check` subprocess per block. A full 1,200-card sweep takes ~1–2 s
 instead of ~30 s of process spawning.
 
+It also catches one shape that compiles perfectly and freezes the browser: a
+`while (x.length …)` loop over a `querySelectorAll` result. That NodeList is
+static, so removing nodes never shortens it and the loop runs for ever —
+`cards/quiz.html`'s Clear button did exactly that.
+
 Usage:
     python3 scripts/check-card-js.py           # only cards changed vs HEAD (fast)
     python3 scripts/check-card-js.py --all     # every card (~2s)
@@ -42,6 +47,67 @@ SCRIPT_RE = re.compile(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S)
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 SRC_SCRIPT_RE = re.compile(r"<script\b[^>]*\bsrc=[^>]*>\s*</script\s*>", re.S | re.I)
 LEFTOVER_SCRIPT_RE = re.compile(r"<script\b", re.I)
+
+# A `while` loop over a collection that cannot shrink is a frozen tab.
+# `querySelectorAll` returns a STATIC NodeList: `list.length` does not change
+# when a node is removed, so
+#
+#     const options = container.querySelectorAll('.option-item');
+#     while (options.length > 2) options[options.length - 1].remove();
+#
+# removes the same detached node for ever. `cards/quiz.html` shipped exactly
+# that on 2026-09-22 (add a third option, press Clear, lose the tab), and it
+# cost the catalogue sweep ten minutes of CPU with no card named. `children`,
+# `getElementsByTagName` and friends ARE live collections and are skipped.
+STATIC_COLLECTION = re.compile(
+    r"(?:const|let|var)\s+(\w+)\s*=\s*[^;\n]*?"
+    r"(querySelectorAll|querySelector)\s*\(")
+LIVE_COLLECTION = ("children", "getElementsByClassName", "getElementsByTagName",
+                   "getElementsByName", "getElementsByTagNameNS")
+WHILE_ON_LENGTH = re.compile(
+    r"while\s*\(\s*(\w+)\.length\s*(?:[<>=!]+\s*[\w.]+\s*)?\)")
+# Any of these means the loop makes progress and is not the bug.
+LOOP_PROGRESS = (
+    r"\b{name}\s*=[^=]|\b{name}\.(pop|shift|splice)\s*\("
+    r"|\b{name}\.length\s*=[^=]|(\w+)\s*(?:\+\+|--|\+=|-=)")
+
+
+def static_collection_loops(text: str) -> list[str]:
+    """Cards with a `while (x.length …)` over a collection that never shrinks."""
+    out: list[str] = []
+    for m in re.finditer(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", text, re.S):
+        body = m.group(1)
+        declared = {}
+        for d in STATIC_COLLECTION.finditer(body):
+            declared[d.group(1)] = d.group(2)
+        for w in WHILE_ON_LENGTH.finditer(body):
+            name = w.group(1)
+            if name not in declared:
+                continue
+            start = body.find("{", w.end())
+            if start < 0:
+                continue
+            depth, i = 0, start
+            while i < len(body):
+                if body[i] == "{":
+                    depth += 1
+                elif body[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            loop = body[start:i]
+            if re.search(LOOP_PROGRESS.format(name=re.escape(name)), loop):
+                continue
+            if not (re.search(rf"\.(remove|removeChild)\s*\(", loop)
+                    or f"{name}[{name}.length" in loop
+                    or f"{name}.removeChild" in loop):
+                continue
+            line = text[:m.start()].count("\n") + body[:w.start()].count("\n") + 1
+            out.append(f"{w.group(0).strip()} at line {line} iterates a {declared[name]}() "
+                       f"collection, which is STATIC — removing nodes does not shrink it, so "
+                       f"this loop never ends. Use Array.from(...) and pop(), or re-query.")
+    return out
 
 # There is no allowlist here any more. Eight cards (clip-short,
 # electrical-standards, fitnesscore, genetics, interval-trainer, mealplanner,
@@ -135,6 +201,8 @@ def main() -> int:
             if not src.strip():
                 continue
             blocks.append({"name": f"{f} (script block {i})", "src": src})
+        for message in static_collection_loops(text):
+            fails.append(f"{f}: {message}")
 
     if blocks:
         tmp = tempfile.mkdtemp(prefix="cardjs-")

@@ -8,7 +8,7 @@
 
 ## Post (the daily.dev "Submit a post" form)
 
-**Title:** `I built 562 free browser-side tools in 2 years. Vanilla JS, no build, no npm.`
+**Title:** `I built 1,250 free browser-side tools in 2 years. Vanilla JS, no build, no npm.`
 
 **URL:** https://www.themostusefulsiteintheworld.com
 
@@ -20,13 +20,13 @@
 
 ## The post text (the daily.dev post body)
 
-> I\'m a developer in Luton, UK. For the last 2 years I\'ve been building a site with 562 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, and 550+ more.
+> I\'m a developer in Luton, UK. For the last 2 years I\'ve been building a site with 1,250 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, and 1,200+ more.
 >
-> The whole thing is **vanilla JavaScript, no framework, no build step, no npm, no TypeScript, no bundler.** Each tool is one HTML file. The total repo is 47 MB, of which ~14 MB is the tools themselves and the rest is screenshots for the help docs.
+> The whole thing is **vanilla JavaScript, no framework, no build step, no npm, no TypeScript, no bundler.** Each tool is one HTML file. The repo is about 89 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
 >
 > **The architecture in 60 seconds:**
-> - `cards/<tool-name>.html` — one file per tool, 562 files
-> - `cards/cards.json` — a single JSON file with all 562 entries (id, name, title, description, category, file)
+> - `cards/<tool-name>.html` — one file per tool, 1,250 card files
+> - `cards/cards.json` — a single JSON file describing all 1,250 cards (id, name, title, description, category, file)
 > - `index.html` — the home page, driven by the JSON, with a client-side category filter
 > - `tool.html?card=<name>` — a shim that reads the URL and injects the tool
 > - A build script that runs on my laptop before I push and regenerates the sitemap, RSS, llms.txt, related.json, and the home page from the JSON
@@ -35,7 +35,7 @@
 > I made a deliberate choice to ship no ad networks, no retargeting pixels, no sponsored-content blocks, no upsell modals. View source on any page and you will not find an ad slot — because the markup is the page, and the page is the tool. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None of them are advertising.)
 >
 > **Open source:**
-> The repo is at https://github.com/mrpr0phecy/mrpr0phecy. The contribution guide is in `CONTRIBUTING.md`. The issue templates are pre-filled for tool requests, bug reports, and content/SEO feedback. About 30 outside contributors in 2 years.
+> The repo is at https://github.com/mrpr0phecy/mrpr0phecy. The contribution guide is in `CONTRIBUTING.md`. The issue templates are pre-filled for tool requests, bug reports, and content/SEO feedback. A handful of outside contributions in 2 years.
 >
 > **What I\'d love feedback on from this community:**
 > 1. Is the JSON-driven architecture sustainable? Adding a tool is a 3-step process (write the HTML, add a JSON entry, run the build). It\'s been great for me as a solo dev, but I am not sure it scales to a 10-person team.

@@ -430,6 +430,12 @@
    - Educational focus with explanations
 */
 
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a modal, a share dialog or a live region parked there stays
+   behind after the visitor moves to another tool. */
+const mqRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
 // ========== GLOBAL STATE ==========
 const mq = {
   // Quiz state
@@ -529,6 +535,10 @@ const mq = {
 
 // ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('music-quiz-title')) return;
   // Load saved data
   mqLoadData();
   
@@ -923,7 +933,7 @@ function mqShowCategories() {
     </div>
   `;
   
-  document.body.appendChild(modal);
+  mqRoot.appendChild(modal);
 }
 
 function countQuestionsByCategory(category) {
@@ -1195,7 +1205,14 @@ function updateNavigationButtons() {
 function mqHint() {
   const question = mq.questions[mq.currentQuestionIndex];
   const hintBtn = document.getElementById('mq-hint-btn');
-  
+
+  // Hint before a quiz has been generated (or after the list was cleared):
+  // there is no question to hint at, and reading .type off it threw.
+  if (!question) {
+    showNotification('Start a quiz first — there is no question to hint at.', 'info');
+    return;
+  }
+
   if (question.type === 'multiple-choice' && question.answers.length >= 4) {
     // Eliminate two wrong answers
     const wrongAnswers = question.answers
@@ -1409,7 +1426,7 @@ function mqReviewAnswers() {
     </div>
   `;
   
-  document.body.appendChild(modal);
+  mqRoot.appendChild(modal);
 }
 
 function mqShareResults() {
@@ -1444,7 +1461,7 @@ function mqShareResults() {
             </div>
           </div>
         `;
-        document.body.appendChild(shareDiv);
+        mqRoot.appendChild(shareDiv);
       });
   }
 }
@@ -1764,6 +1781,9 @@ function mqImportQuestions() {
 
 function mqPrintQuiz() {
   const printWindow = window.open('', '_blank');
+  // Pop-ups can be blocked, in which case window.open returns null and
+  // writing to it threw instead of saying so.
+  if (!printWindow) { alert('Popup blocked: allow pop-ups for this site to print.'); return; }
   
   const category = document.getElementById('mq-category').value;
   const difficulty = document.getElementById('mq-difficulty').value;
@@ -1987,7 +2007,7 @@ function announceToScreenReader(message) {
     region.setAttribute('aria-live', 'polite');
     region.setAttribute('aria-atomic', 'true');
     region.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;';
-    document.body.appendChild(region);
+    mqRoot.appendChild(region);
     return region;
   })();
   

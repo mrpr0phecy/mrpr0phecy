@@ -166,7 +166,7 @@ now — all of them unchanged in kind, none of them new in number:
 The traffic logic is unchanged and worth repeating: donations convert at
 0.01–0.1% and sponsorships need a number to quote, so **the list pages are
 larger traffic surfaces than the old home grid was** — they are the pages that
-rank (the index, the directory, 28 category hubs) and the pages a visitor can
+rank (the index, the directory, 29 category hubs) and the pages a visitor can
 land on from a search result. Making them better lists is the traffic work;
 this section is only where the money sits inside it.
 

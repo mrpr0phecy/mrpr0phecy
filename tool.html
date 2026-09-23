@@ -529,6 +529,24 @@
             setTimeout(() => toast.classList.remove('show'), 2500);
         }
 
+        // Six older cards end with a "support this site" link written as
+        // `href="#contributionsPanel" onclick="showContributionsPanel()"`. The
+        // panel it names is on index.html, and nothing ever defined the
+        // function: every one of those links threw a ReferenceError and, since
+        // this page has no #contributionsPanel either, went nowhere. The host
+        // page answers the call, because a card fragment cannot know the site
+        // root it was served from.
+        function showContributionsPanel() {
+            const panel = document.getElementById('contributionsPanel');
+            if (panel && typeof panel.showPopover === 'function') {
+                panel.showPopover();
+                return;
+            }
+            // This page has no panel of its own, so the visitor goes to the one
+            // that has one.
+            location.href = 'index.html#contributionsPanel';
+        }
+
         // ==== Embed mode (?embed=1) — the contract documented in llms.txt and
         // agents.html: page chrome is stripped (CSS on body.embed-mode) and
         // the frame height is auto-reported via postMessage. ====
@@ -828,6 +846,28 @@
                 container.appendChild(toolBuildError(cardName, err.message));
             }
 
+            // Render related tools even when the tool itself failed to load —
+            // the visitor still needs somewhere useful to go. If we have no
+            // metadata for this tool (catalogue also failed), show random
+            // popular tools from the catalogue instead.
+            renderRelated();
+
+            // Keyboard shortcuts for the tool page
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+                var tag = e.target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+                if (e.key === '/') {
+                    e.preventDefault();
+                    location.href = 'index.html';
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    if (window.history.length > 1) window.history.back();
+                    else location.href = 'index.html';
+                }
+            });
+
             // Auto-height for embedders (documented postMessage contract).
             if (embedMode) {
                 toolReportEmbedHeight(cardName);
@@ -865,38 +905,79 @@
                 `;
             }
 
-            // Render Related Tools (same category + tag/keyword overlap)
-            if (allCards.length > 0 && currentMeta) {
-                const myWords = new Set((currentMeta.title + ' ' + (currentMeta.description || '') + ' ' + currentMeta.name).toLowerCase().split(/\W+/).filter(w => w.length > 3));
-                const candidates = allCards.filter(c => c.name !== currentMeta.name);
-                
-                // Score candidates: same category (+10), shared keywords (+2 each)
-                const scored = candidates.map(c => {
-                    let score = (c.category === category) ? 10 : 0;
-                    const cWords = (c.title + ' ' + (c.description || '') + ' ' + c.name).toLowerCase().split(/\W+/);
-                    for (const w of cWords) {
-                        if (w.length > 3 && myWords.has(w)) score += 2;
-                    }
-                    return { card: c, score };
-                });
+            // Render Related Tools
+            // Use pre-computed related.json (ranked by build scripts)
+            // instead of loading the full cards.json and doing client-side
+            // keyword matching. The pre-computed version is faster (one targeted
+            // lookup vs scoring 1,249 candidates) and better (built from richer
+            // signals than word overlap).
+            async function renderRelated() {
+                let relatedSlugs = [];
+                // Only fetch related.json if we know which tool this is
+                if (currentMeta) {
+                    try {
+                        const relRes = await fetchWithTimeout('related.json', 8000);
+                        if (relRes && relRes.ok) {
+                            const relData = await relRes.json();
+                            relatedSlugs = (relData[cardName] || []).slice(0, 4);
+                        }
+                    } catch (e) { /* related.json unavailable — skip silently */ }
+                }
 
-                scored.sort((a, b) => b.score - a.score);
-                const related = scored.slice(0, 4).map(s => s.card);
+                // Fall back to same-category tools from the lite catalogue if
+                // related.json has nothing for this tool (should not happen for
+                // any tool in the catalogue, but a custom slug could).
+                let related = [];
+                if (relatedSlugs.length > 0) {
+                    // Preserve the ranking order from related.json
+                    related = relatedSlugs
+                        .map(s => allCards.find(c => c.name === s))
+                        .filter(Boolean);
+                }
+                if (related.length === 0 && allCards.length > 0) {
+                    // No related.json match — same-category first, then any tools
+                    const same = category !== 'General Tool'
+                        ? allCards.filter(c => c.name !== cardName && c.category === category)
+                        : allCards.filter(c => c.name !== cardName);
+                    related = same.slice(0, 4);
+                }
 
                 if (related.length > 0) {
                     const grid = document.getElementById('relatedGrid');
                     const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                    grid.innerHTML = related.map(c => `
-                        <a href="tool.html?card=${encodeURIComponent(c.name)}" class="related-card">
-                            <div class="related-card-title">${c.title}</div>
-                            <div class="related-card-desc">${c.description || 'Quick, free online calculator.'}</div>
-                        </a>
-                    `).join('') + `
-                        <a href="categories/${catSlug}.html" class="related-card" style="border-color:rgba(45,212,255,0.4);background:rgba(45,212,255,0.06);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
-                            <div class="related-card-title" style="color:var(--accent);">📂 Explore Category</div>
-                            <div class="related-card-desc" style="color:var(--text);">All free ${category} tools →</div>
-                        </a>
-                    `;
+                    // DOM-built with textContent: titles and descriptions come from
+                    // cards.json and must never touch innerHTML.
+                    grid.innerHTML = '';
+                    related.forEach(c => {
+                        const a = document.createElement('a');
+                        a.href = 'tool.html?card=' + encodeURIComponent(c.name);
+                        a.className = 'related-card';
+                        const titleDiv = document.createElement('div');
+                        titleDiv.className = 'related-card-title';
+                        titleDiv.textContent = c.title;
+                        const descDiv = document.createElement('div');
+                        descDiv.className = 'related-card-desc';
+                        descDiv.textContent = c.description || 'Quick, free online calculator.';
+                        a.appendChild(titleDiv);
+                        a.appendChild(descDiv);
+                        grid.appendChild(a);
+                    });
+                    // Category exploration link
+                    const catLink = document.createElement('a');
+                    catLink.href = 'categories/' + catSlug + '.html';
+                    catLink.className = 'related-card';
+                    catLink.style.cssText = 'border-color:rgba(45,212,255,0.4);background:rgba(45,212,255,0.06);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;';
+                    const catTitle = document.createElement('div');
+                    catTitle.className = 'related-card-title';
+                    catTitle.style.color = 'var(--accent)';
+                    catTitle.textContent = '\uD83D\uDCC2 Explore Category';
+                    const catDesc = document.createElement('div');
+                    catDesc.className = 'related-card-desc';
+                    catDesc.style.color = 'var(--text)';
+                    catDesc.textContent = 'All free ' + category + ' tools \u2192';
+                    catLink.appendChild(catTitle);
+                    catLink.appendChild(catDesc);
+                    grid.appendChild(catLink);
                     document.getElementById('relatedSection').style.display = 'block';
                 }
             }

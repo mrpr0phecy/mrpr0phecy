@@ -10,11 +10,11 @@
 
 > **1/8**
 >
-> I spent 2 years building a site with 562 free browser-side tools.
+> I spent 2 years building a site with 1,250 free browser-side tools.
 >
 > Mortgage calculator. BMI. Compound interest. Password generator. BPM tapper. JSON formatter. Eyepiece calculator. Invoice generator. Sleep cycle planner. Colour contrast checker.
 >
-> 550+ more. All free. All in the browser. No accounts, no display ads, no upsell.
+> 1,200+ more. All free. All in the browser. No accounts, no display ads, no upsell.
 >
 > Here\'s how ↓
 >
@@ -24,12 +24,12 @@
 >
 > The architecture is intentionally boring.
 >
-> • 562 separate HTML files, one per tool
-> • 1 JSON file with all 562 entries
+> • 1,250 separate card files, one per tool
+> • 1 JSON file with an entry for each of the 1,250 cards
 > • 1 home page that reads the JSON
 > • 1 build script that regenerates the sitemap, RSS, and embed page from the JSON
 >
-> No npm. No framework. No build step. Total repo: 47 MB.
+> No npm. No framework. No build step. Total repo: about 89 MB.
 
 > **3/8**
 >
@@ -67,7 +67,7 @@
 >
 > The numbers.
 >
-> 562 tools. 47 MB repo. £8/month hosting. £34.50 in donations over 9 months. 30 outside contributors. 12 long-form guides. 3 blog posts. 1 person, evenings and weekends, in Luton, UK.
+> 1,250 tools. A repo of about 89 MB. £8/month hosting. £34.50 in donations over 9 months. 12 long-form guides. 3 blog posts. 1 person, evenings and weekends, in Luton, UK.
 >
 > The site is not a startup. It is a hobby that has grown.
 

@@ -15,8 +15,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPECT = r"https://www\.themostusefulsiteintheworld\.com"
-# Documented deliberate exceptions (ARCHITECTURE.md §7/§9)
-EXCEPTIONS = {"hokidea.html"}
+# Pages allowed to have no <title>: a deliberate, reviewed exception
+# (ARCHITECTURE.md §7/§9). The set is empty because its only entry,
+# hokidea.html, was a 145-byte scratch page deleted on 2026-09-20 — an
+# exception for a file that is not in the repository exempts nothing and is
+# only a name to mis-trust later. Keep the mechanism; add a page here only
+# when it is really shipping.
+EXCEPTIONS: set = set()
 
 fails: list[str] = []
 warns: list[str] = []

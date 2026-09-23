@@ -198,6 +198,14 @@
     catsEl.querySelector('[data-cat="'+activeCat+'"]').style.background='#2a2a10';
     catsEl.querySelector('[data-cat="'+activeCat+'"]').style.color='#f0e040';
   }
+  function copyExample(ex,row){
+    const flash=()=>{row.style.borderColor='#f0e040';setTimeout(()=>row.style.borderColor='#1a1a10',800);};
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(ex).then(flash,flash);
+    }else{
+      flash();
+    }
+  }
   function render(){
     const q=searchEl.value.toLowerCase().trim();
     let filtered=cmds;
@@ -205,7 +213,12 @@
     if(q)filtered=filtered.filter(c=>c.cmd.includes(q)||c.desc.toLowerCase().includes(q)||c.ex.toLowerCase().includes(q)||(c.flags&&c.flags.toLowerCase().includes(q)));
     let html='';
     filtered.forEach(c=>{
-      html+='<div style="padding:8px 12px;margin-bottom:4px;background:#0a0a08;border-radius:6px;border:1px solid #1a1a10;cursor:pointer" onclick="navigator.clipboard.writeText(\''+c.ex.replace(/'/g,"\\'")+'\');this.style.borderColor=\'#f0e040\';setTimeout(()=>this.style.borderColor=\'#1a1a10\',800)">'+
+      // The row used to carry the example in an onclick attribute, which cannot
+      // hold what examples actually contain: `find . -name "*.log" -mtime -7`
+      // has a double quote, so the attribute ended early and the row's handler
+      // never compiled — copying an example did nothing. The text stays in the
+      // row and the handler is attached to the element below.
+      html+='<div class="lcc-row" style="padding:8px 12px;margin-bottom:4px;background:#0a0a08;border-radius:6px;border:1px solid #1a1a10;cursor:pointer">'+
         '<div style="display:flex;justify-content:space-between;align-items:center"><span style="color:#f0e040;font-weight:bold;font-family:monospace;font-size:0.95em">'+c.cmd+'</span>'+
         '<span style="font-size:0.75em;color:#606040">'+(catLabels[c.cat]||c.cat)+'</span></div>'+
         '<div style="font-size:0.85em;color:#b0a060;margin-top:2px">'+c.desc+'</div>'+
@@ -213,6 +226,11 @@
         (c.flags?'<div style="font-size:0.75em;color:#606040;margin-top:3px">Flags: '+c.flags+'</div>':'')+'</div>';
     });
     resultsEl.innerHTML=html||'<div style="text-align:center;padding:20px;color:#606040">No commands found</div>';
+    resultsEl.querySelectorAll('.lcc-row').forEach((row,i)=>{
+      row.addEventListener('click',function(){
+        copyExample(filtered[i].ex,row);
+      });
+    });
     countEl.textContent=filtered.length+' of '+cmds.length+' commands';
   }
   renderCats();render();

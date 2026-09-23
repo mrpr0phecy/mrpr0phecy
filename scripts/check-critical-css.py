@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """check-critical-css.py — the main page's stylesheet split must stay safe.
 
-index.html used to carry ~118 KB of CSS inline in one <style> block: every
-navigation re-transferred ~19 KB gzip of it and the browser had to receive all
-of it before it could paint. The styles now live in two cached files:
+index.html used to carry its whole stylesheet inline in one <style> block: every
+navigation re-transferred it and the browser had to receive all of it before it
+could paint. No size is quoted for the old block — the 118 KB once written here
+cannot be checked against anything now, and the next person to read it would
+have no way to know whether to trust it. The styles now live in two cached
+files:
 
     home.css            first-paint rules — render-blocking on purpose
     home-deferred.css   rules for containers that are hidden at first paint —
@@ -26,7 +29,7 @@ paint can show. This guard enforces the properties the split depends on:
      script if the three owners are not compared;
   4. every selector in home-deferred.css is confined to a container that is
      hidden at first paint (the HIDDEN list below) — anything else, e.g. a
-     moved `.card` or `.main-header` rule, fails loudly;
+     moved `.card` or `.hero-discovery` rule, fails loudly;
   5. the rules that HIDE those containers stay in home.css (they are the
      mechanism: a late stylesheet must never be what decides whether a panel
      is visible);
@@ -242,8 +245,12 @@ def main() -> int:
                         "without JS the media swap never happens and panels stay unstyled")
 
     # 3 — one version across the page, the app and the service worker
+    # The page's own versioned assets. home-app.js was in this alternation until
+    # the launcher rewrite deleted it; explore.css/explore.js/toolbox.js are
+    # checked for a ?v= just below, and their exact value is pinned against
+    # CACHE_VERSION by scripts/tests/no-live-tools.test.js.
     linked = {m.group(2) for m in re.finditer(
-        r'(home(?:-deferred)?\.css|home-app\.js|risk-notices\.js)\?v=(\d+)', index)}
+        r'(home(?:-deferred)?\.css|risk-notices\.js)\?v=(\d+)', index)}
     app = re.search(r"const APP_VERSION = (\d+);", read(APP))
     cache_version = re.search(r"CACHE_VERSION\s*=\s*'v(\d+)-", sw)
     if not cache_version:

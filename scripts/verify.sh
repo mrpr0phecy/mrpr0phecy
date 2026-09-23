@@ -24,7 +24,14 @@
 #
 #   1. hygiene    no token, no placeholder ID, no unsafe target=_blank
 #   2. catalogue  cards/ and cards.json agree about what exists
-#   3. card JS    the JavaScript in every changed card parses
+#   3. card JS    the JavaScript in every changed card parses, every inline
+#                 handler it ships resolves in window scope and compiles, no
+#                 card indexes parallel arrays of different lengths, no button
+#                 submits the form the visitor is working in, no card can
+#                 only initialise while the document is still loading (which
+#                 tool.html never is: the listener is never registered and the
+#                 card never starts), and nothing a card appends to the document
+#                 outlives it (tool.html clears the card, not the body)
 #   4. links      every internal href/src resolves to a shipped file
 #   5. counts     every published tool count is re-derived, never hand-edited
 #   6. SEO        no top-level page is missing a <title>
@@ -32,8 +39,9 @@
 #
 # --deep adds the audits that only matter once, before a push: egress
 # classification, accessibility, cross-card name collisions, CSS leaks, every
-# generated surface's drift check, the full card JS sweep, the product test
-# suite and the measured quality floors. They were cut from the gate because
+# generated surface's drift check, the full card JS sweep (syntax, inline
+# handlers, parallel arrays), the product test suite and the measured quality
+# floors. They were cut from the gate because
 # they cost ~20 s and change nothing about an edit in progress — not because
 # they are wrong. Run them before pushing; CI runs them on every push and PR.
 #
@@ -128,6 +136,81 @@ card_js() {
            "a card would be dead in production — fix the syntax error above" \
            python3 scripts/check-card-js.py
   fi
+  # Parsing is not the same as being reachable. An inline on*="…" handler runs
+  # in the window scope, so a card that defines its controls inside an IIFE —
+  # or calls a function that was never written — ships a button that throws
+  # ReferenceError. Clicking catches the ones the card renders; this reads the
+  # source, so a handler in generated markup is covered too. Changed cards only
+  # in the gate; `node scripts/handler-check.js --all` before a big push.
+  if [ "$DEEP" = "1" ]; then
+    expect "every card's inline handler resolves (full sweep)" \
+           "an inline handler would throw ReferenceError when pressed — see above" \
+           node scripts/handler-check.js --all
+  else
+    expect "the changed cards' inline handlers resolve" \
+           "an inline handler would throw ReferenceError when pressed — see above" \
+           node scripts/handler-check.js --changed
+  fi
+  # Parsing and reachability still do not say the card has the data it indexes.
+  # creative-writing.html drew one index from 12 plot titles and used it on 8
+  # descriptions and 8 structures: four clicks in ten read undefined and the
+  # generator threw. Only a check that compares array LENGTHS sees that, so it
+  # runs here on every changed card and over cards/ on --deep.
+  if [ "$DEEP" = "1" ]; then
+    expect "no card indexes parallel arrays of different lengths (full sweep)" \
+           "a card picks one index into arrays that are not the same length — see above" \
+           node scripts/check-parallel-arrays.js --all
+  else
+    expect "the changed cards' parallel arrays agree" \
+           "a card picks one index into arrays that are not the same length — see above" \
+           node scripts/check-parallel-arrays.js --changed
+  fi
+  # A <button> with no type inside a <form> is a submit button, and on this site
+  # submitting the form reloads the tool: fitnesscore's "Calculate BMI" showed
+  # its answer, navigated to its own URL and came back empty. jsdom does not
+  # implement form submission, so the harness cannot see this one at all.
+  if [ "$DEEP" = "1" ]; then
+    expect "no button submits the form it sits in (full sweep)" \
+           "a click would run the tool and then reload it — see the button above" \
+           node scripts/check-form-buttons.js --all
+  else
+    expect "the changed cards' buttons do not submit their own forms" \
+           "a click would run the tool and then reload it — see the button above" \
+           node scripts/check-form-buttons.js --changed
+  fi
+  # `if (document.readyState === 'loading') { addEventListener(…) }` with no else
+  # never runs: tool.html injects the fragment into a document that finished
+  # loading long ago and *then* dispatches DOMContentLoaded, so the listener is
+  # never registered and the card never starts. Forty-three cards shipped that,
+  # left behind by the bulk edit that wrapped their init — tic-tac-toe drew no
+  # board at all. A card that starts and does nothing is silent under every
+  # runtime check, so the rule lives here.
+  if [ "$DEEP" = "1" ]; then
+    expect "every card can start in an already-loaded document (full sweep)" \
+           "a card never initialises for a visitor — give the guard an else branch" \
+           node scripts/check-card-init.js --all
+  else
+    expect "the changed cards can start in an already-loaded document" \
+           "a card never initialises for a visitor — give the guard an else branch" \
+           node scripts/check-card-init.js --changed
+  fi
+  # tool.html clears the card's container on every navigation, never the
+  # document. A modal, a share dialog or a toast a card parks in document.body
+  # therefore outlives it and sits over the next tool — and a stale
+  # mrprophecy-*.html audio wrapper kept its iframe, and its music, playing.
+  # The harness sees only the leftovers its own clicks made, so the rule is
+  # static: an append documented.body/head with no removal of the same
+  # reference. A transient copy helper, a self-removing toast and a third-party
+  # <script src> are the three shapes that stay quiet.
+  if [ "$DEEP" = "1" ]; then
+    expect "nothing a card adds to the document outlives it (full sweep)" \
+           "a node parked in document.body stays over the next tool — append it into the card" \
+           node scripts/check-card-leftovers.js --all
+  else
+    expect "nothing the changed cards add to the document outlives them" \
+           "a node parked in document.body stays over the next tool — append it into the card" \
+           node scripts/check-card-leftovers.js --changed
+  fi
 }
 
 links() {
@@ -175,8 +258,8 @@ deep_card_safety() {
   expect "every network-touching card is a classified, reviewed exception" \
          "unclassified card egress — see the check-egress.py header" \
          python3 scripts/check-egress.py
-  expect "labels resolve, images have alt text, _blank is safe" \
-         "accessibility regressions in cards/" \
+  expect "labels resolve, images have alt text, _blank is safe, every click target is focusable" \
+         "accessibility regressions in cards/ — a control a keyboard cannot reach" \
          python3 scripts/check-a11y.py
   expect "no cross-card top-level name can throw in the shared DOM" \
          "name collision — the second-loaded card would die with a SyntaxError" \
@@ -232,6 +315,22 @@ deep_generated() {
   expect "the homepage CSS split is still safe (deferred half styles nothing above the fold)" \
          "critical-CSS regression — see scripts/check-critical-css.py" \
          python3 scripts/check-critical-css.py
+  # agents.html is the contract an agent writes its parser from, and it is the
+  # one surface no generator owns: its JSON samples were showing a count from
+  # three catalogue-generations ago, a key name the files do not use, and three
+  # slugs that are not tools.
+  expect "agents.html's JSON samples match the files they describe" \
+         "agents.html documents a shape the files do not have — see scripts/check-agents-docs.py" \
+         python3 scripts/check-agents-docs.py
+  # sync-counts.py owns every category number; nothing owned a category list.
+  expect "index.html and ARCHITECTURE.md enumerate every category in the catalogue" \
+         "a category list drifted — run: python3 scripts/build-category-lists.py" \
+         python3 scripts/build-category-lists.py --check
+  # sync-counts owns every count; nothing owned a size. explore.js was described
+  # as 27 KB in the architecture document while being 47.9 KB on disk.
+  expect "prose that says how big a file is matches the file" \
+         "a size claim drifted — see scripts/check-size-claims.py" \
+         python3 scripts/check-size-claims.py
 }
 
 deep_tests() {
@@ -258,6 +357,15 @@ deep_floors() {
   expect "finance surfaces keep their disclaimers and sources" \
          "finance regression — see scripts/check-finance.js" \
          node scripts/check-finance.js
+  # brand/measure.py answers "does the hero fit at 360 px?" without a browser,
+  # and it measures strings READ OUT OF index.html. When those were six
+  # constants in the tool, two silently went stale and it spent months
+  # measuring "Search 1220 tools…" against a page that said 1250. This asserts
+  # it can still find the copy, so going stale is a failed check rather than
+  # a plausible-looking table of widths.
+  expect "brand/measure.py still points at copy index.html carries" \
+         "measure.py is measuring copy the site does not have — see brand/measure.py" \
+         python3 brand/measure.py --check
 }
 
 live() {

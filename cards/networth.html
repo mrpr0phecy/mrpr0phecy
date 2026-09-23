@@ -539,6 +539,12 @@
    - Export and sharing
 */
 
+/* Everything this card adds to the page lives INSIDE the card.
+   tool.html clears the card's container on every navigation and cannot clear
+   document.body, so a modal, a share dialog or a live region parked there stays
+   behind after the visitor moves to another tool. */
+const nwRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+
 // ========== GLOBAL STATE ==========
 const nw = {
   // Financial data
@@ -607,6 +613,10 @@ const nw = {
 
 // ========== INITIALIZATION ==========
 document.addEventListener('DOMContentLoaded', function() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('nw-currency')) return;
   // Load saved data
   nwLoadData();
   
@@ -638,6 +648,10 @@ document.addEventListener('DOMContentLoaded', function() {
 function setupInputListeners() {
   // Auto-calculate on input changes
   document.addEventListener('input', function(e) {
+    // This handler listens on the DOCUMENT, and tool.html dispatches these
+    // events again every time the visitor opens a tool. Bail out once
+    // the card is gone instead of dereferencing markup that was removed.
+    if (!document.getElementById('networth-tracker-title')) return;
     if (e.target.closest('.nw-entry')) {
       // Debounce calculation
       clearTimeout(window.nwCalculateTimeout);
@@ -648,6 +662,9 @@ function setupInputListeners() {
 
 // ========== CORE CALCULATION FUNCTIONS ==========
 function nwCalculate() {
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!document.getElementById('nw-total-assets')) return;
   // Calculate totals
   let totalAssets = 0;
   let totalLiabilities = 0;
@@ -1074,7 +1091,7 @@ function nwAddGoal() {
   oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
   modal.querySelector('#nw-goal-deadline').value = oneYearLater.toISOString().split('T')[0];
   
-  document.body.appendChild(modal);
+  nwRoot.appendChild(modal);
   modal.querySelector('#nw-goal-name').focus();
 }
 
@@ -1285,7 +1302,7 @@ function nwProjectFuture() {
     valueDisplay.textContent = this.value + ' years';
   });
   
-  document.body.appendChild(modal);
+  nwRoot.appendChild(modal);
 }
 
 function nwCalculateProjection() {
@@ -1481,7 +1498,7 @@ function nwShareDashboard() {
             </div>
           </div>
         `;
-        document.body.appendChild(shareDiv);
+        nwRoot.appendChild(shareDiv);
       });
   }
 }
@@ -1850,7 +1867,7 @@ function announceToScreenReader(message) {
     region.setAttribute('aria-live', 'polite');
     region.setAttribute('aria-atomic', 'true');
     region.style.cssText = 'position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;';
-    document.body.appendChild(region);
+    nwRoot.appendChild(region);
     return region;
   })();
   

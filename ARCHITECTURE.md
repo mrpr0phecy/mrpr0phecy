@@ -153,7 +153,7 @@ What is left is a page that links. What that buys:
   chrome and the first list; nothing monospaced, nothing that needs a
   stylesheet from another deploy to look finished.
 - **One place a tool can go wrong.** `tool.html` fails the same way for all
-  1,205 tools, and `scripts/check-tool-graph.py` proves every link into it
+  1,250 tools, and `scripts/check-tool-graph.py` proves every link into it
   lands on a tool that exists.
 - **A list that scales.** Filtering, sorting, keyboard navigation, density and
   the toolbox are properties of a *list*. They were impossible to add while the
@@ -224,7 +224,7 @@ comes back.
 it was badly written; it was the most carefully written code in this
 repository (the live window, the park pass, the warm-ahead trickle, the
 per-frame budget — all of it measured and tuned). It was slow because running
-1,205 tools is not something a browser does. A preview card on the home page
+1,205 tools is not something a browser does. A preview card on the home page <!-- historical-count: the grid ran the catalogue as it stood then -->
 would be the first card of a grid, and it would bring the rest back with it.
 
 ### The toolbox — a saved list, not a running grid
@@ -259,9 +259,9 @@ removed with the grid (2026-09-21). What it has instead:
   are plain links in the served HTML, so they paint with the page, they work
   without scripts, and they cost one line each. The ＋ that keeps one in a
   toolbox is added by `toolbox.js`, not baked in.
-- **`HOME-CATEGORIES`** — the 28 category hubs, one link each.
+- **`HOME-CATEGORIES`** — the 29 category hubs, one link each.
 - **`[data-explore="json"]`** — an empty container. Everything below the fold
-  (the filterable list of all 1,205 tools) is fetched on scroll and built 60
+  (the filterable list of all 1,250 tools) is fetched on scroll and built 60
   rows at a time. On a phone with a cold cache the page is useful before that
   fetch starts.
 
@@ -281,9 +281,12 @@ The home page's list is the only place rows are built from data, and it builds
 - **60 rows is a screenful and a half.** Enough that scrolling never meets the
   bottom edge, small enough that the DOM stays in the low thousands of nodes
   once the visitor has opened a few pages of it.
-- **`display:none` subtrees skip layout.** On the static surfaces all 1,205 rows
+- **`display:none` subtrees skip layout.** On the static surfaces all 1,250 rows
   are in the document (crawlers, find-in-page, no-JS) but only the visible ones
-  are laid out, which is what keeps a 483 KB page feeling like a 60-row one.
+  are laid out, which is what keeps a half-megabyte page feeling like a 60-row
+  one. The row count is the catalogue's; the size is stated in round terms on
+  purpose — it grows with every tool, and a precise figure here went stale
+  (483 KB) without anyone noticing.
 
 The reveal is per group on grouped pages — see the list-layer section above —
 because a global "first 60" on a page with 28 category headings empties 27 of
@@ -311,11 +314,12 @@ with one job and none of them large:
 
 | file | size | when it runs |
 | --- | --- | --- |
-| `home.css` + `home-deferred.css` | 102 KB / 40 KB (19.7 KB gzip combined) | stylesheets: critical rules blocking, the hidden-container rules after first paint |
-| `explore.css` | 18 KB | the list layer's styles, shared with the four other page types |
-| `toolbox.js` | 22 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none) |
-| `explore.js` | 27 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
-| `home-core.js` | 15 KB | theme/accent, panels, the search bridge, deep links, service worker |
+| `home.css` | about 43 KB | first-paint rules — render-blocking on purpose |
+| `home-deferred.css` | about 9 KB | rules for containers hidden at first paint; applied after it (13 KB gzip for the pair) |
+| `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
+| `toolbox.js` | about 27 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none) |
+| `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
+| `home-core.js` | about 22 KB | theme/accent, panels, the search bridge, deep links, service worker |
 
 `scripts/check-critical-css.py` holds the two rules that make this safe: the
 first paint's stylesheet must not depend on the deferred one, and every asset
@@ -486,22 +490,23 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
-| 195 | Science & Engineering | | 29 | Museum & Collection |
-| 142 | Productivity & Lifestyle | | 26 | Wellbeing & Community |
-| 79 | Finance & Money | | 22 | Culinary & Food Science |
-| 67 | Algorithms & Computer Science | | 21 | Virtual Worlds & Gaming |
-| 67 | Writing & Language | | 19 | AI & Autonomous Agents |
-| 54 | Sports | | 17 | Mind-Blowing Demos |
-| 53 | Mathematics | | 12 | Lucid Dreaming & Sleep |
-| 51 | Interactive Art & Living Worlds | | 10 | Anime & Otaku Culture |
-| 44 | SaaS & Business Killers | | 10 | Aquatics & Fishkeeping |
-| 37 | Home & DIY | | 10 | Birdwatching & Ornithology |
-| 35 | Astronomy & Space | | 10 | Dogs & Canine Care |
-| 35 | Music & Audio | | 10 | Natural Remedies & Herbs |
-| 34 | Health & Fitness | | 10 | Survival & Emergency Readiness |
-| 29 | MrProphecy Arcade | | 10 | Trucking & Freight |
+| 198 | Science & Engineering | | 29 | MrProphecy Arcade |
+| 159 | Productivity & Lifestyle | | 29 | Museum & Collection |
+| 90 | Finance & Money | | 21 | Virtual Worlds & Gaming |
+| 73 | SaaS & Business Killers | | 19 | AI & Autonomous Agents |
+| 70 | Writing & Language | | 17 | Mind-Blowing Demos |
+| 69 | Algorithms & Computer Science | | 13 | Lucid Dreaming & Sleep |
+| 55 | Sports | | 11 | Survival & Emergency Readiness |
+| 54 | Mathematics | | 10 | Anime & Otaku Culture |
+| 51 | Interactive Art & Living Worlds | | 10 | Aquatics & Fishkeeping |
+| 46 | Health & Fitness | | 10 | Birdwatching & Ornithology |
+| 41 | Home & DIY | | 10 | Dogs & Canine Care |
+| 40 | Music & Audio | | 10 | Fire & Rescue Service |
+| 35 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
+| 30 | Culinary & Food Science | | 10 | Trucking & Freight |
+| 30 | Wellbeing & Community | | | |
 
-Total: 1250 tools in 28 categories.
+Total: 1250 tools in 29 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -965,12 +970,12 @@ list. Two rules, both learned the hard way:
   in agreement with the list; a query filters the list and the browse sections
   (featured/trending/categories) step aside while it is on.
 
-**`tools-index.json` is 876 KB and it is every list's data.** The home page
+**`tools-index.json` is about 900 KB and it is every list's data.** The home page
 fetches it when the visitor reaches the list (not at parse time), and
 `tools.html` / `tools-index.html` / the category pages *contain* its output
 already, so they never fetch it at all. It duplicates the
-title/description/category the full catalogue tier carries (~144 KB gzip of the
-~188 KB); de-duplicating it means a new generated signals file plus a drift
+title/description/category the full catalogue tier carries (about 194 KB gzip
+against the catalogue tier's 149 KB); de-duplicating it means a new signals file plus a drift
 gate — worth doing deliberately or not at all, never half-way.
 
 **The layout numbers live in one place now.** The geometry contract between JS
@@ -1002,10 +1007,15 @@ and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip
 no pair, on purpose: it re-tiles a card whose error block is still the content, so
 there is no material delta, and the mount that follows is paired already.
 
-**ID collisions across cards.** All 1250 share one DOM. See §3. A parked subtree
-keeps its real ids — it is still in the document, which is exactly why
-`document.getElementById` inside a sleeping tool keeps working; moving content
-out of the grid is not moving it out of the page.
+**Top-level name collisions across cards.** Cards are fragments written for a
+shared document: `tool.html` injects one at a time into its own page, so a
+card's inline `<script>` declares into a global scope that outlives the card.
+A global `let`/`const`/`class` cannot be undeclared, so a name two cards share
+kills whichever loads second with `SyntaxError: Identifier 'X' has already been
+declared` — the card renders and does nothing. `scripts/check-card-collisions.py`
+is the guard, and it is exact (see its docstring). Ids are no longer a live
+hazard now that only one card is mounted at a time, but prefix them anyway:
+`scripts/check-cards.py` enforces it and it costs nothing.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
 usually excluded. Local tooling will report those images as 404. Always confirm
@@ -1069,6 +1079,33 @@ production curls). The individual manual checks:
 # JS syntax inside a page (extract each <script> and run node --check)
 node --check extracted.js
 
+# Card JavaScript, six questions. Does it parse at all; does every inline
+# `on*=` handler resolve in the window scope it will run in AND compile as
+# JavaScript (a full sweep found 37 attributes like `onclick="fn(), this)"`,
+# which name a function that exists and are not code: the control is dead);
+# does any card index two arrays of different lengths with the same index;
+# does any button submit the form it sits in (fifteen cards, 109 buttons, whose
+# clicks computed and then navigated to the tool's own URL, wiping the answer);
+# and can the card start at all — a `document.readyState === 'loading'` guard
+# with no `else` never runs in a document that finished loading before the
+# fragment was injected, which is what tool.html does (forty-three cards, dead
+# on arrival: tic-tac-toe rendered no board at all); and does anything the card
+# adds to the document outlive it — a modal, a share dialog or a toast parked in
+# document.body stays over the next tool, because tool.html clears the card's
+# container and never the body (six toasts and ten audio wrappers shipped that).
+# Each of the last four is there because a real card shipped the defect while
+# every other check passed — creative-writing's 12/8/8 plot arrays, fitnesscore's
+# "Calculate BMI" reloading the tool, and the sweep of 2026-09-23 that named the
+# 43 dead cards.
+# verify.sh runs all six on changed cards in the gate and over cards/ on
+# --deep.
+python3 scripts/check-card-js.py --all
+node scripts/handler-check.js --all
+node scripts/check-parallel-arrays.js --all
+node scripts/check-form-buttons.js --all
+node scripts/check-card-init.js --all
+node scripts/check-card-leftovers.js --all
+
 # Placeholders that must never ship
 grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
 
@@ -1077,6 +1114,16 @@ grep -oE '<a [^>]*target="_blank"[^>]*>' page.html | grep -v noopener
 
 # Validate the sitemap parses
 python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))"
+
+# The hand-maintained surfaces no generator owns. `sync-counts.py` owns every
+# category *number*; these own the *lists* — agents.html's JSON samples (the
+# contract an outside agent parses) and the category enumerations in
+# index.html's JSON-LD and the table above — and the *sizes* quoted in prose,
+# which are checked rather than derived: a bare figure has to be right, a
+# hedged one ("about 89 MB") may be 15% out.
+python3 scripts/check-agents-docs.py
+python3 scripts/build-category-lists.py --check
+python3 scripts/check-size-claims.py
 ```
 
 Headless browser checks (Playwright) are worth it for anything interactive:
@@ -1116,7 +1163,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ## 9. Current state
 
-1250 tools in `cards/` across 28 categories, one shared DOM, every derived
+1250 tools in `cards/` across 29 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. The gate is `npm run verify` — seven
 checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
 which is also what CI runs on every push and PR.
@@ -1156,8 +1203,8 @@ products, built so the catalogue's tools can use it too.
 - `maps/embed.js` exposes `window.MostUsefulMaps` so any card can drop in a
   map (`MostUsefulMaps.mount(...)`) or borrow the maths
   (`distance`, `measure`, `plusCode`, `sunTimes`, `parse`, `searchPlaces`).
-  Nothing loads until a card asks, which matters because all 1,206 cards share
-  one DOM.
+  Nothing loads until a card asks: the map layer is a few hundred KB, and no
+  page should pay for it merely because a card might want a map.
 - `maps/core/speed.js` and `maps/core/drive.js` are the driving layer: a
   vehicle-aware speed-limit engine (OSM `maxspeed`/`maxspeed:type`, national
   default tables per vehicle, the Welsh 20 mph default, every answer carrying

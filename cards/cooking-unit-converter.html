@@ -81,11 +81,11 @@
     <div style="margin-bottom:20px;padding:12px;background:rgba(255,153,102,0.1);border-radius:8px;border:1px solid rgba(255,153,102,0.2);">
         <div style="color:#ff9966;font-weight:500;margin-bottom:8px;font-size:14px;">⚡ Quick Conversions</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button type="button" onclick="cucQuickConvert('1 cup', 'ml')" class="cuc-quick-btn">1 cup → ml</button>
-            <button type="button" onclick="cucQuickConvert('1 tbsp', 'ml')" class="cuc-quick-btn">1 tbsp → ml</button>
-            <button type="button" onclick="cucQuickConvert('1 oz', 'grams')" class="cuc-quick-btn">1 oz → grams</button>
-            <button type="button" onclick="cucQuickConvert('100 grams', 'cups')" class="cuc-quick-btn">100g → cups</button>
-            <button type="button" onclick="cucQuickConvert('1 liter', 'cups')" class="cuc-quick-btn">1L → cups</button>
+            <button type="button" onclick="cucQuickConvert('1 cup', 'ml', this)" class="cuc-quick-btn">1 cup → ml</button>
+            <button type="button" onclick="cucQuickConvert('1 tbsp', 'ml', this)" class="cuc-quick-btn">1 tbsp → ml</button>
+            <button type="button" onclick="cucQuickConvert('1 oz', 'grams', this)" class="cuc-quick-btn">1 oz → grams</button>
+            <button type="button" onclick="cucQuickConvert('100 grams', 'cups', this)" class="cuc-quick-btn">100g → cups</button>
+            <button type="button" onclick="cucQuickConvert('1 liter', 'cups', this)" class="cuc-quick-btn">1L → cups</button>
         </div>
     </div>
     
@@ -571,7 +571,11 @@ function cucSwapUnits() {
     cucConvert();
 }
 
-function cucQuickConvert(valueStr, toUnit) {
+  // This reached for the legacy global `event` to find the button that was
+  // clicked. Firefox has never had window.event, so the handler threw (or the
+  // `if (!event)` guard returned) and the button did nothing there. The element
+  // is passed in from the markup instead.
+function cucQuickConvert(valueStr, toUnit, trigger) {
     const card = document.currentScript?.closest('.card') || document;
     
     // Parse value string like "1 cup", "100 grams", etc.
@@ -606,9 +610,12 @@ function cucQuickConvert(valueStr, toUnit) {
     // Visual feedback
     const quickBtns = card.querySelectorAll('.cuc-quick-btn');
     quickBtns.forEach(btn => btn.style.background = '');
-    event.target.style.background = 'rgba(255,153,102,0.3)';
+    if (trigger) trigger.style.background = 'rgba(255,153,102,0.3)';
     setTimeout(() => {
-        event.target.style.background = '';
+        // tool.html clears the card on the next navigation and cannot cancel
+        // this callback: bail out rather than write to a DOM that is gone.
+        if (!trigger || !trigger.isConnected) return;
+        trigger.style.background = '';
     }, 1000);
 }
 
@@ -665,8 +672,7 @@ function cucNewTip() {
 }
 
 // Initialize
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+function cookingUnitConverterInit() {
         const card = document.currentScript?.closest('.card') || document;
         
         // Initialize with general food type
@@ -681,7 +687,12 @@ if (document.readyState === 'loading') {
         }, 300);
         
         console.log('Cooking Unit Converter ready!');
-    });
+    
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', cookingUnitConverterInit);
+} else {
+    cookingUnitConverterInit();
 }
 </script>
 

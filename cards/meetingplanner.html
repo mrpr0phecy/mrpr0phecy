@@ -327,6 +327,9 @@ function mpRemoveParticipant(btn) {
     mpUpdateCalculations();
     mpShowHint('Participant removed', '#ff4d4d');
     setTimeout(() => {
+      // tool.html clears the card on the next navigation and cannot cancel
+      // this callback: bail out rather than write to a DOM that is gone.
+      if (!document.getElementById('mp-hint')) return;
       if (document.getElementById('mp-hint').textContent === 'Participant removed') {
         document.getElementById('mp-hint').textContent = '';
       }
@@ -382,6 +385,9 @@ function mpUTCToLocal(utcMinutes, offset) {
 
 // Find available meeting times
 function mpFindTimes() {
+  // tool.html clears the card's container on the next navigation and
+  // cannot cancel this timer: bail out rather than write to what is gone.
+  if (!document.getElementById('mp-duration')) return;
   const participants = mpGetParticipants();
   const duration = parseInt(document.getElementById('mp-duration').value) || 30;
   const meetingName = document.getElementById('mp-name').value.trim() || 'Meeting';
@@ -753,6 +759,9 @@ function mpPreset(preset) {
   
   // Clear existing participants
   const container = document.getElementById('mp-participants-container');
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!container) return;
   const rows = container.querySelectorAll('.mp-participant-row');
   rows.forEach(row => row.remove());
   
@@ -824,6 +833,9 @@ function mpShowSuccess(message) {
   document.getElementById('mp-hint').textContent = message;
   document.getElementById('mp-hint').style.color = '#39ff14';
   setTimeout(() => {
+    // tool.html clears the card on the next navigation and cannot cancel
+    // this callback: bail out rather than write to a DOM that is gone.
+    if (!document.getElementById('mp-hint')) return;
     if (document.getElementById('mp-hint').textContent === message) {
       document.getElementById('mp-hint').textContent = '';
     }
@@ -870,11 +882,19 @@ function mpReset() {
 }
 
 // Initialize
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', function() {
+function meetingplannerInit() {
+    // This handler listens on the DOCUMENT, and tool.html dispatches these
+    // events again every time the visitor opens a tool. Bail out once
+    // the card is gone instead of dereferencing markup that was removed.
+    if (!document.getElementById('meeting-planner-title')) return;
     mpInitializeParticipants();
     console.log('Meeting Planner initialized');
-  });
+  
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', meetingplannerInit);
+} else {
+    meetingplannerInit();
 }
 </script>
 

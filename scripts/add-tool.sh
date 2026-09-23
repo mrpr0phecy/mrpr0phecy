@@ -10,7 +10,7 @@
 #   3. regenerates every derived surface with `npm run build` — counts,
 #      sitemap, indexes, category pages, the home page's generated blocks,
 #      tools.html, related.json, embed.html, the per-tool specs, llms.txt
-#   4. smoke-tests the card in a shared DOM (scripts/test-card.js)
+#   4. smoke-tests the card the way tool.html mounts it (scripts/test-card.js)
 #   5. runs scripts/verify.sh
 #   6. commits and pushes the current branch (unless --no-push)
 set -euo pipefail

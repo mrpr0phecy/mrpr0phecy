@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """scope-card-css.py — confine a card fragment's <style> rules to its own root.
 
-Every card is injected into ONE shared document on index.html, so a fragment
-that ships a bare `.card { background: white }` or `.card-header { … }` rule
-restyles all ~1,200 host cards around it the moment it scrolls into view —
-the grid "breaks" with no error anywhere. tool.html hides the bug (one card
-per document), which is why it survives review.
+tool.html mounts one card fragment and re-creates the fragment's <style>
+blocks inside its own document, so a bare `.nav-btn { … }` or
+`.related-card { … }` rule restyles the page's own chrome — the Share/Embed
+nav, the related-tools grid, the footer, the risk notice. The card itself
+still looks right, which is why it survives review: nothing on screen points
+at the rule doing it.
 
 This script rewrites a fragment so that:
 
@@ -27,8 +28,9 @@ Usage:
                  wraps everything; otherwise `<slug>-root` (wrapper added).
   --root-class   class on that root element which the fragment's own CSS
                  uses to style it (e.g. `card`). Rules on that class are
-                 rewritten to the id; the class is removed from the root so
-                 the host's `.card` styling no longer double-applies.
+                 rewritten to the id, and the class is dropped from the root
+                 so it does not stack on top of the loader's own `.card`
+                 wrapper (a JS scope hook; `.card` is unstyled everywhere).
 """
 from __future__ import annotations
 import argparse

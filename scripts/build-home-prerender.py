@@ -11,7 +11,7 @@ ordering, `tools-index.json`) and all delimited by marker comments:
 
 1. `HOME-FEATURED`  (in `#featured`) — the twelve "start here" rows.
 2. `HOME-TRENDING`  (in `#trending`) — the eight most-used rows.
-3. `HOME-CATEGORIES` (in `#categories`) — all 28 category hubs as real links.
+3. `HOME-CATEGORIES` (in `#categories`) — all 29 category hubs as real links.
 
 What it used to generate, and why that stopped (2026-09-21)
 -----------------------------------------------------------
@@ -24,9 +24,11 @@ So the fetch bootstrap and the card shells went with the grid — and the two
 generated blocks that remained were the rows and the category hubs, which are
 just links.
 
-The page those blocks serve is much smaller for it: index.html is ~35 KB
-instead of ~84 KB, nothing is fetched for the browse chrome, and the list is
-rendered from `tools-index.json` only as far as the visitor has scrolled.
+The page those blocks serve is much smaller for it: the tools that used to be
+mounted in it are gone from the HTML, nothing is fetched to draw the browse
+chrome, and the list is rendered from `tools-index.json` only as far as the
+visitor has scrolled. No size is quoted for it here — it changes with most
+releases, and the figure this sentence used to carry was wrong within a month.
 
 One rule this enforces
 ----------------------

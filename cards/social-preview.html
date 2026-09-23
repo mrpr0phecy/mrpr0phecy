@@ -287,6 +287,10 @@ let spState = {
 
 // ==================== INITIALIZATION ====================
 function initSocialPreview() {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('sp-generate')) return;
     // Load saved state
     loadState();
     
@@ -547,6 +551,9 @@ function loadImage(file, type) {
 
 // ==================== GENERATION ====================
 async function generatePreview() {
+    // Called from a 500 ms timer as well as from the form, so it can run after
+    // the visitor has opened another tool.
+    if (!document.getElementById('sp-loading')) return;
     try {
         // Show loading
         document.getElementById('sp-loading').style.display = 'flex';
@@ -981,7 +988,13 @@ function initPlatformGrid() {
     });
 }
 
+// This runs for seconds — it awaits a preview per platform — and the visitor
+// can open another tool in the middle of it. Every use of the DOM after an
+// await is checked, because tool.html has cleared the card by then.
+function spCardGone() { return !document.getElementById('platform-grid'); }
+
 async function generateAllPlatforms() {
+    if (spCardGone()) return;
     const checked = Array.from(document.querySelectorAll('#platform-grid input:checked'))
         .map(input => input.value);
     
@@ -1013,6 +1026,7 @@ async function generateAllPlatforms() {
         
         // Small delay
         await new Promise(resolve => setTimeout(resolve, 100));
+        if (spCardGone()) return;   // the visitor left while we were waiting
     }
     
     document.getElementById('batch-results').style.display = 'block';
@@ -1023,6 +1037,7 @@ async function generateAllPlatforms() {
 }
 
 async function generatePlatformPreview(platform) {
+    if (spCardGone()) return;
     const info = SP_CONFIG.platforms[platform];
     const canvas = document.createElement('canvas');
     canvas.width = info.size.w;

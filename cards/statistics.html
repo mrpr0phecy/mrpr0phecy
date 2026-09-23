@@ -209,11 +209,22 @@ Or: 12
 
 <!-- ===== 4. JAVASCRIPT ===== -->
 <script>
+
+// The toast lives INSIDE the card, not in document.body.
+// tool.html clears the card's container on every navigation and cannot clear
+// the body, so a toast parked there stays behind — and the next visit finds the
+// stale node by id and reuses it instead of building a fresh one.
+const statsToastRoot = (document.currentScript && document.currentScript.closest('.card')) || document.body;
 // TOOL-SPECIFIC FUNCTIONS
 const statisticsTtState = {
     currentTab: 'descriptive',
     data: [],
     stats: null,
+    // Which of the two test-type cards is selected. Both buttons call
+    // ttSelectTest(), which had no definition anywhere in the card, so choosing
+    // a test type threw and the t-test stayed hard-coded to two-tailed whatever
+    // the panel highlighted.
+    testType: 'two-tailed',
     
     // Example datasets
     examples: {
@@ -240,7 +251,7 @@ function showNotification(message, type) {
             'padding:12px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:1000;' +
             'opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none;' +
             'background:#141e28;border:1px solid #2dd4ff;color:#e6faff;max-width:min(90vw,420px);text-align:center;';
-        document.body.appendChild(toast);
+        statsToastRoot.appendChild(toast);
     }
     const colors = { success: '#39ff14', error: '#ff4d4d', warning: '#ffb700', info: '#2dd4ff' };
     toast.style.borderColor = colors[type] || '#2dd4ff';
@@ -255,6 +266,9 @@ function showNotification(message, type) {
 }
 
 function ttParseData() {
+  // tool.html clears the card's container on the next navigation and
+  // cannot cancel this timer: bail out rather than write to what is gone.
+  if (!document.getElementById('tt-data-input')) return;
     const input = document.getElementById('tt-data-input').value;
     
     // Parse numbers from various formats
@@ -752,6 +766,25 @@ function getTestingTab() {
     `;
 }
 
+// Clicking a "Test Types" card selects it. The two cards are the only way to
+// ask for a one-tailed test, and their onclick had no function to call.
+function ttSelectTest(type) {
+    if (type !== 'one-tailed' && type !== 'two-tailed') return;
+    statisticsTtState.testType = type;
+
+    // These two cards are the only .test-type elements in the card; there is no
+    // wrapper id to scope by.
+    document.querySelectorAll('.test-type').forEach(el => {
+        const wanted = (el.getAttribute('onclick') || '').includes(`'${type}'`);
+        el.classList.toggle('active', wanted);
+    });
+
+    // A result panel already on screen describes the other test, so refresh it
+    // rather than leave a verdict that contradicts the highlighted card.
+    const results = document.getElementById('tt-test-results');
+    if (results && results.innerHTML.trim()) ttRunTTest();
+}
+
 function ttRunTTest() {
     const stats = statisticsTtState.stats;
     if (!stats || stats.n < 2) {
@@ -761,16 +794,20 @@ function ttRunTTest() {
     
     const mu0 = parseFloat(document.getElementById('tt-test-mean').value);
     const alpha = parseFloat(document.getElementById('tt-alpha').value);
-    
+    const oneTailed = statisticsTtState.testType === 'one-tailed';
+
     // Calculate t-statistic
     const t = (stats.mean - mu0) / (stats.stdDev / Math.sqrt(stats.n));
     const df = stats.n - 1;
     
-    // Calculate p-value (two-tailed)
-    const p = 2 * (1 - ttTCDF(Math.abs(t), df));
+    // Calculate p-value: one tail when the card asks for a one-tailed test,
+    // both tails otherwise. The tail is the one the data points at.
+    const p = oneTailed
+        ? (t >= 0 ? 1 - ttTCDF(t, df) : ttTCDF(t, df))
+        : 2 * (1 - ttTCDF(Math.abs(t), df));
     
-    // Critical t-value
-    const tCritical = ttInvT(1 - alpha/2, df);
+    // Critical t-value — a one-tailed test spends the whole alpha in one tail
+    const tCritical = oneTailed ? ttInvT(1 - alpha, df) : ttInvT(1 - alpha/2, df);
     
     // Decision
     const reject = p < alpha;
@@ -778,7 +815,9 @@ function ttRunTTest() {
     let results = `
         <div style="margin-bottom:var(--space-sm);">
             <strong>H₀:</strong> μ = ${mu0.toFixed(2)}<br>
-            <strong>H₁:</strong> μ ≠ ${mu0.toFixed(2)} (two-tailed)
+            <strong>H₁:</strong> ${oneTailed
+                ? `μ ${t >= 0 ? '>' : '<'} ${mu0.toFixed(2)} (one-tailed)`
+                : `μ ≠ ${mu0.toFixed(2)} (two-tailed)`}
         </div>
         <div style="margin-bottom:var(--space-sm);">
             <strong>t(${df}) =</strong> ${t.toFixed(4)}
@@ -787,7 +826,7 @@ function ttRunTTest() {
             <strong>p-value =</strong> ${p.toFixed(6)}
         </div>
         <div style="margin-bottom:var(--space-sm);">
-            <strong>α =</strong> ${alpha} (t₍${df},${1-alpha/2}₎ = ${tCritical.toFixed(4)})
+            <strong>α =</strong> ${alpha} (t₍${df},${oneTailed ? 1-alpha : 1-alpha/2}₎ = ${tCritical.toFixed(4)})
         </div>
         <div style="color:${reject ? '#4caf50' : '#f44336'};font-weight:var(--weight-semibold);">
             ${reject ? '✓ Reject H₀: Significant difference' : '✗ Fail to reject H₀: No significant difference'}
@@ -883,21 +922,20 @@ function lgamma(x) {
 }
 
 function ttInvT(p, df) {
-    // Inverse t-distribution approximation
-    // For common values, return approximation
-    const commonValues = {
-        '0.95_10': 1.812, '0.975_10': 2.228,
-        '0.95_20': 1.725, '0.975_20': 2.086,
-        '0.95_30': 1.697, '0.975_30': 2.042,
-        '0.95_inf': 1.645, '0.975_inf': 1.960
-    };
-    
-    const key = `${p}_${df}`;
-    if (commonValues[key]) return commonValues[key];
-    if (df > 30) return commonValues[`${p}_inf`];
-    
-    // Simple linear interpolation for other values
-    return 1.96; // Conservative estimate
+    // The critical t-value, found by inverting ttTCDF numerically. The previous
+    // version was a lookup table with a `return 1.96` fallback, which ignored p:
+    // every test with df <= 30 and an alpha outside the table compared its
+    // p-value against 1.96 — for df = 11 the 95th percentile is 1.796, so a
+    // result between 1.796 and 1.96 was reported as not significant when it is.
+    // Bisecting the same CDF the p-value comes from also means the two can never
+    // disagree.
+    const cdf = t => ttTCDF(t, df);
+    let lo = -200, hi = 200;
+    for (let i = 0; i < 120; i++) {
+        const mid = (lo + hi) / 2;
+        if (cdf(mid) < p) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
 }
 
 function getRegressionTab() {
@@ -1132,6 +1170,9 @@ function ttGenerateRandomData() {
 }
 
 function ttLoadExample(type) {
+  // tool.html clears the card's container on the next navigation and cannot
+  // cancel this timer: bail out rather than write to markup that is gone.
+  if (!document.getElementById('tt-data-input')) return;
     const examples = {
         normal: "12.3, 14.1, 15.8, 16.2, 17.5, 18.1, 18.9, 19.2, 20.1, 20.5, 21.3, 22.0",
         uniform: "10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32",
@@ -1184,6 +1225,10 @@ function ttEmbedTool() {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  // This handler listens on the DOCUMENT, and tool.html dispatches these
+  // events again every time the visitor opens a tool. Bail out once
+  // the card is gone instead of dereferencing markup that was removed.
+  if (!document.getElementById('tt-data-input')) return;
     console.log('📊 Statistics Calculator loaded');
     
     // Load initial example
@@ -1198,6 +1243,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+      // This handler listens on the DOCUMENT, and tool.html dispatches these
+      // events again every time the visitor opens a tool. Bail out once
+      // the card is gone instead of dereferencing markup that was removed.
+      if (!document.getElementById('statistt-title')) return;
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             ttParseData();
