@@ -182,6 +182,11 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'quiz-maker': 'Productivity & Lifestyle',
+  'element-hall': 'Museum & Collection',
+  'edu-math-3d': 'Mathematics',
+  'number-base-converter': 'Algorithms & Computer Science',
+  'matrices': 'Mathematics',
   // 2026-09-21 — ten fire-service tools (new Fire & Rescue Service category, on the
   // Trucking & Freight precedent). A keyword audit of all 1,240 existing cards found no
   // hydrant, nozzle, gpm, friction-loss, SCBA, tanker, WBGT, hazmat, ventilation, confined

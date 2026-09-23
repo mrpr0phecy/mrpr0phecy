@@ -1,0 +1,165 @@
+<h2 id="quiz-maker-title" style="margin-top:0;color:var(--accent);">🧠 Quick Quiz Maker</h2>
+
+<div class="qm-container" id="qm-root" style="font-family:inherit;color:var(--text);">
+  <p class="small" style="color:rgba(230,250,255,0.7);margin-bottom:16px;">
+    Create a multiple-choice quiz, then test yourself. Questions save to your browser.
+  </p>
+
+  <div style="background:rgba(0,0,0,0.2);border-radius:10px;padding:16px;border:1px solid rgba(45,212,255,0.1);margin-bottom:16px;">
+    <div style="font-weight:600;color:var(--accent);margin-bottom:12px;font-size:14px;">➕ Add a Question</div>
+    <input id="qm-qtext" type="text" placeholder="Question text..." value=""
+           style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(45,212,255,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:14px;margin-bottom:10px;" />
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <input id="qm-opt0" type="text" placeholder="Option A" value=""
+             style="padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />
+      <input id="qm-opt1" type="text" placeholder="Option B" value=""
+             style="padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />
+      <input id="qm-opt2" type="text" placeholder="Option C (optional)" value=""
+             style="padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />
+      <input id="qm-opt3" type="text" placeholder="Option D (optional)" value=""
+             style="padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;" />
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <label for="qm-correct" style="color:var(--accent);font-weight:500;font-size:14px;">✓ Correct:</label>
+      <select id="qm-correct" style="padding:8px;border-radius:6px;border:1px solid rgba(57,255,20,0.2);background:rgba(0,0,0,0.3);color:var(--text);font-size:13px;">
+        <option value="0">A</option>
+        <option value="1">B</option>
+        <option value="2">C</option>
+        <option value="3">D</option>
+      </select>
+    </div>
+    <button type="button" id="qm-add"
+            style="padding:10px 20px;background:rgba(45,212,255,0.15);border:1px solid rgba(45,212,255,0.4);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:600;font-size:14px;">Add Question</button>
+    <span id="qm-hint" style="font-size:0.8rem;color:rgba(230,250,255,0.4);margin-left:12px;"></span>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+    <button type="button" id="qm-start"
+            style="padding:10px 20px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;font-size:14px;">▶ Start Quiz</button>
+    <button type="button" id="qm-clear"
+            style="padding:10px 20px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.2);border-radius:8px;color:#ff4d4d;cursor:pointer;font-size:14px;">Clear All</button>
+  </div>
+
+  <div id="qm-quiz" style="margin-bottom:16px;"></div>
+  <div id="qm-score" style="display:none;text-align:center;font-size:1.5rem;font-weight:700;padding:16px;background:rgba(0,0,0,0.3);border-radius:10px;border:1px solid rgba(255,255,255,0.05);"></div>
+</div>
+
+<script>
+(function(){
+  // User question text is untrusted input: every render path below uses
+  // createElement/textContent only — never innerHTML (CONSTRAINTS.md rule 4).
+  var KEY = 'qm_questions';
+
+  function load(){
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+    catch (e) { return []; }
+  }
+  function save(stored){
+    try { localStorage.setItem(KEY, JSON.stringify(stored)); } catch (e) {}
+  }
+  function el(id){ return document.getElementById(id); }
+
+  var hint = el('qm-hint');
+  var stored = load();
+  if (stored.length > 0) {
+    hint.textContent = stored.length + ' saved question(s) ready. Click Start Quiz.';
+  }
+
+  el('qm-add').addEventListener('click', function(){
+    var qt = el('qm-qtext').value.trim();
+    var opts = [el('qm-opt0').value.trim(), el('qm-opt1').value.trim(),
+                el('qm-opt2').value.trim(), el('qm-opt3').value.trim()]
+               .filter(function(o){ return o; });
+    var correct = parseInt(el('qm-correct').value, 10);
+    if (!qt || opts.length < 2) {
+      hint.textContent = 'Enter a question and at least 2 options.';
+      return;
+    }
+    var stored = load();
+    stored.push({ q: qt, o: opts, a: Math.min(correct, opts.length - 1) });
+    save(stored);
+    el('qm-qtext').value = '';
+    el('qm-opt0').value = '';
+    el('qm-opt1').value = '';
+    el('qm-opt2').value = '';
+    el('qm-opt3').value = '';
+    hint.textContent = 'Question added (' + stored.length + ' total).';
+  });
+
+  el('qm-start').addEventListener('click', function(){
+    var stored = load();
+    var quiz = el('qm-quiz');
+    quiz.textContent = '';
+    el('qm-score').style.display = 'none';
+    if (stored.length === 0) {
+      var none = document.createElement('p');
+      none.style.color = 'rgba(230,250,255,0.5)';
+      none.textContent = 'No questions yet. Add some above.';
+      quiz.appendChild(none);
+      return;
+    }
+    stored.forEach(function(item, idx){
+      var block = document.createElement('div');
+      block.style.cssText = 'margin-bottom:16px;padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;';
+      block.dataset.picked = '';
+      var qLine = document.createElement('div');
+      qLine.style.cssText = 'font-weight:600;margin-bottom:8px;';
+      qLine.textContent = (idx + 1) + '. ' + item.q;
+      block.appendChild(qLine);
+      item.o.forEach(function(opt, i){
+        var label = document.createElement('label');
+        label.style.cssText = 'display:block;padding:8px;margin:4px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;';
+        label.addEventListener('click', function(){
+          var sib = label.parentElement.children;
+          for (var j = 0; j < sib.length; j++) sib[j].style.background = 'rgba(255,255,255,0.05)';
+          label.style.background = 'rgba(45,212,255,0.15)';
+          block.dataset.picked = String(i);
+        });
+        var radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'qm_q' + idx;
+        radio.value = String(i);
+        radio.style.marginRight = '8px';
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode((i + 1) + '. ' + opt));
+        block.appendChild(label);
+      });
+      quiz.appendChild(block);
+    });
+    var submit = document.createElement('button');
+    submit.type = 'button';
+    submit.style.cssText = 'padding:12px 24px;background:rgba(57,255,20,0.15);border:1px solid rgba(57,255,20,0.4);border-radius:8px;color:#39ff14;cursor:pointer;font-weight:600;';
+    submit.textContent = 'Submit Answers';
+    submit.addEventListener('click', function(){
+      var stored = load();
+      var score = 0;
+      var blocks = el('qm-quiz').querySelectorAll(':scope > div');
+      stored.forEach(function(item, idx){
+        var block = blocks[idx];
+        if (!block) return;
+        var picked = parseInt(block.dataset.picked, 10);
+        if (!isNaN(picked) && picked === item.a) {
+          score++;
+          block.style.borderLeft = '3px solid #39ff14';
+        } else {
+          block.style.borderLeft = '3px solid #ff4d4d';
+          var correctLabel = block.querySelectorAll('label')[item.a];
+          if (correctLabel) correctLabel.style.background = 'rgba(57,255,20,0.15)';
+        }
+      });
+      var scoreBox = el('qm-score');
+      scoreBox.textContent = 'Score: ' + score + '/' + stored.length;
+      scoreBox.style.color = (stored.length && score / stored.length >= 0.5) ? '#39ff14' : '#ff4d4d';
+      scoreBox.style.display = 'block';
+    });
+    quiz.appendChild(submit);
+  });
+
+  el('qm-clear').addEventListener('click', function(){
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    el('qm-quiz').textContent = '';
+    el('qm-score').style.display = 'none';
+    hint.textContent = 'All questions cleared.';
+  });
+})();
+</script>
