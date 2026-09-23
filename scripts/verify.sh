@@ -281,6 +281,9 @@ deep_generated() {
   expect "embed.html grid matches the catalogue (every tool, true count)" \
          "embed grid drift — run: python3 scripts/build-embed-catalog.py" \
          python3 scripts/build-embed-catalog.py --check
+  expect "embed-finance.html matches the catalogue and the finance checks" \
+         "embed-finance.html stale — run: python3 scripts/build-embed-landing.py" \
+         python3 scripts/build-embed-landing.py --check
   expect "tools.html links every tool in every category" \
          "tools.html is missing tools — run: python3 scripts/build-tools-page.py" \
          python3 scripts/build-tools-page.py --check

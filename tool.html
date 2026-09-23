@@ -464,6 +464,16 @@
         body.embed-mode .tool-header-meta { display: none !important; }
         body.embed-mode .main-wrapper { padding: 6px 0 0; }
         body.embed-mode .tool-card-box { margin-bottom: 0; }
+
+        .share-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,10,16,.7);z-index:1000;padding:20px}
+        .share-panel.open{display:flex}
+        .share-panel-card{background:#141e28;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:18px;width:min(340px,100%)}
+        .share-panel-head{display:flex;justify-content:space-between;align-items:center;color:#e6faff;font-weight:700;margin-bottom:12px}
+        .share-x{background:none;border:none;color:rgba(230,250,255,.6);font-size:1.4rem;cursor:pointer;line-height:1}
+        .share-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .share-grid a,.share-grid button{padding:10px 12px;border-radius:9px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.22);color:#e6faff;font-weight:600;font-size:.85rem;text-decoration:none;text-align:center;cursor:pointer;font-family:inherit}
+        .share-grid a:hover,.share-grid button:hover{background:rgba(45,212,255,.18)}
+        @media(prefers-reduced-motion:reduce){.share-panel{transition:none}}
     </style>
     <!-- defer: parser-blocking today, but only needed after the card
          fragment arrives over the network, so deferred execution is safe. -->
@@ -520,6 +530,23 @@
     </footer>
 
     <div class="toast" id="toast"></div>
+
+    <div class="share-panel" id="sharePanel" role="dialog" aria-modal="true" aria-label="Share this tool">
+        <div class="share-panel-card">
+            <div class="share-panel-head">
+                <span>Share this tool</span>
+                <button class="share-x" id="shareClose" aria-label="Close">×</button>
+            </div>
+            <div class="share-grid">
+                <a id="shareX" href="#" target="_blank" rel="noopener noreferrer">𝕏 Post</a>
+                <a id="shareLi" href="#" target="_blank" rel="noopener noreferrer">in LinkedIn</a>
+                <a id="shareRd" href="#" target="_blank" rel="noopener noreferrer">r/ Reddit</a>
+                <a id="shareWa" href="#" target="_blank" rel="noopener noreferrer">✆ WhatsApp</a>
+                <a id="shareEm" href="#">✉ Email</a>
+                <button id="shareCopy">⧉ Copy link</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         function showToast(msg) {
@@ -982,26 +1009,46 @@
                 }
             }
 
-            // Share button
+            // Share button: native share sheet where it exists, intent links
+            // otherwise. All user-initiated — no trackers are added to this
+            // page, which stays clean by design (see CONSTRAINTS.md).
+            const shareUrl = () => window.location.origin + '/tool.html?card=' + encodeURIComponent(cardName);
+            const shareText = title + ' — free, runs in your browser';
+            const openIntent = (base) => window.open(base, '_blank', 'noopener,noreferrer');
             document.getElementById('shareBtn').onclick = () => {
-                const url = window.location.href;
-                navigator.clipboard.writeText(url).then(() => {
+                if (navigator.share) {
+                    navigator.share({ title: title, text: shareText, url: shareUrl() }).catch(() => {});
+                    return;
+                }
+                const enc = encodeURIComponent;
+                document.getElementById('shareX').href = 'https://twitter.com/intent/tweet?text=' + enc(shareText) + '&url=' + enc(shareUrl());
+                document.getElementById('shareLi').href = 'https://www.linkedin.com/sharing/share-offsite/?url=' + enc(shareUrl());
+                document.getElementById('shareRd').href = 'https://www.reddit.com/submit?url=' + enc(shareUrl()) + '&title=' + enc(shareText);
+                document.getElementById('shareWa').href = 'https://wa.me/?text=' + enc(shareText + ' ' + shareUrl());
+                document.getElementById('shareEm').href = 'mailto:?subject=' + enc(title) + '&body=' + enc(shareText + '\n' + shareUrl());
+                document.getElementById('sharePanel').classList.add('open');
+            };
+            document.getElementById('shareClose').onclick = () => document.getElementById('sharePanel').classList.remove('open');
+            document.getElementById('shareCopy').onclick = () => {
+                navigator.clipboard.writeText(shareUrl()).then(() => {
                     showToast('Link copied to clipboard!');
-                }).catch(() => {
-                    showToast('URL: ' + url);
-                });
+                    document.getElementById('sharePanel').classList.remove('open');
+                }).catch(() => showToast('URL: ' + shareUrl()));
             };
 
             // Embed button — embedders need the chrome-free embed=1 URL so the
             // iframe strips chrome and auto-sizes (documented contract). The
             // free tier keeps a small credit line under the tool ("the credit
             // line *is* the price") — plain HTML, so the "no
-            // JavaScript" promise for embeds still holds.
+            // JavaScript" promise for embeds still holds. The data-mus-credit
+            // marker is the licence hook: a paid key pasted at
+            // embed.html#activate verifies and removes that node (see
+            // scripts/licence-keys.mjs).
             document.getElementById('embedBtn').onclick = () => {
                 const embedCode = `<iframe src="${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}&embed=1" width="100%" height="520" style="border:none;border-radius:12px;" title="${title}"></iframe>
-<div style="margin:6px 2px 0;text-align:right;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#667085;">${title} · via <a href="https://www.themostusefulsiteintheworld.com/tool.html?card=${encodeURIComponent(cardName)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">The Most Useful Site in the World</a></div>`;
+<div data-mus-credit style="margin:6px 2px 0;text-align:right;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#667085;">${title} · via <a href="https://www.themostusefulsiteintheworld.com/tool.html?card=${encodeURIComponent(cardName)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">The Most Useful Site in the World</a></div>`;
                 navigator.clipboard.writeText(embedCode).then(() => {
-                    showToast('Embed code copied to clipboard!');
+                    showToast('Embed copied — includes the free credit line (a licence removes it)');
                 }).catch(() => {
                     prompt('Copy embed code:', embedCode);
                 });

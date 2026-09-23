@@ -43,7 +43,10 @@ EMBED = os.path.join(ROOT, "embed.html")
 MANIFEST = os.path.join(ROOT, "cards", "cards.json")
 
 GRID_START = '<div class="embed-grid" id="embedGrid">\n'
-GRID_END = "\n</div>\n</main>"
+# The grid is followed by the pricing/licence section (moved after it by the
+# embed-licence funnel). The anchor names the grid's own closing tag plus the
+# section that follows, so the splice can never swallow the licence UI.
+GRID_END = "\n</div>\n<section id=\"pricing\""
 BLOCK_RE = re.compile(
     r'<div class="embed-card" data-cat="[^"]*">\n'
     r".*?"
@@ -113,7 +116,7 @@ def build(new_html: str, cards: list[dict], verbose: bool = False) -> tuple[str,
 
     new_grid = "".join(rebuilt)
     if not grid.endswith("\n") and new_grid.endswith("\n"):
-        new_grid = new_grid[:-1]  # keep the shipped layout: no blank line before </main>
+        new_grid = new_grid[:-1]  # keep the shipped layout: no blank line before the pricing section
 
     all_btn = f'<button class="active" data-cat="all">All {len(cards)}</button>'
     if not ALL_BUTTON_RE.search(new_html):

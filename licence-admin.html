@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.ico">
+<title>Licence admin — owner console | The Most Useful Site in the World</title>
+<meta name="description" content="Owner-only console for issuing signed embed licence keys (MUS1 format). Works entirely offline; the private key never leaves this browser.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://www.themostusefulsiteintheworld.com/licence-admin.html">
+<meta name="theme-color" content="#0a0f14">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--accent:#2dd4ff;--text:#e6faff;--dim:rgba(230,250,255,.66);--bg:#0a0f14;--bg2:#141e28;--border:rgba(255,255,255,.08);--ok:#39ff14;--bad:#ff6b6b}
+body{background:var(--bg);color:var(--text);line-height:1.65;font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;padding-bottom:60px}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px}
+.topbar{border-bottom:1px solid var(--border);padding:13px 0;background:rgba(10,15,20,.92);position:sticky;top:0;z-index:10}
+.topbar .wrap{display:flex;justify-content:space-between;align-items:center}
+.topbar a{color:var(--dim);text-decoration:none;font-size:.85rem;font-weight:600}.topbar a:hover{color:var(--text)}
+.warn{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#ffb3b3;border-radius:10px;padding:12px 16px;margin:18px 0;font-size:.85rem}
+h1{font-size:clamp(1.5rem,3.5vw,2.1rem);font-weight:900;letter-spacing:-.02em;margin:30px 0 6px}
+.sub{color:var(--dim);font-size:.92rem;margin-bottom:26px;max-width:700px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:18px}
+.panel h2{font-size:1.05rem;margin-bottom:4px}
+.panel .p-note{color:var(--dim);font-size:.84rem;margin-bottom:14px}
+label{display:block;font-size:.78rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 4px}
+input,select,textarea{width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem}
+textarea{resize:vertical;min-height:70px}
+button{padding:10px 18px;border-radius:9px;background:var(--accent);color:#04141c;font-weight:800;border:1px solid var(--accent);cursor:pointer;font-family:inherit;font-size:.85rem;margin-top:12px}
+button.ghost{background:transparent;color:var(--dim);border-color:var(--border)}
+button:hover{filter:brightness(1.1)}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>div{flex:1;min-width:200px}
+.out{background:var(--bg);border:1px dashed rgba(45,212,255,.4);border-radius:9px;padding:12px;margin-top:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem;word-break:break-all;white-space:pre-wrap;color:var(--accent)}
+.status{font-size:.85rem;margin-top:10px;min-height:1.3em}
+.status.ok{color:var(--ok)}.status.bad{color:var(--bad)}
+details{margin-top:10px}.details-body{font-size:.8rem;color:var(--dim);padding:10px 0}
+code{background:var(--bg);padding:1px 6px;border-radius:5px;font-size:.85em;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="wrap">
+<a href="index.html">← Back to the site</a>
+<a href="embed.html">embed.html ↗</a>
+</div></div>
+<div class="wrap">
+<h1>🔑 Licence admin</h1>
+<p class="sub">Owner console for the embed licence product (STRATEGY.md). Everything here runs in this browser — <strong>the private signing key never leaves this device</strong> and nothing on this page calls the network. This page is <code>noindex</code> and carries no analytics.</p>
+
+<div class="warn" id="ctxWarn" hidden>This page is not in a secure context (crypto.subtle unavailable). Open it over HTTPS (GitHub Pages) or from <code>file://</code> in a normal browser window. Key generation is disabled until then.</div>
+
+<div class="panel">
+<h2>1 · Your signing keypair</h2>
+<p class="p-note">Generate once, keep forever. The private half signs licences; the public half goes into <code>embed.html</code>'s <code>mus-licence-pubkey</code> meta tag so snippets can verify buyers. Stored in this browser's localStorage — <strong>export it</strong> and keep a copy somewhere safe (password manager), or a cleared browser = no way to issue renewals under the same key.</p>
+<div class="row">
+<div><button id="gen">Generate keypair</button></div>
+<div><button class="ghost" id="exportBtn">Export keypair (JSON)</button></div>
+</div>
+<details><summary>Import an existing keypair instead</summary>
+<div class="details-body">
+<textarea id="importJson" placeholder="Paste the exported JSON…"></textarea>
+<button class="ghost" id="importBtn">Import</button>
+</div>
+</details>
+<div class="out" id="pubOut" hidden></div>
+<div class="status" id="keyStatus"></div>
+</div>
+
+<div class="panel">
+<h2>2 · The one-time wiring step</h2>
+<p class="p-note">Paste the public key into <code>embed.html</code> — find <code>&lt;meta name="mus-licence-pubkey" content=""&gt;</code> and put the JWK between the quotes. Commit and deploy. Until this is done, activation on embed.html stays switched off and every embed is the free credited tier (the safe default).</p>
+</div>
+
+<div class="panel">
+<h2>3 · Issue a licence</h2>
+<p class="p-note">After payment clears: enter the buyer's site, pick a tier, sign, email the key. Whitelabel keys carry domain <code>*</code> (any site). Default expiry is one year out — renewal is issuing a fresh key.</p>
+<div class="row">
+<div><label for="licDomain">Buyer domain</label><input id="licDomain" placeholder="broker.example.com"></div>
+<div><label for="licTier">Tier</label><select id="licTier">
+<option value="single">Single tool — £99/yr</option>
+<option value="category">Category — £299/yr</option>
+<option value="whitelabel">Full white-label — £899/yr</option>
+</select></div>
+<div><label for="licExpiry">Expires</label><input id="licExpiry" type="date"></div>
+</div>
+<button id="signBtn">Sign licence</button>
+<div class="out" id="licOut" hidden></div>
+<div class="status" id="licStatus"></div>
+<div id="mailRow" hidden>
+<button class="ghost" id="mailBtn">Open pre-filled handover email</button>
+</div>
+</div>
+
+<div class="panel">
+<h2>4 · Verify a licence (sanity check)</h2>
+<p class="p-note">Paste any key to check it against your public key, optionally with a hostname to simulate the buyer's site.</p>
+<label for="vLic">Licence key</label>
+<textarea id="vLic" placeholder="MUS1.…"></textarea>
+<label for="vHost">Hostname to test (optional)</label>
+<input id="vHost" placeholder="broker.example.com">
+<button id="vBtn">Verify</button>
+<div class="status" id="vStatus"></div>
+</div>
+
+<details class="panel">
+<h2 style="cursor:pointer">How enforcement works (honest version)</h2>
+<div class="details-body">
+<p>The licensed snippet embeds a verifier that checks the key's ECDSA signature against the public key in embed.html, checks the page hostname against the licensed domain, checks expiry — and only then removes the credit line. It is tamper-<em>evident</em>, not DRM: a licensee could delete the verifier from their copy, which is a licence breach (detectable the same way uncredited embeds always were — the tool still links back unless they strip that too). What this scheme guarantees is that keys can't be forged, shared across unlicensed domains, or used after expiry. Format and crypto live in <code>scripts/licence-keys.mjs</code>; regression tests in <code>scripts/tests/licence-keys.test.js</code> run in verify.sh.</p>
+</div>
+</details>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var STORE = 'mus_licence_keypair';
+  var $ = function (id) { return document.getElementById(id); };
+  var subtle = (window.crypto && window.crypto.subtle) ? window.crypto.subtle : null;
+  if (!subtle || !window.isSecureContext) $('ctxWarn').hidden = false;
+
+  function b64u(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function unb64u(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s), u = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u;
+  }
+  function say(id, msg, cls) { var el = $(id); el.textContent = msg; el.className = 'status ' + (cls || ''); }
+
+  function loadPair() {
+    try { return JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) { return null; }
+  }
+  function savePair(p) { localStorage.setItem(STORE, JSON.stringify(p)); renderPub(p); }
+
+  function renderPub(p) {
+    if (!p) return;
+    var jwk = JSON.stringify({ kty: p.publicJwk.kty, crv: p.publicJwk.crv, x: p.publicJwk.x, y: p.publicJwk.y });
+    $('pubOut').hidden = false;
+    $('pubOut').textContent = 'mus-licence-pubkey content:\n\n' + jwk;
+    $('keyStatus').textContent = '';
+    $('exportBtn').disabled = false;
+  }
+
+  $('gen').onclick = function () {
+    if (!subtle) { say('keyStatus', 'Needs a secure context (see warning above).', 'bad'); return; }
+    subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']).then(function (kp) {
+      return Promise.all([subtle.exportKey('jwk', kp.privateKey), subtle.exportKey('jwk', kp.publicKey)])
+        .then(function (jwks) {
+          var pair = { privateJwk: jwks[0], publicJwk: jwks[1], created: new Date().toISOString() };
+          savePair(pair);
+          say('keyStatus', 'Keypair generated and stored in this browser. Export a backup copy now.', 'ok');
+        });
+    }).catch(function (e) { say('keyStatus', 'Key generation failed: ' + e.message, 'bad'); });
+  };
+
+  $('exportBtn').onclick = function () {
+    var p = loadPair();
+    if (!p) { say('keyStatus', 'Nothing to export yet.', 'bad'); return; }
+    var blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mus-licence-keypair.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  $('importBtn').onclick = function () {
+    try {
+      var p = JSON.parse($('importJson').value);
+      if (!p.privateJwk || !p.publicJwk) throw new Error('missing privateJwk/publicJwk');
+      savePair(p);
+      say('keyStatus', 'Keypair imported into this browser.', 'ok');
+    } catch (e) { say('keyStatus', 'Import failed: ' + e.message, 'bad'); }
+  };
+
+  /* issue */
+  (function () {
+    var d = new Date(); d.setFullYear(d.getFullYear() + 1);
+    $('licExpiry').value = d.toISOString().slice(0, 10);
+  })();
+
+  function signPayload(privJwk, payload) {
+    var payloadB64 = b64u(new TextEncoder().encode(JSON.stringify(payload)));
+    var signingInput = 'MUS1.' + payloadB64;
+    return subtle.importKey('jwk', privJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
+      .then(function (k) { return subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, k, new TextEncoder().encode(signingInput)); })
+      .then(function (sig) { return signingInput + '.' + b64u(sig); });
+  }
+
+  $('signBtn').onclick = function () {
+    var p = loadPair();
+    if (!p) { say('licStatus', 'Generate or import a keypair first (step 1).', 'bad'); return; }
+    var rawDomain = $('licDomain').value.trim().toLowerCase();
+    var tier = $('licTier').value;
+    var domain = rawDomain.replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+    if (tier !== 'whitelabel' && !domain) { say('licStatus', 'Enter the buyer\u2019s domain (or switch to whitelabel).', 'bad'); return; }
+    if (tier === 'whitelabel') domain = '*';
+    var payload = { v: 1, d: domain, t: tier, e: $('licExpiry').value || '' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.e)) { say('licStatus', 'Pick an expiry date.', 'bad'); return; }
+    signPayload(p.privateJwk, payload).then(function (licence) {
+      $('licOut').hidden = false;
+      $('licOut').textContent = licence;
+      $('mailRow').hidden = false;
+      $('mailBtn').dataset.licence = licence;
+      say('licStatus', 'Signed. Copy the key into your handover email — the buyer pastes it at embed.html#activate.', 'ok');
+    }).catch(function (e) { say('licStatus', 'Signing failed: ' + e.message, 'bad'); });
+  };
+
+  $('mailBtn').onclick = function () {
+    var lic = this.dataset.licence || '';
+    var body = 'Hi,\n\nThank you — your licence is active. To switch your embedded tool(s) to the licensed version:\n\n'
+      + '1. Open https://www.themostusefulsiteintheworld.com/embed.html#activate\n'
+      + '2. Paste this key:\n\n' + lic + '\n\n'
+      + '3. Re-copy the snippet(s) you embed — the credit line disappears on your licensed domain.\n\n'
+      + 'The key expires on ' + (lic.split('.').length === 3 ? JSON.parse(atob(lic.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).e : '?')
+      + '; we email renewal keys before then.\n\nRussell';
+    location.href = 'mailto:?subject=Your%20embed%20licence%20key&body=' + encodeURIComponent(body);
+  };
+
+  /* verify */
+  $('vBtn').onclick = function () {
+    var p = loadPair();
+    if (!p) { say('vStatus', 'No keypair in this browser to verify against.', 'bad'); return; }
+    var lic = $('vLic').value.trim().split('.');
+    var host = ($('vHost').value.trim().toLowerCase().replace(/^www\./, '')) || location.hostname.replace(/^www\./, '');
+    try {
+      if (lic.length !== 3 || lic[0] !== 'MUS1') throw new Error('not a MUS1 key');
+      var payload = JSON.parse(new TextDecoder().decode(unb64u(lic[1])));
+      subtle.importKey('jwk', p.publicJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+        .then(function (k) { return subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, k, unb64u(lic[2]), new TextEncoder().encode(lic[0] + '.' + lic[1])); })
+        .then(function (ok) {
+          if (!ok) return say('vStatus', 'INVALID — signature does not match your key.', 'bad');
+          var d = String(payload.d).replace(/^www\./, '');
+          var hostOk = d === '*' || host === d || host.slice(-d.length - 1) === '.' + d;
+          var expOk = new Date(payload.e) > new Date();
+          if (!hostOk) return say('vStatus', 'Signature OK, but ' + host + ' is NOT covered (licensed: ' + payload.d + ').', 'bad');
+          if (!expOk) return say('vStatus', 'Signature OK, but the key EXPIRED ' + payload.e + '.', 'bad');
+          say('vStatus', 'VALID — ' + payload.t + ' tier, domain ' + payload.d + ', expires ' + payload.e + '.', 'ok');
+        });
+    } catch (e) { say('vStatus', 'Could not read that key: ' + e.message, 'bad'); }
+  };
+
+  renderPub(loadPair());
+})();
+</script>
+</body>
+</html>
