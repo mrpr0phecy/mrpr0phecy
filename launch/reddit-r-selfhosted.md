@@ -5,7 +5,7 @@
 **Subreddit-specific rules (read these before posting):**
 - r/SideProject: text posts are preferred over links; include a demo, the tech stack, and a "what I learned" section
 - r/selfhosted: must be self-hostable. The site qualifies (one HTML file per tool, runs on any web server, no dependencies)
-- r/programming: must be interesting from a programming/architecture perspective. The "1,260 tools in vanilla JS, a repo of about 89 MB" angle is the hook
+- r/programming: must be interesting from a programming/architecture perspective. The "1,260 tools in vanilla JS, a repo of about 90 MB" angle is the hook
 - r/InternetIsBeautiful: must be genuinely beautiful. The site qualifies; the open-standards and the catalogue are the angles
 
 ---
@@ -16,7 +16,7 @@
 
 **Body:**
 
-> I\'m a developer in Luton, UK. Two years ago I started a hobby project: a single page of calculator widgets. It\'s now 1,260 tools. Every one of them is one HTML file, vanilla JavaScript, no framework, no build step. The whole repo is about 89 MB, most of it a photo library that two of the non-tool pages use.
+> I\'m a developer in Luton, UK. Two years ago I started a hobby project: a single page of calculator widgets. It\'s now 1,260 tools. Every one of them is one HTML file, vanilla JavaScript, no framework, no build step. The whole repo is about 90 MB, most of it a photo library that two of the non-tool pages use.
 >
 > The site: https://www.themostusefulsiteintheworld.com
 > The repo: https://github.com/mrpr0phecy/mrpr0phecy
@@ -74,7 +74,7 @@
 > python3 -m http.server 8000
 > ```
 >
-> That\'s it. No npm install, no build, no database, no server-side code. The 1,260 tools all run client-side. The repo is about 89 MB.
+> That\'s it. No npm install, no build, no database, no server-side code. The 1,260 tools all run client-side. The repo is about 90 MB.
 >
 > **What it is good for:**
 > - A read-it-later offline copy of the site for when the internet is down
@@ -92,11 +92,11 @@
 
 ## r/programming
 
-**Title:** I built 1,260 browser-side tools in vanilla JavaScript. The repo is about 89 MB. Here is the architecture.
+**Title:** I built 1,260 browser-side tools in vanilla JavaScript. The repo is about 90 MB. Here is the architecture.
 
 **Body:**
 
-> I have spent 2 years building a catalogue of 1,260 free browser-side tools. Every tool is one HTML file. No framework, no build, no npm, no TypeScript, no bundler. The repo is about 89 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
+> I have spent 2 years building a catalogue of 1,260 free browser-side tools. Every tool is one HTML file. No framework, no build, no npm, no TypeScript, no bundler. The repo is about 90 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
 >
 > The repo: https://github.com/mrpr0phecy/mrpr0phecy
 > The live site: https://www.themostusefulsiteintheworld.com

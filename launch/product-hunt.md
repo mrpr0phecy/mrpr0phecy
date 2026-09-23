@@ -96,7 +96,7 @@ Just me. Single maker launch.
 > - The site is **non-commercial.** There is no business model. There is no display ad inventory, no email list, no newsletter, no upsell, no pop-up. The donate link has been live for 9 months; total donations received: £34.50. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None are advertising.)
 > - The number **is honest and checkable.** There are 1,260 separate tool pages and a `cards.json` file with an entry for each of them. The count is exposed at the top of `/tools.html`.
 > - The **no-display-ads claim is verifiable.** View source on any page. You will not find an ad slot, an ads.txt file, an ad network script, or a sponsored-content block. The whole markup is the tool and its text.
-> - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is about 89 MB in total, most of it a photo library that two of the non-tool pages use.
+> - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is about 90 MB in total, most of it a photo library that two of the non-tool pages use.
 > - I am **one person**, based in Luton, UK. I work on this in the evenings and weekends.
 > - The thing I am most proud of is the **"How mortgages really work" guide** at https://www.themostusefulsiteintheworld.com/guides/mortgage.html. The bank\'s calculator never tells you the total interest. The guide walks through it.
 >

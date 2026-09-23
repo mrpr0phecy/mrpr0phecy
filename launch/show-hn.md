@@ -51,7 +51,7 @@
 > Author here. A few things I should have put in the post:
 >
 > - The site is **non-commercial**. I am not selling anything. There is a donate link and a sponsor link, and the donate link has been live for 9 months. Total donations received: £34.50.
-> - The most-used tool this month is the **mortgage calculator** (~22% of sessions). The least-used is the **3D Spirograph Nebula**, which I built because the GIF looked cool. They are all one HTML file and one JavaScript file. Total repo size: about 89 MB, most of it a photo library two of the non-tool pages use.
+> - The most-used tool this month is the **mortgage calculator** (~22% of sessions). The least-used is the **3D Spirograph Nebula**, which I built because the GIF looked cool. They are all one HTML file and one JavaScript file. Total repo size: about 90 MB, most of it a photo library two of the non-tool pages use.
 > - The number is honest and checkable. There are 1,260 separate tool pages and a JSON catalogue with an entry for each of them. The count is exposed at the top of `/tools.html`.
 > - The "no display ads" thing is not a marketing line. There is no ad slot, no ad network script, no sponsored-content block, and no retargeting pixel in the HTML of any page. (Google Analytics runs on every standalone page for measurement; Analytics does not place ads. The 1,260 tool cards are HTML fragments that inherit measurement from their host page. The "no ads" commitment is about ad inventory, not measurement.)
 > - I am one person, based in Luton, UK. I work on this in the evenings and weekends. The site is not a startup. It is a hobby that has grown.

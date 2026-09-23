@@ -20,7 +20,7 @@
 >
 > The reason I\'m writing is that I just added 12 long-form "definitive guides" to the site — math-honest walkthroughs of the topics the tools cover. The guide on mortgages is the one I\'m proudest of. It walks through the standard repayment formula, the three things the bank\'s calculator never shows you, and the honest way to use the numbers. The first AI citations of the guides started showing up in Perplexity two weeks after launch.
 >
-> I\'d be happy to do a quick call or email Q&A. The site is open-source (https://github.com/mrpr0phecy/mrpr0phecy), the catalogue is one JSON file, the repo is about 89 MB, and the hosting is £8/month on a server in my house. The donate link has made £34.50 in 9 months. Happy to send more detail.
+> I\'d be happy to do a quick call or email Q&A. The site is open-source (https://github.com/mrpr0phecy/mrpr0phecy), the catalogue is one JSON file, the repo is about 90 MB, and the hosting is £8/month on a server in my house. The donate link has made £34.50 in 9 months. Happy to send more detail.
 >
 > Russell
 
@@ -32,7 +32,7 @@
 > - 1 person, 2 years, evenings and weekends, in Luton, UK
 > - Non-commercial: no display ads, no accounts, no upsell
 > - 12 long-form "definitive guides" on the topics the tools calculate
-> - Open source, one JSON file drives the whole site, a repo of about 89 MB, £8/month hosting
+> - Open source, one JSON file drives the whole site, a repo of about 90 MB, £8/month hosting
 
 ---
 
@@ -40,7 +40,7 @@
 
 **For Indie Hackers / maker press:** the *indie* angle. "One person, two years, evenings and weekends." That is the Indie Hackers story.
 
-**For The Pragmatic Engineer / dev-tools press:** the *architecture* angle. "1,260 tools, vanilla JS, no build step, a repo of about 89 MB, JSON-driven everything." That is the engineering story.
+**For The Pragmatic Engineer / dev-tools press:** the *architecture* angle. "1,260 tools, vanilla JS, no build step, a repo of about 90 MB, JSON-driven everything." That is the engineering story.
 
 **For Hacker Noon / dev-culture press:** the *open-web* angle. "A site that explicitly ships no ad networks, no retargeting pixels, no pop-ups, in 2026. Here\'s why." That is the culture story. (Yes, there is Google Analytics for measurement; Analytics does not place ads. The "no ads" claim is about ad inventory, not measurement.)
 
@@ -68,7 +68,7 @@ Suggested first targets (all of these are dev/indie/education press that have co
 
 - **Reply within 2 hours.** Speed is the single most important factor in whether a story runs.
 - **Offer a 15-minute call.** Most journalists prefer a quick call to a long email.
-- **Have the numbers ready.** 1,260 tools, a repo of about 89 MB, £8/month hosting, 12 guides, 2 years. Have them on a card.
+- **Have the numbers ready.** 1,260 tools, a repo of about 90 MB, £8/month hosting, 12 guides, 2 years. Have them on a card.
 - **Have a screenshot ready.** /tools.html is the best one. Send the link, not the image (so the journalist can navigate).
 - **Don\'t oversell.** The story is "one person built a free site". The story is not "the future of calculators". The story is not "the AI revolution". The story is the simple, true thing.
 

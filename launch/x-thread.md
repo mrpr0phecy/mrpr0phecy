@@ -29,7 +29,7 @@
 > • 1 home page that reads the JSON
 > • 1 build script that regenerates the sitemap, RSS, and embed page from the JSON
 >
-> No npm. No framework. No build step. Total repo: about 89 MB.
+> No npm. No framework. No build step. Total repo: about 90 MB.
 
 > **3/8**
 >
@@ -67,7 +67,7 @@
 >
 > The numbers.
 >
-> 1,260 tools. A repo of about 89 MB. £8/month hosting. £34.50 in donations over 9 months. 12 long-form guides. 3 blog posts. 1 person, evenings and weekends, in Luton, UK.
+> 1,260 tools. A repo of about 90 MB. £8/month hosting. £34.50 in donations over 9 months. 12 long-form guides. 3 blog posts. 1 person, evenings and weekends, in Luton, UK.
 >
 > The site is not a startup. It is a hobby that has grown.
 

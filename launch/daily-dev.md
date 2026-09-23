@@ -22,7 +22,7 @@
 
 > I\'m a developer in Luton, UK. For the last 2 years I\'ve been building a site with 1,260 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, and 1,200+ more.
 >
-> The whole thing is **vanilla JavaScript, no framework, no build step, no npm, no TypeScript, no bundler.** Each tool is one HTML file. The repo is about 89 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
+> The whole thing is **vanilla JavaScript, no framework, no build step, no npm, no TypeScript, no bundler.** Each tool is one HTML file. The repo is about 90 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
 >
 > **The architecture in 60 seconds:**
 > - `cards/<tool-name>.html` — one file per tool, 1,260 card files
