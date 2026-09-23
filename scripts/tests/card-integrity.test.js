@@ -109,6 +109,19 @@ test('a nameless control fails; a nameless field is only noted', () => {
   assert.doesNotMatch(r.out, /control with no accessible name: <input/);
 });
 
+test('a field is not named by the text it holds', () => {
+  // A <select>'s options are its value, and a <textarea>'s text is its initial
+  // value: neither is the name a screen reader reads out with the role. Taking
+  // element text as a name made every select with options look named, so the
+  // check could not see the field at all.
+  const r = run(f('select-value-not-name.card'));
+  assert.strictEqual(r.code, 0, `these are fields, so they are notes — ${r.out}`);
+  assert.match(r.out, /2 field\(s\) with no accessible name/);
+  assert.match(r.out, /first: <select#sel-currency> is announced as nothing but "combobox"/);
+  assert.doesNotMatch(r.out, /sel-labelled/, 'aria-label is a name');
+  assert.doesNotMatch(r.out, /sel-save/, 'a button IS named by its own text');
+});
+
 test('--nameless lists every nameless field, not just the first', () => {
   // The note reports "48 field(s) … (first: …)", and 48 is a number to work
   // from only if the other 47 can be found. Off the sweep, the default output
