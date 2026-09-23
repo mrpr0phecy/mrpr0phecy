@@ -132,13 +132,16 @@ function inferSpec(tool, cardEntry, standalonePaths) {
           inputs.push({ name: id, type: inp.type || 'number', label, unit: '' });
         }
       }
-      // Fallback: at least count inputs if labels missing
-      if (inputs.length === 0 && inputsById.size > 0) {
-        for (const [id, inp] of inputsById) {
-          if (['hidden','submit','button'].includes((inp.type||'').toLowerCase())) continue;
-          inputs.push({ name: id, type: inp.type || 'text', label: id.replace(/[-_]/g,' '), unit: '' });
-        }
-        inputs = inputs.slice(0, 6);
+      // Fill the gaps: a card commonly labels one input and leaves the rest
+      // bare, and the old fallback only ran when NOTHING was labelled — so
+      // giving summary-generator's slider a `for=` (a real accessibility fix)
+      // silently dropped its four option checkboxes from the published spec.
+      // Labelled inputs keep their label; the rest are named by their id.
+      for (const [id, inp] of inputsById) {
+        if (inputs.length >= 8) break;
+        if (inputs.find(i => i.name === id)) continue;
+        if (['hidden','submit','button'].includes((inp.type||'').toLowerCase())) continue;
+        inputs.push({ name: id, type: inp.type || 'text', label: id.replace(/[-_]/g,' '), unit: '' });
       }
       // Outputs: look for id containing result/output/value
       const outRe = /\bid=["']([^"']*(?:result|output|value|answer)[^"']*)["']/gi;
