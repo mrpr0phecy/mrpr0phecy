@@ -39,21 +39,16 @@ const path = require('path');
 const vm = require('vm');
 // Same resolution order as test-card.js: the shared scratch install first (the
 // repo itself carries no node_modules), then whatever node can find.
-let JSDOM, VirtualConsole;
+let JSDOM = null, VirtualConsole = null;
 // jsdom is deliberately not a repository dependency (the site ships zero
-// dependencies), so it lives outside the workspace. When it is missing this
-// SKIPs loudly and exits 0, like the jsdom-based suites — a developer without
-// the scratch install must not see the gate fail and read it as a broken
-// repository. CI installs it (see .github/workflows/verify.yml) so this is a
-// real check where it matters.
+// dependencies), so it lives outside the workspace. CI installs it (see
+// .github/workflows/agent-guardrails.yml). Without it only the second half of
+// this check — "is the handler in window scope" — is skipped, loudly, and the
+// run still fails on a handler that does not compile, which needs no DOM.
 try {
   ({ JSDOM, VirtualConsole } = require('/tmp/tenv/node_modules/jsdom'));
 } catch (_) {
-  try { ({ JSDOM, VirtualConsole } = require('jsdom')); } catch (e) {
-    console.log('SKIP handler-check: jsdom not installed ' +
-                '(mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom)');
-    process.exit(0);
-  }
+  try { ({ JSDOM, VirtualConsole } = require('jsdom')); } catch (e) { /* optional */ }
 }
 
 const ROOT = path.join(__dirname, '..');
@@ -208,6 +203,61 @@ function stripLiterals(code) {
 }
 
 /** The bare names this handler calls: `foo(` but neither `x.foo(` nor `fooBar(`. */
+/**
+ * Inline handlers that cannot compile at all — a dead control the sweep only
+ * finds by mounting the card.
+ *
+ * Resolving names is not the only way an inline handler fails. `onclick=
+ * "bfCopyResults(), this)"` names a function that exists, so the check above
+ * passes it: the attribute is not JavaScript, the browser never compiles it,
+ * and the button does nothing for every visitor. A full response sweep finds
+ * these (the harness compiles every attribute it inserts), but a sweep is
+ * seven minutes and no one runs it before a commit; this is the same finding
+ * read straight from the file, in the gate.
+ *
+ * Only markup OUTSIDE <script> is considered. An attribute assembled by a JS
+ * string (`'<button onclick="fn(\'' + x + '\')">'`) is not the attribute the
+ * browser compiles, and compiling the source text would report every one of
+ * them. Those are left to the harness, which compiles what the DOM actually
+ * contains after the card has rendered.
+ *
+ * The value is compiled the way a browser compiles an attribute: as a function
+ * body with an `event` argument. `return false`, `this`, `event.preventDefault()`
+ * are all legal there and stay legal here — only a real syntax error is a FAIL.
+ */
+function staticHandlers(source) {
+  const masked = source.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,
+    (block) => block.replace(/[^\n]/g, ' '));
+  const found = [];
+  const re = /\bon[a-z]{3,}\s*=\s*("([^"]*)"|'([^']*)')/g;
+  let m;
+  while ((m = re.exec(masked))) {
+    const value = decodeAttribute(m[2] !== undefined ? m[2] : m[3]);
+    // `${…}` cannot appear outside a script block in a shipped fragment; if it
+    // does, this is markup being assembled somewhere clever and not our call.
+    if (value.includes('${')) continue;
+    found.push({
+      name: m[0].split('=')[0].trim().replace(/^on/, 'on'),
+      value,
+      line: masked.slice(0, m.index).split('\n').length,
+    });
+  }
+  return found;
+}
+
+function uncompilableHandlers(source) {
+  const bad = [];
+  for (const h of staticHandlers(source)) {
+    try {
+      // eslint-disable-next-line no-new-func
+      new Function('event', h.value);
+    } catch (e) {
+      bad.push({ ...h, error: e.message });
+    }
+  }
+  return bad;
+}
+
 function calledNames(handler) {
   const code = stripLiterals(handler.value);
   const names = new Set();
@@ -238,8 +288,16 @@ const hostGlobals = (() => {
   return names;
 })();
 
+/** Cards may be named relative to the repository or by absolute path (the
+ *  tests do the latter). `path.join(ROOT, '/abs/path')` produced
+ *  `<repo>/abs/path` and reported a card that exists as missing. */
+function absolute(rel) {
+  return path.isAbsolute(rel) ? rel : path.join(ROOT, rel);
+}
+
 function loadCard(rel) {
-  const html = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  if (!JSDOM) return null;
+  const html = fs.readFileSync(absolute(rel), 'utf8');
   // A fragment has no <html>/<body>; wrap it the way tool.html's shell does so
   // jsdom's parser treats the markup as content rather than a stray fragment.
   const shell = '<!doctype html><html><head></head><body><div id="toolbox-grid"></div></body></html>';
@@ -287,10 +345,24 @@ function loadCard(rel) {
   return { w, dom };
 }
 
+function printBroken(rel, broken) {
+  for (const b of broken) {
+    console.log(`  FAIL ${rel}: ${b.name}="${b.value.slice(0, 60)}${b.value.length > 60 ? '…' : ''}" ` +
+                `— does not compile, so that control can never fire (${b.error}) [line ${b.line}]`);
+  }
+}
+
 function checkCard(rel, report) {
-  const source = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const source = fs.readFileSync(absolute(rel), 'utf8');
   const found = handlers(source);
-  if (!found.length) return { handlers: 0, missing: [] };
+  // An attribute that cannot compile is a dead control regardless of what its
+  // function names resolve to, so it is checked first — and on every card, even
+  // one whose handlers call nothing resolvable. This half needs no DOM.
+  const broken = uncompilableHandlers(source);
+  if (!found.length) {
+    if (report !== 'json') printBroken(rel, broken);
+    return { handlers: 0, missing: [], uncompilable: broken };
+  }
   const blocks = (source.match(/<script[^>]*>([\s\S]*?)<\/script>/g) || [])
     .map(b => b.replace(/^<script[^>]*>/, '').replace(/<\/script>$/, ''));
   // A card is never served on its own: embed.html and tools-index.html both
@@ -302,9 +374,20 @@ function checkCard(rel, report) {
   const callsPerHandler = found.map(h => ({ h, names: calledNames(h), local: declaredIn(h.value) }));
   const all = new Set();
   for (const { names } of callsPerHandler) for (const n of names) all.add(n);
-  if (!all.size) return { handlers: found.length, missing: [] };
+  // The window is only built when there is a name to look up in it: mounting
+  // 1,250 jsdom windows is what the run cannot afford, and a card whose handlers
+  // only use `this` and `event` has nothing to resolve.
+  if (!all.size) {
+    if (report !== 'json') printBroken(rel, broken);
+    return { handlers: found.length, missing: [], uncompilable: broken };
+  }
+  const dom = loadCard(rel);              // null when jsdom is not installed
+  if (!dom) {
+    if (report !== 'json') printBroken(rel, broken);
+    return { handlers: found.length, missing: [], uncompilable: broken, scopeSkipped: true };
+  }
 
-  const { w, dom } = loadCard(rel);
+  const { w } = dom;
   const missing = [];
   for (const name of all) {
     // A handler that calls a name it declared itself is fine, so only the
@@ -324,16 +407,17 @@ function checkCard(rel, report) {
       missing.push({ name, type, where });
     }
   }
-  dom.window.close();
+  dom.dom.window.close();
   if (report === 'json') {
-    return { handlers: found.length, calls: [...all].sort(), missing };
+    return { handlers: found.length, calls: [...all].sort(), missing, uncompilable: broken };
   }
+  printBroken(rel, broken);
   for (const m of missing) {
     console.log(`  FAIL ${rel}: ${m.name}() — ${m.where.length} handler${m.where.length === 1 ? '' : 's'} ` +
                 `(${m.where.slice(0, 3).join(', ')}${m.where.length > 3 ? ', …' : ''}) but it is ` +
                 `${m.type === 'undefined' ? 'not in window scope' : m.type} — pressing it throws`);
   }
-  return { handlers: found.length, missing };
+  return { handlers: found.length, missing, uncompilable: broken };
 }
 
 function main() {
@@ -346,7 +430,12 @@ function main() {
     ? args[jsonAt + 1] : path.join(ROOT, 'handler-check.json');
   const ALL = args.includes('--all');
   const CHANGED = args.includes('--changed');
-  let files = args.filter((a, i) => !a.startsWith('--') && i !== jsonAt + 1);
+  // `i !== jsonAt + 1` skipped the first positional even when --json was not
+  // used at all (jsonAt is -1, so jsonAt + 1 is 0): `handler-check.js cards/a
+  // cards/b` checked b only. Only skip that slot when it really is the argument
+  // that `--json` consumed.
+  let files = args.filter((a, i) => !a.startsWith('--') &&
+    !(JSON_OUT && a === JSON_FILE && i === jsonAt + 1));
   if (CHANGED) {
     files = changedCards();
     if (!files.length) {
@@ -362,7 +451,7 @@ function main() {
     console.error('usage: node scripts/handler-check.js cards/x.html [more] | --changed | --all [--json [FILE]]');
     process.exit(2);
   }
-  let cards = 0, handlersSeen = 0, failed = 0;
+  let cards = 0, handlersSeen = 0, failed = 0, scopeSkipped = 0;
   const payload = {};
   for (const rel of files) {
     cards += 1;
@@ -375,7 +464,8 @@ function main() {
       continue;
     }
     handlersSeen += result.handlers;
-    if (result.missing.length) failed += 1;
+    if (result.scopeSkipped) scopeSkipped += 1;
+    if (result.missing.length || (result.uncompilable || []).length) failed += 1;
     if (JSON_OUT) payload[rel] = result;
   }
   if (JSON_OUT) {
@@ -385,7 +475,12 @@ function main() {
                 `wrote ${shown && !shown.startsWith('..') ? shown : JSON_FILE}`);
   } else {
     console.log(`\n${cards} card(s), ${handlersSeen} inline handler(s): ` +
-                (failed ? `${failed} card(s) with an unreachable handler` : 'every handler resolves'));
+                (failed ? `${failed} card(s) with a dead control` : 'every handler resolves and compiles'));
+    if (scopeSkipped) {
+      console.log(`  NOTE jsdom is not installed, so the window-scope half was skipped for ` +
+                  `${scopeSkipped} card(s) — every handler was still compiled ` +
+                  `(mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom)`);
+    }
   }
   process.exit(failed ? 1 : 0);
 }
