@@ -340,15 +340,23 @@ function accessibleName(el, doc) {
                  (el.getAttribute('title') || '').trim();
   if (direct) return direct;
   const tag = el.tagName.toLowerCase();
-  const own = textOf(el);
-  if (own) return own;
-  for (const img of el.querySelectorAll('img[alt]')) {
-    if ((img.getAttribute('alt') || '').trim()) return img.getAttribute('alt').trim();
+  // A button or a link is named by its content. A FIELD is not: the options of
+  // a `<select>` are its value, and the text between `<textarea>` tags is its
+  // initial value — neither is the name a screen reader reads out with the
+  // role. Treating `textOf(el)` as a name made every select with options look
+  // named, which hid the field from this check entirely.
+  const isField = tag === 'input' || tag === 'select' || tag === 'textarea';
+  if (!isField) {
+    const own = textOf(el);
+    if (own) return own;
+    for (const img of el.querySelectorAll('img[alt]')) {
+      if ((img.getAttribute('alt') || '').trim()) return img.getAttribute('alt').trim();
+    }
+    for (const t of el.querySelectorAll('svg title')) {
+      if (textOf(t)) return textOf(t);
+    }
   }
-  for (const t of el.querySelectorAll('svg title')) {
-    if (textOf(t)) return textOf(t);
-  }
-  if (tag === 'input' || tag === 'select' || tag === 'textarea') {
+  if (isField) {
     if (el.id) {
       // Compared by hand rather than `querySelector('label[for="…"]')`: an id
       // is not a selector, and the escaping needed to make one out of it is
