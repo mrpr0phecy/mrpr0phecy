@@ -1,0 +1,187 @@
+<!--
+  3D Coordinate Converter — Cartesian ⇄ cylindrical ⇄ spherical, with the
+  point drawn in 3D alongside its r, θ, φ construction. Plus distance,
+  midpoint and bearing between two points. No network.
+-->
+<style>
+  .c3d-wrap{--c3d-acc:#fbbf24;font-family:var(--sans,system-ui,-apple-system,Segoe UI,sans-serif);color:var(--text,#e6faff)}
+  .c3d-wrap h2.c3d-h{margin:0 0 4px;color:var(--c3d-acc);font-size:1.45rem;letter-spacing:-.01em}
+  .c3d-wrap .c3d-desc{margin:0 0 12px;color:var(--muted,#9fb4c8);font-size:.93rem;line-height:1.55}
+  .c3d-chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 10px}
+  .c3d-chip{padding:6px 13px;border-radius:999px;font:600 12.5px/1.2 inherit;font-family:inherit;cursor:pointer;color:var(--text,#e6faff);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);transition:border-color .15s,background .15s}
+  .c3d-chip:hover,.c3d-chip:focus-visible{border-color:var(--c3d-acc);color:var(--c3d-acc);outline:none}
+  .c3d-chip.c3d-on{background:color-mix(in srgb,var(--c3d-acc) 18%,transparent);border-color:var(--c3d-acc);color:#fff;box-shadow:0 0 14px color-mix(in srgb,var(--c3d-acc) 35%,transparent)}
+  .c3d-stage{position:relative;height:500px;border-radius:16px;overflow:hidden;border:1px solid color-mix(in srgb,var(--c3d-acc) 30%,transparent);background:radial-gradient(120% 90% at 50% 30%,#3a2a0c 0%,#08101f 55%,#03050b 100%);box-shadow:inset 0 0 80px rgba(0,0,0,.55),0 10px 40px rgba(0,0,0,.35)}
+  .c3d-stage:fullscreen{height:100vh;border-radius:0}
+  .c3d-stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}
+  .c3d-stage canvas.is-drag{cursor:grabbing}
+  .c3d-stage canvas:focus-visible{box-shadow:inset 0 0 0 2px var(--c3d-acc)}
+  .c3d-hud{position:absolute;left:12px;top:10px;max-width:calc(100% - 150px);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#bfeaff;background:rgba(3,8,18,.62);border:1px solid rgba(255,255,255,.08);padding:6px 10px;border-radius:9px;pointer-events:none;backdrop-filter:blur(4px);white-space:pre-wrap}
+  .c3d-hint{position:absolute;right:12px;bottom:10px;font-size:11px;color:#7f93aa;background:rgba(3,8,18,.5);padding:4px 9px;border-radius:7px;pointer-events:none}
+  .c3d-tools{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+  .c3d-tb{min-width:34px;height:32px;padding:0 9px;border-radius:9px;border:1px solid rgba(255,255,255,.16);background:rgba(3,8,18,.62);color:#dff6ff;font:600 12px/1 inherit;font-family:inherit;cursor:pointer}
+  .c3d-tb:hover,.c3d-tb:focus-visible{border-color:var(--c3d-acc);color:var(--c3d-acc);outline:none}
+  .c3d-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px}
+  .c3d-panel{background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:14px 15px}
+  .c3d-panel h3{margin:0 0 10px;font-size:.8rem;text-transform:uppercase;letter-spacing:.12em;color:var(--c3d-acc)}
+  .c3d-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:10px}
+  .c3d-f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted,#9fb4c8)}
+  .c3d-f input,.c3d-f select{width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e6faff;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .c3d-f input[type=range]{padding:0;accent-color:var(--c3d-acc);background:none;border:0}
+  .c3d-f input:focus,.c3d-f select:focus{outline:none;border-color:var(--c3d-acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--c3d-acc) 25%,transparent)}
+  .c3d-vec{display:grid;grid-template-columns:minmax(64px,auto) repeat(3,minmax(0,1fr));gap:6px;align-items:center;margin-bottom:6px;font-size:12px}
+  .c3d-vec b{font:700 12.5px ui-monospace,monospace}
+  .c3d-vec input{width:100%;box-sizing:border-box;padding:7px 5px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.3);color:#e6faff;font:13px ui-monospace,monospace;text-align:center}
+  .c3d-vec input:focus{outline:none;border-color:var(--c3d-acc)}
+  .c3d-out{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:13px}
+  .c3d-out dt{color:var(--muted,#9fb4c8)}
+  .c3d-out dd{margin:0;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#f2fbff;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .c3d-out dd.c3d-good{color:#6ee7b7}.c3d-out dd.c3d-warn{color:#fbbf24}.c3d-out dd.c3d-big{color:var(--c3d-acc);font-size:15px;font-weight:700}
+  .c3d-out dt.c3d-sec{grid-column:1/-1;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.08);color:var(--c3d-acc);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  .c3d-steps{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.25);font:12px/1.7 ui-monospace,monospace;color:#cfe6f5;white-space:pre-wrap;word-break:break-word}
+  .c3d-btn{padding:8px 14px;border-radius:9px;border:1px solid color-mix(in srgb,var(--c3d-acc) 45%,transparent);background:color-mix(in srgb,var(--c3d-acc) 12%,transparent);color:#e6faff;font:600 13px inherit;font-family:inherit;cursor:pointer}
+  .c3d-btn:hover,.c3d-btn:focus-visible{background:color-mix(in srgb,var(--c3d-acc) 24%,transparent);outline:none}
+  .c3d-learn{margin-top:14px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:4px 16px}
+  .c3d-learn summary{cursor:pointer;padding:10px 0;font-weight:700;color:var(--c3d-acc)}
+  .c3d-learn p{font-size:13.5px;line-height:1.65;color:#c9dcea}
+  .c3d-learn code{font-family:ui-monospace,monospace;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:5px;color:#e6faff}
+  @media (max-width:760px){.c3d-cols{grid-template-columns:1fr}.c3d-stage{height:380px}.c3d-hint{display:none}.c3d-hud{font-size:11px;top:50px;left:8px;max-width:calc(100% - 16px)}.c3d-panel{padding:12px}}
+</style>
+<div class="c3d-wrap" id="c3d-root">
+  <h2 id="c3d-title" class="c3d-h">🧭 3D Coordinate Converter — Cartesian, Cylindrical &amp; Spherical</h2>
+  <p id="c3d-desc" class="c3d-desc">Type a point in any system and the other two update instantly, with the point drawn in 3D and its radius and angles traced out so you can see what each number means. Switch between the physics (ISO) and maths angle conventions, degrees or radians, and get the distance and midpoint to a second point.</p>
+  <div class="c3d-chips" id="c3d-pre" role="group" aria-label="Examples"></div>
+  <div class="c3d-stage" id="c3d-stage">
+    <canvas id="c3d-canvas" tabindex="0" aria-label="3D view of the point with its cylindrical and spherical construction. Drag to orbit."></canvas>
+    <div class="c3d-hud" id="c3d-hud" aria-live="polite"></div>
+    <div class="c3d-tools"><button type="button" class="c3d-tb" id="c3d-spin" aria-label="Toggle auto-rotate">❚❚</button><button type="button" class="c3d-tb" id="c3d-reset" aria-label="Reset view">⟲</button><button type="button" class="c3d-tb" id="c3d-png" aria-label="Save view as PNG">PNG</button><button type="button" class="c3d-tb" id="c3d-fs" aria-label="Toggle fullscreen">⤢</button></div><div class="c3d-hint">drag to orbit · scroll / pinch to zoom · arrows + space when focused</div>
+  </div>
+  <div class="c3d-cols">
+    <div class="c3d-panel">
+      <h3>Point P — edit any row</h3>
+      <div class="c3d-row">
+        <div class="c3d-f"><label for="c3d-conv">Convention</label><select id="c3d-conv"><option value="iso">Physics / ISO 80000 (θ polar, φ azimuth)</option><option value="math">Maths (θ azimuth, φ polar)</option></select></div>
+        <div class="c3d-f"><label for="c3d-ang">Angles</label><select id="c3d-ang"><option value="deg">degrees</option><option value="rad">radians</option></select></div>
+      </div>
+      <div id="c3d-ins"></div>
+      <h3 style="margin-top:12px">Second point B (optional)</h3>
+      <div id="c3d-ins2"></div>
+      <div class="c3d-steps" id="c3d-steps" aria-live="polite"></div>
+    </div>
+    <div class="c3d-panel"><h3>Results</h3><dl class="c3d-out" id="c3d-out"></dl></div>
+  </div>
+  <details class="c3d-learn">
+    <summary>Formulas &amp; conventions</summary>
+    <p><b>Cylindrical (ρ, φ, z)</b>: <code>ρ = √(x² + y²)</code>, <code>φ = atan2(y, x)</code>, z unchanged. Back: <code>x = ρ cos φ</code>, <code>y = ρ sin φ</code>.</p>
+    <p><b>Spherical (r, θ, φ)</b> in the physics/ISO convention: <code>r = √(x² + y² + z²)</code>, polar angle from +z <code>θ = acos(z / r)</code>, azimuth <code>φ = atan2(y, x)</code>. Back: <code>x = r sin θ cos φ</code>, <code>y = r sin θ sin φ</code>, <code>z = r cos θ</code>. Many maths textbooks swap the names θ and φ — pick the convention that matches your course.</p>
+    <p><b>Elevation</b> (used in navigation and astronomy) is <code>90° − θ</code>. <b>Distance</b> between points is <code>√(Δx² + Δy² + Δz²)</code>.</p>
+    <p><b>Worked example:</b> (1, 1, √2) → r = 2, θ = 45°, φ = 45°; cylindrical ρ = √2 ≈ 1.414, φ = 45°, z ≈ 1.414.</p>
+  </details>
+</div>
+
+<script>
+(function(){
+/* ---- tiny canvas 3D engine: orbit camera, shaded faces, depth-sorted. No network. ---- */
+function V3(x,y,z){return [x,y,z];}
+function add(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];}
+function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function scl(a,s){return [a[0]*s,a[1]*s,a[2]*s];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function crs(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function len(a){return Math.sqrt(dot(a,a));}
+function nrm(a){var l=len(a)||1;return [a[0]/l,a[1]/l,a[2]/l];}
+function Scene(canvas,opt){
+  var S=this,ctx=canvas.getContext('2d');S.yaw=opt.yaw||0.7;S.pitch=opt.pitch||0.45;S.dist=opt.dist||9;S.spin=opt.spin!==false;S.items=[];S.target=opt.target||[0,0,0];
+  S.home={yaw:S.yaw,pitch:S.pitch,dist:S.dist};S.onFrame=null;var W=0,H=0,dpr=1,drag=null,pinch=0,dirty=true,last=0,idle=0;
+  function size(){var r=canvas.getBoundingClientRect();dpr=Math.min(2,window.devicePixelRatio||1);W=r.width;H=r.height;canvas.width=Math.max(1,W*dpr|0);canvas.height=Math.max(1,H*dpr|0);dirty=true;}
+  S.size=size;
+  S.basis=function(){var cy=Math.cos(S.yaw),sy=Math.sin(S.yaw),cp=Math.cos(S.pitch),sp=Math.sin(S.pitch);
+    var f=[-cp*cy,-cp*sy,-sp],r=nrm(crs(f,[0,0,1])),u=crs(r,f);return {f:f,r:r,u:u,eye:sub(S.target,scl(f,S.dist))};};
+  S.proj=function(p,B){var d=sub(p,B.eye),z=dot(d,B.f);if(z<0.05)z=0.05;var k=Math.min(W,H)*1.1/z;return [W/2+dot(d,B.r)*k,H/2-dot(d,B.u)*k,z];};
+  S.clear=function(){S.items=[];dirty=true;};
+  S.face=function(pts,col,alpha,opt2){S.items.push({t:'f',p:pts,c:col,a:alpha==null?1:alpha,o:opt2||{}});};
+  S.line=function(a,b,col,w,dash){S.items.push({t:'l',p:[a,b],c:col,w:w||1.5,d:dash});};
+  S.dotp=function(p,col,r){S.items.push({t:'d',p:[p],c:col,r:r||5});};
+  S.text=function(p,s,col){S.items.push({t:'x',p:[p],s:s,c:col||'#e6faff'});};
+  S.arrow=function(a,b,col,w){S.line(a,b,col,w||2.5);S.items.push({t:'h',p:[a,b],c:col});};
+  S.mesh=function(m,col,alpha,edges){for(var i=0;i<m.length;i++)S.face(m[i],col,alpha,{edge:edges});};
+  S.grid=function(n,step){n=n||5;step=step||1;for(var i=-n;i<=n;i++){var c=i===0?'rgba(160,200,255,.28)':'rgba(140,180,255,.09)';S.line([i*step,-n*step,0],[i*step,n*step,0],c,1);S.line([-n*step,i*step,0],[n*step,i*step,0],c,1);}};
+  S.axes=function(L){L=L||4;S.arrow([0,0,0],[L,0,0],'#f87171',1.6);S.arrow([0,0,0],[0,L,0],'#4ade80',1.6);S.arrow([0,0,0],[0,0,L],'#60a5fa',1.6);S.text([L*1.08,0,0],'x','#f87171');S.text([0,L*1.08,0],'y','#4ade80');S.text([0,0,L*1.08],'z','#60a5fa');};
+  function shade(c,n,B){var L=nrm([0.4,-0.3,0.85]),k=Math.abs(dot(n,L))*0.65+0.35,rim=Math.pow(1-Math.abs(dot(n,B.f)),2)*0.35;return 'rgb('+[0,1,2].map(function(i){return Math.min(255,Math.round(c[i]*k+255*rim*0.5));}).join(',')+')';}
+  S.render=function(){if(!W)return;var B=S.basis();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+    var list=[];for(var i=0;i<S.items.length;i++){var it=S.items[i],pp=it.p.map(function(p){return S.proj(p,B);}),z=0;for(var j=0;j<pp.length;j++)z+=pp[j][2];z/=pp.length;
+      if(it.t==='l'||it.t==='h')z-=0.01;if(it.t==='d'||it.t==='x')z-=0.05;list.push({it:it,pp:pp,z:z});}
+    list.sort(function(a,b){return b.z-a.z;});
+    for(i=0;i<list.length;i++){var o=list[i],it2=o.it,pp2=o.pp;ctx.globalAlpha=1;
+      if(it2.t==='f'){var P=it2.p,n=nrm(crs(sub(P[1],P[0]),sub(P[2],P[0])));ctx.beginPath();ctx.moveTo(pp2[0][0],pp2[0][1]);for(j=1;j<pp2.length;j++)ctx.lineTo(pp2[j][0],pp2[j][1]);ctx.closePath();
+        ctx.globalAlpha=it2.a;ctx.fillStyle=shade(it2.c,n,B);ctx.fill();if(it2.o.edge){ctx.globalAlpha=Math.min(1,it2.a+0.2);ctx.strokeStyle=it2.o.edge;ctx.lineWidth=0.7;ctx.stroke();}else if(it2.a>0.9){ctx.strokeStyle=ctx.fillStyle;ctx.lineWidth=0.6;ctx.stroke();}}
+      else if(it2.t==='l'){ctx.beginPath();ctx.moveTo(pp2[0][0],pp2[0][1]);ctx.lineTo(pp2[1][0],pp2[1][1]);ctx.strokeStyle=it2.c;ctx.lineWidth=it2.w;ctx.setLineDash(it2.d?[5,5]:[]);ctx.stroke();ctx.setLineDash([]);}
+      else if(it2.t==='h'){var a=pp2[0],b=pp2[1],ang=Math.atan2(b[1]-a[1],b[0]-a[0]),s=10;ctx.beginPath();ctx.moveTo(b[0],b[1]);ctx.lineTo(b[0]-s*Math.cos(ang-0.4),b[1]-s*Math.sin(ang-0.4));ctx.lineTo(b[0]-s*Math.cos(ang+0.4),b[1]-s*Math.sin(ang+0.4));ctx.closePath();ctx.fillStyle=it2.c;ctx.fill();}
+      else if(it2.t==='d'){var g=ctx.createRadialGradient(pp2[0][0],pp2[0][1],0,pp2[0][0],pp2[0][1],it2.r*2.6);g.addColorStop(0,'#fff');g.addColorStop(0.3,it2.c);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(pp2[0][0],pp2[0][1],it2.r*2.6,0,6.2832);ctx.fill();}
+      else if(it2.t==='x'){ctx.font='600 12px ui-monospace,Menlo,Consolas,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.8)';ctx.strokeText(it2.s,pp2[0][0],pp2[0][1]);ctx.fillStyle=it2.c;ctx.fillText(it2.s,pp2[0][0],pp2[0][1]);}}
+    dirty=false;};
+  S.redraw=function(){dirty=true;};
+  S.reset=function(){S.yaw=S.home.yaw;S.pitch=S.home.pitch;S.dist=S.home.dist;dirty=true;};
+  function clampP(){S.pitch=Math.max(-1.45,Math.min(1.45,S.pitch));S.dist=Math.max(2,Math.min(80,S.dist));dirty=true;}
+  canvas.addEventListener('pointerdown',function(e){drag={x:e.clientX,y:e.clientY};idle=0;canvas.classList.add('is-drag');try{canvas.setPointerCapture(e.pointerId);}catch(_){}});
+  canvas.addEventListener('pointermove',function(e){if(!drag||pinch)return;S.yaw-=(e.clientX-drag.x)*0.01;S.pitch+=(e.clientY-drag.y)*0.01;drag={x:e.clientX,y:e.clientY};clampP();});
+  function up(){drag=null;canvas.classList.remove('is-drag');}
+  canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+  canvas.addEventListener('wheel',function(e){e.preventDefault();S.dist*=Math.exp(e.deltaY*0.001);clampP();},{passive:false});
+  canvas.addEventListener('touchmove',function(e){if(e.touches.length===2){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinch)S.dist*=pinch/d;pinch=d;clampP();e.preventDefault();}},{passive:false});
+  canvas.addEventListener('touchend',function(){pinch=0;});
+  canvas.addEventListener('keydown',function(e){var k=e.key;if(k==='ArrowLeft')S.yaw+=0.1;else if(k==='ArrowRight')S.yaw-=0.1;else if(k==='ArrowUp')S.pitch+=0.1;else if(k==='ArrowDown')S.pitch-=0.1;else if(k==='+'||k==='=')S.dist*=0.9;else if(k==='-')S.dist*=1.1;else if(k===' '){S.spin=!S.spin;}else return;e.preventDefault();clampP();});
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(reduce)S.spin=false;
+  function loop(t){if(!canvas.isConnected)return;var dt=Math.min(0.05,(t-last)/1000||0);last=t;if(S.spin&&!drag){idle+=dt;if(idle>0.6){S.yaw+=dt*0.25;dirty=true;}}if(S.onFrame)S.onFrame(dt);if(dirty)S.render();requestAnimationFrame(loop);}
+  if(window.ResizeObserver)new ResizeObserver(size).observe(canvas);else window.addEventListener('resize',size);
+  size();requestAnimationFrame(loop);
+}
+function fmt(x,d){if(!isFinite(x))return '—';d=d==null?4:d;var a=Math.abs(x);if(a!==0&&(a>=1e7||a<1e-4))return x.toExponential(3);var s=(+x.toFixed(d)).toString();return s==='-0'?'0':s;}
+function hexrgb(h){h=h.replace('#','');return [parseInt(h.substr(0,2),16),parseInt(h.substr(2,2),16),parseInt(h.substr(4,2),16)];}
+function outRows(dl,rows,P){while(dl.firstChild)dl.removeChild(dl.firstChild);rows.forEach(function(r){if(typeof r==='string'){var s=document.createElement('dt');s.className=P+'-sec';s.textContent=r;dl.appendChild(s);return;}
+  var dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=r[0];dd.textContent=r[1];if(r[2])dd.className=P+'-'+r[2];dl.appendChild(dt);dl.appendChild(dd);});}
+function wire(S){$('spin').addEventListener('click',function(){S.spin=!S.spin;this.textContent=S.spin?'❚❚':'▶';});$('reset').addEventListener('click',S.reset);
+$('png').addEventListener('click',function(){S.render();var a=document.createElement('a');a.download='c3d-3d.png';a.href=$('canvas').toDataURL('image/png');a.click();});
+$('fs').addEventListener('click',function(){var st=$('stage');if(document.fullscreenElement)document.exitFullscreen();else if(st.requestFullscreen)st.requestFullscreen();});}
+function $(id){return document.getElementById('c3d-'+id);}
+var S,P=[2,1.5,2.5],B=[-1,2,-1],INP={};
+var PRE=[['(3, 4, 5)',[3,4,5]],['(1, 1, √2)',[1,1,Math.SQRT2]],['On the z-axis',[0,0,3]],['Below the plane',[-2,1,-2]],['Unit x',[1,0,0]]];
+function A(x){return $('ang').value==='deg'?x*180/Math.PI:x;}
+function Ain(x){return $('ang').value==='deg'?x*Math.PI/180:x;}
+function sph(p){var r=len(p);return {r:r,pol:r?Math.acos(Math.max(-1,Math.min(1,p[2]/r))):0,az:Math.atan2(p[1],p[0])};}
+function names(){return $('conv').value==='iso'?{pol:'θ',az:'φ'}:{pol:'φ',az:'θ'};}
+function mkRow(box,key,label,cols,onset){var row=document.createElement('div');row.className='c3d-vec';var b=document.createElement('b');b.textContent=label;row.appendChild(b);
+ INP[key]=cols.map(function(c,i){var w=document.createElement('input');w.type='number';w.step='any';w.setAttribute('aria-label',label+' '+c);w.placeholder=c;w.title=c;
+  w.addEventListener('input',function(){var v=INP[key].map(function(e){return parseFloat(e.value);});if(v.every(isFinite)){onset(v);sync(key);}});row.appendChild(w);return w;});box.appendChild(row);}
+function sync(skip){var s=sph(P),rho=Math.hypot(P[0],P[1]),au=$('ang').value==='deg'?'°':' rad',nm=names();
+ function put(k,v){if(k===skip)return;INP[k].forEach(function(e,i){e.value=fmt(v[i],6);});}
+ put('xyz',P);put('cyl',[rho,A(s.az),P[2]]);put('sph',[s.r,A(s.pol),A(s.az)]);put('b',B);
+ var hdr=$('conv').value==='iso'?['r','θ','φ']:['r','φ','θ'];INP.sph[1].placeholder=hdr[1];INP.sph[2].placeholder=hdr[2];
+ var d=sub(B,P),mid=scl(add(P,B),0.5);
+ outRows($('out'),[['Cartesian (x, y, z)','('+P.map(function(v){return fmt(v);}).join(', ')+')','big'],['Cylindrical (ρ, '+nm.az+', z)','('+fmt(rho)+', '+fmt(A(s.az))+au+', '+fmt(P[2])+')','big'],['Spherical (r, '+nm.pol+', '+nm.az+')','('+fmt(s.r)+', '+fmt(A(s.pol))+au+', '+fmt(A(s.az))+au+')','big'],
+  'Extras',['Elevation above xy-plane',fmt(A(Math.PI/2-s.pol))+au],['Azimuth as compass (0–360°)',fmt((s.az*180/Math.PI+360)%360)+'°'],['Unit vector',s.r?'('+nrm(P).map(function(v){return fmt(v);}).join(', ')+')':'—'],['Octant',s.r?(P[0]>=0?'+':'−')+'x '+(P[1]>=0?'+':'−')+'y '+(P[2]>=0?'+':'−')+'z':'origin'],
+  'P → B',['Distance |PB|',fmt(len(d)),'big'],['Midpoint',' ('+mid.map(function(v){return fmt(v);}).join(', ')+')'],['Vector PB','('+d.map(function(v){return fmt(v);}).join(', ')+')'],['Angle ∠POB',len(P)&&len(B)?fmt(Math.acos(Math.max(-1,Math.min(1,dot(P,B)/(len(P)*len(B)))))*180/Math.PI)+'°':'—']],'c3d');
+ $('steps').textContent='r = √('+fmt(P[0])+'² + '+fmt(P[1])+'² + '+fmt(P[2])+'²) = '+fmt(s.r)+'\n'+nm.pol+' = acos(z / r) = acos('+fmt(P[2])+' / '+fmt(s.r)+') = '+fmt(A(s.pol))+au+'\n'+nm.az+' = atan2(y, x) = atan2('+fmt(P[1])+', '+fmt(P[0])+') = '+fmt(A(s.az))+au+'\nρ = √(x² + y²) = '+fmt(rho);
+ $('hud').textContent='P = ('+P.map(function(v){return fmt(v,3);}).join(', ')+')\nr = '+fmt(s.r,3)+'  '+nm.pol+' = '+fmt(A(s.pol),2)+au+'  '+nm.az+' = '+fmt(A(s.az),2)+au;
+ scene(s,rho,nm);}
+function arc(c,u,v,R,a0,a1,col,lab){var n=24,pv=null;for(var i=0;i<=n;i++){var t=a0+(a1-a0)*i/n,q=add(c,add(scl(u,R*Math.cos(t)),scl(v,R*Math.sin(t))));if(pv)S.line(pv,q,col,2.2);pv=q;}var tm=(a0+a1)/2;S.text(add(c,add(scl(u,R*1.35*Math.cos(tm)),scl(v,R*1.35*Math.sin(tm)))),lab,col);}
+function scene(s,rho,nm){S.clear();S.grid(5,1);S.axes(4.2);var O=[0,0,0],F=[P[0],P[1],0],M=Math.max(len(P),len(B),1),k=M>5?5/M:1,Pp=scl(P,k),Fp=scl(F,k),Bp=scl(B,k);
+ /* translucent cylinder of radius rho */
+ var rr=rho*k,n=36;if(rr>0.05){for(var i=0;i<n;i++){var a0=i/n*2*Math.PI,a1=(i+1)/n*2*Math.PI;S.face([[rr*Math.cos(a0),rr*Math.sin(a0),0],[rr*Math.cos(a1),rr*Math.sin(a1),0],[rr*Math.cos(a1),rr*Math.sin(a1),Pp[2]],[rr*Math.cos(a0),rr*Math.sin(a0),Pp[2]]],[56,189,248],0.1);}}
+ S.line(O,Pp,'#fbbf24',3);S.line(O,Fp,'#38bdf8',2,true);S.line(Fp,Pp,'#38bdf8',2,true);S.line([Pp[0],0,0],Fp,'rgba(248,113,113,.6)',1,true);S.line([0,Pp[1],0],Fp,'rgba(74,222,128,.6)',1,true);
+ if(rr>0.05)arc(O,[1,0,0],[0,1,0],Math.min(1.2,rr*0.6),0,s.az,'#38bdf8',nm.az);
+ if(len(Pp)>0.05){var h=rr>1e-6?nrm(Fp):[1,0,0];arc(O,[0,0,1],h,Math.min(1.6,len(Pp)*0.5),0,s.pol,'#f472b6',nm.pol);}
+ S.text(scl(Pp,0.5).map(function(v,i){return i===2?v+0.35:v;}),'r','#fbbf24');S.text(scl(Fp,0.5),'ρ','#38bdf8');
+ S.dotp(Pp,'#fbbf24',7);S.text(add(Pp,[0,0,0.5]),'P','#fde68a');S.dotp(Bp,'#a3e635',5);S.text(add(Bp,[0,0,0.45]),'B','#d9f99d');S.line(Pp,Bp,'rgba(163,230,53,.7)',1.6,true);
+ if(k!==1)S.text([0,0,-0.6],'scaled ×'+fmt(k,3),'#7f93aa');S.redraw();}
+function init(){var box=$('ins');
+ mkRow(box,'xyz','Cartesian',['x','y','z'],function(v){P=v;});
+ mkRow(box,'cyl','Cylindrical',['ρ','azimuth','z'],function(v){var a=Ain(v[1]);P=[v[0]*Math.cos(a),v[0]*Math.sin(a),v[2]];});
+ mkRow(box,'sph','Spherical',['r','polar','azimuth'],function(v){var t=Ain(v[1]),f=Ain(v[2]);P=[v[0]*Math.sin(t)*Math.cos(f),v[0]*Math.sin(t)*Math.sin(f),v[0]*Math.cos(t)];});
+ mkRow($('ins2'),'b','B (x, y, z)',['x','y','z'],function(v){B=v;});
+ PRE.forEach(function(p){var b=document.createElement('button');b.type='button';b.className='c3d-chip';b.textContent=p[0];b.addEventListener('click',function(){P=p[1].slice();sync();});$('pre').appendChild(b);});
+ $('conv').addEventListener('change',function(){sync();});$('ang').addEventListener('change',function(){sync();});
+ S=new Scene($('canvas'),{dist:13,pitch:0.45,yaw:0.9});S.target=[0,0,1];wire(S);sync();}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){if(document.getElementById('c3d-root'))init();});}else if(document.getElementById('c3d-root'))init();
+})();
+</script>
