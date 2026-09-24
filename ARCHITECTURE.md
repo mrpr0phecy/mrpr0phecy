@@ -350,7 +350,7 @@ with one job and none of them large:
 | `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
 | `toolbox.js` | about 32 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none); its lite-tier fetch waits for the visitor to reach for the toolbox |
 | `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
-| `home-core.js` | about 22 KB | theme/accent, panels, the search bridge, deep links, service worker |
+| `home-core.js` | about 27 KB | theme/accent, panels, the search bridge, deep links, service worker |
 
 `scripts/check-critical-css.py` holds the two rules that make this safe: the
 first paint's stylesheet must not depend on the deferred one, and every asset
