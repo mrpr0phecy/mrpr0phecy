@@ -53,6 +53,15 @@ assert(/const loaderWatchdog = setTimeout\(/.test(html),
 assert((html.match(/clearTimeout\(loaderWatchdog\)/g) || []).length >= 2,
   'the loader watchdog must be cleared on BOTH the success and the error path');
 
+// The card's entrance animation must not fill forwards. A filled transform —
+// even the identity matrix the animation ends on — makes .card the containing
+// block for every position:fixed element inside it, so card toasts, modals and
+// full-screen overlays were pinned to the card box instead of the viewport.
+const cardAnim = html.match(/\.tool-card-box > \.card \{ animation: ([^;]+);/);
+assert(cardAnim, 'the .tool-card-box > .card entrance animation rule moved — re-pin this check');
+assert(!/\b(both|forwards)\b/.test(cardAnim[1]),
+  `the .card entrance animation fills forwards (${cardAnim[1]}) — position:fixed inside cards breaks again`);
+
 // ---- 2. run the shipped functions in a stub DOM ----------------------------
 function stubEl(tag) {
   return {
