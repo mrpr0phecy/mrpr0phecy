@@ -190,8 +190,11 @@ buyer gets, one email). As of 2026-09-24 it is linked from the shared music nav
 and footer on every music page, from the radio "Like what you hear?" band and
 from `support.html`; its email link pre-fills a short brief (use, track, term,
 territory, budget) so enquiries arrive ready to quote. Keep it off catalogue
-pages (AGENTS.md §3.6). Next step that needs a human: a one-page licence
-template ready to send the same day an enquiry lands.
+pages (AGENTS.md §3.6). `sync-licence.html` is that one-page licence: the buyer fills in their project,
+sees the exact terms, and emails, prints or saves it as a PDF. You can send a
+ready-made quote as a link (`sync-licence.html?licensee=…&project=…&track=…&fee=350&term=2`).
+It is a plain-English template, not legal advice. Have a solicitor read it once
+before the first large or exclusive deal.
 
 ---
 
