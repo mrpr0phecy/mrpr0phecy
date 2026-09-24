@@ -72,6 +72,14 @@ test('the documented one-line idiom with its else passes', () => {
   assert.doesNotMatch(r.out, /FAIL/);
 });
 
+test('a regex literal after `return` does not blind the check', () => {
+  // mask-js decided regex-vs-division by the previous character, so after
+  // `return` it read /[",]/ as a division and the quote as a string that
+  // blanked everything below — the init idiom then looked like it had no else.
+  const r = run(f('card-init-regex-return.card'));
+  assert.strictEqual(r.code, 0, `the else is right there — ${r.out}`);
+});
+
 test('a readyState test that registers no listener is not a finding', () => {
   const r = run(f('card-init-other-loading.card'));
   assert.strictEqual(r.code, 0, `nothing to fix here — ${r.out}`);
