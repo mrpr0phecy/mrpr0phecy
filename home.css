@@ -17,20 +17,16 @@
 
    On 2026-09-21 the file was rewritten around the page that actually exists.
    The main page no longer mounts the catalogue (see home-core.js and
-   scripts/tests/no-live-tools.test.js): it lists tools. So the card grid, the
-   card faces, the rating buttons, the maximise modal, the loader, the park and
-   the directory view went with the grid they styled — about 2,000 lines of
-   rules for elements no visitor can see. What is left is the page: the
-   command bar, the hero and its search, the three list sections, 28 category
-   tiles, and the footer.
+   scripts/tests/no-live-tools.test.js): it lists tools. The card grid, card
+   faces, rating buttons, maximise modal, loader, park and directory view went
+   with the grid they styled — ~2,000 lines for elements no visitor sees.
+   What is left is the page: command bar, hero and search, three list sections,
+   28 category tiles, footer.
 
-   Responsiveness is the other half of the rewrite. Every host page used to
-   hard-code the offset its list toolbar parks at (60 px here, 52 px on
-   tools.html, 72 px on the category pages, 8 px on the directory) and three of
-   the four were wrong at some width — on a 390 px phone the category page's
-   own topbar is 137 px tall and sat on top of its own toolbar. The offset is
-   now measured (explore.js -> --xp-sticky-h) and this file only has to declare
-   the fallback.
+   Responsiveness is the other half of it. Host pages used to hard-code the
+   offset their list toolbar parks at and three of the four were wrong at some
+   width. The offset is measured now (explore.js -> --xp-sticky-h); this file
+   declares the fallback.
 
    Invariants enforced by scripts/check-critical-css.py: every class the first
    paint can show is styled here; every var()/keyframes name used here is
@@ -66,6 +62,11 @@
     --card-radius: 14px;
 
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* The instrument voice: labels, counts and key hints, no request needed.
+       Sentences stay in Inter; only readouts are mono. */
+    --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    --label-size: 0.68rem;
+    --label-tracking: 0.16em;
     --text-xs: 0.75rem;
     --text-sm: 0.875rem;
 
@@ -451,32 +452,30 @@ body {
 .toolbox .content { flex: 1; min-height: 0; overflow: auto; padding: var(--space-lg); }
 
 /* ============================================================== 5. hero ====
-   The first screen is the brand, the promise and the search box, in that
-   order, centred — the list below is centred too, and a centred hero walking
-   straight into a centred search box is the shortest path from "what is this"
-   to "type what you want".
+   The first screen is the brand, the promise and the search box, in that order,
+   centred — the list below is centred too, and a centred hero walking into a
+   centred search box is the shortest path from "what is this" to "type".
 
-   The mark is logo-mark.svg: the same drawing as favicon.svg, favicon.ico,
-   the PWA icons and the social card, generated from one geometry. Nothing in
-   this section is load-bearing — with the image missing, or on a browser that
-   refuses SVG, the wordmark beside it still says who the site is. */
+   The 2026-09-24 pass is all typography and hairlines: a mono readout for the
+   promise, a measuring scale along the bottom edge, a divider inside the
+   lockup, sharper radii. No new images, requests or elements. The mark is
+   logo-mark.svg — the same drawing as favicon.svg, the PWA icons and the
+   social card, from one geometry. Nothing here is load-bearing. */
 .hero-discovery {
     position: relative;
-    padding: calc(clamp(22px, 5vw, 48px) + env(safe-area-inset-top, 0px)) clamp(14px, 4vw, 24px) clamp(18px, 3.6vw, 32px);
+    padding: calc(clamp(24px, 5vw, 52px) + env(safe-area-inset-top, 0px)) clamp(14px, 4vw, 24px) clamp(20px, 3.6vw, 34px);
     margin-bottom: clamp(18px, 3.4vw, 32px);
     text-align: center;
     overflow: hidden;
-    border-bottom: 1px solid var(--border-light);
-    /* Layers, top to bottom: the accent wash behind the search box, a second
-       wash off the right shoulder, then a 22 px dot grid as the surface all of
-       it sits on. The dots are the only texture on the page and they cost one
-       paint — no element, no image, no request. */
+    /* Layers: the accent wash behind the search box, a second wash off the
+       right shoulder, then a 22 px dot grid as the surface. The dots are the
+       only texture on the page and cost one paint — no element, no request. */
     background:
         radial-gradient(ellipse 62% 52% at 50% -4%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%),
         radial-gradient(ellipse 44% 36% at 94% 4%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
         radial-gradient(circle at center, rgba(255, 255, 255, 0.055) 1px, transparent 1.6px) 0 0 / 22px 22px;
 }
-/* A soft light-line crown, drawn with a gradient rather than an element. */
+/* A soft light-line crown at the top. */
 .hero-discovery::before {
     content: '';
     position: absolute;
@@ -484,34 +483,49 @@ body {
     height: 1px;
     background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 60%, transparent), transparent);
 }
+/* A measuring scale along the bottom — a hairline with 1 px ticks every 9 px,
+   fading at both ends. It replaces the plain border-bottom this section used to
+   end with: the same line, carrying information. */
+.hero-discovery::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 5px;
+    pointer-events: none;
+    background:
+        linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent) bottom / 100% 1px no-repeat,
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.13) 0 1px, transparent 1px 9px) bottom / 100% 5px no-repeat;
+}
 
 /* --------------------------------------------------------- brand lockup ---
-   Mark plus wordmark, on one line where there is room and wrapped to two
-   beside the mark on a phone (a 350 px wordmark cannot shrink past the width
-   of the thing it names). */
+   Mark, a hairline, then the wordmark — the divider is what turns an icon beside
+   some text into a lockup. From 360 px up the pair holds one line; below that
+   the wordmark drops to its own centred line, which is a stacked lockup. */
 .hero-brand {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 8px 12px;
-    margin-bottom: clamp(14px, 2.8vw, 22px);
+    gap: 6px 0;
+    margin-bottom: clamp(16px, 3vw, 24px);
 }
 .hero-mark {
     flex: none;
-    width: clamp(34px, 9vw, 42px);
+    width: clamp(36px, 9.5vw, 46px);
     height: auto;
     /* The mark carries the site's own glow: it is the only element on the page
        that gets one, which is what makes it a mark rather than an image. */
-    filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--accent) 30%, transparent));
+    filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--accent) 32%, transparent));
 }
 .hero-wordmark {
     /* Measured, not guessed: at 0.8rem with 0.14em of tracking the 35-character
-       wordmark is 307 px, so it sits beside a 42 px mark from 360 px upwards.
-       Below that it drops to its own centred line (max-width 100%) instead of
-       breaking into three ragged fragments — a stacked lockup, not a mistake. */
+       wordmark is 307 px, and the divider costs 19 px, so it sits beside a
+       mark from 360 px upwards. brand/measure.py models the same 19 px. */
     min-width: 0;
     max-width: 100%;
+    margin-left: 9px;
+    padding-left: 9px;
+    border-left: 1px solid var(--border-strong);
     font-size: clamp(0.66rem, 2.1vw, 0.8rem);
     font-weight: 800;
     line-height: 1.3;
@@ -536,10 +550,10 @@ body {
     margin: 0 auto clamp(12px, 2.2vw, 18px);
     font-size: clamp(1.6rem, 6.4vw, 3.35rem);
     font-weight: 800;
-    letter-spacing: -0.035em;
-    line-height: 1.06;
+    letter-spacing: -0.032em;
+    line-height: 1.05;
     text-wrap: balance;
-    background: linear-gradient(178deg, #ffffff 30%, color-mix(in srgb, var(--text) 74%, var(--accent)));
+    background: linear-gradient(180deg, #ffffff 32%, color-mix(in srgb, var(--text) 68%, var(--accent)));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -555,10 +569,11 @@ body {
 }
 
 /* --------------------------------------------------------------- search ---
-   The one control the whole page exists to deliver a visitor to: 60 px tall,
-   an accent ring on focus, the keyboard shortcut it answers to printed inside
-   it, and a clear button that takes the shortcut's place the moment there is
-   something to clear. */
+   The one control the whole page exists to deliver a visitor to: an accent ring
+   on focus, the shortcut it answers to printed inside it, and a clear button
+   that takes that shortcut's place once there is something to clear. Sharpened
+   on 2026-09-24 to a 14 px radius and a 1 px hairline: nearly square reads as an
+   instrument, nearly round reads as a toy. */
 .search-bar-wrap {
     position: relative;
     max-width: 640px;
@@ -567,14 +582,14 @@ body {
 .search-input-main {
     width: 100%;
     min-height: clamp(56px, 8vw, 62px);
-    padding: 15px clamp(54px, 11vw, 68px);
+    padding: 15px clamp(50px, 10vw, 62px);
     font-family: inherit;
     /* 16 px is the smallest font iOS will not zoom a focused field to. */
     font-size: max(16px, clamp(1rem, 2.5vw, 1.1rem));
     color: var(--text);
-    background: rgba(18, 27, 36, 0.92);
-    border: 1.5px solid color-mix(in srgb, var(--accent) 32%, transparent);
-    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(17, 25, 34, 0.94), rgba(11, 17, 24, 0.92));
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 14px;
     outline: none;
     -webkit-appearance: none;
     appearance: none;
@@ -583,40 +598,40 @@ body {
     box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.07);
     transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
 }
-.search-input-main::placeholder { color: rgba(230, 250, 255, 0.45); }
+.search-input-main::placeholder { color: rgba(230, 250, 255, 0.48); }
 .search-input-main:focus {
-    background: rgba(18, 27, 36, 0.98);
+    background: linear-gradient(180deg, rgba(19, 28, 38, 0.98), rgba(12, 19, 26, 0.96));
     border-color: var(--accent);
-    box-shadow: var(--shadow-lg), 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent),
-                inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    box-shadow: var(--shadow-lg), 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .search-input-icon {
     position: absolute;
     left: clamp(15px, 3vw, 19px);
     top: 50%;
-    width: clamp(18px, 4.5vw, 21px);
+    width: clamp(17px, 4.2vw, 19px);
     height: auto;
     transform: translateY(-50%);
     fill: none;
     stroke: var(--accent);
-    stroke-width: 2;
+    stroke-width: 1.75;
     stroke-linecap: round;
-    opacity: 0.9;
+    opacity: 0.85;
     pointer-events: none;
 }
 .search-kbd {
     position: absolute;
-    right: 16px;
+    right: 15px;
     top: 50%;
     min-width: 26px;
     padding: 3px 8px;
-    font-family: ui-monospace, monospace;
-    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
     text-align: center;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.06);
     border: 1px solid var(--border-light);
-    border-radius: 7px;
+    border-radius: 6px;
     transform: translateY(-50%);
     pointer-events: none;
     transition: opacity 0.15s ease;
@@ -626,7 +641,7 @@ body {
 .search-bar-wrap:has(.search-input-main:not(:placeholder-shown)) .search-kbd { opacity: 0; }
 .search-clear-btn {
     position: absolute;
-    right: 11px;
+    right: 10px;
     top: 50%;
     display: none;
     width: 40px;
@@ -637,7 +652,7 @@ body {
     color: var(--text-secondary);
     background: rgba(18, 27, 36, 0.92);
     border: 0;
-    border-radius: 12px;
+    border-radius: 10px;
     cursor: pointer;
     transform: translateY(-50%);
 }
@@ -654,17 +669,27 @@ body {
     font-size: 0.88rem;
     color: var(--text-secondary);
 }
-.popular-label { font-weight: 700; margin-right: 2px; }
+/* The one label on the page that is a label rather than a sentence: set in the
+   mono, uppercased by the stylesheet, and dimmed so the chips beside it win. */
+.popular-label {
+    margin-right: 2px;
+    font-family: var(--font-mono);
+    font-size: var(--label-size);
+    font-weight: 700;
+    letter-spacing: var(--label-tracking);
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
 .popular-chip {
     min-height: 32px;
-    padding: 6px 13px;
+    padding: 6px 12px;
     font-family: inherit;
-    font-size: 0.84rem;
+    font-size: 0.83rem;
     font-weight: 600;
     color: var(--text);
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-light);
-    border-radius: 100px;
+    border-radius: 9px;
     cursor: pointer;
     text-decoration: none;
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -672,15 +697,15 @@ body {
 .popular-chip:hover {
     transform: translateY(-1px);
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    background: color-mix(in srgb, var(--accent) 13%, transparent);
     border-color: var(--accent);
 }
 
 /* ------------------------------------------------------- facts and keys ---
-   Two quiet lines under the search box. The first is the site's promise with
-   the live tool count in it (a number sync-counts.py owns); the second is the
-   keyboard map, because this is a launcher and the keyboard is faster than
-   the mouse. Neither is a call to action. */
+   Two quiet lines under the search box, both readouts: the promise with the tool
+   count sync-counts.py owns, then the keyboard map, because this is a launcher
+   and the keyboard is faster than the mouse. Neither is a call to action. The
+   separators are hairlines, not middots: same width, less ink. */
 .hero-facts {
     display: flex;
     flex-wrap: wrap;
@@ -688,7 +713,10 @@ body {
     justify-content: center;
     gap: 8px;
     margin-top: clamp(16px, 2.8vw, 22px);
+    font-family: var(--font-mono);
     font-size: clamp(0.78rem, 2.1vw, 0.86rem);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--text-secondary);
 }
 .hero-facts strong { font-weight: 800; color: var(--accent); }
@@ -697,27 +725,41 @@ body {
    list. It is also the only animation left in the hero. */
 .glow-dot {
     flex: none;
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--accent);
     box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 80%, transparent);
     animation: pulse 2.6s ease-in-out infinite;
 }
 
+/* Wraps between hints, never inside one (see index.html). The gap is the
+   separator, so there are no middots and all five fit one row at full size:
+   measured 330 px of the deck's 448 px inner width at 1440. */
 .hero-keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
     margin-top: clamp(8px, 1.6vw, 12px);
-    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
     color: var(--text-muted);
 }
 .hero-keys kbd {
     padding: 2px 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 0.73rem;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
     color: var(--text);
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.07);
     border: 1px solid var(--border-light);
     border-radius: 5px;
+}
+.hero-fact-sep {
+    width: 1px;
+    height: 12px;
+    background: var(--border-strong);
+    opacity: 1;
 }
 
 /* ================================================= 6. discovery sections ==== */
@@ -743,30 +785,34 @@ body {
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border-light);
 }
-.discovery-section-title {
+/* The mono index above a section heading: "01 / FEATURED". It replaces the emoji
+   chip — the emoji still earns its place on the 28 category tiles, where it is
+   wayfinding among 29 choices, but beside three headings it was decoration. */
+.section-kicker {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    margin-bottom: 5px;
+    font-family: var(--font-mono);
+    font-size: var(--label-size);
+    font-weight: 700;
+    letter-spacing: var(--label-tracking);
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--accent) 72%, var(--text-muted));
+}
+.section-kicker::before {
+    content: '';
+    width: 14px;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.7;
+}
+.discovery-section-title {
     font-size: clamp(1.15rem, 3vw, 1.45rem);
     font-weight: 800;
     letter-spacing: -0.015em;
     color: #ffffff;
     text-wrap: balance;
-}
-/* Every emoji on this page sits in the same 30 px rounded chip: the section
-   headings, the 28 category tiles and (at hero scale) the mark. One shape
-   repeated is what turns a pile of emoji into a system. */
-.section-emoji {
-    flex: none;
-    display: inline-grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    font-size: 0.92rem;
-    line-height: 1;
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid var(--border-light);
-    border-radius: 9px;
 }
 .discovery-section-sub {
     margin-top: 4px;
@@ -816,6 +862,7 @@ body {
     }
 }
 .cat-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -848,9 +895,10 @@ body {
     border-radius: 10px;
 }
 .cat-count {
-    padding: 3px 9px;
-    font-size: 0.74rem;
-    font-weight: 700;
+    padding: 3px 8px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
     color: var(--text-secondary);
     background: rgba(255, 255, 255, 0.07);
     border-radius: 100px;
@@ -993,35 +1041,7 @@ body {
 
 /* A finger is not a mouse: hover affordances are noise, and anything worth
    pressing gets a real target. */
-@media (hover: none) and (pointer: coarse) {
-    .popular-chip { min-height: 40px; padding: 9px 15px; }
-    .sticky-action-btn,
-    .toolbox-btn,
-    .search-clear-btn { min-width: 44px; min-height: 44px; }
-    .sticky-search-bar { height: 44px; }
-    .sticky-command-bar { min-height: 52px; padding-bottom: 6px; }
-    .cat-card:hover,
-    .popular-chip:hover,
-    .xp-row:hover { transform: none; }
-    /* Blur on a fixed bar is the usual reason a phone stutters while scrolling. */
-    .sticky-command-bar,
-    #all-tools-section .xp-bar {
-        -webkit-backdrop-filter: none;
-        backdrop-filter: none;
-        background: var(--bg-primary);
-    }
-}
 
-@media (prefers-reduced-motion: reduce) {
-    html { scroll-behavior: auto; }
-    .glow-dot { animation: none; }
-    .sticky-command-bar,
-    .panel,
-    .sticky-action-btn,
-    .cat-card,
-    .popular-chip,
-    .skip-link { transition: none; }
-}
 
 @media (prefers-reduced-transparency: reduce) {
     .panel,
@@ -1037,21 +1057,8 @@ body {
     }
 }
 
-/* Nobody prints a tool catalogue, but somebody will print this page — the
-   tools are one click away and the chrome is not part of the answer. */
-@media print {
-    .sticky-command-bar,
-    .panel,
-    .toolbox,
-    .search-bar-wrap,
-    .popular-chips,
-    .hero-keys,
-    .section-index-link { display: none !important; }
-    body { background: #ffffff; color: #000000; }
-    .cat-card { border-color: #cccccc; break-inside: avoid; }
-}
 
-/* The toolbox panel's own count, next to the title in its titlebar. */
+/* The toolbox panel's count, in its titlebar. */
 .toolbox-count { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
 
 /* ============================================ 11. command deck + shelves ===
@@ -1088,14 +1095,29 @@ button,
     background: currentColor;
     opacity: 0.45;
 }
+/* The command deck: a vertical gradient (light at the top edge) and corner
+   brackets, one pseudo-element each because a single border draws an L. They sit
+   on the border, never inside it, so they cannot land on the field or chips. */
 .hero-command {
-    padding: clamp(12px, 2vw, 16px);
+    position: relative;
+    padding: clamp(14px, 2.2vw, 18px);
     text-align: left;
-    background: rgba(8, 14, 20, 0.55);
-    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-light));
-    border-radius: 22px;
-    box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(13, 20, 28, 0.72), rgba(8, 13, 19, 0.62));
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border-light));
+    border-radius: 18px;
+    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
+.hero-command::before,
+.hero-command::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border: 0 solid color-mix(in srgb, var(--accent) 70%, transparent);
+    pointer-events: none;
+}
+.hero-command::before { top: -1px; left: -1px; border-top-width: 2px; border-left-width: 2px; border-radius: 17px 0 0; }
+.hero-command::after { bottom: -1px; right: -1px; border-bottom-width: 2px; border-right-width: 2px; border-radius: 0 0 17px; }
 .hero-command .search-bar-wrap { max-width: none; margin: 0 0 12px; }
 .hero-command .popular-chips { justify-content: flex-start; }
 .hero-command .hero-keys { margin: 10px 0 0; text-align: left; }
@@ -1118,19 +1140,24 @@ button,
     -webkit-overflow-scrolling: touch;
 }
 .hero-jumps::-webkit-scrollbar { display: none; }
+/* The jump row as instrument tabs: mono, uppercased by the stylesheet, square
+   corners. The labels are unchanged — only their clothes are. */
 .hero-jumps a {
     flex: none;
     display: inline-flex;
     align-items: center;
-    min-height: 40px;
-    padding: 8px 14px;
-    font-size: 0.84rem;
-    font-weight: 700;
-    color: var(--text);
+    min-height: 38px;
+    padding: 7px 13px;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
     text-decoration: none;
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.035);
     border: 1px solid var(--border-light);
-    border-radius: 999px;
+    border-radius: 8px;
     transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .hero-jumps a:hover,
@@ -1227,7 +1254,6 @@ button,
     }
 }
 
-.cat-card { position: relative; }
 .cat-card:active { transform: scale(0.985); }
 .cat-name::after {
     content: " →";
@@ -1267,18 +1293,58 @@ button,
     .cat-card { padding: 10px; min-height: 78px; }
 }
 
+/* One coarse-pointer block, not two: both disable hover affordances and the
+   fixed bar's blur, and splitting them only made it possible for a rule to be
+   added to the wrong one. */
 @media (hover: none) and (pointer: coarse) {
+    .popular-chip { min-height: 40px; padding: 9px 15px; }
+    .sticky-action-btn,
+    .toolbox-btn,
+    .search-clear-btn { min-width: 44px; min-height: 44px; }
+    .sticky-search-bar { height: 44px; }
+    .sticky-command-bar { min-height: 52px; padding-bottom: 6px; }
+    .cat-card:hover,
+    .popular-chip:hover,
+    .xp-row:hover,
     #featured .xp-row:hover,
     #trending .xp-row:hover { transform: none; }
+    /* Blur on a fixed bar is the usual reason a phone stutters while scrolling. */
+    .sticky-command-bar,
+    #all-tools-section .xp-bar {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: var(--bg-primary);
+    }
 }
 @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .glow-dot { animation: none; }
+    .sticky-command-bar,
+    .panel,
+    .sticky-action-btn,
+    .cat-card,
+    .popular-chip,
+    .skip-link,
     .hero-jumps a,
     #featured .xp-row,
     #trending .xp-row,
-    .cat-card:active { transition: none; transform: none; }
+    .cat-card:active { transition: none; }
+    .cat-card:active,
+    .hero-jumps a { transform: none; }
 }
 
+/* Nobody prints a tool catalogue, but somebody will print this page — the tools
+   are one click away and the chrome is not part of the answer. */
 @media print {
+    .sticky-command-bar,
+    .panel,
+    .toolbox,
+    .search-bar-wrap,
+    .popular-chips,
+    .hero-keys,
+    .section-index-link { display: none !important; }
+    body { background: #ffffff; color: #000000; }
+    .cat-card { border-color: #cccccc; break-inside: avoid; }
     .hero-jumps,
     .hero-command { border: 0; box-shadow: none; }
     #featured,
