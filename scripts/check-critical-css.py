@@ -79,7 +79,13 @@ INLINE_BUDGET = 4_000
 # pays for 5,838 B of that with its own comments — strip every /* */ and it is
 # 7,069 B — so it is the prose, not the rules, that is closest to the ceiling.
 # Trim here, or move a comment into ARCHITECTURE.md, before raising this again.
-HOME_CSS_GZIP_BUDGET = 12_500
+#
+# Raised on purpose 2026-09-24 for §12 (motion: the hero entrance, the tile
+# sheen, scroll reveals and the cross-document view-transition). The new
+# prose was trimmed first, then this floor moved to the measured 13,473 B
+# gzip plus a small margin — an entrance that costs ~1 KB gz is cheap for the
+# difference between a page that renders and one that arrives.
+HOME_CSS_GZIP_BUDGET = 13_700
 DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 

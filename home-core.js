@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 21;
+  const APP_VERSION = 22;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -48,6 +48,17 @@
 
   function notify(msg) {
     if (window.mpToolbox && window.mpToolbox.toast) window.mpToolbox.toast(msg);
+  }
+
+  // The chips and the search box are two faces of the same query. Whichever
+  // one changed last owns the pressed state: a chip press highlights that one
+  // chip, and typing anything that is not exactly a chip's query clears them
+  // all, so the highlight never claims the list shows something it does not.
+  function updateChipStates(value) {
+    document.querySelectorAll('.popular-chip').forEach(function (chip) {
+      var on = !!value && chip.getAttribute('data-query') === value;
+      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
   }
 
   /* ------------------------------------------------- themes and accent ---- */
@@ -240,6 +251,7 @@
         var value = box.value;
         boxes.forEach(function (other) { if (other !== box && other.value !== value) other.value = value; });
         if (clearBtn) clearBtn.style.display = value ? 'block' : 'none';
+        updateChipStates(value.trim());
         clearTimeout(box._mpTimer);
         box._mpTimer = setTimeout(function () { apply(value, false); }, 120);
       });
@@ -278,6 +290,7 @@
       if (window.mpExplore) window.mpExplore.clear();
       if (status) status.textContent = '';
       clearBtn.style.display = 'none';
+      updateChipStates('');
       boxes[0].focus();
     });
   }
@@ -301,6 +314,7 @@
         e.preventDefault();
         boxes.forEach(function (b) { b.value = q; });
         if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+        updateChipStates(q);
         if (window.mpExplore) {
           window.mpExplore.filter(q);
           // The chip lives in the hero, above the browse chrome. After a
@@ -457,8 +471,30 @@
       if (sticky) sticky.value = shared;
       var clear = document.getElementById('mainSearchClear');
       if (clear) clear.style.display = 'block';
+      updateChipStates(shared);
       if (window.mpExplore) window.mpExplore.filter(shared);
     }
+  }
+
+  /* ------------------------------------------------- scroll reveal ------- */
+  // Sections rise into view as the visitor reaches them. Everything hangs off
+  // the .js class set here: no JavaScript (or an error before this runs)
+  // means no hiding, and the stylesheet only ever un-hides what this observer
+  // has seen. Reduced motion skips the transition entirely (home.css).
+  function setupReveal() {
+    var els = Array.prototype.slice.call(document.querySelectorAll('.js-reveal'));
+    if (!els.length) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!('IntersectionObserver' in window)) return;
+    document.documentElement.classList.add('js-reveal-armed');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        io.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -6% 0px', threshold: 0.01 });
+    els.forEach(function (el) { io.observe(el); });
   }
 
   /* ------------------------------------------------------- service worker */
@@ -482,6 +518,7 @@
     setupPanels();
     syncPopoverA11y();
     popoverFallback();
+    setupReveal();
     handleAppEntry();
     registerServiceWorker();
   }
