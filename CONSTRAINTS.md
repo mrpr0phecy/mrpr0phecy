@@ -215,7 +215,7 @@ here — the markup is valid and nothing throws:
   position. The catalogue had 150 of them (121 coordinate cells in one card, 8
   tic-tac-toe cells, six braille dot toggles, colour swatches, beat pads) and
   every one is named now, so a new one is a regression. A nameless **field** is
-  a note: 1280 of them, and they are the same shape in every card — a read-only
+  a note: 1285 of them, and they are the same shape in every card — a read-only
   output textarea, a slider whose label sits beside it unassociated, a search
   box with a placeholder. A check that fails on hundreds of pre-existing fields
   is a check nobody reads, so that backlog is counted per card instead.
