@@ -124,12 +124,18 @@ establish *which* site first.
 │                           redirect stubs are excluded automatically
 ├── brand/                  the mark's source: mark.py (geometry + rasteriser),
 │                           gen_assets.py (writes every asset below),
-│                           check-mark.py, measure.py — see brand/README.md
+│                           check-mark.py, measure.py, spec.py (writes
+│                           brand/spec.html) — see brand/README.md
 ├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
 │   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
 │                           home screen, Android and iOS (§5)
 ├── logo-mark.svg           the same mark, vector, at hero scale — linked by
 │                           index.html's lockup and its footer
+├── logo-mark-mono-dark.svg, logo-mark-mono-light.svg   the one-colour
+│                           reduction (#071019 / #ffffff) — unreferenced by any
+│                           page; for print, embeds and light surfaces
+├── logo-lockup-dark.svg, logo-lockup-light.svg         mark + wordmark, the
+│                           wordmark as outlines so no font is needed
 ├── logo.png                1024² lockup (mark + wordmark). Unreferenced by any
 │                           page — kept deliberately, for press and profiles
 ├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
@@ -838,11 +844,15 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   not headings.
 - **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, and it is the
   same drawing as the favicon, the PWA icons and the social card: one geometry
-  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`), six
-  shipped files. `logo-mark.svg` and `favicon.svg` are byte-identical — one
-  file, two names — and `python3 brand/check-mark.py` (standard library only)
-  fails if the vector and the rasters ever disagree about a radius, a gradient,
-  a stroke or the spark's curve. Edit the mark in `brand/`, never in the SVG.
+  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`). It is an
+  ink aperture with a white spark and a needle, on the site's accent gradient —
+  redrawn on 2026-09-24 because the old white magnifier measured 1.3:1 against
+  the gradient's lightest stop and dissolved at 16 px. `logo-mark.svg` and
+  `favicon.svg` are byte-identical — one file, two names — and
+  `python3 brand/check-mark.py` (standard library only) fails if the SVGs and
+  the rasters ever disagree about a radius, a gradient, the disc, the needle,
+  the spark's curve or the sheen; `verify.sh --deep` runs it. Edit the mark in
+  `brand/`, never in the SVG.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.

@@ -369,6 +369,16 @@ deep_floors() {
   expect "brand/measure.py still points at copy index.html carries" \
          "measure.py is measuring copy the site does not have — see brand/measure.py" \
          python3 brand/measure.py --check
+  # brand/check-mark.py proves the SVG files and the six raster icons are still
+  # ONE drawing. It is stdlib-only and instant, so it belongs in --deep rather
+  # than the 4-second gate: it only has something to say when somebody touches
+  # brand/, and CI runs --deep on every push. Added 2026-09-24 with the redraw,
+  # when every number in mark.py changed at once and the only thing standing
+  # between "the logo" and "twelve files that each look slightly different" was
+  # a check nobody had wired up.
+  expect "the brand assets are all still the same drawing" \
+         "brand drift — the SVGs and the rasters disagree; see brand/check-mark.py" \
+         python3 brand/check-mark.py
 }
 
 live() {

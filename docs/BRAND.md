@@ -44,16 +44,25 @@ MrProphecy (the maker)
   pages — it undermines YMYL trust (see TRUST.md).
 * The favicon and `apple-touch-icon` belong to the product, not the
   character — and they are the same drawing as the hero's mark: one geometry
-  in `brand/mark.py`, six files (`favicon.svg`, `favicon.ico`, `icon-192.png`,
-  `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`) plus the
+  in `brand/mark.py`, six raster files (`favicon.svg`, `favicon.ico`,
+  `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
+  `apple-touch-icon.png`), two one-colour reductions and two lockups, plus the
   social card and the hero's `logo-mark.svg`, all written together by
-  `python3 brand/gen_assets.py`. `brand/README.md` is the whole story.
-* The mark is a magnifier whose lens holds a four-point spark: search is what
-  the product does, the spark is the answer it gives you. The tile is the
-  site's own accent gradient (`#2dd4ff` -> `#2f6bff`), so a page cannot drift
-  from its icon.
-* One emoji per heading, one per category tile, each inside the same rounded
-  chip — the ornament is a system, not decoration.
+  `python3 brand/gen_assets.py`. `brand/README.md` is the whole story and
+  `brand/spec.html` is the printable spec sheet.
+* The mark is an **aperture** — an ink disc at the optical centre of the tile,
+  a white four-point spark inside it, and an ink needle to the bottom-right.
+  The needle is search, the spark is the answer, the disc is the aperture it
+  arrives through. The glyph is ink on the site's own accent gradient
+  (`#6ff0ff -> #2dd4ff -> #2f6bff`), never white on it: white over the
+  gradient's lightest stop is 1.3:1 and disappears in a 16 px tab, ink over the
+  same stop is 14.2:1. Redrawn 2026-09-24; the reasoning and the evidence are in
+  `brand/README.md`.
+* **The ornament is a system.** For the 28 category tiles it is still one emoji
+  inside the same rounded chip, because 29 choices need wayfinding. The section
+  headings dropped theirs on 2026-09-24 for a mono kicker (`01 / FEATURED`) —
+  an emoji beside a flat heading is what makes a page look assembled rather than
+  designed. Controls and content rows keep theirs: those are not headings.
 
 ## Naming rules
 
