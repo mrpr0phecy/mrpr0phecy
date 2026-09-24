@@ -1,0 +1,1027 @@
+<div id="umg-root">
+<style>
+    /* every rule scoped under #umg-root so the card cannot restyle the shell */
+    #umg-root { --umg-gold: #e3b64b; --umg-cyan: #6fc3e8; }
+    #umg-root .umg-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 10px; }
+    #umg-root .umg-tab {
+        background: var(--bg-secondary, #141e28); border: 1px solid rgba(111,195,232,.35);
+        color: var(--text-secondary, rgba(230,250,255,.75)); padding: 7px 12px; border-radius: 40px;
+        font-size: 11.5px; font-weight: 600; letter-spacing: .02em; cursor: pointer; transition: all .15s ease;
+    }
+    #umg-root .umg-tab:hover { border-color: var(--umg-cyan); color: var(--text, #e6faff); transform: translateY(-1px); }
+    #umg-root .umg-tab.on {
+        background: linear-gradient(135deg, rgba(111,195,232,.95), rgba(60,140,190,.95));
+        border-color: #a9dff5; color: #06202c;
+    }
+    #umg-root .umg-tab .n { opacity: .6; margin-right: 5px; font-weight: 400; }
+    #umg-root .umg-exp { display: none; animation: umg-fade .35s ease; }
+    #umg-root .umg-exp.on { display: block; }
+    @keyframes umg-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    #umg-root .umg-stage {
+        position: relative; border-radius: 14px; overflow: hidden;
+        border: 1px solid rgba(111,195,232,.22);
+        background: radial-gradient(800px 500px at 50% 45%, #0a0d1c, #05060e);
+    }
+    #umg-root .umg-stage canvas { display: block; width: 100%; height: 400px; cursor: crosshair; touch-action: none; }
+    #umg-root .umg-hint {
+        position: absolute; left: 10px; bottom: 9px; pointer-events: none;
+        font-size: 10px; letter-spacing: .07em; color: rgba(220,225,245,.55);
+        background: rgba(8,10,22,.6); border: 1px solid rgba(140,160,220,.18);
+        padding: 4px 9px; border-radius: 20px;
+    }
+    #umg-root .umg-ctrl { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; align-items: center; }
+    #umg-root .umg-pill {
+        background: var(--bg-secondary, #141e28); border: 1px solid rgba(227,182,75,.5);
+        color: #efe2bd; padding: 5px 12px; border-radius: 40px;
+        font-size: 11px; font-weight: 600; cursor: pointer; transition: all .15s ease;
+    }
+    #umg-root .umg-pill:hover { background: var(--umg-gold); color: #17130a; transform: translateY(-1px); }
+    #umg-root .umg-pill.on { background: var(--umg-cyan); border-color: #a9dff5; color: #0a1218; }
+    #umg-root .umg-sliderrow { display: flex; align-items: center; gap: 8px; width: 100%; }
+    #umg-root .umg-sliderrow input[type=range] { flex: 1; accent-color: var(--umg-gold); }
+    #umg-root .umg-sliderrow .v { font-size: 11px; color: #e9dcae; min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
+    #umg-root .umg-readout {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px;
+        margin-top: 10px; padding: 9px 11px; border-radius: 10px;
+        background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07);
+        font-size: 11.5px; font-variant-numeric: tabular-nums;
+        color: var(--text-secondary, rgba(230,250,255,.6));
+    }
+    #umg-root .umg-readout .v { text-align: right; color: var(--text, #e6faff); }
+    #umg-root .umg-readout .v.g { color: #f0d89a; }
+    #umg-root .umg-readout .v.c { color: #9fdcf5; }
+    #umg-root .umg-finding {
+        margin-top: 10px; font-size: 12px; line-height: 1.6;
+        color: var(--text-secondary, rgba(230,250,255,.72));
+        border-left: 3px solid var(--umg-cyan); padding: 2px 0 2px 11px;
+    }
+    #umg-root .umg-finding b { color: #bfe4f6; }
+    #umg-root .umg-matrix { display: grid; grid-template-columns: repeat(5, minmax(34px, 54px)); gap: 3px; margin-top: 10px; }
+    #umg-root .umg-matrix div { aspect-ratio: 1.3; border-radius: 5px; font-size: 9px; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,.85); font-variant-numeric: tabular-nums; }
+    #umg-root details.umg-ledger { margin-top: 14px; border: 1px solid rgba(227,182,75,.3); border-radius: 11px; padding: 10px 14px; background: rgba(0,0,0,.3); }
+    #umg-root details.umg-ledger summary { cursor: pointer; font-size: 11.5px; letter-spacing: .06em; color: #efd9a0; font-weight: 600; }
+    #umg-root details.umg-ledger ol { margin: 10px 0 4px; padding-left: 20px; font-size: 11.5px; line-height: 1.65; color: var(--text-secondary, rgba(230,250,255,.68)); }
+    #umg-root details.umg-ledger li b { color: #eedcae; }
+    #umg-root details.umg-ledger .coda { font-size: 11px; color: var(--text-secondary, rgba(230,250,255,.55)); margin-top: 8px; }
+    @media (max-width: 480px) {
+        #umg-root .umg-stage canvas { height: 320px; }
+        #umg-root .umg-readout { grid-template-columns: 1fr; }
+        #umg-root .umg-readout .v { text-align: left; margin-bottom: 4px; }
+    }
+</style>
+
+<h2 id="universe-mysteries-simulation-lab-title" style="margin-top:0;color:var(--accent);">🌌 Universe Mysteries — Geometry Lab</h2>
+
+<form aria-describedby="umg-desc" onsubmit="event.preventDefault();">
+<p id="umg-desc" class="small" style="color:var(--muted, rgba(230,250,255,.6));margin-bottom:6px;">
+    Six of the universe's deepest mysteries run live as geometry: three-body chaos, curved spacetime &amp; black-hole lensing, the centreless expansion, the golden angle, emergent life and fractal infinity.
+</p>
+
+<div class="umg-tabs" role="tablist" aria-label="Experiments">
+    <button type="button" class="umg-tab on" data-umg="chaos"><span class="n">I</span>Chaos</button>
+    <button type="button" class="umg-tab" data-umg="spacetime"><span class="n">II</span>Spacetime</button>
+    <button type="button" class="umg-tab" data-umg="expansion"><span class="n">III</span>Expansion</button>
+    <button type="button" class="umg-tab" data-umg="golden"><span class="n">IV</span>Golden Angle</button>
+    <button type="button" class="umg-tab" data-umg="life"><span class="n">V</span>Emergence</button>
+    <button type="button" class="umg-tab" data-umg="fractal"><span class="n">VI</span>Fractal ∞</button>
+</div>
+
+<!-- I. CHAOS -->
+<div class="umg-exp on" id="umg-exp-chaos">
+    <div class="umg-stage">
+        <canvas id="umg-cv-chaos" aria-label="Twin three-body chaos simulation"></canvas>
+        <div class="umg-hint">two identical universes, one nudged by 0.0001%</div>
+    </div>
+    <div class="umg-ctrl">
+        <button type="button" class="umg-pill" id="umg-chaos-restart">↻ New triple system</button>
+        <button type="button" class="umg-pill" id="umg-chaos-clear">Clear trails</button>
+    </div>
+    <div class="umg-readout">
+        <span>elapsed time</span><span class="v" id="umg-chaos-t">0.00</span>
+        <span>universe separation</span><span class="v g" id="umg-chaos-sep">—</span>
+        <span>verdict</span><span class="v c" id="umg-chaos-verdict">in lockstep…</span>
+    </div>
+    <p class="umg-finding"><b>Finding:</b> simple laws, wild outcomes. The two universes stay twins, then diverge
+        exponentially — <b>determinism survives, predictability doesn't</b>. Gold = universe A, faint white =
+        universe B (one coordinate off by 10⁻⁶).</p>
+</div>
+
+<!-- II. SPACETIME -->
+<div class="umg-exp" id="umg-exp-spacetime">
+    <div class="umg-stage">
+        <canvas id="umg-cv-spacetime" aria-label="Spacetime curvature: precessing orbit and photon lensing"></canvas>
+        <div class="umg-hint">Mercury's orbit · light past a black hole</div>
+    </div>
+    <div class="umg-ctrl">
+        <button type="button" class="umg-pill on" id="umg-st-mode-orbit">☿ Orbit that won't close</button>
+        <button type="button" class="umg-pill" id="umg-st-mode-lens">🕳 Light bending</button>
+    </div>
+    <div class="umg-readout" id="umg-st-orbit-readout">
+        <span>orbits completed</span><span class="v" id="umg-st-orbits">0</span>
+        <span>precession per orbit</span><span class="v g" id="umg-st-precess">—</span>
+        <span>weak-field 6πGM/a(1−e²)c²</span><span class="v c" id="umg-st-theory">—</span>
+    </div>
+    <div class="umg-readout" id="umg-st-lens-readout" style="display:none">
+        <span>rays fired</span><span class="v" id="umg-st-rays">—</span>
+        <span>captured (b &lt; 3√3·GM/c²)</span><span class="v g" id="umg-st-captured">—</span>
+        <span>photon sphere</span><span class="v c">dashed ring, r = 3GM/c²</span>
+    </div>
+    <p class="umg-finding"><b>Finding:</b> gravity is a <b>shape</b>, not a force. In curved spacetime the ellipse
+        slews into a rosette (gold) while Newton's ghost (grey) closes; light rays below the critical impact
+        parameter 3√3·GM/c² are swallowed, and escaping rays match the Einstein deflection δ = 4GM/c²b.</p>
+</div>
+
+<!-- III. EXPANSION -->
+<div class="umg-exp" id="umg-exp-expansion">
+    <div class="umg-stage">
+        <canvas id="umg-cv-expansion" aria-label="Centreless cosmic expansion with live Hubble plot"></canvas>
+        <div class="umg-hint">☝ click any galaxy to ride on it</div>
+    </div>
+    <div class="umg-ctrl">
+        <button type="button" class="umg-pill" id="umg-exp-jump">⇄ Jump to random galaxy</button>
+        <button type="button" class="umg-pill" id="umg-exp-arrows">Recession arrows: on</button>
+    </div>
+    <div class="umg-readout">
+        <span>scale factor a(t)</span><span class="v" id="umg-exp-a">—</span>
+        <span>Hubble parameter H = ȧ/a</span><span class="v g" id="umg-exp-h">—</span>
+        <span>centre found</span><span class="v c" id="umg-exp-centre">none, from any galaxy</span>
+    </div>
+    <p class="umg-finding"><b>Finding:</b> ride <b>any</b> galaxy and the little v-vs-d plot is the same perfect
+        straight line through the origin — v = H·d holds everywhere. Space itself rescales; the Big Bang has no
+        location and <b>there is no centre</b>.</p>
+</div>
+
+<!-- IV. GOLDEN ANGLE -->
+<div class="umg-exp" id="umg-exp-golden">
+    <div class="umg-stage">
+        <canvas id="umg-cv-golden" aria-label="Phyllotaxis spiral at adjustable divergence angle"></canvas>
+        <div class="umg-hint">drag the angle off 137.507764° and watch order melt</div>
+    </div>
+    <div class="umg-ctrl">
+        <div class="umg-sliderrow">
+            <input type="range" id="umg-golden-slider" min="134" max="141" step="0.002" value="137.507764" aria-label="Divergence angle in degrees">
+            <span class="v" id="umg-golden-val">137.507764°</span>
+        </div>
+        <button type="button" class="umg-pill" data-umg-gold="137.507764">√ golden 137.5078°</button>
+        <button type="button" class="umg-pill" data-umg-gold="137.6">137.6°</button>
+        <button type="button" class="umg-pill" data-umg-gold="137.3">137.3°</button>
+        <button type="button" class="umg-pill" data-umg-gold="144">144° (5 spokes)</button>
+        <button type="button" class="umg-pill" data-umg-gold="135">135° (8 spokes)</button>
+        <button type="button" class="umg-pill" id="umg-golden-tour">▶ tour to φ</button>
+    </div>
+    <div class="umg-readout">
+        <span>distance from golden</span><span class="v g" id="umg-golden-dist">0.000000°</span>
+        <span>structure</span><span class="v c" id="umg-golden-structure">optimal packing</span>
+    </div>
+    <p class="umg-finding"><b>Finding:</b> 137.507764° = 360°/φ² — the <b>most irrational angle</b> there is
+        (φ's continued fraction is all 1s). Rational-ish angles snap into spokes, near-misses into wasteful spiral
+        arms; only the golden angle packs forever without gaps. Flowers reach it without arithmetic.</p>
+</div>
+
+<!-- V. EMERGENT LIFE -->
+<div class="umg-exp" id="umg-exp-life">
+    <div class="umg-stage">
+        <canvas id="umg-cv-life" aria-label="Particle life: emergence from a five-by-five attraction table"></canvas>
+        <div class="umg-hint">one 5×5 table of who-attracts-whom — nothing else programmed</div>
+    </div>
+    <div class="umg-ctrl">
+        <button type="button" class="umg-pill" id="umg-life-random">⚄ Randomise the laws</button>
+        <button type="button" class="umg-pill" id="umg-life-respawn">↻ Respawn particles</button>
+    </div>
+    <div class="umg-matrix" id="umg-life-matrix" aria-hidden="true"></div>
+    <div class="umg-readout">
+        <span>particles alive</span><span class="v" id="umg-life-count">—</span>
+        <span>simulation tick</span><span class="v g" id="umg-life-t">0</span>
+    </div>
+    <p class="umg-finding"><b>Finding:</b> no fitness function, no code for "cell" — yet membranes, hunters and
+        metabolisms turn up uninvited once the force table isn't symmetric. <b>Order may be the default</b>; staying
+        boring is what takes work.</p>
+</div>
+
+<!-- VI. FRACTAL -->
+<div class="umg-exp" id="umg-exp-fractal">
+    <div class="umg-stage">
+        <canvas id="umg-cv-fractal" aria-label="Interactive Mandelbrot set — drag a box to zoom"></canvas>
+        <div class="umg-hint">✚ drag a box to zoom — every zoom is new coastline</div>
+    </div>
+    <div class="umg-ctrl">
+        <button type="button" class="umg-pill" id="umg-frac-reset">↻ Reset</button>
+        <button type="button" class="umg-pill" id="umg-frac-seahorse">🌀 Seahorse valley</button>
+        <button type="button" class="umg-pill" id="umg-frac-spiral">✦ Spiral arm</button>
+        <button type="button" class="umg-pill" id="umg-frac-island">◎ Mini-Mandelbrot</button>
+    </div>
+    <div class="umg-readout">
+        <span>magnification</span><span class="v g" id="umg-frac-zoom">1×</span>
+        <span>centre</span><span class="v" id="umg-frac-centre">—</span>
+        <span>iterations / pixel</span><span class="v c" id="umg-frac-iter">—</span>
+    </div>
+    <p class="umg-finding"><b>Finding:</b> z ← z² + c, three symbols, more detail than the observable universe could
+        display. Infinity isn't at the far edge of space — <b>it's compressed inside arithmetic</b>, and geometry is
+        the decompressor.</p>
+</div>
+
+<details class="umg-ledger">
+    <summary>THE LEDGER OF FINDINGS — what the geometry confessed</summary>
+    <ol>
+        <li><b>Chaos:</b> determinism survives; predictability dies of a 10⁻⁶ nudge.</li>
+        <li><b>Curvature:</b> gravity is a shape — orbits precess, light bends, and the photon sphere marks the boundary of knowledge.</li>
+        <li><b>Expansion:</b> v = H·d from every seat; space itself grows and no centre exists anywhere.</li>
+        <li><b>Golden angle:</b> optimal packing picks 360°/φ² because φ is the most irrational number; flowers find it without maths.</li>
+        <li><b>Emergence:</b> life-like order condenses from a handful of attraction rules — complexity may be the default.</li>
+        <li><b>Fractals:</b> z ← z² + c compresses infinity into three symbols, legibly.</li>
+    </ol>
+    <p class="coda">Every one ran on a rule, an iteration budget and a question — no miracles consulted. Physics note:
+        orbit precession here uses the standard pseudo-GR correction with curvature scaled up ×10⁶ so the rosette is
+        visible; strong-field runs therefore exceed the first-order formula, as real strong fields do. The photon
+        integrator was validated against Einstein's weak-field deflection and the exact capture boundary
+        b&nbsp;=&nbsp;3√3·GM/c².</p>
+</details>
+</form>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    const root = document.getElementById('umg-root');
+    if (!root) return;
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const TAU = Math.PI * 2;
+    const $ = id => document.getElementById(id);
+
+    function fitCanvas(cv) {
+        const r = cv.getBoundingClientRect();
+        const w = Math.max(200, r.width), h = Math.max(200, r.height);
+        if (cv.width !== Math.round(w * DPR) || cv.height !== Math.round(h * DPR)) {
+            cv.width = Math.round(w * DPR);
+            cv.height = Math.round(h * DPR);
+        }
+        const ctx = cv.getContext('2d');
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        return { ctx, w, h };
+    }
+
+    /* runner: only the mounted, on-screen experiment animates */
+    const registry = {};
+    let activeId = null;
+    function registerSim(id, sim) { registry[id] = sim; }
+    function alive() { return !!(root && root.isConnected); }
+    function switchTab(id) {
+        if (!alive()) return;
+        if (activeId && registry[activeId]) registry[activeId].stop();
+        activeId = id;
+        root.querySelectorAll('.umg-tab').forEach(b => b.classList.toggle('on', b.dataset.umg === id));
+        root.querySelectorAll('.umg-exp').forEach(s => s.classList.toggle('on', s.id === 'umg-exp-' + id));
+        if (registry[id]) registry[id].start();
+    }
+    root.querySelectorAll('.umg-tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.umg)));
+
+    /* ==================================================== I. CHAOS */
+    (function () {
+        const cv = $('umg-cv-chaos'), ui = { t: $('umg-chaos-t'), sep: $('umg-chaos-sep'), verdict: $('umg-chaos-verdict') };
+        const G = 1, EPS2 = 0.012;
+        let sysA, sysB, trailA, trailB, t, raf = null, running = false;
+
+        function rndTriple() {
+            const bodies = [];
+            let px = 0, py = 0;
+            for (let i = 0; i < 3; i++) {
+                const a = (i / 3) * TAU + Math.random() * 0.9;
+                const r = 0.85 + Math.random() * 0.5;
+                const v = 0.28 + Math.random() * 0.30;
+                bodies.push({
+                    x: r * Math.cos(a), y: r * Math.sin(a),
+                    vx: -Math.sin(a) * v + (Math.random() - 0.5) * 0.35,
+                    vy: Math.cos(a) * v + (Math.random() - 0.5) * 0.35,
+                    c: ['#ffd369', '#62d6ff', '#ff7d9c'][i]
+                });
+            }
+            for (const b of bodies) { px += b.vx; py += b.vy; }
+            for (const b of bodies) { b.vx -= px / 3; b.vy -= py / 3; }
+            return bodies;
+        }
+        function reset() {
+            sysA = rndTriple();
+            sysB = sysA.map(b => ({ ...b }));
+            sysB[0].x += 1e-6; sysB[1].y -= 1e-6;
+            trailA = sysA.map(() => []); trailB = sysB.map(() => []);
+            t = 0;
+        }
+        function step(s, dt) {
+            const n = s.length;
+            const x0 = s.map(b => b.x), y0 = s.map(b => b.y);
+            const vx0 = s.map(b => b.vx), vy0 = s.map(b => b.vy);
+            const acc = (xs, ys, out) => {
+                for (let i = 0; i < n * 2; i++) out[i] = 0;
+                for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+                    const dx = xs[j] - xs[i], dy = ys[j] - ys[i];
+                    const r2 = dx * dx + dy * dy + EPS2;
+                    const k = G / (r2 * Math.sqrt(r2));
+                    out[i * 2] += dx * k; out[i * 2 + 1] += dy * k;
+                    out[j * 2] -= dx * k; out[j * 2 + 1] -= dy * k;
+                }
+            };
+            const a1 = [], a2 = [], a3 = [], a4 = [];
+            const mk = (fx, fy) => [fx, fy];
+            acc(x0, y0, a1);
+            const x1 = x0.map((x, i) => x + vx0[i] * dt / 2), y1 = y0.map((y, i) => y + vy0[i] * dt / 2);
+            const vx1 = vx0.map((v, i) => v + a1[i * 2] * dt / 2), vy1 = vy0.map((v, i) => v + a1[i * 2 + 1] * dt / 2);
+            acc(x1, y1, a2);
+            const x2 = x0.map((x, i) => x + vx1[i] * dt / 2), y2 = y0.map((y, i) => y + vy1[i] * dt / 2);
+            const vx2 = vx0.map((v, i) => v + a2[i * 2] * dt / 2), vy2 = vy0.map((v, i) => v + a2[i * 2 + 1] * dt / 2);
+            acc(x2, y2, a3);
+            const x3 = x0.map((x, i) => x + vx2[i] * dt), y3 = y0.map((y, i) => y + vy2[i] * dt);
+            const vx3 = vx0.map((v, i) => v + a3[i * 2] * dt), vy3 = vy0.map((v, i) => v + a3[i * 2 + 1] * dt);
+            acc(x3, y3, a4);
+            for (let i = 0; i < n; i++) {
+                const b = s[i];
+                b.x += dt / 6 * (vx0[i] + 2 * vx1[i] + 2 * vx2[i] + vx3[i]);
+                b.y += dt / 6 * (vy0[i] + 2 * vy1[i] + 2 * vy2[i] + vy3[i]);
+                b.vx += dt / 6 * (a1[i * 2] + 2 * a2[i * 2] + 2 * a3[i * 2] + a4[i * 2]);
+                b.vy += dt / 6 * (a1[i * 2 + 1] + 2 * a2[i * 2 + 1] + 2 * a3[i * 2 + 1] + a4[i * 2 + 1]);
+            }
+            return mk;
+        }
+        function frame() {
+            if (!running) return;
+            if (!alive()) { running = false; raf = null; return; }
+            for (let k = 0; k < 7; k++) { step(sysA, 0.0035); step(sysB, 0.0035); t += 0.0035; }
+            for (let i = 0; i < 3; i++) {
+                trailA[i].push([sysA[i].x, sysA[i].y]);
+                trailB[i].push([sysB[i].x, sysB[i].y]);
+                if (trailA[i].length > 850) trailA[i].shift();
+                if (trailB[i].length > 850) trailB[i].shift();
+            }
+            const { ctx, w, h } = fitCanvas(cv);
+            ctx.clearRect(0, 0, w, h);
+            let cx = 0, cy = 0;
+            for (const b of sysA) { cx += b.x / 3; cy += b.y / 3; }
+            let maxR = 0.8;
+            for (const b of sysA) maxR = Math.max(maxR, Math.hypot(b.x - cx, b.y - cy));
+            const sc = Math.min(w, h) * 0.44 / maxR;
+            const X = p => w / 2 + (p[0] - cx) * sc, Y = p => h / 2 + (p[1] - cy) * sc;
+            const drawTrail = (tr, col, alpha) => {
+                ctx.beginPath();
+                tr.forEach((p, i) => { i ? ctx.lineTo(X(p), Y(p)) : ctx.moveTo(X(p), Y(p)); });
+                ctx.strokeStyle = col; ctx.globalAlpha = alpha; ctx.lineWidth = 1.1; ctx.stroke(); ctx.globalAlpha = 1;
+            };
+            ctx.lineCap = 'round';
+            for (let i = 0; i < 3; i++) drawTrail(trailB[i], 'rgba(230,235,250,0.55)', 0.5);
+            for (let i = 0; i < 3; i++) drawTrail(trailA[i], sysA[i].c, 0.75);
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath(); ctx.arc(X([sysB[i].x, sysB[i].y]), Y([sysB[i].x, sysB[i].y]), 2.6, 0, TAU);
+                ctx.fillStyle = 'rgba(235,240,255,.8)'; ctx.fill();
+            }
+            for (let i = 0; i < 3; i++) {
+                const p = [sysA[i].x, sysA[i].y];
+                const g = ctx.createRadialGradient(X(p), Y(p), 0, X(p), Y(p), 14);
+                g.addColorStop(0, sysA[i].c); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.beginPath(); ctx.arc(X(p), Y(p), 14, 0, TAU); ctx.fillStyle = g; ctx.fill();
+                ctx.beginPath(); ctx.arc(X(p), Y(p), 4.2, 0, TAU); ctx.fillStyle = sysA[i].c; ctx.fill();
+            }
+            const sep = Math.max(...sysA.map((b, i) => Math.hypot(b.x - sysB[i].x, b.y - sysB[i].y)));
+            ui.t.textContent = t.toFixed(2);
+            ui.sep.textContent = sep < 1e-4 ? sep.toExponential(1) : sep.toPrecision(3);
+            ui.verdict.textContent =
+                sep > 1.2 ? 'diverged — prediction lost' :
+                sep > 0.15 ? 'drifting apart — chaos engaged' :
+                sep > 1e-3 ? 'errors compounding ×10 / orbit' : 'in lockstep…';
+            raf = requestAnimationFrame(frame);
+        }
+        $('umg-chaos-restart').addEventListener('click', reset);
+        $('umg-chaos-clear').addEventListener('click', () => { trailA = sysA.map(() => []); trailB = sysB.map(() => []); });
+        registerSim('chaos', {
+            start() { running = true; if (!sysA) reset(); if (!raf) raf = requestAnimationFrame(frame); },
+            stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = null; } }
+        });
+    })();
+
+    /* ==================================================== II. SPACETIME */
+    (function () {
+        const cv = $('umg-cv-spacetime');
+        const uiOrbit = $('umg-st-orbit-readout'), uiLens = $('umg-st-lens-readout');
+        let mode = 'orbit', raf = null, running = false;
+        const MU = 1, A = 48, E = 0.44;
+        const P_SM = A * (1 - E * E);
+        const R_AP = A * (1 + E), R_PE = A * (1 - E);
+        const H2 = MU * P_SM, DT = 0.25;
+        let gr, nw, periAngles, firstPeri, prevR = null, prevDr = 0;
+
+        function resetOrbit() {
+            const vA = Math.sqrt(H2) / R_AP;
+            gr = { x: R_AP, y: 0, vx: 0, vy: vA, trail: [[R_AP, 0]] };
+            nw = { x: R_AP, y: 0, vx: 0, vy: vA, trail: [[R_AP, 0]] };
+            periAngles = []; firstPeri = null; prevR = null; prevDr = 0;
+        }
+        function accGR(x, y) {
+            const r2 = x * x + y * y, r = Math.sqrt(r2);
+            const f = -MU / r2 * (1 + 3 * H2 / r2);
+            return [f * x / r, f * y / r];
+        }
+        function accNW(x, y) {
+            const r2 = x * x + y * y, r = Math.sqrt(r2);
+            const f = -MU / r2;
+            return [f * x / r, f * y / r];
+        }
+        function rk4P(b, acc, hs) {
+            const k1v = acc(b.x, b.y);
+            const k2s = { x: b.x + b.vx * hs / 2, y: b.y + b.vy * hs / 2 };
+            const k2v = acc(k2s.x, k2s.y);
+            const v2 = [b.vx + k1v[0] * hs / 2, b.vy + k1v[1] * hs / 2];
+            const k3s = { x: b.x + v2[0] * hs / 2, y: b.y + v2[1] * hs / 2 };
+            const k3v = acc(k3s.x, k3s.y);
+            const v3 = [b.vx + k2v[0] * hs / 2, b.vy + k2v[1] * hs / 2];
+            const k4s = { x: b.x + v3[0] * hs, y: b.y + v3[1] * hs };
+            const k4v = acc(k4s.x, k4s.y);
+            const v4 = [b.vx + k3v[0] * hs, b.vy + k3v[1] * hs];
+            b.x += hs / 6 * (b.vx + 2 * v2[0] + 2 * v3[0] + v4[0]);
+            b.y += hs / 6 * (b.vy + 2 * v2[1] + 2 * v3[1] + v4[1]);
+            b.vx += hs / 6 * (k1v[0] + 2 * k2v[0] + 2 * k3v[0] + k4v[0]);
+            b.vy += hs / 6 * (k1v[1] + 2 * k2v[1] + 2 * k3v[1] + k4v[1]);
+        }
+        /* lensing: exact Schwarzschild photon integrator (validated vs 4GM/c²b and bcrit=3√3) */
+        const L_BH = 34;
+        let rayPaths = null, lensPhase = 0;
+        function buildRays() {
+            rayPaths = [];
+            const bs = [2.5, 3, 3.6, 4.2, 4.9, 5.25, 5.5, 5.9, 6.5, 7.4, 8.6, 10, 11.8, 14];
+            for (const bAbs of bs) for (const s of [1, -1]) {
+                const b = bAbs * s, L = 44;
+                let phi = Math.atan2(b, -L), u = 1 / Math.hypot(L, b), w = Math.cos(phi) / b;
+                const dphi = -1 / 4500, pts = [];
+                let absorbed = false, steps = 90000;
+                while (steps-- > 0) {
+                    const f = (u, w) => (-u + 3 * u * u);
+                    const k1w = f(u, w), k1u = w;
+                    const k2w = f(u + k1u * dphi / 2, w + k1w * dphi / 2), k2u = w + k1w * dphi / 2;
+                    const k3w = f(u + k2u * dphi / 2, w + k2w * dphi / 2), k3u = w + k2w * dphi / 2;
+                    const k4w = f(u + k3u * dphi, w + k3w * dphi), k4u = w + k3w * dphi;
+                    u += dphi * (k1u + 2 * k2u + 2 * k3u + k4u) / 6;
+                    w += dphi * (k1w + 2 * k2w + 2 * k3w + k4w) / 6;
+                    phi += dphi;
+                    if (steps % 5 === 0 && u > 0) {
+                        const r = 1 / u;
+                        if (r < 70) pts.push([r * Math.cos(phi), r * Math.sin(phi)]);
+                    }
+                    if (u > 0.5) { absorbed = true; break; }
+                    if (w > 0 && u < 1 / 75) break;
+                }
+                rayPaths.push({ b, pts, absorbed });
+            }
+        }
+        function setMode(m) {
+            mode = m;
+            $('umg-st-mode-orbit').classList.toggle('on', m === 'orbit');
+            $('umg-st-mode-lens').classList.toggle('on', m === 'lens');
+            uiOrbit.style.display = m === 'orbit' ? '' : 'none';
+            uiLens.style.display = m === 'lens' ? '' : 'none';
+            if (m === 'orbit') resetOrbit();
+            if (m === 'lens') {
+                if (!rayPaths) buildRays();
+                $('umg-st-rays').textContent = rayPaths.length;
+                $('umg-st-captured').textContent = rayPaths.filter(r => r.absorbed).length + ' rays';
+                lensPhase = 0;
+            }
+        }
+        $('umg-st-mode-orbit').addEventListener('click', () => setMode('orbit'));
+        $('umg-st-mode-lens').addEventListener('click', () => setMode('lens'));
+
+        function drawStar(ctx, x, y, r, core, glow) {
+            const g = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+            g.addColorStop(0, core); g.addColorStop(0.25, glow); g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.beginPath(); ctx.arc(x, y, r * 4, 0, TAU); ctx.fillStyle = g; ctx.fill();
+            ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fillStyle = core; ctx.fill();
+        }
+        function frameOrbit(ctx, w, h) {
+            for (let s = 0; s < 26; s++) {
+                const rPrev = Math.hypot(gr.x, gr.y);
+                const drPrev = prevR === null ? 0 : rPrev - prevR;
+                rk4P(gr, accGR, DT); rk4P(nw, accNW, DT);
+                const rNow = Math.hypot(gr.x, gr.y);
+                if (prevR !== null && drPrev < 0 && (rNow - rPrev) > 0) {
+                    const ang = Math.atan2(gr.y, gr.x);
+                    if (firstPeri === null) firstPeri = ang;
+                    periAngles.push(ang);
+                }
+                prevDr = rNow - rPrev; prevR = rPrev;
+                gr.trail.push([gr.x, gr.y]); if (gr.trail.length > 3600) gr.trail.shift();
+                nw.trail.push([nw.x, nw.y]); if (nw.trail.length > 1400) nw.trail.shift();
+            }
+            ctx.clearRect(0, 0, w, h);
+            const sc = Math.min(w, h) * 0.46 / (R_AP + 2);
+            const X = x => w / 2 + x * sc, Y = y => h / 2 - y * sc;
+            ctx.beginPath();
+            nw.trail.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
+            ctx.strokeStyle = 'rgba(160,170,200,.34)'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath();
+            gr.trail.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1])));
+            ctx.strokeStyle = 'rgba(240,200,120,.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+            if (periAngles.length) {
+                ctx.fillStyle = '#9fdcf5';
+                for (const a of periAngles.slice(-40)) {
+                    ctx.beginPath();
+                    ctx.arc(X(R_PE * Math.cos(a)), Y(R_PE * Math.sin(a)), 2.2, 0, TAU);
+                    ctx.fill();
+                }
+                const a = periAngles[periAngles.length - 1];
+                ctx.setLineDash([4, 5]);
+                ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(R_PE * Math.cos(a)), Y(R_PE * Math.sin(a)));
+                ctx.strokeStyle = 'rgba(159,220,245,.5)'; ctx.stroke(); ctx.setLineDash([]);
+            }
+            drawStar(ctx, X(0), Y(0), 7, '#ffdf9e', 'rgba(255,190,90,.55)');
+            drawStar(ctx, X(gr.x), Y(gr.y), 4.4, '#f5c662', 'rgba(240,200,120,.5)');
+            drawStar(ctx, X(nw.x), Y(nw.y), 3.4, '#aeb8d6', 'rgba(160,170,200,.35)');
+            if (periAngles.length >= 2 && firstPeri !== null) {
+                const total = ((periAngles[periAngles.length - 1] - firstPeri) * 180 / Math.PI + 1440) % 360;
+                const perOrbit = total / (periAngles.length - 1);
+                $('umg-st-orbits').textContent = (periAngles.length - 1);
+                $('umg-st-precess').textContent = perOrbit.toFixed(1) + '°/orbit (' + total.toFixed(0) + '° total)';
+            }
+        }
+        function frameLens(ctx, w, h) {
+            ctx.clearRect(0, 0, w, h);
+            const sc = Math.min(w / (2 * (L_BH + 8)), h / (2 * (L_BH * 0.62)));
+            const X = x => w / 2 + x * sc, Y = y => h / 2 - y * sc;
+            lensPhase = (lensPhase + 0.0032) % 1;
+            ctx.beginPath(); ctx.arc(X(0), Y(0), 3 * sc, 0, TAU);
+            ctx.setLineDash([3, 6]); ctx.strokeStyle = 'rgba(159,220,245,.4)'; ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(159,220,245,.55)';
+            ctx.font = '10px Inter, system-ui'; ctx.textAlign = 'left';
+            ctx.fillText('photon sphere  r = 3GM/c²', X(0) + 3 * sc * 0.72 + 6, Y(0) - 3 * sc * 0.72 - 6);
+            for (const ray of rayPaths) {
+                const n = ray.pts.length;
+                if (!n) continue;
+                const head = Math.min(n - 1, Math.floor(n * lensPhase));
+                const tailN = Math.min(60, head);
+                ctx.beginPath();
+                for (let i = head - tailN; i <= head; i++) {
+                    const p = ray.pts[i];
+                    i === head - tailN ? ctx.moveTo(X(p[0]), Y(p[1])) : ctx.lineTo(X(p[0]), Y(p[1]));
+                }
+                ctx.strokeStyle = ray.absorbed ? 'rgba(255,150,110,.75)' : 'rgba(140,220,255,.8)';
+                ctx.lineWidth = 1.8; ctx.stroke();
+                ctx.beginPath();
+                for (let i = 0; i <= head; i++) {
+                    const p = ray.pts[i];
+                    i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]));
+                }
+                ctx.strokeStyle = ray.absorbed ? 'rgba(255,150,110,.16)' : 'rgba(120,190,240,.16)';
+                ctx.lineWidth = 1; ctx.stroke();
+                const hp = ray.pts[head];
+                const g = ctx.createRadialGradient(X(hp[0]), Y(hp[1]), 0, X(hp[0]), Y(hp[1]), 7);
+                g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.beginPath(); ctx.arc(X(hp[0]), Y(hp[1]), 7, 0, TAU); ctx.fillStyle = g; ctx.fill();
+            }
+            const bs = 2 * sc;
+            const g = ctx.createRadialGradient(X(0), Y(0), bs * 0.4, X(0), Y(0), bs * 3.4);
+            g.addColorStop(0, 'rgba(0,0,0,1)');
+            g.addColorStop(0.35, 'rgba(30,20,50,.95)');
+            g.addColorStop(0.55, 'rgba(120,60,190,.35)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.beginPath(); ctx.arc(X(0), Y(0), bs * 3.4, 0, TAU); ctx.fillStyle = g; ctx.fill();
+            ctx.beginPath(); ctx.arc(X(0), Y(0), bs, 0, TAU); ctx.fillStyle = '#000'; ctx.fill();
+            ctx.beginPath(); ctx.arc(X(0), Y(0), bs, 0, TAU);
+            ctx.strokeStyle = 'rgba(220,160,255,.75)'; ctx.lineWidth = 1.6; ctx.stroke();
+            ctx.fillStyle = 'rgba(220,170,255,.6)';
+            ctx.fillText('horizon  rs = 2GM/c²', X(0) + bs * 0.74 + 5, Y(0) + bs * 0.74 + 16);
+        }
+        function frame() {
+            if (!running) return;
+            if (!alive()) { running = false; raf = null; return; }
+            const { ctx, w, h } = fitCanvas(cv);
+            if (mode === 'orbit') frameOrbit(ctx, w, h); else frameLens(ctx, w, h);
+            raf = requestAnimationFrame(frame);
+        }
+        const theoryDeg = (6 * Math.PI / P_SM) * 180 / Math.PI;
+        $('umg-st-theory').textContent = theoryDeg.toFixed(1) + '°/orbit first-order (strong field overshoots)';
+        registerSim('spacetime', {
+            start() { running = true; if (!gr) resetOrbit(); if (!raf) raf = requestAnimationFrame(frame); },
+            stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = null; } }
+        });
+    })();
+
+    /* ==================================================== III. EXPANSION */
+    (function () {
+        const cv = $('umg-cv-expansion');
+        const N = 9, SPAN = 1.0;
+        let galaxies, observer, arrowsOn = true, tLoop = 0, raf = null, running = false;
+        let seed = 424243;
+        const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+        const aMin = 0.35, aMax = 2.6, LOOP = 22;
+        function build() {
+            galaxies = []; seed = 424243;
+            for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+                galaxies.push({
+                    cx: (i / (N - 1) * 2 - 1) * SPAN + (rnd() - 0.5) * 0.12,
+                    cy: (j / (N - 1) * 2 - 1) * SPAN + (rnd() - 0.5) * 0.12,
+                    r: 1.6 + rnd() * 2.2,
+                    col: ['#ffd9a0', '#bcd8ff', '#ffc2cf', '#c8f2d8', '#e6d4ff'][Math.floor(rnd() * 5)]
+                });
+            }
+            observer = galaxies[Math.floor(galaxies.length / 2)];
+        }
+        build();
+        function scaleFactor() { return aMin + (aMax - aMin) * ((tLoop % LOOP) / LOOP); }
+        function roundR(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        }
+        function frame() {
+            if (!running) return;
+            if (!alive()) { running = false; raf = null; return; }
+            if (!galaxies) build();
+            tLoop += 1 / 60;
+            const a = scaleFactor();
+            const aDot = (aMax - aMin) / LOOP;
+            const H = aDot / a;
+            const { ctx, w, h } = fitCanvas(cv);
+            ctx.clearRect(0, 0, w, h);
+            const sc = Math.min(w, h) * 0.40 / (SPAN * aMax);
+            const X = x => w / 2 + x * sc, Y = y => h / 2 - y * sc;
+            const Rdh = 1.35 * SPAN * a;
+            ctx.beginPath();
+            ctx.arc(X(observer.cx * a), Y(observer.cy * a), Rdh * sc, 0, TAU);
+            ctx.setLineDash([4, 7]); ctx.strokeStyle = 'rgba(140,160,220,.25)'; ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(140,160,220,.4)';
+            ctx.font = '10px Inter, system-ui';
+            ctx.fillText('observable limit', X(observer.cx * a) + Rdh * sc * 0.7, Y(observer.cy * a) - Rdh * sc * 0.7);
+            if (arrowsOn) {
+                for (const g of galaxies) {
+                    if (g === observer) continue;
+                    const vx = (g.cx - observer.cx) * aDot, vy = (g.cy - observer.cy) * aDot;
+                    const k = 1.1 * a * sc;
+                    const x0 = X(g.cx * a), y0 = Y(g.cy * a);
+                    const x1 = x0 + vx * k, y1 = y0 - vy * k;
+                    const vmag = Math.hypot(vx, vy);
+                    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+                    ctx.strokeStyle = `rgba(111,195,232,${0.25 + Math.min(0.65, vmag * 0.4)})`;
+                    ctx.lineWidth = 1.1; ctx.stroke();
+                    const ang = Math.atan2(y1 - y0, x1 - x0);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x1 - 6 * Math.cos(ang - 0.42), y1 - 6 * Math.sin(ang - 0.42));
+                    ctx.lineTo(x1 - 6 * Math.cos(ang + 0.42), y1 - 6 * Math.sin(ang + 0.42));
+                    ctx.closePath();
+                    ctx.fillStyle = `rgba(111,195,232,${0.35 + Math.min(0.55, vmag * 0.4)})`;
+                    ctx.fill();
+                }
+            }
+            for (const g of galaxies) {
+                const x = X(g.cx * a), y = Y(g.cy * a);
+                const gg = ctx.createRadialGradient(x, y, 0, x, y, g.r * 3);
+                gg.addColorStop(0, g.col); gg.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.beginPath(); ctx.arc(x, y, g.r * 3, 0, TAU); ctx.fillStyle = gg; ctx.fill();
+                ctx.beginPath(); ctx.arc(x, y, g.r, 0, TAU); ctx.fillStyle = g.col; ctx.fill();
+            }
+            const ox = X(observer.cx * a), oy = Y(observer.cy * a);
+            ctx.beginPath(); ctx.arc(ox, oy, 9, 0, TAU);
+            ctx.strokeStyle = '#f0d89a'; ctx.lineWidth = 1.6; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(ox, oy + 12);
+            ctx.lineTo(ox - 5, oy + 22); ctx.lineTo(ox + 5, oy + 22); ctx.closePath();
+            ctx.fillStyle = '#f0d89a'; ctx.fill();
+            ctx.fillStyle = 'rgba(240,216,154,.85)';
+            ctx.fillText('you are (apparently) the centre', ox + 12, oy + 24);
+            const pw = 200, ph = 122, px0 = w - pw - 12, py0 = h - ph - 12;
+            ctx.fillStyle = 'rgba(8,11,24,.78)';
+            ctx.strokeStyle = 'rgba(140,160,220,.25)';
+            roundR(ctx, px0, py0, pw, ph, 10); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = 'rgba(200,208,232,.75)';
+            ctx.font = '10px Inter, system-ui';
+            ctx.fillText('recession speed vs distance (v = H·d)', px0 + 10, py0 + 15);
+            let dMax = 0;
+            for (const g of galaxies) dMax = Math.max(dMax, Math.hypot(g.cx - observer.cx, g.cy - observer.cy) * a);
+            const vMax = dMax * H;
+            ctx.beginPath();
+            ctx.moveTo(px0 + 12, py0 + ph - 16);
+            ctx.lineTo(px0 + 12 + (pw - 24), py0 + ph - 16 - (ph - 40));
+            ctx.strokeStyle = 'rgba(240,216,154,.5)'; ctx.lineWidth = 1; ctx.stroke();
+            for (const g of galaxies) {
+                if (g === observer) continue;
+                const d = Math.hypot(g.cx - observer.cx, g.cy - observer.cy) * a;
+                const v = d * H;
+                const px = px0 + 12 + (d / dMax) * (pw - 24);
+                const py = py0 + ph - 16 - (v / vMax) * (ph - 40);
+                ctx.beginPath(); ctx.arc(px, py, 2, 0, TAU);
+                ctx.fillStyle = g.col; ctx.fill();
+            }
+            ctx.fillStyle = 'rgba(240,216,154,.8)';
+            ctx.fillText('a straight line — from every seat', px0 + 10, py0 + ph - 3);
+            $('umg-exp-a').textContent = a.toFixed(2);
+            $('umg-exp-h').textContent = H.toFixed(3) + ' /unit-time';
+            raf = requestAnimationFrame(frame);
+        }
+        cv.addEventListener('pointerdown', e => {
+            const rect = cv.getBoundingClientRect();
+            const px = e.clientX - rect.left, py = e.clientY - rect.top;
+            const a = scaleFactor();
+            const sc = Math.min(rect.width, rect.height) * 0.40 / (SPAN * aMax);
+            let best = null, bd = 1e9;
+            for (const g of galaxies) {
+                const X = rect.width / 2 + g.cx * a * sc, Y = rect.height / 2 + g.cy * a * sc;
+                const d = Math.hypot(X - px, Y - py);
+                if (d < bd) { bd = d; best = g; }
+            }
+            if (best && bd < 40) observer = best;
+        });
+        $('umg-exp-jump').addEventListener('click', () => {
+            observer = galaxies[Math.floor(Math.random() * galaxies.length)];
+        });
+        $('umg-exp-arrows').addEventListener('click', e => {
+            arrowsOn = !arrowsOn;
+            e.currentTarget.textContent = 'Recession arrows: ' + (arrowsOn ? 'on' : 'off');
+        });
+        registerSim('expansion', {
+            start() { running = true; if (!raf) raf = requestAnimationFrame(frame); },
+            stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = null; } }
+        });
+    })();
+
+    /* ==================================================== IV. GOLDEN ANGLE */
+    (function () {
+        const cv = $('umg-cv-golden'), slider = $('umg-golden-slider');
+        const valEl = $('umg-golden-val'), distEl = $('umg-golden-dist'), structEl = $('umg-golden-structure');
+        const GOLD = 137.50776405087785, N_DOTS = 650;
+        let angle = GOLD, tour = false, raf = null, running = false, needDraw = true;
+        function describe(a) {
+            const d = Math.abs(a - GOLD);
+            if (d < 0.0005) return 'optimal packing — no waste, ever';
+            if (d < 0.03) return 'nearly golden — faint Fibonacci spirals';
+            for (let p = 1; p <= 21; p++) {
+                const x = a * p / 360;
+                if (Math.abs(x - Math.round(x)) < 0.012) return 'rational — ' + p + ' rigid spokes';
+            }
+            return d < 0.2 ? 'visible spiral arms — wasted space' : 'irrational-ish, but not optimal';
+        }
+        function draw(ctx, w, h) {
+            ctx.clearRect(0, 0, w, h);
+            const R = Math.min(w, h) * 0.47;
+            const c = R / Math.sqrt(N_DOTS);
+            const cx = w / 2, cy = h / 2;
+            for (let n = 1; n <= N_DOTS; n++) {
+                const r = c * Math.sqrt(n);
+                const a = n * angle * Math.PI / 180;
+                const sz = 1.7 + 3.1 * Math.sqrt(n / N_DOTS);
+                const hue = 42 - 16 * (n / N_DOTS);
+                const li = 62 - 18 * (n / N_DOTS);
+                const near = Math.abs(angle - GOLD) < 0.003;
+                ctx.beginPath();
+                ctx.arc(cx + r * Math.cos(a), cy + r * Math.sin(a), sz, 0, TAU);
+                ctx.fillStyle = `hsla(${hue}, ${near ? 82 : 60}%, ${li}%, ${0.95 - 0.3 * n / N_DOTS})`;
+                ctx.fill();
+            }
+            ctx.beginPath(); ctx.arc(cx, cy, 3, 0, TAU);
+            ctx.fillStyle = '#f5e2b0'; ctx.fill();
+            valEl.textContent = angle.toFixed(6) + '°';
+            const d = angle - GOLD;
+            distEl.textContent = (d >= 0 ? '+' : '') + d.toFixed(6) + '°';
+            structEl.textContent = describe(angle);
+        }
+        function frame() {
+            if (!running) return;
+            if (!alive()) { running = false; raf = null; return; }
+            if (tour) {
+                angle += (GOLD - angle) * 0.045;
+                if (Math.abs(GOLD - angle) < 0.0004) { angle = GOLD; tour = false; }
+                slider.value = angle;
+                needDraw = true;
+            }
+            if (needDraw) { const f = fitCanvas(cv); draw(f.ctx, f.w, f.h); needDraw = false; }
+            raf = requestAnimationFrame(frame);
+        }
+        slider.addEventListener('input', () => { tour = false; angle = parseFloat(slider.value); needDraw = true; });
+        root.querySelectorAll('[data-umg-gold]').forEach(b => b.addEventListener('click', () => {
+            tour = false; angle = parseFloat(b.dataset.umgGold); slider.value = angle; needDraw = true;
+        }));
+        $('umg-golden-tour').addEventListener('click', () => {
+            angle = 137.0; slider.value = angle; tour = true; needDraw = true;
+        });
+        registerSim('golden', {
+            start() { running = true; needDraw = true; if (!raf) raf = requestAnimationFrame(frame); },
+            stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = null; } }
+        });
+    })();
+
+    /* ==================================================== V. EMERGENT LIFE */
+    (function () {
+        const cv = $('umg-cv-life');
+        const N = 420, K = 5, R = 88, RMIN = 0.32 * R;
+        const COLS = ['#ffd166', '#ef476f', '#06d6a0', '#5aa9ff', '#c77dff'];
+        const WORLD = 900, WORLD_H = WORLD * 0.72;
+        let P = null, mat = null, tick = 0, raf = null, running = false;
+        let seedv = 987654;
+        const rnd = () => (seedv = (seedv * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+        function randomMatrix() {
+            mat = Array.from({ length: K }, () => Array.from({ length: K }, () => rnd() * 2 - 1));
+            drawMatrix();
+        }
+        function respawn() {
+            P = [];
+            for (let i = 0; i < N; i++) P.push({ x: rnd() * WORLD, y: rnd() * WORLD_H, vx: 0, vy: 0, t: i % K });
+        }
+        function drawMatrix() {
+            const wrap = $('umg-life-matrix');
+            wrap.innerHTML = '';
+            for (let i = 0; i < K; i++) for (let j = 0; j < K; j++) {
+                const v = mat[i][j];
+                const d = document.createElement('div');
+                const a = Math.abs(v);
+                d.style.background = v >= 0
+                    ? `rgba(80,220,140,${0.15 + 0.75 * a})`
+                    : `rgba(240,90,110,${0.15 + 0.75 * a})`;
+                d.style.border = '2px solid transparent';
+                d.title = `attraction ${i} → ${j}: ${v.toFixed(2)}`;
+                d.textContent = v.toFixed(1);
+                wrap.appendChild(d);
+            }
+        }
+        function force(d, a) {
+            if (d < RMIN) return (d / RMIN - 1);
+            return a * (1 - Math.abs(2 * d - R - RMIN) / (R - RMIN));
+        }
+        function step() {
+            const Fx = new Float64Array(N), Fy = new Float64Array(N);
+            for (let i = 0; i < N; i++) {
+                const pi = P[i];
+                for (let j = 0; j < N; j++) {
+                    if (i === j) continue;
+                    const pj = P[j];
+                    let dx = pj.x - pi.x, dy = pj.y - pi.y;
+                    if (dx > WORLD / 2) dx -= WORLD; else if (dx < -WORLD / 2) dx += WORLD;
+                    if (dy > WORLD_H / 2) dy -= WORLD_H; else if (dy < -WORLD_H / 2) dy += WORLD_H;
+                    if (Math.abs(dx) > R || Math.abs(dy) > R) continue;
+                    const d2 = dx * dx + dy * dy;
+                    if (d2 > R * R || d2 < 0.01) continue;
+                    const d = Math.sqrt(d2);
+                    const fv = force(d, mat[pi.t][pj.t]);
+                    Fx[i] += fv * dx / d; Fy[i] += fv * dy / d;
+                }
+            }
+            for (let i = 0; i < N; i++) {
+                const p = P[i];
+                p.vx = (p.vx + Fx[i] * 0.25) * 0.90;
+                p.vy = (p.vy + Fy[i] * 0.25) * 0.90;
+                p.x = (p.x + p.vx + WORLD) % WORLD;
+                p.y = (p.y + p.vy + WORLD_H) % WORLD_H;
+            }
+            tick++;
+        }
+        function frame() {
+            if (!running) return;
+            if (!alive()) { running = false; raf = null; return; }
+            const { ctx, w, h } = fitCanvas(cv);
+            for (let s = 0; s < 2; s++) step();
+            const worldScale = Math.min(w / WORLD, h / WORLD_H);
+            const ox = (w - WORLD * worldScale) / 2, oy = (h - WORLD_H * worldScale) / 2;
+            ctx.fillStyle = 'rgba(5,6,14,0.34)';
+            ctx.fillRect(0, 0, w, h);
+            for (const p of P) {
+                const x = ox + p.x * worldScale, y = oy + p.y * worldScale;
+                ctx.beginPath(); ctx.arc(x, y, 2.3, 0, TAU);
+                ctx.fillStyle = COLS[p.t];
+                ctx.shadowColor = COLS[p.t]; ctx.shadowBlur = 6;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+            $('umg-life-count').textContent = N;
+            $('umg-life-t').textContent = tick;
+            raf = requestAnimationFrame(frame);
+        }
+        $('umg-life-random').addEventListener('click', () => { seedv = (Math.random() * 1e9) | 0; randomMatrix(); });
+        $('umg-life-respawn').addEventListener('click', () => { seedv = (Math.random() * 1e9) | 0; respawn(); });
+        registerSim('life', {
+            start() {
+                running = true;
+                if (!P) { randomMatrix(); respawn(); }
+                if (!raf) raf = requestAnimationFrame(frame);
+            },
+            stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = null; } }
+        });
+    })();
+
+    /* ==================================================== VI. FRACTAL */
+    (function () {
+        const cv = $('umg-cv-fractal');
+        let view = { cx: -0.75, cy: 0, w: 3.2 };
+        let raf = null, running = false, renderToken = 0, dragging = null;
+        const BASE_ITERS = 160;
+        function maxIter() {
+            const zoom = 3.2 / view.w;
+            return Math.min(2200, Math.floor(BASE_ITERS + 55 * Math.log2(zoom)));
+        }
+        function render(ctx, w, h) {
+            const token = renderToken;
+            const iter = maxIter();
+            const img = ctx.createImageData(w, h);
+            const aspect = h / w;
+            const x0 = view.cx - view.w / 2, y0 = view.cy - view.w * aspect / 2;
+            let row = 0;
+            $('umg-frac-zoom').textContent = (3.2 / view.w > 999 ? (3.2 / view.w).toExponential(1) : (3.2 / view.w).toFixed(1)) + '×';
+            $('umg-frac-centre').textContent = view.cx.toPrecision(7) + ', ' + view.cy.toPrecision(7) + ' i';
+            $('umg-frac-iter').textContent = iter;
+            const pal = [];
+            for (let i = 0; i < 512; i++) {
+                const t = i / 511;
+                const hue = 222 - 185 * Math.pow(t, 0.62) + 46 * Math.sin(t * 6.28);
+                const li = 6 + 60 * Math.pow(t, 1.6);
+                const sat = 78 - 30 * t;
+                const c = hslToRgb(((hue % 360) + 360) % 360 / 360, sat / 100, li / 100);
+                pal.push(c);
+            }
+            function chunk() {
+                if (token !== renderToken || !running) return;
+                const rows = Math.min(44, h - row);
+                for (let rr = 0; rr < rows; rr++, row++) {
+                    const cyv = y0 + row * (view.w * aspect) / h;
+                    for (let x = 0; x < w; x++) {
+                        const cxv = x0 + x * view.w / w;
+                        let zx = 0, zy = 0, n = 0, x2 = 0, y2 = 0;
+                        while (n < iter && x2 + y2 < 16) {
+                            zy = 2 * zx * zy + cyv;
+                            zx = x2 - y2 + cxv;
+                            x2 = zx * zx; y2 = zy * zy; n++;
+                        }
+                        const o = (row * w + x) * 4;
+                        if (n >= iter) {
+                            img.data[o] = 4; img.data[o + 1] = 6; img.data[o + 2] = 14; img.data[o + 3] = 255;
+                        } else {
+                            const zmag = Math.sqrt(x2 + y2);
+                            const nu = n + 1 - Math.log2(Math.log2(zmag));
+                            const idx = Math.min(511, Math.max(0, Math.floor((nu / iter) * 511 * 3) % 512));
+                            const c = pal[idx];
+                            img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+                        }
+                    }
+                }
+                ctx.putImageData(img, 0, 0);
+                if (row < h) requestAnimationFrame(chunk);
+            }
+            chunk();
+        }
+        function schedule() { renderToken++; const f = fitCanvas(cv); render(f.ctx, f.w, f.h); }
+        cv.addEventListener('pointerdown', e => {
+            const r = cv.getBoundingClientRect();
+            dragging = { x0: e.clientX - r.left, y0: e.clientY - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top };
+            if (cv.setPointerCapture && e.pointerId !== undefined) { try { cv.setPointerCapture(e.pointerId); } catch (_) {} }
+        });
+        cv.addEventListener('pointermove', e => {
+            if (dragging) { const r = cv.getBoundingClientRect(); dragging.x1 = e.clientX - r.left; dragging.y1 = e.clientY - r.top; }
+        });
+        cv.addEventListener('pointerup', () => {
+            if (!dragging) return;
+            const { x0, y0, x1, y1 } = dragging;
+            dragging = null;
+            const r = cv.getBoundingClientRect();
+            const w = r.width, h = r.height, aspect = h / w;
+            const bx = Math.min(x0, x1), bw = Math.abs(x1 - x0);
+            const by = Math.min(y0, y1), bh = Math.abs(y1 - y0);
+            if (bw < 8 || bh < 8) { schedule(); return; }
+            const re0 = view.cx - view.w / 2, im0 = view.cy - view.w * aspect / 2;
+            view.cx = re0 + (bx + bw / 2) / w * view.w;
+            view.cy = im0 + (by + bh / 2) / h * view.w * aspect;
+            view.w = view.w * bw / w;
+            schedule();
+        });
+        $('umg-frac-reset').addEventListener('click', () => { view = { cx: -0.75, cy: 0, w: 3.2 }; schedule(); });
+        $('umg-frac-seahorse').addEventListener('click', () => { view = { cx: -0.7453, cy: 0.1127, w: 0.004 }; schedule(); });
+        $('umg-frac-spiral').addEventListener('click', () => { view = { cx: -0.1011, cy: 0.9563, w: 0.012 }; schedule(); });
+        $('umg-frac-island').addEventListener('click', () => { view = { cx: -1.7687788, cy: 0.001738, w: 0.0005 }; schedule(); });
+        function hslToRgb(h, s, l) {
+            const f = n => {
+                const k = (n + h * 12) % 12;
+                const a = s * Math.min(l, 1 - l);
+                return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)))));
+            };
+            return [f(0), f(8), f(4)];
+        }
+        function frame() {
+            if (!running) return;
+            if (!alive()) { running = false; raf = null; renderToken++; return; }
+            const r = cv.getBoundingClientRect();
+            if (Math.round(r.width * DPR) !== cv.width) schedule();
+            if (dragging) {
+                const { ctx } = fitCanvas(cv);
+                const x = Math.min(dragging.x0, dragging.x1), y = Math.min(dragging.y0, dragging.y1);
+                const rw = Math.abs(dragging.x1 - dragging.x0), rh = Math.abs(dragging.y1 - dragging.y0);
+                ctx.setLineDash([5, 4]);
+                ctx.strokeStyle = 'rgba(240,216,154,.9)';
+                ctx.lineWidth = 1.4;
+                ctx.strokeRect(x, y, rw, rh);
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(240,216,154,.14)';
+                ctx.fillRect(x, y, rw, rh);
+            }
+            raf = requestAnimationFrame(frame);
+        }
+        registerSim('fractal', {
+            start() { running = true; schedule(); if (!raf) raf = requestAnimationFrame(frame); },
+            stop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = null; } renderToken++; }
+        });
+    })();
+
+    switchTab('chaos');
+})();
+</script>

@@ -46,6 +46,7 @@ const scienceList = [
   'acoustic-levitation-standing-wave',
   'fluid-vortex-smoke-tunnel',
   'gravitational-lensing-black-hole',
+  'universe-mysteries-simulation-lab',
   'moire-interference-lattice',
   'reaction-diffusion-turing-patterns',
   'quantum-wave-packet-tunneling',
