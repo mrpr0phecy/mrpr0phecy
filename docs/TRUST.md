@@ -1,6 +1,6 @@
 # Trust — pointers #5 + #6 (YMYL, site-level signals)
 
-Pointer #5 is YMYL. About 119 of 1296 tools touch money or the body. If those
+Pointer #5 is YMYL. About 119 of 1297 tools touch money or the body. If those
 pages feel like a bash-mash of thin fragments with no accountable author,
 Google's quality raters (and users) are right to distrust the whole site.
 This doc is the checklist we hold every deep page and every card to.

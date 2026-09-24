@@ -1,0 +1,414 @@
+<h2 id="csplit-title" style="margin-top:0;color:var(--accent);">🧩 Instagram Grid &amp; Carousel Splitter — Seamless Multi-Post Panoramas</h2>
+
+<div id="csplit-root">
+<p id="csplit-desc" class="small" style="color:rgba(230,250,255,0.7);margin:0 0 14px;">
+  Split one photo into a swipeable carousel (2–10 seamless slides) or a 3×3 profile grid, at Instagram’s exact
+  sizes, with the posting order worked out for you. Download every tile or a ZIP. Nothing leaves your browser.
+</p>
+
+<div id="csplit-drop" class="csplit-drop" tabindex="0" role="button" aria-label="Choose an image, drop one here, or paste from the clipboard">
+  <div id="csplit-empty" class="csplit-empty">
+    <p style="margin:0 0 6px;font-size:1rem;"><strong>Drop a photo here</strong>, paste it, or</p>
+    <div class="csplit-wrap" style="justify-content:center;">
+      <button type="button" id="csplit-pick" class="csplit-btn csplit-primary">Choose image</button>
+      <button type="button" id="csplit-sample" class="csplit-btn">Try a sample</button>
+    </div>
+    <p class="csplit-hint" style="margin:8px 0 0;">Wide images make great carousels; tall or square ones suit grids.</p>
+  </div>
+  <canvas id="csplit-preview" class="csplit-preview" hidden aria-hidden="true"></canvas>
+</div>
+<input type="file" id="csplit-file" accept="image/*" hidden tabindex="-1" aria-hidden="true">
+
+<div id="csplit-panel" hidden>
+  <p id="csplit-meta" class="csplit-hint" style="margin:8px 0 0;"></p>
+  <div class="csplit-controls">
+    <fieldset class="csplit-fs">
+      <legend class="csplit-lbl">Split as</legend>
+      <div class="csplit-wrap">
+        <label class="csplit-radio"><input type="radio" name="csplit-mode" value="carousel" checked> Carousel (swipe)</label>
+        <label class="csplit-radio"><input type="radio" name="csplit-mode" value="grid"> Profile grid</label>
+      </div>
+    </fieldset>
+    <div id="csplit-carousel-opts" class="csplit-opts">
+      <div class="csplit-field"><label for="csplit-n" class="csplit-lbl">Slides</label><select id="csplit-n"></select></div>
+      <div class="csplit-field"><label for="csplit-slide" class="csplit-lbl">Slide size</label>
+        <select id="csplit-slide">
+          <option value="1080x1350" selected>1080×1350 portrait 4:5</option>
+          <option value="1080x1080">1080×1080 square</option>
+          <option value="1080x566">1080×566 landscape</option>
+          <option value="1080x1920">1080×1920 story 9:16</option>
+        </select></div>
+    </div>
+    <div id="csplit-grid-opts" class="csplit-opts" hidden>
+      <div class="csplit-field"><label for="csplit-cols" class="csplit-lbl">Columns</label><select id="csplit-cols"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select></div>
+      <div class="csplit-field"><label for="csplit-rows" class="csplit-lbl">Rows</label><select id="csplit-rows"><option value="1">1</option><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option><option value="5">5</option></select></div>
+      <div class="csplit-field"><label for="csplit-tile" class="csplit-lbl">Tile shape</label>
+        <select id="csplit-tile">
+          <option value="1080x1440" selected>3:4 (current grid)</option>
+          <option value="1080x1080">1:1 square (classic)</option>
+          <option value="1080x1350">4:5 portrait</option>
+        </select></div>
+    </div>
+    <div class="csplit-opts">
+      <div class="csplit-field"><label for="csplit-fit" class="csplit-lbl">Fit</label>
+        <select id="csplit-fit"><option value="cover" selected>Fill (crop edges)</option><option value="contain">Fit (pad with colour)</option></select></div>
+      <div class="csplit-field"><label for="csplit-bg" class="csplit-lbl">Pad colour</label><input type="color" id="csplit-bg" value="#ffffff"></div>
+      <div class="csplit-field"><label for="csplit-gap" class="csplit-lbl">Grid-gap trim</label>
+        <select id="csplit-gap"><option value="0" selected>None</option><option value="1">1% (subtle)</option><option value="2">2%</option><option value="3">3%</option></select></div>
+      <div class="csplit-field"><label for="csplit-fmt" class="csplit-lbl">Format</label>
+        <select id="csplit-fmt"><option value="jpeg" selected>JPEG (quality 92)</option><option value="png">PNG</option></select></div>
+    </div>
+    <div id="csplit-pos" class="csplit-opts">
+      <div class="csplit-field csplit-range"><label for="csplit-px" class="csplit-lbl">Crop position ↔</label><input type="range" id="csplit-px" min="0" max="100" value="50"></div>
+      <div class="csplit-field csplit-range"><label for="csplit-py" class="csplit-lbl">Crop position ↕</label><input type="range" id="csplit-py" min="0" max="100" value="50"></div>
+    </div>
+  </div>
+  <div class="csplit-wrap" style="margin-top:12px;">
+    <button type="button" id="csplit-zip" class="csplit-btn csplit-primary">⬇ Download all as ZIP</button>
+    <button type="button" id="csplit-replace" class="csplit-btn">Replace image</button>
+  </div>
+  <p id="csplit-status" class="csplit-status" role="status" aria-live="polite"></p>
+  <p id="csplit-order" class="csplit-hint" style="margin:10px 0 6px;"></p>
+  <div id="csplit-tiles" class="csplit-tiles"></div>
+</div>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.6);font-size:0.85rem;">
+  <summary style="cursor:pointer;">Sizes, posting order and how to get a seamless result</summary>
+  <p style="margin-top:8px;"><strong>Carousels.</strong> Instagram shows every slide of a carousel at the same aspect ratio, so a
+    panorama split into equal slices swipes as one continuous image. The 4:5 portrait slide (1080×1350) takes the
+    most screen space in the feed and is the default; squares and 9:16 story slides are also offered. A carousel
+    holds up to 20 slides on the current app, but the seamless effect works best at 2–5 — pick the count that gives
+    the least cropping (the note under the preview tells you how much of the picture is kept). Slides are numbered
+    left to right; upload them in that order and they stitch together.</p>
+  <p><strong>Profile grids.</strong> Since early 2025 the profile grid shows posts as 3:4 rectangles, so the 3:4
+    tile (1080×1440) is the default; the classic 1:1 square and 4:5 are there for older-style feeds and other apps.
+    The catch with grids is <em>posting order</em>: the profile shows the newest post first, at the top left, so
+    the tile that belongs at the bottom right has to go up <em>first</em> and the top-left tile <em>last</em>.
+    The tiles below are labelled with that order and the ZIP names them <code>post-01</code> to <code>post-09</code> in the order
+    to upload, so you can work through them from the top. Every new post shifts the grid, so a 3-wide picture
+    stays aligned only if you keep posting in multiples of three afterwards.</p>
+  <p><strong>Grid-gap trim.</strong> The app draws a thin gap between grid tiles, so a picture cut into perfect
+    slices looks stretched by that gap. Trimming 1–2% between tiles compensates: each tile loses a sliver along the
+    shared edge, and the seams line up on screen. Carousels have no gap, so leave it at None for them.</p>
+  <p><strong>Fill or fit.</strong> <em>Fill</em> scales the photo to cover the whole layout and crops the rest; the
+    position sliders choose which part is kept. <em>Fit</em> keeps the entire photo and pads the sides with a
+    colour — handy for logos or when nothing can be cut. Output is JPEG at quality 92 (Instagram recompresses
+    anything you upload, so heavier files gain nothing) or PNG if you need lossless. The ZIP is built in the page
+    from the same tiles, and nothing is uploaded anywhere.</p>
+</details>
+
+<style>
+#csplit-root{color:#e6faff;}
+#csplit-root [hidden]{display:none !important;}
+#csplit-root .csplit-drop{position:relative;border:2px dashed rgba(45,212,255,0.4);border-radius:14px;background:#0d1620;min-height:170px;display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer;transition:border-color .15s,background .15s;}
+#csplit-root .csplit-drop.csplit-over{border-color:var(--accent,#2dd4ff);background:#12324a;}
+#csplit-root .csplit-drop.csplit-has{cursor:default;padding:8px;}
+#csplit-root .csplit-empty{text-align:center;color:rgba(230,250,255,0.85);}
+#csplit-root .csplit-preview{display:block;max-width:100%;max-height:70vh;height:auto;border-radius:8px;}
+#csplit-root .csplit-controls{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
+#csplit-root .csplit-fs{border:0;padding:0;margin:0;min-width:0;}
+#csplit-root .csplit-lbl{color:var(--accent,#2dd4ff);font-weight:600;font-size:12.5px;display:block;margin-bottom:4px;}
+#csplit-root .csplit-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px;}
+#csplit-root .csplit-field{min-width:0;}
+#csplit-root select,#csplit-root input[type=color]{box-sizing:border-box;width:100%;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:#e6faff;font-size:13.5px;font-family:inherit;}
+#csplit-root input[type=color]{height:38px;padding:3px 5px;cursor:pointer;}
+#csplit-root input[type=range]{width:100%;min-width:0;accent-color:var(--accent,#2dd4ff);margin:8px 0 0;}
+#csplit-root .csplit-radio{display:inline-flex;gap:7px;align-items:center;cursor:pointer;font-size:14px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);}
+#csplit-root .csplit-radio input{accent-color:var(--accent,#2dd4ff);width:16px;height:16px;margin:0;}
+#csplit-root .csplit-wrap{display:flex;flex-wrap:wrap;gap:8px;}
+#csplit-root .csplit-btn{padding:8px 14px;min-height:40px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.92);cursor:pointer;font-size:13.5px;font-weight:600;font-family:inherit;touch-action:manipulation;}
+#csplit-root .csplit-btn:hover:not(:disabled){background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#csplit-root .csplit-btn:disabled{opacity:.5;cursor:default;}
+#csplit-root .csplit-primary{background:var(--accent,#2dd4ff);color:#03141c;border-color:transparent;}
+#csplit-root .csplit-primary:hover:not(:disabled){background:var(--accent,#2dd4ff);filter:brightness(1.08);}
+#csplit-root .csplit-hint{font-size:12.8px;color:rgba(230,250,255,0.6);line-height:1.5;}
+#csplit-root .csplit-status{min-height:1.3em;margin:8px 0 0;color:var(--accent,#2dd4ff);font-size:13.5px;}
+#csplit-root .csplit-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:10px;}
+#csplit-root .csplit-tile{background:#0d1620;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px;display:flex;flex-direction:column;gap:6px;min-width:0;}
+#csplit-root .csplit-tile canvas{display:block;width:100%;height:auto;border-radius:6px;background:repeating-conic-gradient(rgba(255,255,255,0.05) 0 25%,transparent 0 50%) 0 0/16px 16px;}
+#csplit-root .csplit-tile .csplit-cap{font-size:12.5px;line-height:1.35;}
+#csplit-root .csplit-tile .csplit-cap strong{color:var(--accent,#2dd4ff);}
+#csplit-root .csplit-tile .csplit-btn{padding:6px 10px;min-height:34px;font-size:12.5px;}
+#csplit-root code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:4px;}
+#csplit-root button:focus-visible,#csplit-root select:focus-visible,#csplit-root input:focus-visible,#csplit-root .csplit-drop:focus-visible,#csplit-root summary:focus-visible{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+</style>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var ROOT_ID = 'csplit-root';
+  var KEY = 'csplit.v1';
+  var MAX_SIDE = 8000;
+  function alive() { return !!document.getElementById(ROOT_ID); }
+
+  // ---- minimal store-only ZIP writer ----
+  var CRC = (function () { var t = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { var c = 0xFFFFFFFF; for (var i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function dosTime(d) { return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() }; }
+  function zip(files) { // files: [{name, data: Uint8Array}]
+    var enc = new TextEncoder(), parts = [], central = [], offset = 0, now = dosTime(new Date());
+    files.forEach(function (f) {
+      var name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+      var lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+      lh.setUint16(10, now.time, true); lh.setUint16(12, now.date, true); lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true);
+      lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+      parts.push(new Uint8Array(lh.buffer), name, f.data);
+      var cd = new DataView(new ArrayBuffer(46));
+      cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x0800, true); cd.setUint16(10, 0, true);
+      cd.setUint16(12, now.time, true); cd.setUint16(14, now.date, true); cd.setUint32(16, crc, true); cd.setUint32(20, size, true); cd.setUint32(24, size, true);
+      cd.setUint16(28, name.length, true); cd.setUint16(30, 0, true); cd.setUint16(32, 0, true); cd.setUint16(34, 0, true); cd.setUint16(36, 0, true); cd.setUint32(38, 0, true); cd.setUint32(42, offset, true);
+      central.push(new Uint8Array(cd.buffer), name);
+      offset += 30 + name.length + size;
+    });
+    var cdSize = 0; central.forEach(function (p) { cdSize += p.length; });
+    var eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, 0x06054b50, true); eocd.setUint16(4, 0, true); eocd.setUint16(6, 0, true); eocd.setUint16(8, files.length, true); eocd.setUint16(10, files.length, true);
+    eocd.setUint32(12, cdSize, true); eocd.setUint32(16, offset, true); eocd.setUint16(20, 0, true);
+    return new Blob(parts.concat(central, [new Uint8Array(eocd.buffer)]), { type: 'application/zip' });
+  }
+
+  function init() {
+    var root = document.getElementById(ROOT_ID);
+    if (!root || root.getAttribute('data-ready') === '1') return;
+    root.setAttribute('data-ready', '1');
+    var $ = function (id) { return document.getElementById(id); };
+    var img = null, srcName = 'image', S = load(), raf = 0, sayTimer = 0, tiles = [], busy = false;
+    var nSel = $('csplit-n');
+    for (var i = 2; i <= 10; i++) { var o = document.createElement('option'); o.value = String(i); o.textContent = String(i); nSel.appendChild(o); }
+
+    function load() {
+      var d = null; try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; }
+      var s = { mode: 'carousel', n: 3, slide: '1080x1350', cols: 3, rows: 3, tile: '1080x1440', fit: 'cover', bg: '#ffffff', gap: 0, fmt: 'jpeg', px: 50, py: 50 };
+      if (d && typeof d === 'object') {
+        if (d.mode === 'grid' || d.mode === 'carousel') s.mode = d.mode;
+        if (+d.n >= 2 && +d.n <= 10) s.n = Math.round(+d.n);
+        if (/^\d+x\d+$/.test(String(d.slide))) s.slide = d.slide;
+        if ([2, 3, 4].indexOf(+d.cols) >= 0) s.cols = +d.cols;
+        if (+d.rows >= 1 && +d.rows <= 5) s.rows = Math.round(+d.rows);
+        if (/^\d+x\d+$/.test(String(d.tile))) s.tile = d.tile;
+        if (d.fit === 'contain' || d.fit === 'cover') s.fit = d.fit;
+        if (/^#[0-9a-f]{6}$/i.test(String(d.bg))) s.bg = d.bg;
+        if ([0, 1, 2, 3].indexOf(+d.gap) >= 0) s.gap = +d.gap;
+        if (d.fmt === 'png' || d.fmt === 'jpeg') s.fmt = d.fmt;
+        if (+d.px >= 0 && +d.px <= 100) s.px = +d.px;
+        if (+d.py >= 0 && +d.py <= 100) s.py = +d.py;
+      }
+      return s;
+    }
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+    function el(tag, attrs, text) { var n = document.createElement(tag); if (attrs) Object.keys(attrs).forEach(function (k) { if (k === 'class') n.className = attrs[k]; else n.setAttribute(k, attrs[k]); }); if (text !== undefined) n.textContent = text; return n; }
+    function say(msg) { if (!alive()) return; $('csplit-status').textContent = msg; clearTimeout(sayTimer); sayTimer = setTimeout(function () { if (alive()) $('csplit-status').textContent = ''; }, 6000); }
+    function dims(str) { var m = String(str).match(/^(\d+)x(\d+)$/); return m ? { w: +m[1], h: +m[2] } : { w: 1080, h: 1350 }; }
+
+    // layout in output pixels
+    function geometry() {
+      var cols, rows, t;
+      if (S.mode === 'carousel') { cols = S.n; rows = 1; t = dims(S.slide); }
+      else { cols = S.cols; rows = S.rows; t = dims(S.tile); }
+      var gap = Math.round(t.w * S.gap / 100);
+      var W = cols * t.w + (cols - 1) * gap, H = rows * t.h + (rows - 1) * gap;
+      return { cols: cols, rows: rows, tw: t.w, th: t.h, gap: gap, W: W, H: H };
+    }
+    // where the source lands on the composite
+    function placement(g) {
+      var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+      var sc = S.fit === 'cover' ? Math.max(g.W / iw, g.H / ih) : Math.min(g.W / iw, g.H / ih);
+      var dw = iw * sc, dh = ih * sc;
+      var dx = S.fit === 'cover' ? -(dw - g.W) * S.px / 100 : (g.W - dw) / 2;
+      var dy = S.fit === 'cover' ? -(dh - g.H) * S.py / 100 : (g.H - dh) / 2;
+      return { dx: dx, dy: dy, dw: dw, dh: dh, kept: S.fit === 'cover' ? Math.min(1, (g.W * g.H) / (dw * dh)) : 1 };
+    }
+    function composite(g, scale) {
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(g.W * scale)); c.height = Math.max(1, Math.round(g.H * scale));
+      var x = c.getContext('2d'); if (!x) return null;
+      x.fillStyle = S.bg; x.fillRect(0, 0, c.width, c.height);
+      var p = placement(g);
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+      x.drawImage(img, p.dx * scale, p.dy * scale, p.dw * scale, p.dh * scale);
+      return c;
+    }
+    function tileList(g) {
+      var list = [], total = g.cols * g.rows;
+      for (var r = 0; r < g.rows; r++) for (var c = 0; c < g.cols; c++) {
+        var idx = r * g.cols + c;
+        list.push({ r: r, c: c, idx: idx, post: S.mode === 'grid' ? total - idx : idx + 1, x: c * (g.tw + g.gap), y: r * (g.th + g.gap) });
+      }
+      return list;
+    }
+    function fileFor(t, total) {
+      var ext = S.fmt === 'png' ? 'png' : 'jpg', pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      return (S.mode === 'grid' ? 'grid-post-' + pad(t.post) + '-of-' + pad(total) : 'carousel-' + pad(t.post) + '-of-' + pad(total)) + '.' + ext;
+    }
+    function ordinal(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+
+    // ---- preview ----
+    function schedule() { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; if (alive() && img) render(); }); }
+    function render() {
+      var g = geometry(), prev = $('csplit-preview'), maxW = Math.min(1100, g.W), scale = Math.min(maxW / g.W, 700 / g.H, 1);
+      var comp = composite(g, scale); if (!comp) return;
+      prev.width = comp.width; prev.height = comp.height;
+      var x = prev.getContext('2d'); if (!x) return;
+      x.drawImage(comp, 0, 0);
+      // overlay cut lines + numbers
+      var list = tileList(g);
+      x.lineWidth = 2; x.strokeStyle = 'rgba(255,255,255,0.9)'; x.shadowColor = 'rgba(0,0,0,0.6)'; x.shadowBlur = 4;
+      list.forEach(function (t) {
+        var tx = t.x * scale, ty = t.y * scale, tw = g.tw * scale, th = g.th * scale;
+        x.strokeRect(tx + 1, ty + 1, tw - 2, th - 2);
+        var label = S.mode === 'grid' ? ordinal(t.post) : String(t.post), fs = Math.max(12, Math.min(28, tw / 5));
+        x.font = '700 ' + fs + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+        x.textBaseline = 'middle'; x.textAlign = 'center';
+        var bw = x.measureText(label).width + fs, bh = fs * 1.5, bx = tx + tw / 2 - bw / 2, by = ty + th / 2 - bh / 2;
+        x.shadowBlur = 0; x.fillStyle = 'rgba(0,0,0,0.55)';
+        if (x.roundRect) { x.beginPath(); x.roundRect(bx, by, bw, bh, bh / 2); x.fill(); } else x.fillRect(bx, by, bw, bh);
+        x.fillStyle = '#fff'; x.fillText(label, tx + tw / 2, ty + th / 2);
+        x.shadowBlur = 4;
+      });
+      var p = placement(g), pct = Math.round(p.kept * 100);
+      $('csplit-meta').textContent = (img.naturalWidth || img.width) + '×' + (img.naturalHeight || img.height) + ' source → ' + list.length + ' × ' + g.tw + '×' + g.th + ' ' + (S.mode === 'grid' ? 'tiles (' + g.cols + ' across, ' + g.rows + ' down)' : 'slides') + (S.fit === 'cover' ? ' · ' + pct + '% of the picture kept' : ' · whole picture kept, padded') + (g.gap ? ' · ' + g.gap + ' px trimmed between tiles' : '') + '.';
+      $('csplit-order').textContent = S.mode === 'grid' ? 'Posting order: the profile grid shows the newest post top-left, so upload the bottom-right tile first and the top-left tile last. The numbers on each tile are the order to post; the files are named the same way.' : 'Upload the slides in order, 1 to ' + list.length + ', as one carousel post. Swiping through them shows the picture as a continuous panorama.';
+      buildTiles(g, list);
+    }
+    function buildTiles(g, list) {
+      var host = $('csplit-tiles');
+      while (host.firstChild) host.removeChild(host.firstChild);
+      tiles = [];
+      var thumbScale = Math.min(1, 220 / g.tw);
+      var comp = composite(g, thumbScale); if (!comp) return;
+      var ordered = list.slice().sort(function (a, b) { return a.post - b.post; });
+      ordered.forEach(function (t) {
+        var card = el('div', { class: 'csplit-tile' });
+        var c = el('canvas'); c.width = Math.round(g.tw * thumbScale); c.height = Math.round(g.th * thumbScale); c.setAttribute('aria-hidden', 'true');
+        var x = c.getContext('2d'); if (x) x.drawImage(comp, Math.round(t.x * thumbScale), Math.round(t.y * thumbScale), c.width, c.height, 0, 0, c.width, c.height);
+        var cap = el('p', { class: 'csplit-cap' }); cap.style.margin = '0';
+        var strong = el('strong', null, S.mode === 'grid' ? 'Post ' + ordinal(t.post) : 'Slide ' + t.post);
+        cap.appendChild(strong);
+        cap.appendChild(document.createTextNode(S.mode === 'grid' ? ' · row ' + (t.r + 1) + ', column ' + (t.c + 1) : ' · ' + g.tw + '×' + g.th));
+        var btn = el('button', { type: 'button', class: 'csplit-btn' }, 'Download');
+        (function (tile) { btn.addEventListener('click', function () { downloadOne(tile); }); })(t);
+        card.appendChild(c); card.appendChild(cap); card.appendChild(btn); host.appendChild(card);
+        tiles.push(t);
+      });
+    }
+
+    // ---- export ----
+    function renderTile(g, t) {
+      var c = document.createElement('canvas'); c.width = g.tw; c.height = g.th;
+      var x = c.getContext('2d'); if (!x) return null;
+      x.fillStyle = S.bg; x.fillRect(0, 0, g.tw, g.th);
+      var p = placement(g);
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+      x.drawImage(img, p.dx - t.x, p.dy - t.y, p.dw, p.dh);
+      return c;
+    }
+    function toBlob(c) { return new Promise(function (res, rej) { try { c.toBlob(function (b) { if (b) res(b); else rej(new Error('blob')); }, S.fmt === 'png' ? 'image/png' : 'image/jpeg', 0.92); } catch (e) { rej(e); } }); }
+    function trigger(blob, name) {
+      var url = URL.createObjectURL(blob), a = el('a', { href: url, download: name });
+      root.appendChild(a); a.click(); root.removeChild(a);
+      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 4000);
+    }
+    function downloadOne(t) {
+      var g = geometry(), c = renderTile(g, t); if (!c) return;
+      var name = fileFor(t, g.cols * g.rows);
+      toBlob(c).then(function (b) { if (alive()) { trigger(b, name); say('Saved ' + name + ' (' + Math.round(b.size / 1024) + ' KB).'); } }).catch(function () { if (alive()) say('Could not create that tile.'); });
+    }
+    $('csplit-zip').addEventListener('click', function () {
+      if (!img || busy) return;
+      busy = true; $('csplit-zip').disabled = true; say('Rendering tiles…');
+      var g = geometry(), list = tileList(g).sort(function (a, b) { return a.post - b.post; }), total = list.length, files = [], k = 0;
+      (function next() {
+        if (!alive()) return;
+        if (k >= total) {
+          var blob = zip(files), base = srcName.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '-').slice(0, 40) || 'image';
+          trigger(blob, base + '-' + (S.mode === 'grid' ? 'grid' : 'carousel') + '.zip');
+          say('Saved ' + total + ' tiles as a ZIP (' + Math.round(blob.size / 1024) + ' KB).');
+          busy = false; $('csplit-zip').disabled = false; return;
+        }
+        var t = list[k++], c = renderTile(g, t);
+        if (!c) { busy = false; $('csplit-zip').disabled = false; say('Could not render the tiles.'); return; }
+        toBlob(c).then(function (b) { return b.arrayBuffer(); }).then(function (buf) {
+          files.push({ name: fileFor(t, total), data: new Uint8Array(buf) });
+          say('Rendering tile ' + k + ' of ' + total + '…');
+          setTimeout(next, 0);
+        }).catch(function () { busy = false; if (alive()) { $('csplit-zip').disabled = false; say('Could not build the ZIP.'); } });
+      })();
+    });
+
+    // ---- loading ----
+    function useImage(image, name) {
+      if (Math.max(image.naturalWidth, image.naturalHeight) > MAX_SIDE) {
+        var s = MAX_SIDE / Math.max(image.naturalWidth, image.naturalHeight), c = document.createElement('canvas');
+        c.width = Math.round(image.naturalWidth * s); c.height = Math.round(image.naturalHeight * s);
+        var x = c.getContext('2d'); if (x) { x.drawImage(image, 0, 0, c.width, c.height); image = c; }
+      }
+      img = image; srcName = name || 'image';
+      $('csplit-empty').hidden = true; $('csplit-preview').hidden = false; $('csplit-panel').hidden = false;
+      $('csplit-drop').classList.add('csplit-has');
+      schedule();
+    }
+    function loadFile(file) {
+      if (!file || !/^image\//.test(file.type)) { say('That is not an image file.'); return; }
+      var url = URL.createObjectURL(file), image = document.createElement('img');
+      image.onload = function () { URL.revokeObjectURL(url); if (alive()) useImage(image, file.name); };
+      image.onerror = function () { URL.revokeObjectURL(url); if (alive()) say('Could not read that image. Try a JPEG, PNG or WebP.'); };
+      image.src = url;
+    }
+    function sample() {
+      var c = document.createElement('canvas'); c.width = 2400; c.height = 1000;
+      var x = c.getContext('2d'); if (!x) return;
+      var sky = x.createLinearGradient(0, 0, 0, 1000); sky.addColorStop(0, '#1b2a6b'); sky.addColorStop(0.55, '#f0785a'); sky.addColorStop(1, '#ffd08a');
+      x.fillStyle = sky; x.fillRect(0, 0, 2400, 1000);
+      x.fillStyle = '#ffe9a8'; x.beginPath(); x.arc(1500, 620, 130, 0, Math.PI * 2); x.fill();
+      var ridges = [['#3b2a52', 520, 220], ['#2a1d3c', 640, 160], ['#160f22', 760, 110]];
+      ridges.forEach(function (r, ri) {
+        x.fillStyle = r[0]; x.beginPath(); x.moveTo(0, 1000);
+        for (var px = 0; px <= 2400; px += 40) { var y = r[1] + Math.sin(px / (260 - ri * 50) + ri) * r[2] * 0.5 + Math.sin(px / 73 + ri * 2) * r[2] * 0.18; x.lineTo(px, y); }
+        x.lineTo(2400, 1000); x.closePath(); x.fill();
+      });
+      x.fillStyle = 'rgba(255,255,255,0.85)';
+      for (var i = 0; i < 90; i++) { var sx = (i * 977) % 2400, sy = (i * 383) % 420; x.fillRect(sx, sy, 3, 3); }
+      var image = document.createElement('img');
+      image.onload = function () { if (alive()) useImage(image, 'sample-sunset'); };
+      image.src = c.toDataURL('image/png');
+    }
+    var drop = $('csplit-drop'), file = $('csplit-file');
+    $('csplit-pick').addEventListener('click', function (e) { e.stopPropagation(); file.click(); });
+    $('csplit-sample').addEventListener('click', function (e) { e.stopPropagation(); sample(); });
+    $('csplit-replace').addEventListener('click', function () { file.click(); });
+    file.addEventListener('change', function () { if (file.files && file.files[0]) loadFile(file.files[0]); file.value = ''; });
+    drop.addEventListener('click', function () { if (!img) file.click(); });
+    drop.addEventListener('keydown', function (e) { if (!img && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); file.click(); } });
+    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('csplit-over'); });
+    drop.addEventListener('dragleave', function () { drop.classList.remove('csplit-over'); });
+    drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('csplit-over'); var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadFile(f); });
+    function onPaste(e) {
+      if (!alive()) { document.removeEventListener('paste', onPaste); return; }
+      var items = e.clipboardData && e.clipboardData.items; if (!items) return;
+      for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { var f = items[i].getAsFile(); if (f) { e.preventDefault(); loadFile(f); return; } }
+    }
+    document.addEventListener('paste', onPaste);
+
+    // ---- controls ----
+    function syncMode() {
+      $('csplit-carousel-opts').hidden = S.mode !== 'carousel';
+      $('csplit-grid-opts').hidden = S.mode !== 'grid';
+      $('csplit-pos').hidden = S.fit !== 'cover';
+    }
+    Array.prototype.forEach.call(root.querySelectorAll('input[name="csplit-mode"]'), function (r) {
+      r.checked = r.value === S.mode;
+      r.addEventListener('change', function () { if (r.checked) { S.mode = r.value; save(); syncMode(); schedule(); } });
+    });
+    function bindSel(id, key, num) { var s = $(id); s.value = String(S[key]); if (s.value !== String(S[key])) { s.selectedIndex = 0; S[key] = num ? +s.value : s.value; } s.addEventListener('change', function () { S[key] = num ? +s.value : s.value; save(); syncMode(); schedule(); }); }
+    bindSel('csplit-n', 'n', true); bindSel('csplit-slide', 'slide'); bindSel('csplit-cols', 'cols', true); bindSel('csplit-rows', 'rows', true); bindSel('csplit-tile', 'tile'); bindSel('csplit-fit', 'fit'); bindSel('csplit-gap', 'gap', true); bindSel('csplit-fmt', 'fmt');
+    var bg = $('csplit-bg'); bg.value = S.bg; bg.addEventListener('input', function () { S.bg = bg.value; save(); schedule(); });
+    ['px', 'py'].forEach(function (k) { var r = $('csplit-' + k); r.value = String(S[k]); r.addEventListener('input', function () { S[k] = +r.value; save(); schedule(); }); });
+    syncMode();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
