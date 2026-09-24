@@ -4,11 +4,11 @@
 written so that a human or an AI agent handed a GitHub token can be productive
 within about ten minutes and without breaking anything.
 
-**For AI agents:** start with **[AGENTS.md](AGENTS.md)** — one page: what to
-never touch, the four commands, and the task sequences. If you need GitHub
-access in a fresh session, run `bash scripts/agent-auth.sh` (self-service
-device flow, sparse-clone recipe inside) instead of asking the owner to paste a
-token.
+**For AI agents:** start with **[AGENTS.md](AGENTS.md)** — the one entry
+point: the commands, the hard lines, the card rules and the common tasks. This
+file is the reference it links into. If you need GitHub access in a fresh
+session, run `bash scripts/agent-auth.sh` (self-service device flow,
+sparse-clone recipe inside) instead of asking the owner to paste a token.
 
 Last substantive update: 2026-09-21.
 
@@ -122,21 +122,22 @@ establish *which* site first.
 ├── robots.txt              Allows all, points at the sitemap
 ├── sitemap.xml             All indexable pages, generated (§6); noindex
 │                           redirect stubs are excluded automatically
-├── brand/                  the mark's source: mark.py (geometry + rasteriser),
+├── brand/                  the mark's source: mark.py (geometry, palette, SVG),
 │                           gen_assets.py (writes every asset below),
 │                           check-mark.py, measure.py, spec.py (writes
 │                           brand/spec.html) — see brand/README.md
 ├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
 │   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
 │                           home screen, Android and iOS (§5)
-├── logo-mark.svg           the same mark, vector, at hero scale — linked by
-│                           index.html's lockup and its footer
+├── logo-mark.svg           the same mark, vector — linked by index.html's
+│                           lockup, footer and sticky bar, tool.html's nav and
+│                           every secondary page's topbar
 ├── logo-mark-mono-dark.svg, logo-mark-mono-light.svg   the one-colour
 │                           reduction (#071019 / #ffffff) — unreferenced by any
 │                           page; for print, embeds and light surfaces
 ├── logo-lockup-dark.svg, logo-lockup-light.svg         mark + wordmark, the
 │                           wordmark as outlines so no font is needed
-├── logo.png                1024² lockup (mark + wordmark). Unreferenced by any
+├── logo.png                1024² stacked lockup. Unreferenced by any
 │                           page — kept deliberately, for press and profiles
 ├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
 ├── backgroundpic.jpg + backgroundpic.webp (the one the pages use)
@@ -305,7 +306,6 @@ with `--check` to see drift:
     python3 scripts/build-home-prerender.py           # rewrite the blocks
     python3 scripts/build-home-prerender.py --check   # fail on drift (verify.sh)
 
-### What the loader is allowed to do per frame
 ### The list reveal — what a page is allowed to build
 
 The home page's list is the only place rows are built from data, and it builds
@@ -325,7 +325,6 @@ The reveal is per group on grouped pages — see the list-layer section above �
 because a global "first 60" on a page with 28 category headings empties 27 of
 them.
 
-### The live window: density, the park, warm-ahead
 ### Density, and what happened to the park
 
 The old grid had four mechanisms for the same problem — too many tools, too
@@ -339,7 +338,6 @@ toggle that row — one line of CSS each, remembered in `localStorage['density']
 The park, warm-ahead and the trickle are gone with the code that needed them;
 `scripts/tests/no-live-tools.test.js` fails if they come back.
 
-### The app is split: first screen in one file, on-demand UI in another
 ### The home page's four files
 
 The split used to be "core app + on-demand bundle". It is now four files, each
@@ -365,7 +363,6 @@ page starts loading an asset the service worker does not precache.
 and `mpExplore` calls `mpToolbox.toggle()` when a ＋ is pressed. Neither file
 reaches into the other's DOM.
 
-### The main page's `<head>` is a budget
 ### The main page's `<head>` is a budget
 
 `index.html`'s head was once 132,210 bytes — 71% of the document — mostly an
@@ -400,7 +397,6 @@ What lives here instead of in the head:
   and the click is still near-instant because the response — and the service
   worker's runtime-cache entry — is already warm.
 
-### Where the main page's CSS lives
 ### Where the CSS lives
 
 | file | contents | how it is loaded |
@@ -484,10 +480,10 @@ node generate-cards-json.js
 #    it) and verify.sh re-derives any drifted published number in
 #    place instead of failing. Order matters: build-home-prerender.py reads
 #    tools-index.json for the category hub links it writes into index.html.
-npm run build          # every generator, in dependency order (~8 s)
+npm run build          # every generator, in dependency order
 
 # 4. Verify, commit, push, wait ~50s, then verify live:
-bash scripts/verify.sh --deep   # ~15 s; plain verify.sh (~4 s) while iterating
+bash scripts/verify.sh --deep   # before a push; plain verify.sh while iterating
 curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
   | python3 -c "import json,sys;print(len(json.load(sys.stdin)))"
 ```
@@ -862,16 +858,17 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   tool rows keep their own emoji deliberately — those are controls and content,
   not headings.
 - **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, and it is the
-  same drawing as the favicon, the PWA icons and the social card: one geometry
-  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`). It is an
-  ink aperture with a white spark and a needle, on the site's accent gradient —
-  redrawn on 2026-09-24 because the old white magnifier measured 1.3:1 against
-  the gradient's lightest stop and dissolved at 16 px. `logo-mark.svg` and
-  `favicon.svg` are byte-identical — one file, two names — and
-  `python3 brand/check-mark.py` (standard library only) fails if the SVGs and
-  the rasters ever disagree about a radius, a gradient, the disc, the needle,
-  the spark's curve or the sheen; `verify.sh --deep` runs it. Edit the mark in
-  `brand/`, never in the SVG.
+  same drawing as the favicon, the PWA icons, the social card and every
+  topbar's brand: one geometry in `brand/mark.py`, one generator
+  (`brand/gen_assets.py`, which renders every raster from the SVG). It is **the
+  finder** — the search console's two corner brackets holding a white
+  four-point star on a dark tile, drawn out of the page's own chrome; it
+  replaced the glossy "aperture" on 2026-09-24. The lockup beside it (mark,
+  hairline, two-line caps wordmark with USEFUL in the accent) is the kit's
+  `logo-lockup-*.svg` set in HTML. `logo-mark.svg` and `favicon.svg` are
+  byte-identical, and `python3 brand/check-mark.py` (standard library only,
+  run by `verify.sh --deep`) fails unless every shipped file is exactly
+  mark.py's drawing. Edit the mark in `brand/`, never in the SVG.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.
@@ -1250,13 +1247,14 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 ## 9. Current state
 
 1285 tools in `cards/` across 29 categories, one shared DOM, every derived
-surface regenerated by `npm run build`. The gate is `npm run verify` — seven
-checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
-which is also what CI runs on every push and PR.
+surface regenerated by `npm run build`. The gate is `npm run verify`, with
+`npm run verify:deep` before a push — which is also what CI runs on every push
+and PR (timings: AGENTS.md §1).
 
-**Do not delete or rename:** `CNAME` (the custom domain), `sw.js` (unregistered
-on purpose), the CV files, `opensourcenews.html`, `token.html`, or any tool in
-`cards/`. Adding is free; retiring is an owner decision.
+**Do not delete or rename:** `CNAME` (the custom domain), `sw.js` (the live
+service worker — `home-core.js` registers it on every list page), the CV files,
+`opensourcenews.html`, `token.html`, or any tool in `cards/`. Adding is free;
+retiring is an owner decision.
 
 Deleted on 2026-09-20 with the owner's approval, after confirming that no page,
 no sitemap entry and no robots rule referenced them: `indexbeta.html`,

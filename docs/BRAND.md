@@ -44,20 +44,21 @@ MrProphecy (the maker)
   pages — it undermines YMYL trust (see TRUST.md).
 * The favicon and `apple-touch-icon` belong to the product, not the
   character — and they are the same drawing as the hero's mark: one geometry
-  in `brand/mark.py`, six raster files (`favicon.svg`, `favicon.ico`,
-  `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`,
-  `apple-touch-icon.png`), two one-colour reductions and two lockups, plus the
-  social card and the hero's `logo-mark.svg`, all written together by
-  `python3 brand/gen_assets.py`. `brand/README.md` is the whole story and
+  in `brand/mark.py`, rendered into the favicons, the PWA and Apple icons, two
+  one-colour reductions, two lockups, the social card and `logo.png` by
+  `brand/gen_assets.py`. `brand/README.md` is the whole story and
   `brand/spec.html` is the printable spec sheet.
-* The mark is an **aperture** — an ink disc at the optical centre of the tile,
-  a white four-point spark inside it, and an ink needle to the bottom-right.
-  The needle is search, the spark is the answer, the disc is the aperture it
-  arrives through. The glyph is ink on the site's own accent gradient
-  (`#6ff0ff -> #2dd4ff -> #2f6bff`), never white on it: white over the
-  gradient's lightest stop is 1.3:1 and disappears in a 16 px tab, ink over the
-  same stop is 14.2:1. Redrawn 2026-09-24; the reasoning and the evidence are in
-  `brand/README.md`.
+* The mark is **the finder**: the search console's two corner brackets
+  (top-left, bottom-right) holding a white four-point star on a dark tile. It
+  is drawn out of the page's own instrument chrome, so the logo and the site
+  are one design — the glossy cyan-to-blue "aperture" it replaced on
+  2026-09-24 was the one bright, rounded object on a flat, dark page.
+* **One brand in every header.** Secondary pages' topbars, the category pages
+  and `tool.html` carry `logo-mark.svg` beside the name — never the 🛠️ emoji,
+  which is a tool icon, not a logo. The generators own it for generated pages
+  (`scripts/build-tool-pages.py`, `build-category-pages.js`,
+  `build-embed-landing.py`); `tools.html` and `sitemap.html` keep the topbar
+  they already have, so edit those files directly.
 * **The ornament is a system.** For the 28 category tiles it is still one emoji
   inside the same rounded chip, because 29 choices need wayfinding. The section
   headings dropped theirs on 2026-09-24 for a mono kicker (`01 / FEATURED`) —

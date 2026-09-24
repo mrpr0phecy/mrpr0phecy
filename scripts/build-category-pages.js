@@ -228,6 +228,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       letter-spacing: -0.01em; color: var(--text);
     }
     .brand:hover { color: var(--accent); }
+    .brand-mark { display: block; flex: none; width: 24px; height: 24px; }
     .brand-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .nav-links { display: flex; align-items: center; gap: clamp(8px, 2vw, 14px); flex: none; }
     .nav-link { font-size: clamp(0.78rem, 2.2vw, 0.88rem); font-weight: 600; color: var(--text-muted); }
@@ -352,7 +353,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
   <header class="topbar">
     <div class="container topbar-content">
       <a href="../index.html" class="brand" aria-label="The Most Useful Site in the World — home">
-        <span class="brand-mark">🛠️</span>
+        <img class="brand-mark" src="../logo-mark.svg" alt="" width="24" height="24">
         <span class="brand-text">The Most Useful Site in the World</span>
       </a>
       <nav class="nav-links" aria-label="Main Navigation">

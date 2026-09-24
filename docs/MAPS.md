@@ -383,8 +383,10 @@ every one of them degrades to an offline answer.
   place. UTM, the grid it is built on, is in.
 - **What3words.** Not open data: the addresses are a commercial dataset, so a
   static page cannot resolve one and must not pretend to.
-- **A service worker.** `sw.js` is still unregistered site-wide; adding offline
-  caching is a separate decision (see the open questions in CONSTRAINTS.md).
+- **A service worker.** `maps.html` registers none. The catalogue's `sw.js`
+  (registered by the list pages, root scope) can front this page's navigation
+  once a visitor has it installed, but it caches nothing of the maps — offline
+  maps would be a separate, owner-level decision.
 
 ## 10. Regenerating the data
 
