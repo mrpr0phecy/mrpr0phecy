@@ -6,9 +6,9 @@
 
 **Subject line (the only thing that matters):**
 
-> One person in Luton built 1,287 free browser tools. No display ads, no accounts.
+> One person in Luton built 1,288 free browser tools. No display ads, no accounts.
 
-(That is a tested subject line. The 4 specifics — *one person*, *Luton*, *1,287 tools*, *no ads* — are all the things journalists look for. The local town is the hook. The specific number is the hook. The "no X" framing is the news angle.)
+(That is a tested subject line. The 4 specifics — *one person*, *Luton*, *1,288 tools*, *no ads* — are all the things journalists look for. The local town is the hook. The specific number is the hook. The "no X" framing is the news angle.)
 
 ---
 
@@ -16,7 +16,7 @@
 
 > Hi [name],
 >
-> I\'m Russell Head, a developer in Luton, UK. For the last two years, in the evenings and weekends, I\'ve been building a non-commercial site with 1,287 free browser-side tools. The catalogue includes a mortgage calculator, a BMI calculator, a compound interest calculator, a password generator, a BPM tapper, a JSON formatter, and 1,200+ more. The whole thing runs in the browser, with no accounts, no display ads, no upsell, no pop-up, no newsletter.
+> I\'m Russell Head, a developer in Luton, UK. For the last two years, in the evenings and weekends, I\'ve been building a non-commercial site with 1,288 free browser-side tools. The catalogue includes a mortgage calculator, a BMI calculator, a compound interest calculator, a password generator, a BPM tapper, a JSON formatter, and 1,200+ more. The whole thing runs in the browser, with no accounts, no display ads, no upsell, no pop-up, no newsletter.
 >
 > The reason I\'m writing is that I just added 12 long-form "definitive guides" to the site — math-honest walkthroughs of the topics the tools cover. The guide on mortgages is the one I\'m proudest of. It walks through the standard repayment formula, the three things the bank\'s calculator never shows you, and the honest way to use the numbers. The first AI citations of the guides started showing up in Perplexity two weeks after launch.
 >
@@ -28,7 +28,7 @@
 
 ## The pitch deck (the 5-bullet version, for journalists who want a quick scan)
 
-> - 1,287 free browser-side tools, all in vanilla JavaScript
+> - 1,288 free browser-side tools, all in vanilla JavaScript
 > - 1 person, 2 years, evenings and weekends, in Luton, UK
 > - Non-commercial: no display ads, no accounts, no upsell
 > - 12 long-form "definitive guides" on the topics the tools calculate
@@ -40,13 +40,13 @@
 
 **For Indie Hackers / maker press:** the *indie* angle. "One person, two years, evenings and weekends." That is the Indie Hackers story.
 
-**For The Pragmatic Engineer / dev-tools press:** the *architecture* angle. "1,287 tools, vanilla JS, no build step, a repo of about 91 MB, JSON-driven everything." That is the engineering story.
+**For The Pragmatic Engineer / dev-tools press:** the *architecture* angle. "1,288 tools, vanilla JS, no build step, a repo of about 91 MB, JSON-driven everything." That is the engineering story.
 
 **For Hacker Noon / dev-culture press:** the *open-web* angle. "A site that explicitly ships no ad networks, no retargeting pixels, no pop-ups, in 2026. Here\'s why." That is the culture story. (Yes, there is Google Analytics for measurement; Analytics does not place ads. The "no ads" claim is about ad inventory, not measurement.)
 
 **For education press (TES, EdSurge, etc.):** the *teaching* angle. "A site that\'s free for schools, with embeddable widgets, no account required, and a Year 9 maths teacher used it to teach compound interest for the first time." That is the education story.
 
-**For local UK press (Luton News, Bedfordshire Live, BBC Three Counties):** the *local* angle. "Luton developer builds 1,287 free tools in his evenings." Local press runs that kind of story regularly.
+**For local UK press (Luton News, Bedfordshire Live, BBC Three Counties):** the *local* angle. "Luton developer builds 1,288 free tools in his evenings." Local press runs that kind of story regularly.
 
 ---
 
@@ -68,7 +68,7 @@ Suggested first targets (all of these are dev/indie/education press that have co
 
 - **Reply within 2 hours.** Speed is the single most important factor in whether a story runs.
 - **Offer a 15-minute call.** Most journalists prefer a quick call to a long email.
-- **Have the numbers ready.** 1,287 tools, a repo of about 91 MB, £8/month hosting, 12 guides, 2 years. Have them on a card.
+- **Have the numbers ready.** 1,288 tools, a repo of about 91 MB, £8/month hosting, 12 guides, 2 years. Have them on a card.
 - **Have a screenshot ready.** /tools.html is the best one. Send the link, not the image (so the journalist can navigate).
 - **Don\'t oversell.** The story is "one person built a free site". The story is not "the future of calculators". The story is not "the AI revolution". The story is the simple, true thing.
 
