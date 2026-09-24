@@ -8,7 +8,7 @@ The full sequence, in order, with the work and the dependencies. **You cannot co
 
 **Goal:** prep the launch assets, line up the press, set the metrics baseline.
 
-- [ ] Confirm the catalogue is the size you want it at launch (currently 1,290 tools; can go higher if you want to time the launch with a milestone)
+- [ ] Confirm the catalogue is the size you want it at launch (currently 1,291 tools; can go higher if you want to time the launch with a milestone)
 - [ ] Write the Show HN post (draft is at `show-hn.md`); get 3-5 people to read it and tell you what\'s wrong
 - [ ] Write the 3 subreddit posts (drafts are at `reddit-r-selfhosted.md`); same review
 - [ ] Write the Product Hunt post (draft at `product-hunt.md`); same review
