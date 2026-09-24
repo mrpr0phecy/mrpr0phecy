@@ -11,31 +11,27 @@ Zero framework, zero build step in production, zero runtime dependencies. `main`
 
 ---
 
-## 👉 New here? Read [ARCHITECTURE.md](ARCHITECTURE.md)
+## 👉 New here?
 
-**[ARCHITECTURE.md](ARCHITECTURE.md)** is the full onboarding document — repo
-layout, how the tool catalogue works, how to add a tool, the verified
-MrProphecy YouTube data, both design systems, SEO conventions, and a list of
-traps that have already cost people time.
-
-Start there whether you are a human or an AI agent.
+**AI agents and contributors: start with [AGENTS.md](AGENTS.md)** — one page
+with the commands, the hard lines and the common tasks, linking everything
+else. **[ARCHITECTURE.md](ARCHITECTURE.md)** is the full reference: repository
+layout, how the catalogue works, the verified MrProphecy YouTube data, both
+design systems, SEO conventions and the traps that have already cost people
+time.
 
 ## Working on the site
 
 ```bash
-npm run build          # regenerate every derived file (~8 s)
-npm run verify         # the gate: 8 checks, ~4 s — run it after every edit
-npm run verify:deep    # + the slow audits (~15 s) — CI runs this on every push
+npm run build          # regenerate every derived file
+npm run verify         # the gate — after every edit
+npm run verify:deep    # + the slow audits — before a push; CI runs it
 npm test               # the product test suite
+node scripts/screenshot.mjs index.html   # look at a page at 360 and 1440 px
 ```
 
-[AGENTS.md](AGENTS.md) is the one-page rulebook and
-[CONTRIBUTING.md](CONTRIBUTING.md) the short guide.
-
-The "Site Staff / AI Developer" facility that used to run from here — profiles,
-a scoreboard, a claims ledger, an audit engine and a Mon/Thu workflow — was
-removed on 2026-09-20 at the owner's instruction. It was governance about
-governance, and no visitor ever saw any of it.
+AGENTS.md §1–§2 has the timings and the one-time scratch setup (outside the
+repository — nothing is ever installed into it).
 
 ## Lantern — the standalone AI
 
@@ -91,9 +87,9 @@ money-related.
 | **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
 | **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
 | **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
-| **Quality gate** | `npm run verify` (7 checks, ~3 s) after every edit · `npm run verify:deep` before push · CI runs `--deep` + production monitor |
+| **Quality gate** | `npm run verify` after every edit · `npm run verify:deep` before push · CI runs `--deep` + production monitor |
 | **Operations** | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage / rollback / fix-forward. `node scripts/check-production.js` probes the *live* site after every deploy and every 6 h (self-closing alert issue) |
-| **Add a tool** | `bash scripts/add-tool.sh <slug> \"<Category>\" \"<msg>\"` or follow `ARCHITECTURE.md` §4 then `npm run build && npm run verify:deep` |
+| **Add a tool** | `bash scripts/add-tool.sh <slug> "<Category>" "<msg>"` or by hand per `AGENTS.md` §4, then `npm run build && npm run verify:deep` |
 
 ## Local preview
 

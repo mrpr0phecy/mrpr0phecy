@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # verify.sh — would this change break the site?
 #
-#   bash scripts/verify.sh          # the gate: 7 checks, all of them, ~3 s
-#   bash scripts/verify.sh --deep   # + the slow audits (~25 s) — before a push
-#                                   #   that touches cards/ or a generator
+#   bash scripts/verify.sh          # the gate: 7 checks, all of them, ~5 s
+#   bash scripts/verify.sh --deep   # + 4 slow audits, ~75 s with jsdom in
+#                                   #   /tmp/tenv (as CI has it) — before a push
 #   bash scripts/verify.sh --live   # + ask the deployed site what it serves
 #
 # The design is one sentence: the suite is short enough to always run
@@ -369,13 +369,13 @@ deep_floors() {
   expect "brand/measure.py still points at copy index.html carries" \
          "measure.py is measuring copy the site does not have — see brand/measure.py" \
          python3 brand/measure.py --check
-  # brand/check-mark.py proves the SVG files and the six raster icons are still
-  # ONE drawing. It is stdlib-only and instant, so it belongs in --deep rather
-  # than the 4-second gate: it only has something to say when somebody touches
-  # brand/, and CI runs --deep on every push. Added 2026-09-24 with the redraw,
-  # when every number in mark.py changed at once and the only thing standing
-  # between "the logo" and "twelve files that each look slightly different" was
-  # a check nobody had wired up.
+  # brand/check-mark.py proves every shipped brand file is still ONE drawing:
+  # logo-mark.svg, favicon.svg and the mono SVGs byte-exact to brand/mark.py,
+  # both lockups carrying the exact mark with an outlined wordmark, and the
+  # PNG icons sampled (zlib, no Pillow) where the star, brackets, tile and
+  # corners must be. It is stdlib-only and takes a third of a second, but it
+  # only has something to say when somebody touches brand/, so it lives in
+  # --deep, which CI runs on every push. Added 2026-09-24 with the redraws.
   expect "the brand assets are all still the same drawing" \
          "brand drift — the SVGs and the rasters disagree; see brand/check-mark.py" \
          python3 brand/check-mark.py
@@ -384,7 +384,7 @@ deep_floors() {
 live() {
   local n
   n=$(curl -s --max-time 20 https://www.themostusefulsiteintheworld.com/cards/cards.json 2>/dev/null \
-      | python3 -c 'import json,sys; print(len(json.load(sys.stdin).get("cards",[])))' 2>/dev/null || echo ERR)
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d if isinstance(d, list) else d.get("cards", [])))' 2>/dev/null || echo ERR)
   if [ "$n" = "ERR" ] || [ -z "$n" ]; then
     note "could not read the live card count (offline, or the site is down)"
   else
