@@ -38,7 +38,7 @@ not permission to change the other.
 
 | Instrument | Watches | Cadence | Where the result lives |
 |---|---|---|---|
-| `scripts/verify.sh` | The repository: hygiene, catalogue, card JS, links, counts, SEO, Lantern — and with `--deep` the egress, accessibility, collision, drift, test-suite and quality-floor audits | PRs and pushes to `main` in CI (`bash scripts/verify.sh --deep`). Locally: task-based validation per AGENTS.md §1; no repeated gate after each edit | CI run + local terminal |
+| `scripts/verify.sh` | The repository: hygiene, catalogue, card JS, links, counts, SEO, Lantern — and with `--deep` the egress, accessibility, collision, drift, test-suite and quality-floor audits | The fast gate (7 checks) on every PR and push in CI; `bash scripts/verify.sh --deep` on pushes to `main` (the deploy) and nightly. Locally: task-based validation per AGENTS.md §1; no repeated gate after each edit | CI run + local terminal |
 | **Production monitor** (`scripts/check-production.js`) | **The deployed site**: availability, byte-identity with this repo, catalogue/sitemap integrity, https upgrade, custom 404 | Every six hours **and on every push to `main`** — the push run waits 45 s for Pages and then probes (`.github/workflows/production-monitor.yml`) | `Production monitor:` alert issue + run artifact + step summary |
 | Pages build status | Whether the deploy itself succeeded | Per push | Actions → *pages build and deployment* |
 | Pages deployment history | Which commit is live right now | Per push | Actions → *pages build and deployment* → the environment URL shown on the run |

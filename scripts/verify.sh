@@ -43,7 +43,10 @@
 # handlers, parallel arrays), the product test suite and the measured quality
 # floors. They were cut from the gate because
 # they cost ~20 s and change nothing about an edit in progress — not because
-# they are wrong. CI runs them on pushes to main and pull requests.
+# they are wrong. CI runs the fast gate on pull requests and pushes, and the
+# full --deep gate on pushes to main (the deploy) and nightly, so a small PR
+# gets feedback in about a minute and the catalogue is swept on a schedule
+# (see .github/workflows/agent-guardrails.yml).
 #
 # Nothing here writes to the repository except the count re-derivation in
 # check 5, which fixes drift in place and tells you to commit the result.

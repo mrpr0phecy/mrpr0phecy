@@ -80,6 +80,9 @@ def main() -> None:
     accent_on_white = M.contrast(M.ACCENT, M.PAPER)
     accent_light_on_white = M.contrast(M.ACCENT_ON_LIGHT, M.PAPER)
     old_light = M.contrast((26, 163, 204), M.PAPER)          # the previous spec's #1aa3cc
+    house_on_page = M.contrast(M.HOUSE_ACCENT, M.TILE_INK)
+    house_on_white = M.contrast(M.HOUSE_ACCENT, M.PAPER)
+    house_light_on_white = M.contrast(M.HOUSE_ON_LIGHT, M.PAPER)
     reach = M.glyph_extent() * M.MASKABLE_SCALE
 
     sizes = [16, 20, 24, 32, 48, 64, 96, 128, 192]
@@ -101,6 +104,8 @@ def main() -> None:
         (M.ACCENT, "accent — brackets, edge, fills"), (M.PAPER, "the star; mono on dark"),
         (M.INK, "ink — mono on light, text on light"), (M.TILE_INK, "page background"),
         (M.TEXT, "wordmark on dark"), (M.ACCENT_ON_LIGHT, "accent for text on light"),
+        (M.HOUSE_ACCENT, "house accent — external brand, fills on dark"),
+        (M.HOUSE_ON_LIGHT, "house accent for text on light"),
     ]
     swatch_html = "".join(
         f'<div class="swatch"><div style="background:{hexc(c)}"></div>'
@@ -222,10 +227,18 @@ def main() -> None:
      {accent_on_white:.2f}:1, so accent words on light surfaces use <code>{hexc(M.ACCENT_ON_LIGHT)}</code>
      ({accent_light_on_white:.2f}:1, WCAG AA). The previous spec's <code>#1aa3cc</code> was
      {old_light:.2f}:1 and never passed; <code>gen_assets.py</code> now refuses to run below 4.5:1.</p>
+  <p>The <strong>house accent</strong> <code>{hexc(M.HOUSE_ACCENT)}</code> is the brand colour that defines the
+     product <em>externally</em> — the lockups, the Open Graph cards, the press kit. It is amber/ochre on
+     purpose: blue and purple are the default palette of every calculator and fintech competitor, and the
+     brand sits against it. On the page it measures {house_on_page:.2f}:1 ({house_on_white:.2f}:1 on white —
+     fills and marks only, never body text); accent <em>words</em> on light surfaces use
+     <code>{hexc(M.HOUSE_ON_LIGHT)}</code> ({house_light_on_white:.2f}:1, WCAG AA). The page itself is never in the
+     house colour: the interface follows the visitor's picker accent, and the mark keeps the console's cyan —
+     the split is documented in <code>DESIGN.md</code> §3.</p>
 
   <h2>07 · Lockups</h2>
   <p>Mark, a hairline, and the wordmark on two lines — <strong>THE MOST USEFUL / SITE IN THE WORLD</strong>,
-     Inter {weight} in caps with +{tracking}em tracking, <em>USEFUL</em> in the accent. The files carry the
+     Inter {weight} in caps with +{tracking}em tracking, <em>USEFUL</em> in the house accent. The files carry the
      wordmark as outlines of the site's own Inter, never live text. The home page's hero and footer
      set the same lockup in HTML.</p>
   <div class="row lockups"><img src="{data_uri("logo-lockup-dark.svg")}" width="440" alt="lockup on dark"></div>

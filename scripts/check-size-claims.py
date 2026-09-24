@@ -53,6 +53,12 @@ Hedging is not decoration here: "a repo of about 89 MB" stays true as the
 catalogue grows, and this check is what fails when it stops being true.
 
 Not covered: gzip figures.
+
+2026-09-25: the set-claim branch read the hedge only from the text *before*
+the match, but for "the repo is about 91 MB" the match begins at "repo", so
+the "about" sat inside it and was ignored — every hedged repo claim was held
+to the exact figure, and the check failed the moment the checkout crossed a
+rounding boundary (91.5 MB). The hedge is now read from inside the match too.
 """
 
 from __future__ import annotations
@@ -214,7 +220,12 @@ def main() -> int:
             real = set_size(name)
             unit_label = "MB" if unit == UNITS["MB"] else "KB"
             checked += 1
-            if HEDGE_BEFORE.search(text[:m.start()]):
+            # The hedge can sit inside the match ("the repo is about 91 MB":
+            # the match starts at "repo") or just before it ("about 18 MB is
+            # the tools themselves": the match starts at the number). SIZE
+            # already captures the first case; HEDGE_BEFORE covers the second.
+            hedged = bool(size.group(1)) or HEDGE_BEFORE.search(text[:m.start()])
+            if hedged:
                 if abs(real - claimed * unit) / real > HEDGE_TOLERANCE:
                     problems.append(
                         f"{rel}:{line_no}  \"{m.group(0).strip()}\" — the {name} is "

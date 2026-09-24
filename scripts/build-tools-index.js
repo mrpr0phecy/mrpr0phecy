@@ -52,6 +52,13 @@ const CATEGORY_ORDER = [
 
 const CAT_ICON_MAP = Object.fromEntries(CATEGORY_ORDER);
 
+// Every category also gets a line-icon id for the category-level wayfinding
+// (home tiles, category pages, the directory's category strip). The id is
+// 'icon-' + the slug, matching the symbols in assets/icons/categories.svg.
+// The emoji above stays in `icon` for machine-readable surfaces (llms.txt,
+// JSON feeds); HTML surfaces use iconId. See DESIGN.md §5.
+const iconIdFor = name => `icon-${slugCat(name)}`;
+
 const slugCat = c => c.toLowerCase()
   .replace(/&/g, 'and')
   .replace(/[^a-z0-9]+/g, '-')
@@ -163,7 +170,8 @@ function build() {
         slug: slugCat(catName),
         name: catName,
         count: catMap.get(catName).length,
-        icon: icon
+        icon: icon,
+        iconId: iconIdFor(catName)
       });
     }
   }
@@ -174,7 +182,8 @@ function build() {
         slug: slugCat(catName),
         name: catName,
         count: catMap.get(catName).length,
-        icon: CAT_ICON_MAP[catName] || '🛠️'
+        icon: CAT_ICON_MAP[catName] || '🛠️',
+        iconId: iconIdFor(catName)
       });
     }
   }

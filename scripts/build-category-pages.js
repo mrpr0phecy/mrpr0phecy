@@ -76,6 +76,14 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// Category wayfinding is the shared line-icon set (DESIGN.md §5): one sprite
+// at /assets/icons/categories.svg, one symbol per category id. The emoji in
+// tools-index.json stays for machine-readable surfaces; HTML uses the icon.
+function catIcon(iconId, cls) {
+  if (!iconId) return '';
+  return `<svg class="${cls}" aria-hidden="true" focusable="false"><use href="../assets/icons/categories.svg#${iconId}"></use></svg>`;
+}
+
 function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
   const catTools = tools.filter(t => t.category === cat.slug || t.categoryName === cat.name);
   const blurb = CAT_BLURBS[cat.name] || 'Explore our collection of free, high-speed browser tools. No ads, no registrations, no server latency.';
@@ -145,7 +153,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     .filter(c => c.slug !== cat.slug)
     .slice(0, 8)
     .map(c => `      <a class="cat-pill" href="${esc(c.slug)}.html">
-        <span class="cat-pill-icon">${c.icon}</span>
+        <span class="cat-pill-icon">${c.iconId ? catIcon(c.iconId, 'cat-pill-svg') : c.icon}</span>
         <span class="cat-pill-name">${esc(c.name)}</span>
         <span class="cat-pill-count">${c.count}</span>
       </a>`).join('\n');
@@ -307,7 +315,16 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       transform: translateY(-2px); border-color: var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, var(--bg-card));
     }
-    .cat-pill-icon { font-size: 1.25rem; line-height: 1; }
+    .cat-pill-icon {
+      display: inline-grid; place-items: center; flex: none;
+      width: 26px; height: 26px; color: var(--text);
+    }
+    .cat-pill-icon .cat-pill-svg { width: 21px; height: 21px; display: block; }
+    .cat-pill:hover .cat-pill-icon { color: var(--accent); }
+    .hero-cat-icon {
+      width: 1.12em; height: 1.12em; display: inline-block;
+      vertical-align: -0.16em; margin-right: 5px; color: var(--accent);
+    }
     .cat-pill-name { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 700; overflow-wrap: anywhere; }
     .cat-pill-count {
       flex: none; padding: 2px 8px; font-size: 0.72rem; font-weight: 700;
@@ -374,8 +391,8 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     </nav>
 
     <section class="hero">
-      <div class="badge">${cat.icon} ${esc(cat.name)} · ${catTools.length} Free Tools</div>
-      <h1>${cat.icon} ${esc(cat.name)} Tools</h1>
+      <div class="badge">${catIcon(cat.iconId, 'hero-cat-icon')} ${esc(cat.name)} · ${catTools.length} Free Tools</div>
+      <h1>${catIcon(cat.iconId, 'hero-cat-icon')} ${esc(cat.name)} Tools</h1>
       <p class="hero-lede">${esc(blurb)}</p>
       <div class="hero-actions">
         <a href="../index.html?cat=${encodeURIComponent(cat.slug)}" class="search-hint">
