@@ -37,7 +37,7 @@ Measured 2026-08-30, from public sources:
 | YouTube subscribers | **1,360** | Past the 1,000 YPP threshold |
 | YouTube videos | **233** | Substantial back catalogue |
 | Shorts | **46** | Alternate YPP route exists |
-| Tools on site | **708** | Real, working, original (re-derived 2026-09-07) |
+| Tools on site | **1,285** | Real, working, original (re-derived 2026-09-24 from `cards/`) |
 | Site analytics | Now on 12 key pages | Was on 1 |
 
 **The single most important fact: you are already past YouTube's hardest
@@ -185,9 +185,16 @@ Realistic rates for an unsigned artist: **£50–£500** for a YouTube/indie use
 **£500–£5,000+** for an advert or game. One placement can exceed a year of
 donations.
 
-`sponsor.html` now mentions licensing and routes it to the same email. A
-dedicated licensing page with a clear "here is what it costs and here is the
-one-page agreement" would be the logical next build.
+`sync.html` is the dedicated licensing page (typical price ranges, what the
+buyer gets, one email). As of 2026-09-24 it is linked from the shared music nav
+and footer on every music page, from the radio "Like what you hear?" band and
+from `support.html`; its email link pre-fills a short brief (use, track, term,
+territory, budget) so enquiries arrive ready to quote. Keep it off catalogue
+pages (AGENTS.md §3.6). `sync-licence.html` is that one-page licence: the buyer fills in their project,
+sees the exact terms, and emails, prints or saves it as a PDF. You can send a
+ready-made quote as a link (`sync-licence.html?licensee=…&project=…&track=…&fee=350&term=2`).
+It is a plain-English template, not legal advice. Have a solicitor read it once
+before the first large or exclusive deal.
 
 ---
 
