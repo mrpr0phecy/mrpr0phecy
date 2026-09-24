@@ -23,7 +23,7 @@ One GitHub Pages site serving **two unrelated products** from the same domain:
 
 | | Product | Entry point | Audience |
 |---|---|---|---|
-| **A** | **The Most Useful Site In The World** — 1280 self-contained browser tools | `index.html` | People searching for a specific tool |
+| **A** | **The Most Useful Site In The World** — 1285 self-contained browser tools | `index.html` | People searching for a specific tool |
 | **B** | **MrProphecy** — the music project of the repo owner | `listen.html` | Listeners, YouTube discovery |
 
 **These two are deliberately kept separate.** This is a standing instruction
@@ -57,8 +57,8 @@ establish *which* site first.
 ├── toolbox.js              The visitor's own toolbox: a saved slug list, not a running grid
 ├── cards/
 │   ├── cards-lite.json     Generated critical-path tier: name/title/category
-│   ├── cards.json          Generated full index of all 1280 tools (descriptions feed search)
-│   └── <tool-name>.html    1280 tool fragments (NOT full documents)
+│   ├── cards.json          Generated full index of all 1285 tools (descriptions feed search)
+│   └── <tool-name>.html    1285 tool fragments (NOT full documents)
 ├── generate-cards-json.js  Rebuilds cards.json + cards-lite.json from the cards/ directory
 ├── ai.html                 Lantern — standalone AI product. Chat answered on
 │                           the device from the visitor's own documents and
@@ -124,12 +124,18 @@ establish *which* site first.
 │                           redirect stubs are excluded automatically
 ├── brand/                  the mark's source: mark.py (geometry + rasteriser),
 │                           gen_assets.py (writes every asset below),
-│                           check-mark.py, measure.py — see brand/README.md
+│                           check-mark.py, measure.py, spec.py (writes
+│                           brand/spec.html) — see brand/README.md
 ├── favicon.svg, favicon.ico, icon-192.png, icon-512.png,
 │   icon-maskable-512.png, apple-touch-icon.png   the mark, for the tab, the
 │                           home screen, Android and iOS (§5)
 ├── logo-mark.svg           the same mark, vector, at hero scale — linked by
 │                           index.html's lockup and its footer
+├── logo-mark-mono-dark.svg, logo-mark-mono-light.svg   the one-colour
+│                           reduction (#071019 / #ffffff) — unreferenced by any
+│                           page; for print, embeds and light surfaces
+├── logo-lockup-dark.svg, logo-lockup-light.svg         mark + wordmark, the
+│                           wordmark as outlines so no font is needed
 ├── logo.png                1024² lockup (mark + wordmark). Unreferenced by any
 │                           page — kept deliberately, for press and profiles
 ├── mrprophecypic.jpg (1024², for og:image) + mrprophecypic-600.jpg (rendered)
@@ -161,7 +167,7 @@ What is left is a page that links. What that buys:
   chrome and the first list; nothing monospaced, nothing that needs a
   stylesheet from another deploy to look finished.
 - **One place a tool can go wrong.** `tool.html` fails the same way for all
-  1,280 tools, and `scripts/check-tool-graph.py` proves every link into it
+  1,285 tools, and `scripts/check-tool-graph.py` proves every link into it
   lands on a tool that exists.
 - **A list that scales.** Filtering, sorting, keyboard navigation, density and
   the toolbox are properties of a *list*. They were impossible to add while the
@@ -269,7 +275,7 @@ removed with the grid (2026-09-21). What it has instead:
   toolbox is added by `toolbox.js`, not baked in.
 - **`HOME-CATEGORIES`** — the 29 category hubs, one link each.
 - **`[data-explore="json"]`** — an empty container. Everything below the fold
-  (the filterable list of all 1,280 tools) is fetched on scroll and built 60
+  (the filterable list of all 1,285 tools) is fetched on scroll and built 60
   rows at a time. On a phone with a cold cache the page is useful before that
   fetch starts.
 
@@ -432,7 +438,7 @@ A card is an **HTML fragment**. No `<!doctype>`, no `<html>`, `<head>` or
 Hard rules, learned from breakages:
 
 1. **Fragment only.** A full document nested inside the shell breaks layout.
-2. **Element IDs must be globally unique across all 1280 cards.** They share one
+2. **Element IDs must be globally unique across all 1285 cards.** They share one
    DOM. Pick a short prefix per tool (`b3js-`, `cwf-`, `mytl-`) and use it on
    every single element. An ID collision silently makes another tool misbehave,
    which is very hard to trace.
@@ -492,14 +498,14 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 `#<prefix>-desc` elements. If a card is missing them, its catalogue entry will
 be blank — a common cause of "my tool shows up empty".
 
-### Categories (1280 tools)
+### Categories (1285 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
 | 204 | Science & Engineering | | 29 | MrProphecy Arcade |
-| 161 | Productivity & Lifestyle | | 29 | Museum & Collection |
+| 166 | Productivity & Lifestyle | | 29 | Museum & Collection |
 | 94 | Finance & Money | | 21 | Virtual Worlds & Gaming |
 | 73 | SaaS & Business Killers | | 19 | AI & Autonomous Agents |
 | 71 | Writing & Language | | 17 | Mind-Blowing Demos |
@@ -514,7 +520,7 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 | 32 | Wellbeing & Community | | 10 | Trucking & Freight |
 | 31 | Culinary & Food Science | | | |
 
-Total: 1280 tools in 29 categories.
+Total: 1285 tools in 29 categories.
 ---
 
 ## 4. Product B — MrProphecy music
@@ -838,11 +844,15 @@ Applied to the four hub pages and `cards/card.css`; keep them when editing:
   not headings.
 - **The mark** (`.hero-mark`, `.footer-mark`) is `logo-mark.svg`, and it is the
   same drawing as the favicon, the PWA icons and the social card: one geometry
-  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`), six
-  shipped files. `logo-mark.svg` and `favicon.svg` are byte-identical — one
-  file, two names — and `python3 brand/check-mark.py` (standard library only)
-  fails if the vector and the rasters ever disagree about a radius, a gradient,
-  a stroke or the spark's curve. Edit the mark in `brand/`, never in the SVG.
+  in `brand/mark.py`, one generator (`python3 brand/gen_assets.py`). It is an
+  ink aperture with a white spark and a needle, on the site's accent gradient —
+  redrawn on 2026-09-24 because the old white magnifier measured 1.3:1 against
+  the gradient's lightest stop and dissolved at 16 px. `logo-mark.svg` and
+  `favicon.svg` are byte-identical — one file, two names — and
+  `python3 brand/check-mark.py` (standard library only) fails if the SVGs and
+  the rasters ever disagree about a radius, a gradient, the disc, the needle,
+  the spark's curve or the sheen; `verify.sh --deep` runs it. Edit the mark in
+  `brand/`, never in the SVG.
 - **Decorative extras live in classes, not inline styles**: empty-search
   state (`.no-results`) and the footer music spotlight (`.music-spotlight`)
   are class-based so the design tokens stay in one place.
@@ -866,7 +876,7 @@ treats them as duplicates competing with each other.
 
 ### Regenerating the sitemap
 
-`sitemap.xml` lists all 1197 indexable pages (including 1280 cards). Build it
+`sitemap.xml` lists all 1197 indexable pages (including 1285 cards). Build it
 from git rather than the working tree, so a sparse checkout does not silently
 drop the card pages:
 
@@ -1104,7 +1114,7 @@ git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
 
-# Music work (skip images and the 1280 cards):
+# Music work (skip images and the 1285 cards):
 git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
 
 # Tool work (skip images only):
@@ -1220,7 +1230,7 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 ## 9. Current state
 
-1280 tools in `cards/` across 29 categories, one shared DOM, every derived
+1285 tools in `cards/` across 29 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. The gate is `npm run verify` — seven
 checks, all of them, ~3 s — and `npm run verify:deep` (~14 s) before a push,
 which is also what CI runs on every push and PR.

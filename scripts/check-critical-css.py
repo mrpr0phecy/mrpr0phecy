@@ -71,8 +71,15 @@ INLINE_BUDGET = 4_000
 # first-paint payload grow by accident.
 # Raised from 11_000 on 2026-09-21: the launcher (command deck, jump row,
 # featured/trending shelves, coarse-pointer targets) is first-paint CSS and
-# measured 11,477 B gzip. 12_000 is the new ceiling, not a spare bucket.
-HOME_CSS_GZIP_BUDGET = 12_000
+# measured 11,477 B gzip.
+# Raised from 12_000 to 12_500 on 2026-09-24, on purpose, for the brand and
+# aesthetic pass (mono readout voice, the hero's measuring scale, the command
+# deck's corner brackets, the section kicker, sharper radii everywhere):
+# measured 12,458 B gzip with that work in and 11,563 B without it. The file
+# pays for 5,838 B of that with its own comments — strip every /* */ and it is
+# 7,069 B — so it is the prose, not the rules, that is closest to the ceiling.
+# Trim here, or move a comment into ARCHITECTURE.md, before raising this again.
+HOME_CSS_GZIP_BUDGET = 12_500
 DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 
