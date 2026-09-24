@@ -1,174 +1,140 @@
 # AGENTS.md — start here
 
-The one file to read before working in this repository: what it is, the
-commands, the lines you must not cross, and how the common jobs are done.
-Everything else is reference you open when a task needs it (§6). Section
-numbers are stable — code comments and pages cite them.
+Read this once, then inspect the files relevant to the request. Other docs are
+reference, not a mandatory reading list. This file owns the local workflow;
+section numbers stay stable because code and docs cite them.
 
 ## 0. What this is
 
-Two products on one domain that never mix:
+Static GitHub Pages: no runtime dependencies or deploy build; `main` is live.
+- **Product A:** the tool catalogue. `cards/<slug>.html` fragments mount in
+  `index.html` / `tool.html`. `cards/` is the catalogue source of truth.
+  `ai.html` is Lantern, a separately branded on-device AI.
+- **Product B:** MrProphecy music: `listen.html`, its twelve language pages,
+  `music.html`, `radio.html`, `sync.html`. Keep the products separate.
 
-- **Product A — the catalogue** (`themostusefulsiteintheworld.com`): 1285
-  offline browser tools. Each is a fragment in `cards/`, injected into one
-  shared document by `index.html` / `tool.html`. Plus `ai.html` — Lantern, a
-  separate on-device AI with its own name, mark and palette.
-- **Product B — MrProphecy music**: `listen.html` (the hub) and its twelve
-  language versions at the root (`spanish.html`, `japanese.html`, …),
-  `music.html`, `radio.html`, `sync.html` — ARCHITECTURE.md §4.
+## 0.5 Work directly
 
-A static GitHub Pages site with zero dependencies and no build step at deploy:
-`main` is what is live, byte for byte. `cards/` is the single source of truth —
-every count, index, sitemap and generated page is derived from it.
+Make the smallest complete change. Batch edits before checking; don't run the
+same suite after every file save. Search by filename or symbol before reading
+large files or generated indexes. Don't expand a task into unrelated cleanup.
+Choose reasonable implementation details yourself; ask only when intent is
+materially ambiguous or a change needs owner approval under §3. No routine
+plans, decision ledgers, or extra documentation are required.
 
-## 0.5 Be bold
+## 1. Commands and validation
 
-Ship the useful version, not the safe-sounding one, and show your working in
-the PR: what you measured, what you decided not to do, what you did not verify.
-"Not measured" is a valid answer; an invented number is not. If a rule here
-slows you down without protecting a visitor, the owner's money or the law,
-delete it and say so.
+| Change | Local validation before handoff |
+|---|---|
+| Instructions/docs/comments only | Review the diff, check changed links/commands, `git diff --check`. No build, browser, or deep audit. |
+| Page content or application code | Relevant tests, then `npm run verify` once after the batch. |
+| Card | `npm run build`, `node scripts/test-card.js cards/<slug>.html`, then `npm run verify`. |
+| Shared loaders, generators, service worker, cross-card changes, or check infrastructure | Relevant tests and `npm run verify:deep` (includes `verify`). Build if generated output is affected. |
+| Visible UI | Also inspect the affected page at 360 and 1440 px (§5). |
 
-## 1. Commands
+A doc that feeds generated output still needs its generator. Run additional
+checks when the impact is uncertain, not by default. CI retains the full deep
+gate on pull requests and pushes to `main`; a routine push does not require a
+duplicate local deep run. Never disable a check to make a change pass.
 
 ```bash
-npm run build          # regenerate every derived file, in order (~3 s)
-npm run verify         # the gate: 7 checks, ~5 s — after every edit
-npm run verify:deep    # + 4 slow audits, ~75 s — before pushing; CI runs it
-npm test               # the product test suite on its own
-node scripts/screenshot.mjs <page>   # look at it at 360 and 1440 px (§5)
+npm run build          # regenerate derived catalogue surfaces
+npm run verify         # standard gate
+npm run verify:deep    # standard gate + full audits and product tests
+npm test               # all product tests; or node --test scripts/tests/<name>.test.js
 ```
-
-Always the whole gate — there is nothing to scope or skip. `verify:deep`
-needs jsdom (§2): without it the card-integrity tests fail and the other
-jsdom suites skip. These timings are stated here and in `scripts/verify.sh`
-only; everywhere else just names the command.
 
 ## 2. Workspace budget
 
-Never install toolchains, browsers or `node_modules` into the repository — the
-site ships zero dependencies and the checkout is deployed as-is. Scratch
-dependencies go outside it, where every script looks first:
+Keep scratch dependencies and browser output outside the deployed checkout.
+Install only what the task needs; doc edits need no setup. Card harnesses and
+deep audits need jsdom; screenshots need the other two packages:
 
 ```bash
-mkdir -p /tmp/tenv && cd /tmp/tenv && npm i jsdom puppeteer-core @sparticuz/chromium
+mkdir -p /tmp/tenv
+(cd /tmp/tenv && npm install jsdom)
+# Only for screenshots, if no suitable browser setup exists:
+(cd /tmp/tenv && npm install puppeteer-core @sparticuz/chromium)
 ```
 
-jsdom runs the card harness and `verify:deep`; the other two exist only for
-`scripts/screenshot.mjs`. Python extras (only `brand/` needs any) go in a
-virtualenv outside the repository — see `brand/README.md`.
+Scripts look in `/tmp/tenv`. Brand work may need Python extras: see
+`brand/README.md`. Report unavailable checks; don't describe skips as passes.
 
-## 3. Never
+## 3. Keep these protections
 
-The hard lines. They are not judgement calls, and no task relaxes them for
-scope, speed or ambition. Code comments cite these numbers; CONSTRAINTS.md has
-the reasons and the fine print under the same numbers.
+Numbers match `CONSTRAINTS.md`, which has explanations and existing exceptions.
 
-1. **Move analytics.** `G-G058FVW6Z2` stays on exactly the pages that carry it
-   — never added, removed or moved — and no page makes a privacy claim that is
-   false where it stands: never "no tracking", "100% private", "no cookies" or
-   "no analytics" on a page that carries it.
-2. **Grow by breaking platform rules** — no view-bots, hidden players, autoplay
-   tricks, engagement pods or fake urgency; and no ads or paywalls on Product A.
-3. **Delete a tool, page, redirect or protected file** (`CNAME`, `sw.js`, the
-   CV files, `opensourcenews.html`, `token.html`, anything in `cards/`). Adding
-   is free; the owner decides what leaves.
-4. **Put untrusted input into `innerHTML`.** URL parameters, `error.message`
-   and `cards.json` strings go in through `textContent` or DOM APIs.
-5. **Commit a secret** — a token, key, credential or agent-auth output.
-6. **Mix the products** — no music on Product A or in any card, no tool links
-   on Product B.
-7. **Hand-edit a generated file** (the list is in §4) — re-run its generator.
+1. **Preserve analytics placement.** Don't add, remove, or move `G-G058FVW6Z2`
+   without owner approval. Privacy claims must match what the page loads.
+2. **No deceptive/platform-breaking growth**, or ads/paywalls on Product A.
+3. **Don't delete published tools, pages, redirects, or protected files**
+   without owner approval (`ARCHITECTURE.md` §9 lists protected files).
+4. **No untrusted `innerHTML`.** Use `textContent` or DOM APIs for URL input,
+   error messages, and catalogue strings.
+5. **No committed secrets**, credentials, or auth output.
+6. **Don't mix music and catalogue content or cross-promotion.**
+7. **Regenerate generated files** rather than hand-editing them (§4).
 
-Also never: send anything to the network from a card (the few exceptions are
-classified in `scripts/check-egress.py`), or add a tracker, cookie or analytics
-event without writing it up in `docs/INSTRUMENTATION.md` first. Anything that
-seems to need an exception is an owner question: ask, then record the answer in
-CONSTRAINTS.md.
+Cards stay offline except existing classifications in `scripts/check-egress.py`.
+New tracking/cookies/events require `docs/INSTRUMENTATION.md`. Ask before changing
+these protections; routine implementation choices need no approval.
 
 ## 4. Common tasks
 
-**Add a tool.** Write `cards/<slug>.html`, then
-`bash scripts/add-tool.sh <slug> "<Category>" "<commit message>" [--no-push]`
-registers it, rebuilds, smoke-tests the card in a shared document, runs the
-gate, commits and pushes. By hand: add the slug to its category list in
-`generate-cards-json.js` **before** building (the script overwrites `category`
-from those lists), `npm run build`, `npm run verify:deep`, then look at
-`tool.html?card=<slug>` and `…&embed=1` at both widths. A YMYL tool (Health &
-Fitness, Finance & Money) also needs the `docs/TRUST.md` checklist —
-methodology, primary source, worked example, edge cases, disclaimer,
-last-reviewed date — best as a `tools/<slug>.html` deep page rendered from
-`scripts/tool-pages.json`.
+**Add a tool:** write `cards/<slug>.html`, register its category in
+`generate-cards-json.js`, then build and validate per §1. Inspect
+`tool.html?card=<slug>` and `&embed=1`. Health/finance tools also need
+`docs/TRUST.md`. Optional `scripts/add-tool.sh` automates this but stages all
+changes, commits, and pushes (`--no-push` still commits); use only when those
+actions are requested and the working tree is appropriate.
 
-**Write a card.** The document outlives the card: the next tool loads into the
-same page, so anything global survives into it. `verify` enforces every rule
-below; CONSTRAINTS.md has the reason and the code for each.
+**Write a card:** it shares a long-lived document with other tools.
+- Use a fragment, not `<html>/<head>/<body>`. Prefix IDs with the slug, wrap
+  scripts in an IIFE, and scope CSS under the card root.
+- Initialise both during loading and when the document is already loaded.
+- Keep appended UI inside the card; clean up listeners/timers. Deferred work
+  must check the root still exists in `document`, not just a detached node.
+- Give controls accessible names and valid `for`/ARIA references; keep IDs unique.
+- No network calls or untrusted HTML (§3). See `CONSTRAINTS.md` for trap examples.
 
-- A fragment — no `<html>`, `<head>` or `<body>`. Prefix every id and top-level
-  name with the slug; wrap the script in an IIFE (`check-card-collisions.py`).
-- Start with `if (document.readyState === 'loading') … else init()` — the
-  `else` is the half that runs in `tool.html` (`check-card-init.js`).
-- Append only inside your own container, never to `document.body` or `head`
-  (`check-card-leftovers.js`).
-- Anything that runs later — a listener on `document`, a timer, an `await`, a
-  script's `onload` — first checks `document.getElementById('<your-root>')` and
-  bails (or clears its interval) when the card is gone (`test-card.js`).
-- Scope every CSS rule under the card's root id (`check-card-css-leaks.py`;
-  `scope-card-css.py` fixes a leaking fragment).
-- Unique ids, every `for=`/`aria-*` reference resolves, and every control has
-  an accessible name (`tests/card-integrity.test.js`).
-- No network calls (`check-egress.py`) and no untrusted `innerHTML` (§3.4).
+**Edit a page:** preserve the music hreflang cluster; local text changes don't
+require rewriting all translations. Home CSS/JS changes need matching `?v=`
+values in `index.html`, `APP_VERSION` in `home-core.js`, and `CACHE_VERSION` in
+`sw.js` (`check-critical-css.py`).
 
-**Edit a page.** Product B's hreflang cluster is 13 pages (`listen.html` and
-the twelve languages): change it as a whole, or make a change that cannot read
-as a duplicate in another language. Changing the home page's CSS or JS means
-bumping `?v=` in `index.html`, `APP_VERSION` in `home-core.js` and
-`CACHE_VERSION` in `sw.js` together (`check-critical-css.py` fails otherwise).
-
-**Fix a drifted number or surface.** Never the number — the generator. Owned by
-`npm run build`: `cards/cards*.json`, `sitemap.xml`, `sitemap.html`,
+**Generated surfaces:** `npm run build` owns `cards/cards*.json`, sitemaps,
 `tools.html`, `tools-index.{json,html}`, `categories/`, `related.json`,
-`embed.html`, `api/tools*.json`, `tools/*.html`, `llms.txt`, `llms-full.txt`,
-`index.html`'s HOME-FEATURED / HOME-TRENDING / HOME-CATEGORIES blocks and every
-published tool count. Owned by their own scripts, checked by `verify`:
-`embed-finance.html` (`scripts/build-embed-landing.py`) and every logo, icon
-and social card (`brand/gen_assets.py`).
+`embed.html`, `api/tools*.json`, `api/tools/*.json`, `tools/*.html`, `llms*.txt`,
+the HOME-FEATURED / HOME-TRENDING / HOME-CATEGORIES blocks in `index.html`, and
+published tool counts. Fix the source, then regenerate. `embed-finance.html`
+uses `scripts/build-embed-landing.py`; logos/icons/social assets use
+`brand/gen_assets.py` (edit `brand/mark.py`; see `brand/README.md`).
 
-**Change the logo.** Edit `brand/mark.py` and regenerate — `brand/README.md`
-has the steps; `brand/check-mark.py` fails on a hand-edited asset.
+## 5. Finish in proportion to the change
 
-## 5. Done means looked at
-
-A change is finished when `npm run verify:deep` passes and you have looked at
-what you changed at 360 px and 1440 px. Static checks never substitute for
-looking:
+For visible UI changes, inspect the affected page at mobile and desktop widths
+and exercise the changed interaction; screenshots alone don't prove behavior.
 
 ```bash
-node scripts/screenshot.mjs "tool.html?card=bmi"   # /tmp/shots/tool-html-card-bmi-{360,1440}.png
+node scripts/screenshot.mjs "tool.html?card=bmi"
+# Writes /tmp/shots/tool-html-card-bmi-{360,1440}.png
 ```
 
-It serves the repository itself, blocks off-site requests, emulates reduced
-motion and prints page errors; `--full`, `--dpr 2`, `--scroll <y>` and
-`--widths` are documented in its header. Emoji render as empty boxes in its
-Chromium — that is the browser, not your change. If you broke something you
-cannot fix in two attempts, say so plainly in the PR instead of working around
-it quietly.
+No screenshots for docs, comments, or non-visual code. In the final summary,
+state what changed, checks run, and any failures or unverified behavior. Don't
+invent measurements or silently work around failures. No PR ritual is required.
 
-## 6. Where the rest lives
+## 6. Reference — open only when needed
 
-| Open | for |
+| File | When |
 |---|---|
-| `CONSTRAINTS.md` | why the hard lines are where they are, owner decisions, the card traps with code, open questions |
-| `ARCHITECTURE.md` | how the site is built: repository map §2, catalogue §3, music §4, design §5, SEO §6, traps §7, protected files §9 |
-| `docs/TRUST.md` | YMYL tools |
-| `docs/INSTRUMENTATION.md` | analytics and events |
-| `docs/BRAND.md`, `brand/README.md` | naming, voice, the logo and its kit |
-| `docs/OPERATIONS.md` | deploys, the production monitor, incidents |
+| `CONSTRAINTS.md` | Protection details, owner decisions, card lifecycle traps |
+| `ARCHITECTURE.md` | Repository map §2, catalogue §3, music/verified video IDs §4, design §5, SEO §6, traps §7, protected files §9 |
+| `docs/TRUST.md` | Health/finance tools |
+| `docs/INSTRUMENTATION.md` | Analytics/events |
+| `docs/BRAND.md`, `brand/README.md` | Naming, visual identity, generated assets |
+| `docs/OPERATIONS.md` | Deployment, monitoring, incidents |
 
-History is `git log` and `gh pr list`: nothing in the repository tracks status,
-and no document tells you what to do next. Deleted on purpose — do not rebuild
-them without the owner asking: the site brain (`local-ai-knowledge.json` and
-its builders; outside agents use `llms.txt`, `cards/cards.json`,
-`tools-index.json`, `api/tools*.json` and `related.json`), the staff /
-AI-developer facility, and the task board and decision ledger. GitHub access in
-a fresh session: `bash scripts/agent-auth.sh`.
+Use git/GitHub for history. Don't recreate the removed site brain, staff/AI-dev
+facility, task board, or decision ledger unless asked. Outside agents use the
+public catalogue indexes; repository coding agents need not read them at startup.

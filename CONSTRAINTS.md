@@ -1,6 +1,7 @@
 # CONSTRAINTS.md — the reasons behind the rules
 
-AGENTS.md is the rulebook; read it first. This file holds only what the code
+AGENTS.md is the quick-start and local workflow authority. Open this reference
+only when relevant to your task. This file holds what the code
 cannot tell you: why the hard lines sit where they do, the owner's decisions,
 and the card traps with the code that avoids each. Every trap names the check
 that enforces it, so a failing check leads here.
@@ -59,7 +60,7 @@ you think one is wrong, say so in your summary instead of acting on it.
   engine — governance about governance. The deletion was the owner's own;
   don't rebuild it.
 - **CI runs the whole gate** (2026-09-20). `.github/workflows/agent-guardrails.yml`
-  runs `verify.sh --deep` on every push and PR, with jsdom installed outside
+  runs `verify.sh --deep` on pushes to `main` and pull requests, with jsdom installed outside
   the checkout, under the status name "Repo checks" (branch protection
   resolves that name — keep it). Don't add heavyweight CI, and don't let the
   local gate grow slow enough to need a fast pass again.
