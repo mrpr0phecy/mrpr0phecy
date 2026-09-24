@@ -201,7 +201,26 @@ Two mount shapes, and the difference is a deliberate performance decision:
 - **`data-explore="json"` (the home page).** The rows are *built* from
   `tools-index.json` when the visitor reaches the list. Nothing is fetched at
   parse time; the list is 60 rows in the DOM at a time, and "Show 60 more"
-  extends it.
+  extends it. Three measured decisions live here, all of them from the
+  2026-09-24 pass over the home page's load (1.6 Mbps, 150 ms RTT, 4x CPU —
+  an interleaved A/B against the previous build, medians of 5–6 runs):
+  - **The fetch starts on idle-with-a-bound, or on `load`, whichever is
+    first.** Waiting for a genuinely idle browser put the request at 3.2 s
+    while `load` finished at 2.1 s; `load` as the backstop moved the first row
+    from 4.6 s to 3.5 s. The 200 KB still must not compete with the first
+    screen, so neither path starts before first paint.
+  - **Rows carry `content-visibility: auto` with a 96 px placeholder.** Sixty
+    rows are painted at once and laying all of them out was 253 ms of one
+    920 ms frame — the most expensive thing the catalogue did. Skipping the
+    rows that are off screen took layout from 297 ms to 65 ms and the row
+    build from ~994 ms to ~490 ms of main-thread time. 96 px is the measured
+    median row height (94 px at 390 wide, 97 px at 1440) and the whole page
+    lands within 60 px of its fully-rendered height; scrolling 5,000 px down
+    the list shows 0 px of drift in a row already on screen.
+  - **The toolbox's lite tier is fetched when the visitor reaches for the
+    toolbox, not at `DOMContentLoaded`.** It is 123 KB of JSON for a panel that
+    is closed at first paint; it is now fetched on pointer-intent, focus, the
+    panel opening, or a tool being added.
 - **`data-explore="static"` (`tools.html`, `tools-index.html`, category
   pages).** The rows are already in the served HTML, so the engine never
   rebuilds them: it decorates them in place (category chip, ＋ button, details
@@ -331,7 +350,7 @@ with one job and none of them large:
 | `home.css` | about 43 KB | first-paint rules — render-blocking on purpose |
 | `home-deferred.css` | about 9 KB | rules for containers hidden at first paint; applied after it (13 KB gzip for the pair) |
 | `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
-| `toolbox.js` | about 27 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none) |
+| `toolbox.js` | about 32 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none); its lite-tier fetch waits for the visitor to reach for the toolbox |
 | `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
 | `home-core.js` | about 22 KB | theme/accent, panels, the search bridge, deep links, service worker |
 

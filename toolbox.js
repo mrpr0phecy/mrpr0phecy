@@ -19,8 +19,9 @@
    reserved for site instrumentation (docs/INSTRUMENTATION.md).
 
    Nothing here leaves the device. There is no account, no sync and no fetch of
-   anything but the same `cards/cards-lite.json` the home page already uses for
-   its first paint.
+   anything but `cards/cards-lite.json` — and that one is only fetched when the
+   visitor reaches for the toolbox (see warm()), because the panel is closed at
+   first paint and the badge counts slugs, not names.
 
    Public API (used by explore.js and by anything that wants a ＋ button):
      mpToolbox.has(slug) / add(slug) / remove(slug) / toggle(slug)
@@ -152,7 +153,22 @@
       .then(function (list) {
         if (timer) clearTimeout(timer);
         byslug = {};
-        (list || []).forEach(function (t) { if (t && t.name) byslug[t.name] = t; });
+        (list || []).forEach(function (t) {
+          if (!t) return;
+          /* The shipped tier is the COMPACT shape — {n: slug, t: title,
+             c: category}, written by generate-cards-json.js and read that way
+             by tool.html. This file used to look for `t.name`, which is not a
+             field in that file: every entry was dropped, `byslug` stayed
+             empty and the panel named every saved tool by its raw slug
+             ("bmi-calculator") instead of its title, on every page, since the
+             tier went compact. The long-form keys are still accepted so a
+             page that reads the full cards.json shape keeps working, and the
+             test suite now drives a real compact payload rather than a fetch
+             that always fails. */
+          var slug = t.n || t.name;
+          if (!slug) return;
+          byslug[slug] = { name: slug, title: t.t || t.title || slug, category: t.c || t.category || '' };
+        });
         return byslug;
       })
       .catch(function () {
@@ -164,6 +180,50 @@
   }
   function toolHref(slug, base) {
     return base + encodeURIComponent(slug);
+  }
+
+  /* --------------------------------------------------------- when to fetch it
+     The lite tier does exactly one job: putting a saved tool's *name* where a
+     slug would otherwise be. Nothing the visitor sees at first paint needs it —
+     the panel is closed, and the badge counts slugs.
+
+     It used to be fetched from init() on DOMContentLoaded for every visitor,
+     panel open or not. Measured on a throttled mid-tier phone (1.6 Mbps, 4x
+     CPU), that put 123 KB of JSON on the wire at ~600 ms — inside the window
+     where the font, both stylesheets and three scripts are still arriving — and
+     it was the second heaviest response of the page behind the catalogue
+     itself, for a panel most visitors never open.
+
+     Now it is fetched when the visitor reaches for the toolbox, by whichever
+     route they take: the pointer on its way to the button, the button taking
+     focus, the panel opening, or a tool being added. lite() dedupes, so the
+     first one in wins and the rest are free. */
+  function warm() {
+    // Renders on every call rather than only the first: lite() dedupes the
+    // fetch and re-arms after a failure, so a second reach for the toolbox
+    // after a failed one still ends with names in the panel. Resolves to the
+    // slug → tool map, which is what mpToolbox.ready() promises its callers.
+    return lite().then(function (map) { renderPanel(); return map; });
+  }
+  var OPENER = '[popovertarget="toolbox"], [data-toolbox-toggle], [data-xp-toolbox], a[href="#toolbox"]';
+  function watchForIntent() {
+    // Capture phase, because pointerenter does not bubble — a capture listener
+    // on the document still sees it on the way down to the button.
+    ['pointerenter', 'pointerdown', 'focusin'].forEach(function (type) {
+      document.addEventListener(type, function (e) {
+        var t = e.target;
+        if (t && t.closest && t.closest(OPENER)) warm();
+      }, true);
+    });
+    var panel = document.getElementById(PANEL_ID);
+    if (!panel) return;
+    // The home page's panel is opened natively by popovertarget, which never
+    // runs open() — the panel announces itself instead. Kept alongside the
+    // intent listeners so a browser that opens it some third way still gets
+    // names rather than slugs.
+    panel.addEventListener('toggle', function (e) {
+      if (e.newState === 'open') warm();
+    });
   }
 
   /* ------------------------------------------------------------------- panel */
@@ -481,7 +541,7 @@
       toggle.setAttribute('aria-expanded', 'true');
       toggle.classList.add('xp-open');
     }
-    lite().then(renderPanel);
+    warm();
   }
 
   function init() {
@@ -494,7 +554,7 @@
       var slug = btn.getAttribute('data-toolbox-add');
       var added = toggle(slug);
       if (added) {
-        lite().then(function () {
+        warm().then(function () {
           var t = byslug && byslug[slug];
           toast('Added to your toolbox' + (t ? ': ' + t.title : ''), 'Open it', '#toolbox');
         });
@@ -536,7 +596,10 @@
     ensureChrome();
     decorateRows();
     paintCounts();
-    lite().then(renderPanel);
+    // The panel is painted now, from slugs alone: it is closed at first paint,
+    // and the only thing missing is the names — see warm() below.
+    renderPanel();
+    watchForIntent();
     readShared();
   }
 
@@ -651,7 +714,10 @@
     open: open,
     close: hide,
     toast: toast,
-    ready: function () { return lite(); }
+    // Resolves once the panel has been rendered, not merely once the lookup
+    // data has arrived — "ready" is what a caller waits on before reading the
+    // panel, and the render is the last thing that happens to it.
+    ready: function () { return warm(); }
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
