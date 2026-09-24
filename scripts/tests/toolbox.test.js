@@ -123,8 +123,14 @@ function makeSandbox(opts) {
     btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
     atob: (s) => Buffer.from(s, 'base64').toString('binary'),
     confirm: () => true,
+    // Defaults to the FAILING fetch (so the degrade paths stay covered), but a
+    // test can hand it a real payload: the shipped tier is the compact
+    // {n,t,c} shape, and a stub that never returns one is exactly how the panel
+    // came to read a field (`name`) that the file does not have, on every page,
+    // without a single test noticing.
     fetch: (url) => { sandbox.fetched = sandbox.fetched || []; sandbox.fetched.push(String(url));
-      return Promise.resolve({ ok: false, json: () => Promise.resolve([]) }); },
+      if (opts.lite === undefined) return Promise.resolve({ ok: false, json: () => Promise.resolve([]) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(opts.lite) }); },
     FileReader: function () {},
     CustomEvent: function () {},
     URLSearchParams
@@ -254,6 +260,60 @@ function makeSandbox(opts) {
   const rootUrls = (root.sandbox.fetched || []).join(',');
   assert.ok(rootUrls.indexOf('cards/cards-lite.json') === 0,
     'a root page must ask for it in place: ' + (rootUrls || '(nothing fetched)'));
+}
+
+
+/* ------------------- 7. the shipped lite tier: slugs become real tool names */
+{
+  // cards/cards-lite.json is written compact — `{n: slug, t: title, c: category}`
+  // — by generate-cards-json.js, and tool.html reads it that way. The panel is
+  // the third reader, and if it looks for the wrong keys every saved tool shows
+  // up as its slug: not an error, not a crash, just a panel that reads like a
+  // file listing. Drive a real payload through it and insist on the titles.
+  //
+  // These run in a promise callback, so a thrown assertion is caught here and
+  // turned into a failed run — a swallowed catch would make this whole section
+  // decorative, which is how the bug survived in the first place.
+  const LITE = [
+    { n: 'bmi', t: '⚖️ BMI Calculator', c: 'Health & Fitness' },
+    { n: 'json-formatter', t: 'JSON Formatter', c: 'Algorithms & Computer Science' }
+  ];
+  const cases = [
+    {
+      label: 'the compact tier names saved tools with their titles',
+      opts: { lite: LITE, rawStorage: JSON.stringify(['bmi', 'json-formatter']) },
+      check: (html) => {
+        assert(html.includes('BMI Calculator'),
+          'a saved tool is named by its title, not its slug: ' + html.replace(/\s+/g,' ').slice(0, 900));
+        assert(html.includes('JSON Formatter'), 'and so is the second one');
+        assert(html.includes('Health &amp; Fitness') || html.includes('Health & Fitness'),
+          'its category is named too');
+        assert(!html.includes('>bmi<'), 'the raw slug is not used as the label');
+      }
+    },
+    {
+      // Anything that hands this file a cards.json-shaped array must keep working.
+      label: 'the long-form catalogue shape still resolves',
+      opts: { lite: [{ name: 'bmi', title: 'BMI Calculator', category: 'Health & Fitness' }], rawStorage: JSON.stringify(['bmi']) },
+      check: (html) => assert(html.includes('BMI Calculator'),
+        'a long-form entry is understood: ' + html.slice(0, 200))
+    }
+  ];
+
+  (async () => {
+    for (const c of cases) {
+      const box = makeSandbox(c.opts);
+      try {
+        await box.sandbox.window.mpToolbox.ready();
+        c.check(box.content.innerHTML);
+        console.log(`  ok   ${c.label}`);
+      } catch (e) {
+        console.error(`  FAIL ${c.label}`);
+        console.error(`       ${String(e.message).split('\n').join('\n       ')}`);
+        process.exitCode = 1;
+      }
+    }
+  })();
 }
 
 console.log('toolbox: storage, share links, ＋ buttons and corrupt values all behave');
