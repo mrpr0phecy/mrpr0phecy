@@ -87,7 +87,7 @@ audited too.
   and `sponsor.html` each claimed it while loading GA4. On `sponsor.html` this
   was worse than sloppy copy — the no-tracking promise is *sold to advertisers*,
   making it a commercial representation. Claims are now scoped to what is
-  actually true: **the 1297 tool cards contain zero tracking of any kind**, which
+  actually true: **the 1298 tool cards contain zero tracking of any kind**, which
   is the part that matters and is genuinely verifiable; the three index pages
   disclose GA plainly. `donate.html` states it outright rather than burying it.
 - **Stale tool counts.** Six places still advertised "500 free tools" against a <!-- historical-count -->
@@ -420,7 +420,7 @@ Set the law aside for a moment; the commercial case points the same way.
   promoting. A sponsor who notices will not raise it — they will just not reply.
 - The tools site's entire positioning is *"no ads, no tracking, no accounts,
   nothing gated"*. "Hold the token to unlock Pro features" is a paywall, and it
-  contradicts `donate.html`'s promise that all 1297 tools are free to everyone
+  contradicts `donate.html`'s promise that all 1298 tools are free to everyone
   forever.
 - A homepage that links to a token three times reads, to a music supervisor
   weighing a £3,000 sync deal, as a reason to pick someone else.

@@ -1,5 +1,5 @@
 /**
- * maps/embed.js — how the other 1,297 tools use the map.
+ * maps/embed.js — how the other 1,298 tools use the map.
  *
  * Drop one line in a card and you get a real, interactive map:
  *
