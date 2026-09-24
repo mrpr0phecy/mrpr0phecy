@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 22;
+  const APP_VERSION = 23;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },

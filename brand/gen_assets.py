@@ -1,489 +1,428 @@
 #!/usr/bin/env python3
-"""gen_assets.py — write every shipped brand asset, from one geometry.
+"""gen_assets.py — write every shipped brand asset from brand/mark.py.
 
-    python3 brand/gen_assets.py
+    /tmp/brandenv/bin/python brand/gen_assets.py
 
-Needs Pillow, fonttools and numpy (see brand/README.md — they are deliberately
-NOT installed into this repository, which stays zero-dependency). Everything
-written goes to the repository root, next to the pages that link it:
+Needs pillow, fonttools, brotli, uharfbuzz and resvg-py, installed OUTSIDE the
+repository, which stays zero-dependency (brand/README.md has the two commands).
+Everything is written to the repository root, next to the pages that link it:
 
-    logo-mark.svg / favicon.svg   the mark, vector, from mark.py's constants
-    favicon.ico                   16 / 32 / 48 px
-    icon-192.png, icon-512.png    PWA + Android
-    icon-maskable-512.png         PWA maskable
-    apple-touch-icon.png          180 px, opaque (iOS)
-    logo-mark-mono-dark.svg       one colour (#071019) — light backgrounds
-    logo-mark-mono-light.svg      one colour (#ffffff) — dark backgrounds
-    logo-lockup-dark.svg          mark + wordmark, outlines, dark background
+    logo-mark.svg / favicon.svg   the mark — byte-identical, one file, two names
+    logo-mark-mono-dark.svg       one colour (#071019), for light backgrounds
+    logo-mark-mono-light.svg      one colour (#ffffff), for dark backgrounds
+    logo-lockup-dark.svg          mark | wordmark, outlines, for dark backgrounds
     logo-lockup-light.svg         the same, for light backgrounds
-    og-brand.png                  the 1200x630 social card index.html links
-    og-tools.png                  the same card, for the pages that share it
-    logo.png                      1024² lockup (mark + wordmark) for press
+    favicon.ico                   16 / 32 / 48 px
+    icon-192.png, icon-512.png    PWA "any" icons: the rounded tile
+    icon-maskable-512.png         PWA maskable: full bleed, glyph in the safe circle
+    apple-touch-icon.png          180 px, opaque, full bleed (iOS rounds it)
+    og-brand.png, og-tools.png    the 1200x630 social card (the same image)
+    logo.png                      1024² stacked lockup, for press
 
-It also writes `brand/spec.html` — the printable spec sheet (clear space,
-minimum size, colour, the whole kit on one page). Nothing on the site links it;
-it exists so that "how may I use this logo?" has an answer that is not a guess.
+**Every raster is rendered from SVG** built out of mark.py, by resvg — so no PNG
+can become a different drawing from the vector, and there is no second
+rasteriser to keep in step. **Every word is an outline**, set with HarfBuzz
+(real kerning) in the site's own self-hosted Inter, instanced from
+fonts/inter-latin.woff2 on the fly: the lockups need no font installed, and
+the card's type is the page's type.
 
-The wordmark is set in the site's own self-hosted Inter (fonts/inter-latin.woff2),
-instanced to static weights on the fly — so the card cannot drift from the page.
-The lockup SVGs carry the wordmark as **outlines**, converted from that same
-font, so they render identically where Inter is not installed.
-
-The wordmark is the ONLY text in the raster files, and there is deliberately
-no tool count in any of them: scripts/sync-counts.py owns every published
-number and cannot re-derive a PNG, so a count baked into an image would be
-stale the next time a card is added.
+There is deliberately **no tool count in any image**: scripts/sync-counts.py
+owns every published number and cannot re-derive a PNG, so a count baked into
+a card would be stale the next time a tool is added. The social card's
+headline is read out of index.html's <h1> for the same reason — the card
+cannot disagree with the page.
 """
 from __future__ import annotations
 
+import html
+import io
 import os
+import re
 import sys
 import tempfile
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+import resvg_py
+import uharfbuzz as hb
+from fontTools.pens.svgPathPen import SVGPathPen
+from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
+from PIL import Image
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 
-import mark as M
+import mark as M  # noqa: E402
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(HERE)
 WOFF2 = os.path.join(ROOT, "fonts", "inter-latin.woff2")
 
-# The lockup's palette. These are the site's own tokens: --bg-primary #0a0f14,
-# --accent #2dd4ff, --text #e6faff, plus ACCENT_ON_LIGHT, which is the accent
-# darkened until it can legally be *text* on paper (see brand/spec.html).
-INK = (10, 15, 20)
-TEXT = (230, 250, 255)
-ACCENT = (45, 212, 255)
-ACCENT_ON_LIGHT = (26, 163, 204)
-MUTED = (150, 186, 200)
-PAPER = (255, 255, 255)
-GLYPH_INK = M.INK                  # #071019 — the mark's own ink, and mono-dark
+hexc = M.hex_triplet
 
-_FONT_CACHE: dict[int, str] = {}
+# ------------------------------------------------------------ the wordmark --
+# Two lines: the name is long, and on one line beside a mark it is either too
+# small to read or wider than any slide. USEFUL takes the accent — it is the
+# promise in the name. Caps, 800, 0.14em tracking: the page's own wordmark.
+WORDMARK = (
+    (("THE MOST ", False), ("USEFUL", True)),
+    (("SITE IN THE WORLD", False),),
+)
+WORDMARK_WEIGHT = 800
+WORDMARK_TRACKING = 0.14          # em — home.css .hero-wordmark letter-spacing
+
+# The lockup at its canonical scale (px at a 76 px mark). Every other placement
+# (the social card, logo.png) is this, scaled — one lockup, not three.
+LOCKUP_MARK = 76.0
+LOCKUP_GAP = 22.0                 # mark -> hairline, and hairline -> wordmark
+LOCKUP_SIZE = 24.0                # wordmark font size
+LOCKUP_LEADING = 32.0             # baseline to baseline
+LOCKUP_RULE = 1.25                # the hairline's width
+LOCKUP_PAD = 12.0                 # clear space inside the lockup SVGs' viewBox
 
 
-def _instance(weight: int) -> str:
-    """Path to a static Inter of `weight`, built from the shipped variable
-    woff2 into a temp dir (Pillow cannot read woff2). Cached per process and
-    per temp dir, so a second run is instant."""
-    if weight not in _FONT_CACHE:
-        out = os.path.join(tempfile.gettempdir(), f"brand-inter-{weight}.ttf")
-        if not os.path.exists(out):
-            font_obj = TTFont(WOFF2)
-            font_obj.flavor = None
-            instantiateVariableFont(font_obj, {"wght": weight}, inplace=True,
+# ------------------------------------------------------------------- type --
+class Face:
+    """A static instance of the shipped Inter at one weight: fontTools for the
+    outlines, HarfBuzz for the positions (kerning included)."""
+
+    _cache: dict[int, "Face"] = {}
+
+    def __init__(self, weight: int):
+        path = os.path.join(tempfile.gettempdir(), f"brand-inter-{weight}.ttf")
+        if not os.path.exists(path):
+            font = TTFont(WOFF2)
+            font.flavor = None
+            instantiateVariableFont(font, {"wght": weight}, inplace=True,
                                     updateFontNames=False)
-            font_obj.save(out)
-        _FONT_CACHE[weight] = out
-    return _FONT_CACHE[weight]
+            font.save(path)
+        self.font = TTFont(path)
+        self.glyphs = self.font.getGlyphSet()
+        self.order = self.font.getGlyphOrder()
+        self.upem = self.font["head"].unitsPerEm
+        self.cap_height = self.font["OS/2"].sCapHeight / self.upem
+        self.hb = hb.Font(hb.Face(hb.Blob.from_file_path(path)))
+
+    @classmethod
+    def get(cls, weight: int) -> "Face":
+        if weight not in cls._cache:
+            cls._cache[weight] = cls(weight)
+        return cls._cache[weight]
+
+    def shape(self, text: str):
+        buf = hb.Buffer()
+        buf.add_str(text)
+        buf.guess_segment_properties()
+        hb.shape(self.hb, buf, {"kern": True})
+        return [(self.order[i.codepoint], p.x_advance, p.x_offset, p.y_offset)
+                for i, p in zip(buf.glyph_infos, buf.glyph_positions)]
 
 
-def _truetype(weight: int, size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(_instance(weight), size)
+def _num(value: float) -> str:
+    text = f"{value:.2f}".rstrip("0").rstrip(".")
+    return "0" if text in ("-0", "") else text
 
 
-def hex_triplet(colour: tuple[int, int, int]) -> str:
-    return "#%02x%02x%02x" % colour
-
-
-# --------------------------------------------------------------------- SVG ---
-def _stops() -> str:
-    return "\n".join(
-        f'      <stop offset="{offset * 100:g}%" stop-color="{hex_triplet(colour)}"/>'
-        for offset, colour in M.GRADIENT)
-
-
-def _gloss_stops() -> str:
-    """The rasters carry a white sheen across the top of the tile (the ^1.4
-    fade in mark.py); without it the SVG and the PNG would be two different
-    drawings of the same logo. Three stops approximate that curve closely."""
-    return "\n".join(
-        f'      <stop offset="{offset:g}%" stop-color="#ffffff" '
-        f'stop-opacity="{M.GLOSS_TOP * (1 - offset / 100) ** 1.4:.4f}"/>'
-        for offset in (0, 50, 100))
-
-
-def _spark_path() -> str:
-    """The spark as four `Q` commands — the same construction mark.py samples."""
-    gx, gy = M.DISC_CENTRE
-    radius, waist = M.SPARK_RADIUS, M.SPARK_WAIST
-    diag = waist * 0.7071
-    up = (gx, gy - radius)
-    rt = (gx + radius, gy)
-    down = (gx, gy + radius)
-    left = (gx - radius, gy)
-    c_ur = (gx + diag, gy - diag)
-    c_rd = (gx + diag, gy + diag)
-    c_dl = (gx - diag, gy + diag)
-    c_lu = (gx - diag, gy - diag)
-    fmt = lambda p: f"{p[0]:.3f} {p[1]:.3f}"
-    return (f"M{fmt(up)} Q{fmt(c_ur)} {fmt(rt)} Q{fmt(c_rd)} {fmt(down)} "
-            f"Q{fmt(c_dl)} {fmt(left)} Q{fmt(c_lu)} {fmt(up)} Z")
-
-
-def _needle_path() -> str:
-    return f"M{M.NEEDLE_FROM[0]:g} {M.NEEDLE_FROM[1]:g} L{M.NEEDLE_TO[0]:g} {M.NEEDLE_TO[1]:g}"
-
-
-def svg_mark() -> str:
-    """The mark as SVG, written from mark.py's constants — not traced from the
-    rasters, not hand-drawn separately. brand/check-mark.py compares the two."""
-    disc = M.DISC_CENTRE
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="The Most Useful Site in the World">
-  <title>The Most Useful Site in the World</title>
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-{_stops()}
-    </linearGradient>
-    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
-{_gloss_stops()}
-    </linearGradient>
-  </defs>
-  <!-- The tile: the site's own accent gradient, with the same white sheen the
-       raster icons carry. -->
-  <rect width="32" height="32" rx="{M.TILE_RADIUS:g}" fill="url(#tile)"/>
-  <rect width="32" height="32" rx="{M.TILE_RADIUS:g}" fill="url(#gloss)"/>
-  <!-- The aperture: opaque ink, so the spark reads as a knockout at every size
-       instead of tinting toward the tile. -->
-  <circle cx="{disc[0]:g}" cy="{disc[1]:g}" r="{M.DISC_RADIUS:g}" fill="{hex_triplet(GLYPH_INK)}"/>
-  <!-- The answer. -->
-  <path d="{_spark_path()}" fill="#ffffff"/>
-  <!-- The needle: out of the disc's own edge, on the diagonal. -->
-  <path d="{_needle_path()}" stroke="{hex_triplet(GLYPH_INK)}" stroke-width="{M.NEEDLE_WIDTH:g}" stroke-linecap="round" fill="none"/>
-</svg>
-'''
-
-
-def svg_mono(colour: tuple[int, int, int]) -> str:
-    """The one-colour reduction: the disc becomes a ring (mark.py's RING_STROKE),
-    the spark becomes ink rather than a knockout, and nothing depends on the
-    tile. Same centre, same needle, same spark — one drawing, one colour."""
-    disc = M.DISC_CENTRE
-    ink = hex_triplet(colour)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="The Most Useful Site in the World">
-  <title>The Most Useful Site in the World</title>
-  <circle cx="{disc[0]:g}" cy="{disc[1]:g}" r="{M.DISC_RADIUS:g}" fill="none" stroke="{ink}" stroke-width="{M.RING_STROKE:g}"/>
-  <path d="{_spark_path()}" fill="{ink}"/>
-  <path d="{_needle_path()}" stroke="{ink}" stroke-width="{M.NEEDLE_WIDTH:g}" stroke-linecap="round" fill="none"/>
-</svg>
-'''
-
-
-# ------------------------------------------------------------------ lockup ---
-def _outline_paths(text: str, weight: int, size: float, x: float, y: float,
-                   tracking: float) -> tuple[str, float]:
-    """`text` as one SVG path `d`, drawn at `size` em units with `tracking` px
-    between characters, baseline at (x, y). Returns (d, advance width).
-
-    This exists so the lockup SVGs carry no font dependency: Inter is shipped
-    with the site, but a press PDF, a slide or a partner's page is not, and a
-    lockup that reflows in a fallback face is not a lockup.
-    """
-    font = TTFont(_instance(weight))
-    glyphs = font.getGlyphSet()
-    cmap = font.getBestCmap()
-    hmtx = font["hmtx"]
-    upem = font["head"].unitsPerEm
-    scale = size / upem
-    from fontTools.pens.svgPathPen import SVGPathPen
-    from fontTools.pens.transformPen import TransformPen
-
+def set_text(text: str, weight: int, size: float, x: float, y: float,
+             tracking: float = 0.0) -> tuple[str, float]:
+    """`text` as SVG path data, baseline at (x, y), `tracking` in em added
+    after every glyph (CSS letter-spacing). Returns (d, width), the width
+    without the trailing tracking — the visible extent, for layout."""
+    face = Face.get(weight)
+    scale = size / face.upem
+    track = tracking * size
     parts: list[str] = []
     cursor = x
-    for char in text:
-        name = cmap.get(ord(char))
-        if name is None:
-            raise SystemExit(f"Inter has no glyph for {char!r} — the lockup cannot be set")
-        pen = SVGPathPen(glyphs)
-        # translate to the pen position, scale em -> px, flip Y (SVG grows down)
-        glyphs[name].draw(TransformPen(pen, (scale, 0, 0, -scale, cursor, y)))
-        d = pen.getCommands()
+    for name, advance, dx, dy in face.shape(text):
+        pen = SVGPathPen(face.glyphs, ntos=_num)
+        face.glyphs[name].draw(TransformPen(
+            pen, (scale, 0, 0, -scale, cursor + dx * scale, y - dy * scale)))
+        if pen.getCommands():
+            parts.append(pen.getCommands())
+        cursor += advance * scale + track
+    return "".join(parts), cursor - x - (track if text else 0.0)
+
+
+def text_width(text: str, weight: int, size: float, tracking: float = 0.0) -> float:
+    return set_text(text, weight, size, 0.0, 0.0, tracking)[1]
+
+
+def set_runs(runs, weight: int, size: float, x: float, y: float, tracking: float,
+             colours: tuple[str, str]) -> tuple[str, float]:
+    """A line made of (text, accent?) runs, one <path> per run. `colours` is
+    (plain, accent)."""
+    out, cursor = [], x
+    for text, accent in runs:
+        d, width = set_text(text, weight, size, cursor, y, tracking)
         if d:
-            parts.append(d)
-        cursor += hmtx[name][0] * scale + tracking
-    return " ".join(parts), cursor - x - tracking
+            out.append(f'<path d="{d}" fill="{colours[1] if accent else colours[0]}"/>')
+        cursor += width + tracking * size
+    return "".join(out), cursor - x - tracking * size
 
 
-def _spaced_width(text: str, weight: int, size: float, tracking: float) -> float:
-    font = TTFont(_instance(weight))
-    cmap = font.getBestCmap()
-    hmtx = font["hmtx"]
-    upem = font["head"].unitsPerEm
-    scale = size / upem
-    total = sum(hmtx[cmap[ord(c)]][0] * scale + tracking for c in text)
-    return total - tracking
+def wordmark_widths(size: float) -> list[float]:
+    return [text_width("".join(t for t, _ in line), WORDMARK_WEIGHT, size, WORDMARK_TRACKING)
+            for line in WORDMARK]
+
+
+# ---------------------------------------------------------------- lockups --
+def lockup(on_dark: bool, prefix: str = "l") -> tuple[str, str, float, float]:
+    """(defs, body, width, height): mark | hairline | two-line wordmark, at the
+    canonical scale, origin top-left, no padding."""
+    colours = ((hexc(M.TEXT), hexc(M.ACCENT)) if on_dark
+               else (hexc(M.INK), hexc(M.ACCENT_ON_LIGHT)))
+    rule = hexc(M.TEXT if on_dark else M.INK)
+    face = Face.get(WORDMARK_WEIGHT)
+    cap = face.cap_height * LOCKUP_SIZE
+    block = LOCKUP_LEADING + cap
+    top = (LOCKUP_MARK - block) / 2
+    rule_x = LOCKUP_MARK + LOCKUP_GAP
+    text_x = rule_x + LOCKUP_GAP
+    defs, mark = M.mark_group(0, 0, LOCKUP_MARK, prefix)
+    body = [mark, f'<path d="M{_num(rule_x)} {_num(top)}V{_num(top + block)}" '
+                  f'stroke="{rule}" stroke-opacity="0.24" stroke-width="{_num(LOCKUP_RULE)}"/>']
+    for i, line in enumerate(WORDMARK):
+        paths, _ = set_runs(line, WORDMARK_WEIGHT, LOCKUP_SIZE, text_x,
+                            top + cap + i * LOCKUP_LEADING, WORDMARK_TRACKING, colours)
+        body.append(paths)
+    width = text_x + max(wordmark_widths(LOCKUP_SIZE))
+    return defs, "".join(body), width, LOCKUP_MARK
 
 
 def svg_lockup(on_dark: bool) -> str:
-    """Mark + wordmark, wordmark as outlines, on transparency.
-
-    The wordmark is two lines — the product's name is long, and one line of it
-    beside a mark is either unreadably small or wider than any slide. Line two
-    takes the accent, which is what makes the lockup read as designed rather
-    than as a logo someone put next to some text.
-    """
-    ink = TEXT if on_dark else GLYPH_INK           # line one
-    accent = ACCENT if on_dark else ACCENT_ON_LIGHT  # line two
-    mark_px = 76.0
-    gap = 30.0
-    pad = 14.0
-    size = 34.0
-    tracking = 1.1
-    lines = ("THE MOST USEFUL", "SITE IN THE WORLD")
-    leading = 40.0
-    width_line = max(_spaced_width(line, 800, size, tracking) for line in lines)
-    text_x = pad + mark_px + gap
-    height = pad * 2 + mark_px
-    width = text_x + width_line + pad
-    # Two lines optically centred against the mark: first baseline sits so the
-    # block of capitals is centred in the mark's square.
-    cap = size * 0.72
-    first_baseline = (height - (leading + cap)) / 2 + cap
-    d1, _ = _outline_paths(lines[0], 800, size, text_x, first_baseline, tracking)
-    d2, _ = _outline_paths(lines[1], 800, size, text_x, first_baseline + leading, tracking)
-
-    if on_dark:
-        tile = f'''  <rect x="{pad:g}" y="{pad:g}" width="{mark_px:g}" height="{mark_px:g}" rx="{M.TILE_RADIUS / 32 * mark_px:g}" fill="url(#tile)"/>
-  <rect x="{pad:g}" y="{pad:g}" width="{mark_px:g}" height="{mark_px:g}" rx="{M.TILE_RADIUS / 32 * mark_px:g}" fill="url(#gloss)"/>'''
-    else:
-        # On paper the gradient tile is a colour block that fights the wordmark;
-        # the mono mark holds the lockup instead (brand/spec.html says so).
-        tile = ""
-
-    glyph_scale = mark_px / 32.0
-    disc = f'''  <g transform="translate({pad:g} {pad:g}) scale({glyph_scale:.4f})">
-    <circle cx="{M.DISC_CENTRE[0]:g}" cy="{M.DISC_CENTRE[1]:g}" r="{M.DISC_RADIUS:g}" {'fill="' + hex_triplet(GLYPH_INK) + '"' if on_dark else 'fill="none" stroke="' + hex_triplet(GLYPH_INK) + f'" stroke-width="{M.RING_STROKE:g}"'}/>
-    <path d="{_spark_path()}" fill="{'#ffffff' if on_dark else hex_triplet(GLYPH_INK)}"/>
-    <path d="{_needle_path()}" stroke="{'#ffffff' if not on_dark else hex_triplet(GLYPH_INK)}" stroke-width="{M.NEEDLE_WIDTH:g}" stroke-linecap="round" fill="none"/>
-  </g>'''
-
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width:.1f} {height:.1f}" role="img" aria-label="The Most Useful Site in the World">
-  <title>The Most Useful Site in the World</title>
-  <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-{_stops()}
-    </linearGradient>
-    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
-{_gloss_stops()}
-    </linearGradient>
-  </defs>
-{tile}
-{disc}
-  <path d="{d1}" fill="{hex_triplet(ink)}"/>
-  <path d="{d2}" fill="{hex_triplet(accent)}"/>
-</svg>
-'''
+    defs, body, w, h = lockup(on_dark)
+    W, H = w + 2 * LOCKUP_PAD, h + 2 * LOCKUP_PAD
+    title = "The Most Useful Site in the World"
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{_num(W)}" height="{_num(H)}" '
+            f'viewBox="0 0 {_num(W)} {_num(H)}" role="img" aria-label="{title}">'
+            f'<title>{title}</title><defs>{defs}</defs>'
+            f'<g transform="translate({_num(LOCKUP_PAD)} {_num(LOCKUP_PAD)})">{body}</g></svg>\n')
 
 
-def report(name: str, path: str) -> None:
-    print(f"  {name:26} {os.path.getsize(path):>7,} B")
+# ------------------------------------------------------------ rasterising --
+def rasterise(svg: str, width: int, height: int | None = None) -> Image.Image:
+    png = resvg_py.svg_to_bytes(svg_string=svg, width=width, height=height or width,
+                                skip_system_fonts=True)
+    return Image.open(io.BytesIO(bytes(png))).convert("RGBA")
 
 
-def write(name: str, text: str) -> None:
-    path = os.path.join(ROOT, name)
-    with open(path, "w", encoding="utf-8") as fh:
+def report(name: str) -> None:
+    print(f"  {name:28s} {os.path.getsize(os.path.join(ROOT, name)):>8,d} B")
+
+
+def write_text(name: str, text: str) -> None:
+    with open(os.path.join(ROOT, name), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
-    report(name, path)
+    report(name)
 
 
-def write_svg() -> None:
-    """Two names for one file: index.html links `logo-mark.svg`, and
-    `favicon.svg` is the name browsers and tooling look for."""
-    svg = svg_mark()
-    for name in ("logo-mark.svg", "favicon.svg"):
-        write(name, svg)
-    write("logo-mark-mono-dark.svg", svg_mono(GLYPH_INK))
-    write("logo-mark-mono-light.svg", svg_mono(PAPER))
-    write("logo-lockup-dark.svg", svg_lockup(on_dark=True))
-    write("logo-lockup-light.svg", svg_lockup(on_dark=False))
+def write_png(name: str, image: Image.Image) -> None:
+    image.save(os.path.join(ROOT, name), optimize=True)
+    report(name)
 
 
-def write_ico() -> None:
-    """16 / 32 / 48 is what a tab, a bookmark and a desktop shortcut ask for."""
-    sizes = [16, 32, 48]
-    frames = [M.render_mark(size) for size in sizes]
-    path = os.path.join(ROOT, "favicon.ico")
-    # Append order matters: Pillow writes one frame per `sizes` entry and takes
-    # the extras from append_images.
-    frames[-1].save(path, format="ICO", sizes=[(s, s) for s in sizes],
-                    append_images=frames[:-1])
-    report("favicon.ico", path)
+# ------------------------------------------------ the card's shared chrome --
+def _backdrop(width: int, height: int) -> tuple[str, str]:
+    """(defs, body): the page's own background — ink, two soft washes (accent
+    from the top-left, blue from the bottom-right) and the 22 px dot grid the
+    home page's hero sits on."""
+    defs = (
+        '<radialGradient id="washA" cx="0.18" cy="0" r="0.75">'
+        f'<stop offset="0" stop-color="{hexc(M.ACCENT)}" stop-opacity="0.16"/>'
+        f'<stop offset="1" stop-color="{hexc(M.ACCENT)}" stop-opacity="0"/></radialGradient>'
+        '<radialGradient id="washB" cx="0.95" cy="1.05" r="0.7">'
+        '<stop offset="0" stop-color="#2f6bff" stop-opacity="0.13"/>'
+        '<stop offset="1" stop-color="#2f6bff" stop-opacity="0"/></radialGradient>'
+        '<pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">'
+        f'<circle cx="11" cy="11" r="1" fill="{hexc(M.TEXT)}" fill-opacity="0.07"/></pattern>'
+        '<linearGradient id="crown" x1="0" y1="0" x2="1" y2="0">'
+        f'<stop offset="0" stop-color="{hexc(M.ACCENT)}" stop-opacity="0"/>'
+        f'<stop offset="0.5" stop-color="{hexc(M.ACCENT)}" stop-opacity="0.75"/>'
+        f'<stop offset="1" stop-color="{hexc(M.ACCENT)}" stop-opacity="0"/></linearGradient>'
+    )
+    body = (f'<rect width="{width}" height="{height}" fill="{hexc(M.TILE_INK)}"/>'
+            f'<rect width="{width}" height="{height}" fill="url(#washA)"/>'
+            f'<rect width="{width}" height="{height}" fill="url(#washB)"/>'
+            f'<rect width="{width}" height="{height}" fill="url(#dots)"/>'
+            f'<rect width="{width}" height="2" fill="url(#crown)"/>')
+    return defs, body
 
 
-def write_pngs() -> None:
-    for name, size, kwargs in (
-        ("icon-192.png", 192, {}),
-        ("icon-512.png", 512, {}),
-        # A maskable icon is cropped to a circle by Android: keep the mark well
-        # inside the safe zone and give it an opaque background of its own.
-        ("icon-maskable-512.png", 512, {"inset": 0.17, "background": M.TILE_INK + (255,)}),
-        # iOS ignores transparency and rounds the corners itself.
-        ("apple-touch-icon.png", 180, {"inset": 0.06, "background": M.TILE_INK + (255,)}),
-    ):
-        image = M.render_mark(size, **kwargs)
-        path = os.path.join(ROOT, name)
-        image.save(path, optimize=True)
-        report(name, path)
+def _hud(width: int, height: int, inset: float, arm: float, radius: float,
+         stroke: float) -> str:
+    """The console's corner brackets, at card scale: top-left and bottom-right."""
+    x0, y0, x1, y1 = inset, inset, width - inset, height - inset
+    style = (f'fill="none" stroke="{hexc(M.ACCENT)}" stroke-opacity="0.7" '
+             f'stroke-width="{_num(stroke)}"')
+    tl = (f"M{_num(x0)} {_num(y0 + arm)}V{_num(y0 + radius)}"
+          f"A{_num(radius)} {_num(radius)} 0 0 1 {_num(x0 + radius)} {_num(y0)}H{_num(x0 + arm)}")
+    br = (f"M{_num(x1)} {_num(y1 - arm)}V{_num(y1 - radius)}"
+          f"A{_num(radius)} {_num(radius)} 0 0 1 {_num(x1 - radius)} {_num(y1)}H{_num(x1 - arm)}")
+    return f'<path d="{tl}" {style}/><path d="{br}" {style}/>'
 
 
-# ------------------------------------------------------------- social card ---
-def _spaced(draw: ImageDraw.ImageDraw, text: str, xy, face, fill, tracking: float) -> float:
-    """Letter-spaced text — PIL has no tracking, and the wordmark needs it."""
-    x, y = xy
-    for char in text:
-        draw.text((x, y), char, font=face, fill=fill)
-        x += draw.textlength(char, font=face) + tracking
-    return x
+def _headline_from_index() -> str:
+    source = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+    match = re.search(r"<h1[^>]*>(.*?)</h1>", source, re.S)
+    if not match:
+        raise SystemExit("gen_assets: index.html has no <h1> — the card's headline comes from it")
+    return html.unescape(re.sub(r"<[^>]+>", "", match.group(1))).strip()
 
 
-def _dot_grid(width: int, height: int, step: int, strength: float) -> np.ndarray:
-    """The site's own hero texture, as a mask: a 22 px dot grid. It is the only
-    texture the brand uses, so the card and the page agree about it."""
-    grid = np.zeros((height, width), dtype=np.float32)
-    grid[::step, ::step] = strength
-    # One-pixel dots, softened by the blur the caller applies.
-    return grid
+def _balanced_lines(text: str, weight: int, size: float, tracking: float,
+                    max_width: float, max_lines: int = 2) -> list[str]:
+    """Break `text` into at most `max_lines`, minimising the widest line (CSS
+    text-wrap: balance, which is what the page's <h1> uses)."""
+    words = text.split()
+    if text_width(text, weight, size, tracking) <= max_width or max_lines == 1:
+        return [text]
+    best = None
+    for cut in range(1, len(words)):
+        lines = [" ".join(words[:cut]), " ".join(words[cut:])]
+        widest = max(text_width(l, weight, size, tracking) for l in lines)
+        if best is None or widest < best[0]:
+            best = (widest, lines)
+    return best[1]
 
 
-def _wash(width: int, height: int, strength_scale: float = 1.0,
-          grid: bool = True) -> Image.Image:
-    """The ambient accent wash the site paints behind its own hero, done with
-    numpy rather than a million PIL blends — plus the dot grid and the hairline
-    crown, so a social card looks like a crop of the page it advertises."""
-    ys = np.arange(height, dtype=np.float32)[:, None]
-    xs = np.arange(width, dtype=np.float32)[None, :]
-    wash = np.zeros((height, width), dtype=np.float32)
-    for (cx, cy, radius, strength) in ((width * 0.16, height * -0.22, height * 1.15, 0.20),
-                                       (width * 1.00, height * 1.12, height * 1.00, 0.13)):
-        dist = np.sqrt((xs - cx) ** 2 + (ys - cy) ** 2) / radius
-        wash += strength * strength_scale * np.clip(1.0 - dist, 0.0, 1.0) ** 1.6
-    base = np.array(INK, dtype=np.float32)
-    tint = np.array(ACCENT, dtype=np.float32)
-    blended = base[None, None, :] + (tint - base)[None, None, :] * np.clip(wash, 0, 0.6)[..., None]
-    if grid:
-        dots = _dot_grid(width, height, 22, 0.045)[..., None]
-        blended = np.clip(blended + dots * 255.0, 0, 255)
-    return Image.fromarray(blended.astype("uint8"), "RGB")
+def _guard(name: str, what: str, right: float, limit: float) -> None:
+    if right > limit + 0.01:
+        raise SystemExit(f"gen_assets: {name}: {what} runs to {right:.0f}px, past {limit:.0f}px")
 
 
-def write_og() -> None:
-    """The social card: the mark, the name, the promise in one line.
-
-    Laid out on a 24 px rhythm with one hairline rule doing the dividing, so the
-    card reads as a designed object at feed size rather than as text on a
-    gradient.
-    """
-    width, height = 1200, 630
-    card = _wash(width, height)
-    draw = ImageDraw.Draw(card)
-
-    # One vertical rhythm: margin, mark, wordmark, hairline, promise, claims,
-    # and the domain pinned to the bottom margin. Every gap below is a number
-    # from this list, and the guard at the end proves the last block still fits
-    # inside the card — the first cut of this layout overlapped the domain with
-    # the promise line and nothing but a human looking at the PNG caught it.
-    margin = 96
-    bottom_margin = 46
-    mark_px = 180
-    mark_y = 88
-    gap_after_mark = 32
-    leading = 1.16
-    gap_before_rule = 22
-    gap_after_rule = 22
-    promise_px, foot_px = 32, 24
-
-    icon = M.render_mark(mark_px)
-    card.paste(icon, (margin, mark_y), icon)
-
-    # The wordmark runs full width under the mark: at 1200 px a side-by-side
-    # lockup leaves the name either tiny or two cramped lines.
-    lines = ("THE MOST USEFUL", "SITE IN THE WORLD")
-    size = 58
-    while size > 30:
-        widest = max(_spaced_width(line, 900, size, 2.0) for line in lines)
-        if widest <= width - 2 * margin:
-            break
-        size -= 2
-    name_face = _truetype(900, size)
-
-    line1_y = mark_y + mark_px + gap_after_mark
-    line_height = int(size * leading)
-    _spaced(draw, lines[0], (margin, line1_y), name_face, TEXT, 2.0)
-    _spaced(draw, lines[1], (margin, line1_y + line_height), name_face, ACCENT, 2.0)
-
-    rule_y = line1_y + line_height * 2 + gap_before_rule
-    draw.line((margin, rule_y, width - margin, rule_y), fill=(255, 255, 255, 24), width=1)
-
-    promise_face = _truetype(600, promise_px)
-    foot_face = _truetype(600, foot_px)
-    # No tool count here on purpose: a number baked into a PNG cannot be
-    # re-derived by scripts/sync-counts.py, so it would go stale the next time a
-    # card is added. The copy below is the set of claims CONSTRAINTS.md calls
-    # safe everywhere and always.
-    promise_y = rule_y + gap_after_rule
-    claims_y = promise_y + promise_px + 14
-    draw.text((margin, promise_y), "Free browser tools that actually run",
-              font=promise_face, fill=TEXT)
-    _spaced(draw, "NO ADS · NO ACCOUNTS · NO SIGN-UPS · NO PAYWALLS",
-            (margin + 1, claims_y), foot_face, MUTED, 2.2)
-
-    foot_y = height - bottom_margin - foot_px
-    if claims_y + foot_px + 12 > foot_y:
-        raise SystemExit(
-            f"gen_assets.py: the social card's copy runs into its footer "
-            f"(claims end at {claims_y + foot_px}, the footer starts at {foot_y}). "
-            f"Shorten a gap, shrink the mark, or grow the card.")
-    _spaced(draw, "THEMOSTUSEFULSITEINTHEWORLD.COM", (margin + 1, foot_y), foot_face, MUTED, 2.2)
-
-    for name in ("og-brand.png", "og-tools.png"):
-        path = os.path.join(ROOT, name)
-        card.save(path, optimize=True)
-        report(name, path)
+# -------------------------------------------------------- the social card --
+OG_W, OG_H, OG_MARGIN = 1200, 630, 88
 
 
-def write_logo_png() -> None:
-    """`logo.png` — the square lockup a visitor or a journalist grabs when they
-    want "the logo". Kept at 1024² because that is what the file has always
-    been; nothing on the site links it, but nothing should have to."""
-    size = 1024
-    canvas = _wash(size, size)
-    mark_px = 400
-    icon = M.render_mark(mark_px)
-    canvas.paste(icon, ((size - mark_px) // 2, 176), icon)
+def svg_og() -> str:
+    defs, body = _backdrop(OG_W, OG_H)
+    parts = [body, _hud(OG_W, OG_H, inset=34, arm=64, radius=16, stroke=3)]
+    right_edge = OG_W - OG_MARGIN
 
-    draw = ImageDraw.Draw(canvas)
-    word_face = _truetype(900, 60)
-    sub_face = _truetype(600, 30)
-    y = 176 + mark_px + 64
-    for index, line in enumerate(("THE MOST USEFUL", "SITE IN THE WORLD")):
-        width = _spaced_width(line, 900, 60, 3.0)
-        _spaced(draw, line, ((size - width) / 2, y + index * 78), word_face,
-                TEXT if index == 0 else ACCENT, 3.0)
-    sub = "Free browser tools that actually run"
-    width = draw.textlength(sub, font=sub_face)
-    draw.text(((size - width) / 2, y + 2 * 78 + 6), sub, font=sub_face, fill=MUTED)
+    # the lockup row
+    ldefs, lbody, lw, lh = lockup(on_dark=True, prefix="og")
+    scale = 96 / LOCKUP_MARK
+    top = 78
+    parts.append(f'<g transform="translate({OG_MARGIN} {top}) scale({_num(scale)})">{lbody}</g>')
+    defs += ldefs
+    _guard("og", "the lockup", OG_MARGIN + lw * scale, right_edge)
 
-    path = os.path.join(ROOT, "logo.png")
-    canvas.save(path, optimize=True)
-    report("logo.png", path)
+    # the headline, the page's own <h1>, in the page's own gradient. The block
+    # from the headline's cap line to the claims' baseline is placed in the
+    # space between the lockup and the scale, a little above centre.
+    size, tracking, leading = 76.0, -0.032, 1.05 * 76.0
+    claims_gap = 74.0
+    base = OG_H - 70                                  # the scale's baseline
+    headline = _headline_from_index()
+    lines = _balanced_lines(headline, 800, size, tracking, right_edge - OG_MARGIN)
+    face = Face.get(800)
+    block = face.cap_height * size + (len(lines) - 1) * leading + claims_gap
+    room = base - (top + lh * scale) - block
+    if room < 60:
+        raise SystemExit(f"gen_assets: og: the headline block leaves {room:.0f}px — too tight")
+    first = top + lh * scale + room * 0.44 + face.cap_height * size
+    end = tuple(round(0.68 * t + 0.32 * a) for t, a in zip(M.TEXT, M.ACCENT))
+    defs += ('<linearGradient id="h1" gradientUnits="userSpaceOnUse" x1="0" y1="{0}" x2="0" y2="{1}">'
+             '<stop offset="0.32" stop-color="#ffffff"/><stop offset="1" stop-color="{2}"/>'
+             '</linearGradient>').format(_num(first - face.cap_height * size),
+                                          _num(first + (len(lines) - 1) * leading + 0.22 * size),
+                                          hexc(end))
+    for i, line in enumerate(lines):
+        d, w = set_text(line, 800, size, OG_MARGIN, first + i * leading, tracking)
+        _guard("og", f"headline line {i + 1}", OG_MARGIN + w, right_edge)
+        parts.append(f'<path d="{d}" fill="url(#h1)"/>')
+
+    # the promises — a live dot, then the claims in tracked caps
+    claims_y = first + (len(lines) - 1) * leading + claims_gap
+    dot_x, dot_cy = OG_MARGIN + 6, claims_y - 7
+    parts.append(f'<circle cx="{dot_x}" cy="{_num(dot_cy)}" r="12" fill="{hexc(M.ACCENT)}" fill-opacity="0.16"/>'
+                 f'<circle cx="{dot_x}" cy="{_num(dot_cy)}" r="5" fill="{hexc(M.ACCENT)}"/>')
+    claims = "NO ADS · NO ACCOUNTS · NO SIGN-UPS · NO PAYWALLS"
+    d, w = set_text(claims, 600, 21, OG_MARGIN + 30, claims_y, 0.14)
+    _guard("og", "the claims row", OG_MARGIN + 30 + w, right_edge)
+    parts.append(f'<path d="{d}" fill="{hexc(M.MUTED)}"/>')
+
+    # the scale along the foot, and the address below it
+    ticks = []
+    for i, x in enumerate(range(OG_MARGIN, right_edge + 1, 12)):
+        major = i % 5 == 0
+        ticks.append(f"M{x} {base}v{-12 if major else -6}")
+    parts.append(f'<path d="M{OG_MARGIN} {base}H{right_edge}" stroke="{hexc(M.TEXT)}" stroke-opacity="0.16"/>'
+                 f'<path d="{"".join(ticks)}" stroke="{hexc(M.TEXT)}" stroke-opacity="0.2"/>')
+    domain = "THEMOSTUSEFULSITEINTHEWORLD.COM"
+    d, w = set_text(domain, 700, 17, OG_MARGIN, base + 34, 0.2)
+    _guard("og", "the address", OG_MARGIN + w, right_edge)
+    parts.append(f'<path d="{d}" fill="{hexc(M.ACCENT)}" fill-opacity="0.85"/>')
+    if base + 34 > OG_H - 20:
+        raise SystemExit("gen_assets: og: the address falls off the card")
+
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{OG_W}" height="{OG_H}" '
+            f'viewBox="0 0 {OG_W} {OG_H}"><defs>{defs}</defs>{"".join(parts)}</svg>')
 
 
+# ------------------------------------------------------------- logo.png --
+LOGO = 1024
+
+
+def svg_logo() -> str:
+    """The stacked lockup: mark above a centred two-line wordmark. The press
+    square — the lockup a journalist or a directory grabs."""
+    defs, body = _backdrop(LOGO, LOGO)
+    parts = [body, _hud(LOGO, LOGO, inset=56, arm=104, radius=24, stroke=4)]
+    mark_px, size = 300.0, 54.0
+    leading = size * LOCKUP_LEADING / LOCKUP_SIZE
+    face = Face.get(WORDMARK_WEIGHT)
+    cap = face.cap_height * size
+    gap = 84.0
+    block = mark_px + gap + cap + leading
+    top = (LOGO - block) / 2
+    mdefs, mark = M.mark_group((LOGO - mark_px) / 2, top, mark_px, "logo")
+    defs += mdefs
+    parts.append(mark)
+    colours = (hexc(M.TEXT), hexc(M.ACCENT))
+    for i, (line, width) in enumerate(zip(WORDMARK, wordmark_widths(size))):
+        x = (LOGO - width) / 2
+        _guard("logo", f"wordmark line {i + 1}", x + width, LOGO - 96)
+        paths, _ = set_runs(line, WORDMARK_WEIGHT, size, x, top + mark_px + gap + cap + i * leading,
+                            WORDMARK_TRACKING, colours)
+        parts.append(paths)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{LOGO}" height="{LOGO}" '
+            f'viewBox="0 0 {LOGO} {LOGO}"><defs>{defs}</defs>{"".join(parts)}</svg>')
+
+
+# ------------------------------------------------------------------ main --
 def main() -> None:
-    if not os.path.exists(WOFF2):
-        sys.exit(f"gen_assets.py: {WOFF2} is missing — the wordmark cannot be set")
+    worst = M.contrast(M.ACCENT_ON_LIGHT, M.PAPER)
+    if worst < 4.5:
+        raise SystemExit(f"gen_assets: ACCENT_ON_LIGHT is {worst:.2f}:1 on white — "
+                         "text needs 4.5:1 (WCAG AA). Darken it in mark.py.")
+
     print("writing brand assets into", ROOT)
-    write_svg()
-    write_ico()
-    write_pngs()
-    write_og()
-    write_logo_png()
-    print("done — run `python3 brand/check-mark.py` to prove the SVG and the")
-    print("rasters still describe the same drawing, then regenerate")
-    print("brand/spec.html with `python3 brand/spec.py`.")
+    mark = M.svg_mark()
+    for name in ("logo-mark.svg", "favicon.svg"):
+        write_text(name, mark)
+    write_text("logo-mark-mono-dark.svg", M.svg_mono(M.INK))
+    write_text("logo-mark-mono-light.svg", M.svg_mono(M.PAPER))
+    write_text("logo-lockup-dark.svg", svg_lockup(on_dark=True))
+    write_text("logo-lockup-light.svg", svg_lockup(on_dark=False))
+
+    # favicon.ico: each frame rendered at its own size, not downscaled from 48.
+    sizes = (16, 32, 48)
+    frames = [rasterise(M.svg_icon(), s) for s in sizes]
+    frames[-1].save(os.path.join(ROOT, "favicon.ico"), format="ICO",
+                    sizes=[(s, s) for s in sizes], append_images=frames[:-1])
+    report("favicon.ico")
+
+    write_png("icon-192.png", rasterise(M.svg_icon(), 192))
+    write_png("icon-512.png", rasterise(M.svg_icon(), 512))
+    write_png("icon-maskable-512.png",
+              rasterise(M.svg_icon(full_bleed=True, glyph_scale=M.MASKABLE_SCALE), 512))
+    apple = rasterise(M.svg_icon(full_bleed=True), 180).convert("RGB")   # opaque
+    write_png("apple-touch-icon.png", apple)
+
+    card = rasterise(svg_og(), OG_W, OG_H).convert("RGB")
+    for name in ("og-brand.png", "og-tools.png"):
+        write_png(name, card)
+    write_png("logo.png", rasterise(svg_logo(), LOGO).convert("RGB"))
 
 
 if __name__ == "__main__":

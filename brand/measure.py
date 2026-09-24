@@ -133,6 +133,40 @@ def _text(page: str, pattern: str, what: str, upper: bool = False) -> str:
     return value.upper() if upper else value
 
 
+def _span_inner(page: str, cls: str, what: str) -> str:
+    """The inner HTML of the first `<span class="cls">`, nested spans included.
+
+    A non-greedy `(.*?)</span>` stops at the first nested `</span>` — which is
+    how this tool once measured "THE MOST" as the whole wordmark — so the spans
+    are counted instead."""
+    start = page.find(f'<span class="{cls}">')
+    if start < 0:
+        raise _missing(what)
+    pos = depth = 0
+    body_start = page.index(">", start) + 1
+    pos = body_start
+    depth = 1
+    for tag in re.finditer(r"<(/?)span\b[^>]*>", page[body_start:]):
+        depth += -1 if tag.group(1) else 1
+        if depth == 0:
+            return page[body_start:body_start + tag.start()]
+    raise _missing(what)
+
+
+def _lockup_lines(page: str, cls: str, what: str) -> list[str]:
+    """The wordmark's lines (each `.wm-line`), visible text, uppercased as the
+    CSS renders them."""
+    inner = _span_inner(page, cls, what)
+    lines = []
+    for m in re.finditer(r'<span class="wm-line">', inner):
+        line = _span_inner(inner[m.start():], "wm-line", what)
+        text = re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", "", line))).strip()
+        lines.append(text.upper())
+    if not lines:
+        raise _missing(f"{what} (no .wm-line spans)")
+    return lines
+
+
 def hero_strings() -> dict[str, str]:
     """Every string this tool measures, read out of index.html.
 
@@ -154,14 +188,12 @@ def hero_strings() -> dict[str, str]:
         raise _missing("the search placeholder")
 
     return {
-        "WORDMARK": _text(page, r'class="hero-wordmark">(.*?)</span>',
-                          "the wordmark", upper=True),
+        "WORDMARK": " / ".join(_lockup_lines(page, "hero-wordmark", "the wordmark")),
         "H1": _text(page, r'class="futuristic-title">(.*?)</h1>', "the hero headline"),
         "SUBTITLE": _text(page, r'class="hero-subtitle">(.*?)</p>', "the hero subtitle"),
         "FACTS": facts,
         "KEYS": _text(page, r'class="hero-keys">(.*?)</p>', "the keyboard-hint line"),
-        "FOOTER_MARK": _text(page, r'class="footer-wordmark">(.*?)</span>',
-                             "the footer wordmark", upper=True),
+        "FOOTER_MARK": " / ".join(_lockup_lines(page, "footer-wordmark", "the footer wordmark")),
         "PLACEHOLDER": _html.unescape(ph.group(1)),
     }
 
@@ -170,6 +202,7 @@ STRINGS = hero_strings()
 WORDMARK, H1, SUBTITLE = STRINGS["WORDMARK"], STRINGS["H1"], STRINGS["SUBTITLE"]
 FACTS, KEYS, FOOTER_MARK = STRINGS["FACTS"], STRINGS["KEYS"], STRINGS["FOOTER_MARK"]
 PLACEHOLDER = STRINGS["PLACEHOLDER"]
+WORDMARK_LINES, FOOTER_LINES = WORDMARK.split(" / "), FOOTER_MARK.split(" / ")
 
 ORDER = ("WORDMARK", "H1", "SUBTITLE", "FACTS", "KEYS", "FOOTER_MARK", "PLACEHOLDER")
 
@@ -192,13 +225,15 @@ for vw in WIDTHS:
     pad = clamp(14, 4, 24, vw)
     hero = vw - 2 * pad
 
-    # The brand lockup: mark (clamp(34px, 9vw, 42px)) + 12 px gap.
-    mark = clamp(34, 9, 42, vw)
-    wm_size = clamp(0.66 * 16, 2.1, 0.8 * 16, vw)
-    wm_w = px(advance(800, WORDMARK), wm_size, 0.14, len(WORDMARK))
-    avail = hero - mark - 12
+    # The brand lockup (home.css "brand lockup"): mark clamp(38px, 9.5vw, 46px),
+    # then 12 px + 1 px hairline + 12 px, then the wordmark's longer line —
+    # each .wm-line is white-space: nowrap, so this must fit or it overflows.
+    mark = clamp(38, 9.5, 46, vw)
+    wm_size = clamp(0.7 * 16, 2.1, 0.8 * 16, vw)
+    wm_w = max(px(advance(800, line), wm_size, 0.14, len(line)) for line in WORDMARK_LINES)
+    avail = hero - mark - 25
     ok = wm_w <= avail
-    print(f"{vw:>5} {'wordmark':<11} {wm_size:>6.1f} {wm_w:>7.0f} {avail:>7.0f}  {'fits' if ok else 'WRAPS'}")
+    print(f"{vw:>5} {'wordmark':<11} {wm_size:>6.1f} {wm_w:>7.0f} {avail:>7.0f}  {'fits' if ok else 'OVERFLOWS'}")
     if not ok:
         problems.append((vw, 'wordmark', wm_w, avail))
 
@@ -234,11 +269,12 @@ for vw in WIDTHS:
     print(f"{vw:>5} {'keys':<11} {keys_size:>6.1f} {need:>7.0f} {hero:>7.0f}  "
           f"{'fits' if need <= hero else 'WRAPS (wraps by design)'}")
 
-    # The footer lockup sits in the same padded column, centred, one line.
-    if vw >= 560:
-        need = px(advance(800, FOOTER_MARK), 0.76 * 16, 0.15, len(FOOTER_MARK))
-        print(f"{vw:>5} {'footer':<11} {0.76 * 16:>6.1f} {need:>7.0f} {hero:>7.0f}  "
-              f"{'fits' if need <= hero else 'WRAPS'}")
+    # The footer lockup: a 30 px mark, 10 + 1 + 10 px of divider, 0.66rem.
+    need = 30 + 21 + max(px(advance(800, line), 0.66 * 16, 0.14, len(line)) for line in FOOTER_LINES)
+    print(f"{vw:>5} {'footer':<11} {0.66 * 16:>6.1f} {need:>7.0f} {hero:>7.0f}  "
+          f"{'fits' if need <= hero else 'OVERFLOWS'}")
+    if need > hero:
+        problems.append((vw, 'footer', need, hero))
     print()
 
 print("PROBLEMS:", problems or "none")

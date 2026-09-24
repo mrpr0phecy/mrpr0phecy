@@ -93,7 +93,10 @@
 // UNCACHED_PATIENCE_MS (the same fallback an offline visit gets), uncached
 // subresources fail fast so the page renders its error UI, and a navigation
 // preload that never settles no longer stops the fetch from starting.
-const CACHE_VERSION = 'v22-2026-09-24';
+// v23: the brand redesign. The mark (logo-mark.svg, the favicon and icons) is
+// redrawn and the hero and footer lockups change markup and home.css, so a
+// returning visitor must not keep the old sheet against the new page.
+const CACHE_VERSION = 'v23-2026-09-24';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
