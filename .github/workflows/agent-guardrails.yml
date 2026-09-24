@@ -1,13 +1,30 @@
 name: Agent guardrails
 
-# Keep the full deep gate on PRs and pushes to main. Local validation is
-# task-based (AGENTS.md §1); no need to duplicate this for every local edit.
-# Keep the workflow/job names stable for required status checks.
+# Two tiers, matched to the cost of being wrong (AGENTS.md §1, DESIGN.md §9):
+#
+#   Repo checks       the 7-check gate in scripts/verify.sh (~5 s locally,
+#                     ~1 min in CI). Runs on every pull request and push:
+#                     a small edit to one tool must not wait for the audits
+#                     of the whole catalogue.
+#   Repo checks (deep) the gate plus the ~75 s full audits — egress,
+#                     accessibility, cross-card collisions, CSS leaks,
+#                     generated-surface drift, the card JS sweep, the product
+#                     test suite, the quality floors. Runs on merge (push to
+#                     main — the deploy) and nightly, so a regression that a
+#                     fast PR slipped through is caught before it is live
+#                     for long, and the catalogue is swept even when nobody
+#                     pushes.
+#
+# Local validation is task-based (AGENTS.md §1); no need to duplicate this
+# for every local edit. Keep the "Repo checks" job name stable: it is the
+# required status check on pull requests.
 
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: '32 4 * * *'   # nightly deep sweep, away from the production monitor's 17-minute run
   workflow_dispatch:
 
 permissions:
@@ -31,6 +48,34 @@ jobs:
       # The suites SKIP loudly without it, which meant "repo checks passed"
       # while the handler sweep had not run at all. Install it outside the
       # checkout, where every script already looks first.
+      - name: Install jsdom (outside the repository)
+        run: |
+          mkdir -p /tmp/tenv
+          cd /tmp/tenv
+          npm init -y >/dev/null 2>&1
+          npm install jsdom --no-audit --no-fund --loglevel=error
+      - name: Verify (the gate)
+        run: bash scripts/verify.sh
+      - name: Attach catalogue report
+        if: always()
+        run: python3 scripts/check-cards.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+  verify-deep:
+    name: Repo checks (deep)
+    # Merge + nightly, not per-PR: the audits cost ~75 s of the ~2 min a small
+    # PR used to wait for, and they change nothing about an edit in progress.
+    # main is the deploy, so the full gate still stands between any change and
+    # the live site — the production monitor then probes the deployed site.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
       - name: Install jsdom (outside the repository)
         run: |
           mkdir -p /tmp/tenv

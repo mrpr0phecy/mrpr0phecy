@@ -176,8 +176,10 @@ def main() -> int:
 
     # 2. The lockups.
     mark_defs, mark_body = M.mark_group(0, 0, 76.0, "l")
-    for name, ink, accent in (("logo-lockup-dark.svg", M.TEXT, M.ACCENT),
-                              ("logo-lockup-light.svg", M.INK, M.ACCENT_ON_LIGHT)):
+    # The accent word is the HOUSE colour (DESIGN.md §3): the lockup is a
+    # brand object and must not follow the visitor's UI accent.
+    for name, ink, accent in (("logo-lockup-dark.svg", M.TEXT, M.HOUSE_ACCENT),
+                              ("logo-lockup-light.svg", M.INK, M.HOUSE_ON_LIGHT)):
         text = read(name)
         if text is None:
             continue
@@ -220,10 +222,14 @@ def main() -> int:
     if reach > M.MASKABLE_SAFE_RADIUS:
         fail(f"the maskable glyph reaches {reach:.2f} units from the centre; "
              f"the safe circle is {M.MASKABLE_SAFE_RADIUS:.1f} — lower MASKABLE_SCALE")
-    for label, colour, floor in (("the accent for text on light", M.ACCENT_ON_LIGHT, 4.5),):
+    for label, colour, floor in (("the accent for text on light", M.ACCENT_ON_LIGHT, 4.5),
+                                 ("the house accent for text on light", M.HOUSE_ON_LIGHT, 4.5)):
         ratio = M.contrast(colour, M.PAPER)
         if ratio < floor:
             fail(f"{label} is {ratio:.2f}:1 on white; WCAG AA text needs {floor}:1")
+    ratio = M.contrast(M.HOUSE_ACCENT, M.TILE_INK)
+    if ratio < 3.0:
+        fail(f"the house accent is {ratio:.2f}:1 on the page; a fill needs 3:1 (WCAG non-text)")
     for label, colour, floor in (("the brackets", M.ACCENT, 7.0), ("the star", M.PAPER, 12.0)):
         ratio = M.contrast(colour, M.TILE_TOP)
         if ratio < floor:

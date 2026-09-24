@@ -59,6 +59,12 @@ MrProphecy (the maker)
   (`scripts/build-tool-pages.py`, `build-category-pages.js`,
   `build-embed-landing.py`); `tools.html` and `sitemap.html` keep the topbar
   they already have, so edit those files directly.
+* **Two accent jobs, never one.** The *house accent* (`#e8a33d`, amber —
+  `brand/mark.py`: `HOUSE_ACCENT` / `HOUSE_ON_LIGHT`) is the brand colour for
+  external surfaces only: the lockups, the Open Graph cards, the press kit.
+  The *page accent* stays the visitor's picker (default cyan); nothing in the
+  interface follows the house colour, and the mark keeps the console's cyan.
+  Ratios and the rules live in `DESIGN.md` §3 and `brand/spec.html`.
 * **The ornament is a system.** For the 28 category tiles it is still one emoji
   inside the same rounded chip, because 29 choices need wayfinding. The section
   headings dropped theirs on 2026-09-24 for a mono kicker (`01 / FEATURED`) —

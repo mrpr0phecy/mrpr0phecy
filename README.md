@@ -87,7 +87,7 @@ money-related.
 | **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
 | **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
 | **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
-| **Quality gate** | Task-based local validation (AGENTS.md §1) · CI runs `--deep` + production monitor |
+| **Quality gate** | Task-based local validation (AGENTS.md §1) · CI: fast gate on every commit, `--deep` on merge + nightly, production monitor on the live site |
 | **Operations** | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage / rollback / fix-forward. `node scripts/check-production.js` probes the *live* site after every deploy and every 6 h (self-closing alert issue) |
 | **Add a tool** | `bash scripts/add-tool.sh <slug> "<Category>" "<msg>"` or by hand per `AGENTS.md` §4, then build, smoke-test and verify per §1 |
 

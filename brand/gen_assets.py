@@ -167,9 +167,13 @@ def wordmark_widths(size: float) -> list[float]:
 # ---------------------------------------------------------------- lockups --
 def lockup(on_dark: bool, prefix: str = "l") -> tuple[str, str, float, float]:
     """(defs, body, width, height): mark | hairline | two-line wordmark, at the
-    canonical scale, origin top-left, no padding."""
-    colours = ((hexc(M.TEXT), hexc(M.ACCENT)) if on_dark
-               else (hexc(M.INK), hexc(M.ACCENT_ON_LIGHT)))
+    canonical scale, origin top-left, no padding.
+
+    The accent word is the HOUSE colour, not the UI accent: the lockup is a
+    brand object (DESIGN.md §3) and the page may be in any visitor's accent.
+    The mark keeps the console's cyan — it is drawn out of the page."""
+    colours = ((hexc(M.TEXT), hexc(M.HOUSE_ACCENT)) if on_dark
+               else (hexc(M.INK), hexc(M.HOUSE_ON_LIGHT)))
     rule = hexc(M.TEXT if on_dark else M.INK)
     face = Face.get(WORDMARK_WEIGHT)
     cap = face.cap_height * LOCKUP_SIZE
@@ -320,7 +324,11 @@ def svg_og() -> str:
     if room < 60:
         raise SystemExit(f"gen_assets: og: the headline block leaves {room:.0f}px — too tight")
     first = top + lh * scale + room * 0.44 + face.cap_height * size
-    end = tuple(round(0.68 * t + 0.32 * a) for t, a in zip(M.TEXT, M.ACCENT))
+    # The headline's fade and the brand elements below it are the HOUSE
+    # accent; the backdrop wash, the HUD corners and the mark stay the
+    # console's cyan — the card reproduces the page, the brand words carry
+    # the colour that defines it externally (DESIGN.md §3).
+    end = tuple(round(0.68 * t + 0.32 * a) for t, a in zip(M.TEXT, M.HOUSE_ACCENT))
     defs += ('<linearGradient id="h1" gradientUnits="userSpaceOnUse" x1="0" y1="{0}" x2="0" y2="{1}">'
              '<stop offset="0.32" stop-color="#ffffff"/><stop offset="1" stop-color="{2}"/>'
              '</linearGradient>').format(_num(first - face.cap_height * size),
@@ -334,8 +342,8 @@ def svg_og() -> str:
     # the promises — a live dot, then the claims in tracked caps
     claims_y = first + (len(lines) - 1) * leading + claims_gap
     dot_x, dot_cy = OG_MARGIN + 6, claims_y - 7
-    parts.append(f'<circle cx="{dot_x}" cy="{_num(dot_cy)}" r="12" fill="{hexc(M.ACCENT)}" fill-opacity="0.16"/>'
-                 f'<circle cx="{dot_x}" cy="{_num(dot_cy)}" r="5" fill="{hexc(M.ACCENT)}"/>')
+    parts.append(f'<circle cx="{dot_x}" cy="{_num(dot_cy)}" r="12" fill="{hexc(M.HOUSE_ACCENT)}" fill-opacity="0.16"/>'
+                 f'<circle cx="{dot_x}" cy="{_num(dot_cy)}" r="5" fill="{hexc(M.HOUSE_ACCENT)}"/>')
     claims = "NO ADS · NO ACCOUNTS · NO SIGN-UPS · NO PAYWALLS"
     d, w = set_text(claims, 600, 21, OG_MARGIN + 30, claims_y, 0.14)
     _guard("og", "the claims row", OG_MARGIN + 30 + w, right_edge)
@@ -351,7 +359,7 @@ def svg_og() -> str:
     domain = "THEMOSTUSEFULSITEINTHEWORLD.COM"
     d, w = set_text(domain, 700, 17, OG_MARGIN, base + 34, 0.2)
     _guard("og", "the address", OG_MARGIN + w, right_edge)
-    parts.append(f'<path d="{d}" fill="{hexc(M.ACCENT)}" fill-opacity="0.85"/>')
+    parts.append(f'<path d="{d}" fill="{hexc(M.HOUSE_ACCENT)}" fill-opacity="0.85"/>')
     if base + 34 > OG_H - 20:
         raise SystemExit("gen_assets: og: the address falls off the card")
 
@@ -378,7 +386,7 @@ def svg_logo() -> str:
     mdefs, mark = M.mark_group((LOGO - mark_px) / 2, top, mark_px, "logo")
     defs += mdefs
     parts.append(mark)
-    colours = (hexc(M.TEXT), hexc(M.ACCENT))
+    colours = (hexc(M.TEXT), hexc(M.HOUSE_ACCENT))
     for i, (line, width) in enumerate(zip(WORDMARK, wordmark_widths(size))):
         x = (LOGO - width) / 2
         _guard("logo", f"wordmark line {i + 1}", x + width, LOGO - 96)
@@ -395,6 +403,14 @@ def main() -> None:
     if worst < 4.5:
         raise SystemExit(f"gen_assets: ACCENT_ON_LIGHT is {worst:.2f}:1 on white — "
                          "text needs 4.5:1 (WCAG AA). Darken it in mark.py.")
+    house_text = M.contrast(M.HOUSE_ON_LIGHT, M.PAPER)
+    if house_text < 4.5:
+        raise SystemExit(f"gen_assets: HOUSE_ON_LIGHT is {house_text:.2f}:1 on white — "
+                         "text needs 4.5:1 (WCAG AA). Darken it in mark.py.")
+    house_fill = M.contrast(M.HOUSE_ACCENT, M.TILE_INK)
+    if house_fill < 3.0:
+        raise SystemExit(f"gen_assets: HOUSE_ACCENT is {house_fill:.2f}:1 on the page — "
+                         "a fill needs 3:1 (WCAG non-text). Lighten it in mark.py.")
 
     print("writing brand assets into", ROOT)
     mark = M.svg_mark()

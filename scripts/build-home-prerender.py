@@ -168,7 +168,15 @@ def category_tiles(catalogue: dict[str, dict]) -> str:
     for cat in categories:
         name = html.escape(cat["name"], quote=True)
         slug = html.escape(cat["slug"], quote=True)
-        icon = html.escape(cat.get("icon") or "\U0001F4C1", quote=True)
+        icon_id = cat.get("iconId")
+        if icon_id:
+            # Category-level wayfinding is the shared line-icon set (DESIGN.md §5):
+            # one sprite, one symbol per category, referenced by id. Emoji stays
+            # only in machine-readable surfaces and tool titles.
+            icon = (f'<svg class="cat-icon-svg" aria-hidden="true" focusable="false">'
+                    f'<use href="assets/icons/categories.svg#{icon_id}"></use></svg>')
+        else:
+            icon = html.escape(cat.get("icon") or "\U0001F4C1", quote=True)
         tiles.append(
             f'                    <a class="cat-card" href="categories/{slug}.html" title="Explore {name} tools">\n'
             f'                        <div class="cat-card-top">\n'
