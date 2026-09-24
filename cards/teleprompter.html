@@ -1,0 +1,374 @@
+<h2 id="tprm-title" style="margin-top:0;color:var(--accent);">🎬 Teleprompter — Smooth Scrolling Script for Video, Speeches and Streams</h2>
+
+<div id="tprm-root">
+<p id="tprm-desc" class="small" style="color:rgba(230,250,255,0.7);margin:0 0 14px;">
+  Paste your script, set the speed and font size, and read it back full-screen with smooth scrolling, an eye-line
+  guide, mirror mode for beam-splitter rigs, a 3-2-1 countdown and a running time estimate. Works offline.
+</p>
+
+<div class="tprm-grid">
+  <div>
+    <label for="tprm-text" class="tprm-lbl">Your script</label>
+    <textarea id="tprm-text" class="tprm-text" rows="10" placeholder="Paste or type your script here. A blank line starts a new paragraph. Put [pause] where you want to breathe."></textarea>
+    <p id="tprm-stats" class="tprm-hint" style="margin:6px 0 0;"></p>
+  </div>
+  <div class="tprm-side">
+    <div class="tprm-row">
+      <label for="tprm-speed" class="tprm-lbl">Speed</label>
+      <input type="range" id="tprm-speed" min="10" max="200" step="5" value="60">
+      <span id="tprm-speed-out" class="tprm-out">60 px/s</span>
+    </div>
+    <div class="tprm-row">
+      <label for="tprm-size" class="tprm-lbl">Text size</label>
+      <input type="range" id="tprm-size" min="24" max="96" step="2" value="48">
+      <span id="tprm-size-out" class="tprm-out">48 px</span>
+    </div>
+    <div class="tprm-row">
+      <label for="tprm-margin" class="tprm-lbl">Line width</label>
+      <input type="range" id="tprm-margin" min="40" max="100" step="5" value="80">
+      <span id="tprm-margin-out" class="tprm-out">80%</span>
+    </div>
+    <div class="tprm-row">
+      <label for="tprm-guide" class="tprm-lbl">Eye line</label>
+      <input type="range" id="tprm-guide" min="15" max="60" step="5" value="35">
+      <span id="tprm-guide-out" class="tprm-out">35%</span>
+    </div>
+    <div class="tprm-opts">
+      <div class="tprm-field"><label for="tprm-font" class="tprm-lbl">Font</label>
+        <select id="tprm-font"><option value="sans" selected>Sans-serif</option><option value="serif">Serif</option><option value="mono">Monospace</option><option value="dyslexic">Wide spacing</option></select></div>
+      <div class="tprm-field"><label for="tprm-colour" class="tprm-lbl">Colours</label>
+        <select id="tprm-colour"><option value="dark" selected>White on black</option><option value="yellow">Yellow on black</option><option value="light">Black on white</option><option value="green">Green on black</option></select></div>
+      <div class="tprm-field"><label for="tprm-count" class="tprm-lbl">Countdown</label>
+        <select id="tprm-count"><option value="0">None</option><option value="3" selected>3 seconds</option><option value="5">5 seconds</option><option value="10">10 seconds</option></select></div>
+      <div class="tprm-field"><label for="tprm-wpm" class="tprm-lbl">Your pace</label>
+        <select id="tprm-wpm"><option value="120">Slow · 120 wpm</option><option value="150" selected>Natural · 150 wpm</option><option value="180">Brisk · 180 wpm</option></select></div>
+    </div>
+    <div class="tprm-checks">
+      <label class="tprm-check"><input type="checkbox" id="tprm-mirror"> Mirror horizontally (beam-splitter glass)</label>
+      <label class="tprm-check"><input type="checkbox" id="tprm-flip"> Flip vertically</label>
+      <label class="tprm-check"><input type="checkbox" id="tprm-bold"> Bold text</label>
+      <label class="tprm-check"><input type="checkbox" id="tprm-caps"> ALL CAPS</label>
+    </div>
+    <div class="tprm-wrap" style="margin-top:6px;">
+      <button type="button" id="tprm-start" class="tprm-btn tprm-primary">▶ Start prompter</button>
+      <button type="button" id="tprm-fit" class="tprm-btn" title="Set the speed so the script takes as long as your pace suggests">Match speed to my pace</button>
+      <button type="button" id="tprm-sample" class="tprm-btn">Load a sample</button>
+    </div>
+    <p id="tprm-status" class="tprm-status" role="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<div id="tprm-stage" class="tprm-stage" hidden tabindex="-1" role="region" aria-label="Teleprompter view">
+  <div id="tprm-scroller" class="tprm-scroller">
+    <div id="tprm-content" class="tprm-content"></div>
+  </div>
+  <div id="tprm-line" class="tprm-line" aria-hidden="true"></div>
+  <div id="tprm-cd" class="tprm-cd" hidden aria-hidden="true"></div>
+  <div class="tprm-bar" id="tprm-bar">
+    <button type="button" id="tprm-play" class="tprm-ctl" aria-label="Play or pause (Space)">▶</button>
+    <button type="button" id="tprm-slower" class="tprm-ctl" aria-label="Slower (Down arrow)">−</button>
+    <span id="tprm-cur" class="tprm-cur">60 px/s</span>
+    <button type="button" id="tprm-faster" class="tprm-ctl" aria-label="Faster (Up arrow)">+</button>
+    <button type="button" id="tprm-back" class="tprm-ctl" aria-label="Back 10 seconds (Left arrow)">⏪</button>
+    <button type="button" id="tprm-restart" class="tprm-ctl" aria-label="Back to the top (Home)">⏮</button>
+    <span id="tprm-time" class="tprm-cur" aria-live="off"></span>
+    <button type="button" id="tprm-fs" class="tprm-ctl" aria-label="Toggle full screen (F)">⛶</button>
+    <button type="button" id="tprm-close" class="tprm-ctl" aria-label="Close the prompter (Escape)">✕</button>
+  </div>
+  <div class="tprm-progress" aria-hidden="true"><div id="tprm-prog"></div></div>
+</div>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.6);font-size:0.85rem;">
+  <summary style="cursor:pointer;">How to use it, the keyboard, mirror mode and reading tips</summary>
+  <p style="margin-top:8px;"><strong>Getting a natural read.</strong> Paste the script, then press <em>Match speed to my pace</em>: it
+    measures the word count and sets the scroll speed so the whole script takes as long as it would at your
+    chosen words-per-minute. Most people speak at 130–160 wpm on camera; slower reads sound more confident, so
+    start at "Natural" and slow down if you find yourself racing the text. The eye-line guide marks where you
+    should be reading — keep it near the top of the screen and close to the lens, so your eyes barely move.
+    Use a bigger text size than feels necessary; if you can read it without squinting from twice the distance,
+    it is right.</p>
+  <p><strong>Keyboard and touch.</strong> <kbd>Space</kbd> plays and pauses. <kbd>↑</kbd>/<kbd>↓</kbd> change speed
+    in small steps, <kbd>←</kbd> jumps back ten seconds, <kbd>Home</kbd> returns to the top, <kbd>F</kbd> toggles
+    full screen and <kbd>Esc</kbd> closes. On a phone or tablet, tap the text to pause and resume, and drag to
+    scrub — the same keys work from a Bluetooth keyboard, presentation clicker or a foot pedal that sends Page
+    Down/Up (mapped to speed). A phone on a tripod beside the camera makes a perfectly good prompter.</p>
+  <p><strong>Mirror mode.</strong> A beam-splitter prompter reflects the screen in a piece of glass in front of the
+    lens, which reverses the image. Tick <em>Mirror horizontally</em> so the reflection reads correctly; some rigs
+    also need <em>Flip vertically</em>. The controls stay the right way round.</p>
+  <p><strong>Writing for the prompter.</strong> Short sentences, one idea per paragraph and a blank line between
+    them. Write numbers as you would say them ("two point five million", not 2,500,000). Put <code>[pause]</code>
+    where you want to breathe — it is shown as a marker and left out of the timing. Your script and settings
+    are stored in this browser only, so a refresh does not lose them and nothing is uploaded.</p>
+</details>
+
+<style>
+#tprm-root{color:#e6faff;}
+#tprm-root [hidden]{display:none !important;}
+#tprm-root .tprm-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;}
+@media (max-width:760px){#tprm-root .tprm-grid{grid-template-columns:1fr;}}
+#tprm-root .tprm-lbl{color:var(--accent,#2dd4ff);font-weight:600;font-size:12.5px;display:block;margin-bottom:4px;}
+#tprm-root .tprm-text{box-sizing:border-box;width:100%;min-height:220px;padding:10px 12px;border-radius:10px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:#e6faff;font:15px/1.5 inherit;font-family:inherit;resize:vertical;}
+#tprm-root .tprm-side{display:flex;flex-direction:column;gap:8px;min-width:0;}
+#tprm-root .tprm-row{display:grid;grid-template-columns:78px minmax(0,1fr) 64px;gap:8px;align-items:center;}
+#tprm-root .tprm-row .tprm-lbl{margin:0;}
+#tprm-root input[type=range]{width:100%;min-width:0;accent-color:var(--accent,#2dd4ff);margin:0;}
+#tprm-root .tprm-out{font-size:12px;color:rgba(230,250,255,0.6);text-align:right;font-variant-numeric:tabular-nums;}
+#tprm-root .tprm-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;}
+#tprm-root select{box-sizing:border-box;width:100%;min-width:0;padding:7px 9px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:#e6faff;font-size:13.5px;font-family:inherit;}
+#tprm-root .tprm-checks{display:flex;flex-wrap:wrap;gap:6px 14px;}
+#tprm-root .tprm-check{display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13.5px;}
+#tprm-root .tprm-check input{width:17px;height:17px;accent-color:var(--accent,#2dd4ff);margin:0;}
+#tprm-root .tprm-wrap{display:flex;flex-wrap:wrap;gap:8px;}
+#tprm-root .tprm-btn{padding:8px 14px;min-height:40px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.92);cursor:pointer;font-size:13.5px;font-weight:600;font-family:inherit;touch-action:manipulation;}
+#tprm-root .tprm-btn:hover:not(:disabled){background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#tprm-root .tprm-primary{background:var(--accent,#2dd4ff);color:#03141c;border-color:transparent;}
+#tprm-root .tprm-primary:hover:not(:disabled){background:var(--accent,#2dd4ff);filter:brightness(1.08);}
+#tprm-root .tprm-hint{font-size:12.8px;color:rgba(230,250,255,0.6);line-height:1.5;}
+#tprm-root .tprm-status{min-height:1.3em;margin:4px 0 0;color:var(--accent,#2dd4ff);font-size:13.5px;}
+#tprm-root kbd{font-family:inherit;font-size:12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;padding:1px 6px;}
+#tprm-root code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:4px;}
+/* stage */
+#tprm-root .tprm-stage{position:fixed;inset:0;z-index:2147483000;background:#000;color:#fff;overflow:hidden;outline:none;--tprm-bg:#000;--tprm-fg:#fff;--tprm-guide:35%;--tprm-size:48px;--tprm-width:80%;}
+#tprm-root .tprm-stage.tprm-c-yellow{--tprm-fg:#ffe14d;}
+#tprm-root .tprm-stage.tprm-c-light{--tprm-bg:#fff;--tprm-fg:#111;}
+#tprm-root .tprm-stage.tprm-c-green{--tprm-fg:#7CFC8A;}
+#tprm-root .tprm-stage{background:var(--tprm-bg);color:var(--tprm-fg);}
+#tprm-root .tprm-scroller{position:absolute;inset:0;overflow:hidden;cursor:pointer;touch-action:none;}
+#tprm-root .tprm-content{position:absolute;left:50%;top:0;width:var(--tprm-width);transform:translateX(-50%);font-size:var(--tprm-size);line-height:1.4;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;will-change:transform;text-align:left;}
+#tprm-root .tprm-content p{margin:0 0 0.9em;}
+#tprm-root .tprm-content .tprm-pause{display:inline-block;font-size:0.5em;vertical-align:middle;padding:0.15em 0.6em;border:2px solid currentColor;border-radius:999px;opacity:.7;margin:0 .3em;}
+#tprm-root .tprm-stage.tprm-f-serif .tprm-content{font-family:Georgia,"Times New Roman",serif;}
+#tprm-root .tprm-stage.tprm-f-mono .tprm-content{font-family:ui-monospace,Menlo,Consolas,monospace;}
+#tprm-root .tprm-stage.tprm-f-dyslexic .tprm-content{letter-spacing:.06em;word-spacing:.2em;line-height:1.6;}
+#tprm-root .tprm-stage.tprm-bold .tprm-content{font-weight:700;}
+#tprm-root .tprm-stage.tprm-caps .tprm-content{text-transform:uppercase;}
+#tprm-root .tprm-stage.tprm-mirror .tprm-scroller{transform:scaleX(-1);}
+#tprm-root .tprm-stage.tprm-flip .tprm-scroller{transform:scaleY(-1);}
+#tprm-root .tprm-stage.tprm-mirror.tprm-flip .tprm-scroller{transform:scale(-1,-1);}
+#tprm-root .tprm-line{position:absolute;left:0;right:0;top:var(--tprm-guide);height:0;border-top:2px solid rgba(45,212,255,0.55);pointer-events:none;}
+#tprm-root .tprm-line::before,#tprm-root .tprm-line::after{content:"";position:absolute;top:-9px;border:8px solid transparent;}
+#tprm-root .tprm-line::before{left:6px;border-left:12px solid var(--accent,#2dd4ff);}
+#tprm-root .tprm-line::after{right:6px;border-right:12px solid var(--accent,#2dd4ff);}
+#tprm-root .tprm-stage.tprm-c-light .tprm-line{border-top-color:rgba(0,120,160,0.5);}
+#tprm-root .tprm-cd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:min(40vw,240px);font-weight:900;background:rgba(0,0,0,0.35);pointer-events:none;}
+#tprm-root .tprm-bar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;padding:6px 8px;border-radius:999px;background:rgba(20,26,34,0.85);color:#e6faff;backdrop-filter:blur(6px);transition:opacity .3s;max-width:calc(100% - 20px);flex-wrap:wrap;justify-content:center;}
+#tprm-root .tprm-stage.tprm-hidebar .tprm-bar{opacity:0;pointer-events:none;}
+#tprm-root .tprm-ctl{min-width:40px;height:40px;border-radius:999px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#e6faff;font-size:17px;cursor:pointer;font-family:inherit;padding:0 10px;touch-action:manipulation;}
+#tprm-root .tprm-ctl:hover{background:rgba(45,212,255,0.2);}
+#tprm-root .tprm-cur{font-size:13px;min-width:4.5em;text-align:center;font-variant-numeric:tabular-nums;color:rgba(230,250,255,0.85);}
+#tprm-root .tprm-progress{position:absolute;left:0;right:0;top:0;height:4px;background:rgba(255,255,255,0.12);}
+#tprm-root .tprm-progress > div{height:100%;width:0;background:var(--accent,#2dd4ff);}
+#tprm-root button:focus-visible,#tprm-root select:focus-visible,#tprm-root input:focus-visible,#tprm-root textarea:focus-visible,#tprm-root summary:focus-visible{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+@media (prefers-reduced-motion:reduce){#tprm-root .tprm-bar{transition:none;}}
+</style>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var ROOT_ID = 'tprm-root';
+  var KEY = 'tprm.v1';
+  var SAMPLE = 'Hi, and welcome back to the channel.\n\nToday I want to show you something that took me far too long to learn: how to read from a teleprompter without looking like you are reading from a teleprompter. [pause]\n\nThe trick is not speed. It is distance. Put the text as close to the lens as you can, make it bigger than you think you need, and let the words come to you instead of chasing them down the screen.\n\nIf you get lost, stop. Breathe. Nobody watching will ever know, because you are going to cut that bit out anyway. [pause]\n\nSo grab a script, set your pace, and let us record something good.';
+  function alive() { return !!document.getElementById(ROOT_ID); }
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  function init() {
+    var root = document.getElementById(ROOT_ID);
+    if (!root || root.getAttribute('data-ready') === '1') return;
+    root.setAttribute('data-ready', '1');
+    var $ = function (id) { return document.getElementById(id); };
+    var S = load(), stage = $('tprm-stage'), scroller = $('tprm-scroller'), content = $('tprm-content');
+    var playing = false, pos = 0, speed = S.speed, raf = 0, last = 0, sayTimer = 0, cdTimer = 0, hideTimer = 0, lastFocus = null, drag = null, total = 0;
+
+    function load() {
+      var d = null; try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; }
+      var s = { text: '', speed: 60, size: 48, margin: 80, guide: 35, font: 'sans', colour: 'dark', count: 3, wpm: 150, mirror: false, flip: false, bold: false, caps: false };
+      if (d && typeof d === 'object') {
+        if (typeof d.text === 'string') s.text = d.text.slice(0, 60000);
+        if (Number.isFinite(+d.speed)) s.speed = clamp(Math.round(+d.speed / 5) * 5, 10, 200);
+        if (Number.isFinite(+d.size)) s.size = clamp(Math.round(+d.size / 2) * 2, 24, 96);
+        if (Number.isFinite(+d.margin)) s.margin = clamp(Math.round(+d.margin / 5) * 5, 40, 100);
+        if (Number.isFinite(+d.guide)) s.guide = clamp(Math.round(+d.guide / 5) * 5, 15, 60);
+        if (['sans', 'serif', 'mono', 'dyslexic'].indexOf(d.font) >= 0) s.font = d.font;
+        if (['dark', 'yellow', 'light', 'green'].indexOf(d.colour) >= 0) s.colour = d.colour;
+        if ([0, 3, 5, 10].indexOf(+d.count) >= 0) s.count = +d.count;
+        if ([120, 150, 180].indexOf(+d.wpm) >= 0) s.wpm = +d.wpm;
+        ['mirror', 'flip', 'bold', 'caps'].forEach(function (k) { if (typeof d[k] === 'boolean') s[k] = d[k]; });
+      }
+      return s;
+    }
+    var saveTimer = 0;
+    function save() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }, 250); }
+    function say(msg) { if (!alive()) return; $('tprm-status').textContent = msg; clearTimeout(sayTimer); sayTimer = setTimeout(function () { if (alive()) $('tprm-status').textContent = ''; }, 6000); }
+    function words(t) { return (t.replace(/\[pause\]/gi, ' ').match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length; }
+    function fmt(sec) { sec = Math.max(0, Math.round(sec)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+    function stats() {
+      var w = words(S.text), est = w / S.wpm * 60;
+      $('tprm-stats').textContent = w ? w.toLocaleString() + ' words · about ' + fmt(est) + ' at ' + S.wpm + ' words per minute' : 'Paste a script to see its length and reading time.';
+      $('tprm-start').disabled = !w;
+      $('tprm-fit').disabled = !w;
+    }
+
+    // ---------- build the prompter content ----------
+    function build() {
+      while (content.firstChild) content.removeChild(content.firstChild);
+      var paras = S.text.replace(/\r\n?/g, '\n').split(/\n\s*\n/);
+      paras.forEach(function (para) {
+        var p = document.createElement('p'), parts = para.split(/(\[pause\])/i);
+        parts.forEach(function (part) {
+          if (!part) return;
+          if (/^\[pause\]$/i.test(part)) { var m = document.createElement('span'); m.className = 'tprm-pause'; m.textContent = 'pause'; p.appendChild(m); return; }
+          part.split('\n').forEach(function (line, i) { if (i) p.appendChild(document.createElement('br')); p.appendChild(document.createTextNode(line)); });
+        });
+        content.appendChild(p);
+      });
+      // a spacer so the first line starts at the eye line
+      var lead = document.createElement('div'); lead.style.height = 'calc(var(--tprm-guide))'; content.insertBefore(lead, content.firstChild);
+    }
+    function applyStyle() {
+      stage.style.setProperty('--tprm-size', S.size + 'px');
+      stage.style.setProperty('--tprm-width', S.margin + '%');
+      stage.style.setProperty('--tprm-guide', S.guide + 'vh');
+      stage.className = 'tprm-stage tprm-c-' + S.colour + ' tprm-f-' + S.font + (S.bold ? ' tprm-bold' : '') + (S.caps ? ' tprm-caps' : '') + (S.mirror ? ' tprm-mirror' : '') + (S.flip ? ' tprm-flip' : '');
+    }
+    function measure() { total = Math.max(1, content.scrollHeight - stage.clientHeight * S.guide / 100); }
+    function render() {
+      content.style.transform = 'translate(-50%, ' + (-pos) + 'px)';
+      var frac = clamp(pos / total, 0, 1);
+      $('tprm-prog').style.width = (frac * 100).toFixed(2) + '%';
+      $('tprm-time').textContent = '-' + fmt((total - pos) / speed);
+      $('tprm-cur').textContent = speed + ' px/s';
+    }
+    function tick(now) {
+      raf = 0;
+      if (!alive()) return;
+      if (playing) {
+        var dt = last ? Math.min(0.1, (now - last) / 1000) : 0;
+        last = now;
+        pos += speed * dt;
+        if (pos >= total) { pos = total; setPlaying(false); }
+        render();
+        if (playing) raf = requestAnimationFrame(tick);
+      }
+    }
+    function setPlaying(on) {
+      playing = on; last = 0;
+      $('tprm-play').textContent = on ? '❚❚' : '▶';
+      $('tprm-play').setAttribute('aria-label', on ? 'Pause (Space)' : 'Play (Space)');
+      if (on && !raf) raf = requestAnimationFrame(tick);
+      if (on) hideBarSoon(); else showBar();
+    }
+    function setSpeed(v) { speed = clamp(Math.round(v / 5) * 5, 10, 200); S.speed = speed; $('tprm-speed').value = String(speed); $('tprm-speed-out').textContent = speed + ' px/s'; save(); render(); }
+    function seek(px) { pos = clamp(px, 0, total); render(); }
+    function showBar() { stage.classList.remove('tprm-hidebar'); clearTimeout(hideTimer); }
+    function hideBarSoon() { clearTimeout(hideTimer); hideTimer = setTimeout(function () { if (alive() && playing) stage.classList.add('tprm-hidebar'); }, 2500); }
+
+    // ---------- open / close ----------
+    function open() {
+      if (!words(S.text)) { say('Paste a script first.'); return; }
+      lastFocus = document.activeElement;
+      build(); applyStyle();
+      stage.hidden = false;
+      pos = 0; speed = S.speed;
+      measure(); render(); showBar();
+      stage.focus();
+      if (S.count > 0) countdown(S.count, function () { setPlaying(true); }); else setPlaying(true);
+    }
+    function countdown(n, done) {
+      var cd = $('tprm-cd'); cd.hidden = false; cd.textContent = String(n);
+      clearTimeout(cdTimer);
+      (function step() {
+        cdTimer = setTimeout(function () {
+          if (!alive() || stage.hidden) return;
+          n--;
+          if (n <= 0) { cd.hidden = true; done(); return; }
+          cd.textContent = String(n); step();
+        }, 1000);
+      })();
+    }
+    function close() {
+      clearTimeout(cdTimer); $('tprm-cd').hidden = true;
+      setPlaying(false);
+      stage.hidden = true;
+      if (document.fullscreenElement === stage && document.exitFullscreen) document.exitFullscreen().catch(function () { /* ignore */ });
+      if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) { /* ignore */ } }
+    }
+    function toggleFs() {
+      if (!stage.requestFullscreen) { say('Full screen is not available here — the prompter already fills the window.'); return; }
+      if (document.fullscreenElement === stage) document.exitFullscreen().catch(function () { /* ignore */ });
+      else stage.requestFullscreen().catch(function () { /* denied */ });
+    }
+
+    // ---------- events ----------
+    stage.addEventListener('keydown', function (e) {
+      var k = e.key;
+      if (k === ' ' || k === 'Spacebar') { e.preventDefault(); e.stopPropagation(); setPlaying(!playing); }
+      else if (k === 'ArrowUp' || k === 'PageUp') { e.preventDefault(); e.stopPropagation(); setSpeed(speed + 5); showBar(); hideBarSoon(); }
+      else if (k === 'ArrowDown' || k === 'PageDown') { e.preventDefault(); e.stopPropagation(); setSpeed(speed - 5); showBar(); hideBarSoon(); }
+      else if (k === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); seek(pos - speed * 10); }
+      else if (k === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); seek(pos + speed * 10); }
+      else if (k === 'Home') { e.preventDefault(); e.stopPropagation(); seek(0); }
+      else if (k === 'End') { e.preventDefault(); e.stopPropagation(); seek(total); }
+      else if (k === 'f' || k === 'F') { e.preventDefault(); e.stopPropagation(); toggleFs(); }
+      else if (k === 'Escape') { e.preventDefault(); e.stopPropagation(); if (document.fullscreenElement === stage) { document.exitFullscreen().catch(function () { /* ignore */ }); } else close(); }
+      else if (k === '+' || k === '=') { e.preventDefault(); e.stopPropagation(); S.size = clamp(S.size + 2, 24, 96); $('tprm-size').value = String(S.size); $('tprm-size-out').textContent = S.size + ' px'; applyStyle(); measure(); render(); save(); }
+      else if (k === '-' || k === '_') { e.preventDefault(); e.stopPropagation(); S.size = clamp(S.size - 2, 24, 96); $('tprm-size').value = String(S.size); $('tprm-size-out').textContent = S.size + ' px'; applyStyle(); measure(); render(); save(); }
+    });
+    // tap to pause / drag to scrub
+    scroller.addEventListener('pointerdown', function (e) { drag = { y: e.clientY, pos: pos, moved: false, id: e.pointerId }; try { scroller.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } });
+    scroller.addEventListener('pointermove', function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var dy = e.clientY - drag.y;
+      if (Math.abs(dy) > 6) { drag.moved = true; if (playing) setPlaying(false); seek(drag.pos - dy * (S.flip ? -1 : 1)); }
+    });
+    function endDrag(e) { if (!drag || e.pointerId !== drag.id) return; var moved = drag.moved; drag = null; if (!moved) setPlaying(!playing); showBar(); if (playing) hideBarSoon(); }
+    scroller.addEventListener('pointerup', endDrag);
+    scroller.addEventListener('pointercancel', function () { drag = null; });
+    scroller.addEventListener('wheel', function (e) { e.preventDefault(); seek(pos + e.deltaY * (S.flip ? -1 : 1)); if (playing) { setPlaying(false); } }, { passive: false });
+    stage.addEventListener('pointermove', function () { showBar(); if (playing) hideBarSoon(); });
+    $('tprm-play').addEventListener('click', function () { setPlaying(!playing); });
+    $('tprm-slower').addEventListener('click', function () { setSpeed(speed - 5); });
+    $('tprm-faster').addEventListener('click', function () { setSpeed(speed + 5); });
+    $('tprm-back').addEventListener('click', function () { seek(pos - speed * 10); });
+    $('tprm-restart').addEventListener('click', function () { seek(0); });
+    $('tprm-fs').addEventListener('click', toggleFs);
+    $('tprm-close').addEventListener('click', close);
+    $('tprm-bar').addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') e.stopPropagation(); });
+    function onFs() { if (!alive()) { document.removeEventListener('fullscreenchange', onFs); return; } if (!stage.hidden) { stage.focus(); measure(); render(); } }
+    document.addEventListener('fullscreenchange', onFs);
+    function onResize() { if (!alive()) { window.removeEventListener('resize', onResize); return; } if (!stage.hidden) { measure(); render(); } }
+    window.addEventListener('resize', onResize);
+    var watchdog = setInterval(function () { if (!alive()) { clearInterval(watchdog); clearTimeout(cdTimer); } }, 2000);
+
+    // ---------- editor controls ----------
+    var ta = $('tprm-text'); ta.value = S.text;
+    ta.addEventListener('input', function () { S.text = ta.value.slice(0, 60000); save(); stats(); });
+    function bindRange(id, key, fmtr, after) { var inp = $(id), out = $(id + '-out'); inp.value = String(S[key]); out.textContent = fmtr(S[key]); inp.addEventListener('input', function () { S[key] = +inp.value; out.textContent = fmtr(S[key]); save(); if (after) after(); }); }
+    bindRange('tprm-speed', 'speed', function (v) { return v + ' px/s'; }, function () { speed = S.speed; render(); });
+    bindRange('tprm-size', 'size', function (v) { return v + ' px'; }, function () { applyStyle(); });
+    bindRange('tprm-margin', 'margin', function (v) { return v + '%'; }, function () { applyStyle(); });
+    bindRange('tprm-guide', 'guide', function (v) { return v + '%'; }, function () { applyStyle(); });
+    function bindSel(id, key, num, after) { var s = $(id); s.value = String(S[key]); s.addEventListener('change', function () { S[key] = num ? +s.value : s.value; save(); if (after) after(); }); }
+    bindSel('tprm-font', 'font', false, applyStyle); bindSel('tprm-colour', 'colour', false, applyStyle); bindSel('tprm-count', 'count', true); bindSel('tprm-wpm', 'wpm', true, stats);
+    ['mirror', 'flip', 'bold', 'caps'].forEach(function (k) { var b = $('tprm-' + k); b.checked = S[k]; b.addEventListener('change', function () { S[k] = b.checked; save(); applyStyle(); }); });
+    $('tprm-start').addEventListener('click', open);
+    $('tprm-sample').addEventListener('click', function () { S.text = SAMPLE; ta.value = SAMPLE; save(); stats(); say('Sample loaded — press Start prompter.'); });
+    $('tprm-fit').addEventListener('click', function () {
+      // measure the script height at the current size, then pick the speed that covers it in the estimated time
+      var w = words(S.text); if (!w) return;
+      var wasHidden = stage.hidden;
+      build(); applyStyle();
+      if (wasHidden) { stage.hidden = false; stage.style.visibility = 'hidden'; }
+      measure();
+      if (wasHidden) { stage.hidden = true; stage.style.visibility = ''; }
+      var secs = w / S.wpm * 60, px = total / Math.max(1, secs);
+      setSpeed(px);
+      say('Speed set to ' + speed + ' px/s so the script runs about ' + fmt(secs) + ' at ' + S.wpm + ' words per minute.');
+    });
+    stats();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
