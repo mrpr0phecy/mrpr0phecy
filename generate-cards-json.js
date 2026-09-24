@@ -183,6 +183,7 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'image-to-ascii-art': 'Interactive Art & Living Worlds',
   'chess-clock': 'Sports',
   'screenshot-beautifier': 'SaaS & Business Killers',
   'tally-counter': 'Productivity & Lifestyle',
