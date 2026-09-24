@@ -5,23 +5,23 @@
 **Subreddit-specific rules (read these before posting):**
 - r/SideProject: text posts are preferred over links; include a demo, the tech stack, and a "what I learned" section
 - r/selfhosted: must be self-hostable. The site qualifies (one HTML file per tool, runs on any web server, no dependencies)
-- r/programming: must be interesting from a programming/architecture perspective. The "1,289 tools in vanilla JS, a repo of about 91 MB" angle is the hook
+- r/programming: must be interesting from a programming/architecture perspective. The "1,290 tools in vanilla JS, a repo of about 91 MB" angle is the hook
 - r/InternetIsBeautiful: must be genuinely beautiful. The site qualifies; the open-standards and the catalogue are the angles
 
 ---
 
 ## r/SideProject (primary)
 
-**Title:** I built 1,289 free browser-side tools in 2 years. No accounts, no display ads, no upsell. Here\'s what I learned.
+**Title:** I built 1,290 free browser-side tools in 2 years. No accounts, no display ads, no upsell. Here\'s what I learned.
 
 **Body:**
 
-> I\'m a developer in Luton, UK. Two years ago I started a hobby project: a single page of calculator widgets. It\'s now 1,289 tools. Every one of them is one HTML file, vanilla JavaScript, no framework, no build step. The whole repo is about 91 MB, most of it a photo library that two of the non-tool pages use.
+> I\'m a developer in Luton, UK. Two years ago I started a hobby project: a single page of calculator widgets. It\'s now 1,290 tools. Every one of them is one HTML file, vanilla JavaScript, no framework, no build step. The whole repo is about 91 MB, most of it a photo library that two of the non-tool pages use.
 >
 > The site: https://www.themostusefulsiteintheworld.com
 > The repo: https://github.com/mrpr0phecy/mrpr0phecy
 >
-> **What it is:** 1,289 browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep planner, colour contrast checker, invoice generator. 1,200+ more.
+> **What it is:** 1,290 browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep planner, colour contrast checker, invoice generator. 1,200+ more.
 >
 > **The thing I am most proud of:** the no-display-ads part. View source on any page. You will not find an ad slot, an ad network script, a sponsored-content block, or a retargeting pixel. The whole markup is the page, and the page is the tool. (The only third-party scripts anywhere on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None of them are advertising.)
 >
@@ -29,7 +29,7 @@
 >
 > **What I learned in 2 years:**
 >
-> 1. **Most users want 10% of the tools.** The mortgage calculator, BMI, password generator, compound interest, and BPM tapper get about 60% of the traffic. The other 1,289 tools are there because I enjoy building them, not because anyone needs them. That is fine.
+> 1. **Most users want 10% of the tools.** The mortgage calculator, BMI, password generator, compound interest, and BPM tapper get about 60% of the traffic. The other 1,290 tools are there because I enjoy building them, not because anyone needs them. That is fine.
 >
 > 2. **The "no display ads" thing is more work than I expected.** I can\'t do paid acquisition, can\'t run retargeting, can\'t monetise the existing audience with a banner network. I make marketing decisions based on Google Analytics (which is measurement, not ads), GitHub traffic, and what people tell me directly via the help form.
 >
@@ -52,17 +52,17 @@
 
 ## r/selfhosted
 
-**Title:** Self-hostable catalogue of 1,289 free browser-side tools (one HTML file each, no build, no dependencies)
+**Title:** Self-hostable catalogue of 1,290 free browser-side tools (one HTML file each, no build, no dependencies)
 
 **Body:**
 
-> I built a site with 1,289 free browser-side tools, and the whole thing is designed to be self-hostable.
+> I built a site with 1,290 free browser-side tools, and the whole thing is designed to be self-hostable.
 >
 > The repo: https://github.com/mrpr0phecy/mrpr0phecy
 >
 > **What you get:**
-> - 1,289 separate card files, each one self-contained
-> - A `cards/cards.json` index of all 1,289 tools
+> - 1,290 separate card files, each one self-contained
+> - A `cards/cards.json` index of all 1,290 tools
 > - A static `index.html` that lists them all with a category filter
 > - A `feed.xml` (RSS), `sitemap.xml`, `llms.txt`, and a `.well-known/` directory
 > - An `embed.html` that lets you iframe any tool
@@ -74,7 +74,7 @@
 > python3 -m http.server 8000
 > ```
 >
-> That\'s it. No npm install, no build, no database, no server-side code. The 1,289 tools all run client-side. The repo is about 91 MB.
+> That\'s it. No npm install, no build, no database, no server-side code. The 1,290 tools all run client-side. The repo is about 91 MB.
 >
 > **What it is good for:**
 > - A read-it-later offline copy of the site for when the internet is down
@@ -92,11 +92,11 @@
 
 ## r/programming
 
-**Title:** I built 1,289 browser-side tools in vanilla JavaScript. The repo is about 91 MB. Here is the architecture.
+**Title:** I built 1,290 browser-side tools in vanilla JavaScript. The repo is about 91 MB. Here is the architecture.
 
 **Body:**
 
-> I have spent 2 years building a catalogue of 1,289 free browser-side tools. Every tool is one HTML file. No framework, no build, no npm, no TypeScript, no bundler. The repo is about 91 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
+> I have spent 2 years building a catalogue of 1,290 free browser-side tools. Every tool is one HTML file. No framework, no build, no npm, no TypeScript, no bundler. The repo is about 91 MB, of which about 18 MB is the tools themselves; most of the rest is a photo library that two of the non-tool pages use.
 >
 > The repo: https://github.com/mrpr0phecy/mrpr0phecy
 > The live site: https://www.themostusefulsiteintheworld.com
@@ -104,7 +104,7 @@
 > **The architecture:**
 >
 > - **One HTML file per tool.** Each tool is a single `cards/<tool-name>.html` file. Vanilla JS, CSS in `<style>`, no external assets.
-> - **A `cards/cards.json` index** with an entry per card, for all 1,289 cards. Each entry has `id`, `name`, `title`, `description`, `category`, `file`. The home page, the index, the sitemap, the RSS, and the embed page all read from this one JSON file.
+> - **A `cards/cards.json` index** with an entry per card, for all 1,290 cards. Each entry has `id`, `name`, `title`, `description`, `category`, `file`. The home page, the index, the sitemap, the RSS, and the embed page all read from this one JSON file.
 > - **A static `index.html`** with a category filter and a search bar (client-side, no index server, just an in-memory fuzzy search on the JSON).
 > - **A `tool.html` shim** that reads `?card=<name>` from the URL and dynamically injects the tool. This is what the search results and the category pages link to.
 > - **No backend.** The whole site can be served by `python3 -m http.server`. There is no Node.js process, no database, no API.
@@ -127,7 +127,7 @@
 >
 > **The fun parts:**
 >
-> - 1,289 separate tools, each one small enough to be understood in 10 minutes.
+> - 1,290 separate tools, each one small enough to be understood in 10 minutes.
 > - 12 long-form "definitive guides" that walk through the math.
 > - A `.well-known/ai.txt` file that explicitly says AI engines can cite the site.
 > - A blog with three long-form posts so far.
@@ -138,11 +138,11 @@
 
 ## r/InternetIsBeautiful
 
-**Title:** 1,289 free browser-side tools, no accounts, no display ads. The whole thing is one HTML file per tool.
+**Title:** 1,290 free browser-side tools, no accounts, no display ads. The whole thing is one HTML file per tool.
 
 **Body:**
 
-> I built a site with 1,289 free browser-side tools. The whole thing runs in your browser. No accounts, no email, no display ads, no upsell, no pop-up, no newsletter, no lead form.
+> I built a site with 1,290 free browser-side tools. The whole thing runs in your browser. No accounts, no email, no display ads, no upsell, no pop-up, no newsletter, no lead form.
 >
 > The site: https://www.themostusefulsiteintheworld.com
 >
