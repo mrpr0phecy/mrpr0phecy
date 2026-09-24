@@ -9,7 +9,7 @@ numbers are stable — code comments and pages cite them.
 
 Two products on one domain that never mix:
 
-- **Product A — the catalogue** (`themostusefulsiteintheworld.com`): 1285
+- **Product A — the catalogue** (`themostusefulsiteintheworld.com`): 1286
   offline browser tools. Each is a fragment in `cards/`, injected into one
   shared document by `index.html` / `tool.html`. Plus `ai.html` — Lantern, a
   separate on-device AI with its own name, mark and palette.

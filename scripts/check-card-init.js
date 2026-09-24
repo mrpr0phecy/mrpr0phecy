@@ -49,6 +49,19 @@ const GUARD = /if\s*\(\s*document\.readyState\s*===?\s*['"]loading['"]\s*\)/g;
 const LISTENER = /document\.addEventListener\(\s*['"]DOMContentLoaded['"]/;
 
 
+/** The index of the `)` closing the `(` at openIdx, on a masked copy. */
+function matchParen(masked, openIdx) {
+  let depth = 0;
+  for (let i = openIdx; i < masked.length; i++) {
+    if (masked[i] === '(') depth++;
+    else if (masked[i] === ')') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
 /** Guards that register DOMContentLoaded with no else: the card never starts. */
 function deadGuards(code) {
   const masked = mask(code);
@@ -61,7 +74,20 @@ function deadGuards(code) {
       // statement form: `if (…) document.addEventListener('DOMContentLoaded', init);`
       const end = code.indexOf(';', m.index + m[0].length);
       const stmt = code.slice(m.index, end < 0 ? undefined : end + 1);
-      if (LISTENER.test(stmt)) out.push({ index: m.index, shape: 'statement' });
+      if (!LISTENER.test(stmt)) continue;
+      // This shape WITH an else is the idiom CONSTRAINTS.md documents:
+      //     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+      //     else init();
+      // The registration's argument can be a whole function, so the first `;`
+      // is not where the statement ends: match the call's own parentheses on
+      // the masked copy and look for the else after them.
+      const after = m.index + m[0].length;
+      const call = /^\s*document\.addEventListener\s*\(/.exec(code.slice(after));
+      if (call) {
+        const close = matchParen(masked, after + call[0].length - 1);
+        if (close >= 0 && /^\s*;?\s*else\b/.test(masked.slice(close + 1, close + 24))) continue;
+      }
+      out.push({ index: m.index, shape: 'statement' });
       continue;
     }
     const open = m.index + m[0].length + brace[0].length - 1;

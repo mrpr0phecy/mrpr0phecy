@@ -18,7 +18,8 @@
 // never starts.
 //
 // Pinned here: the guard without an else fails (block and brace-less form, each
-// naming the line), the guard with its else passes, a `readyState` test that is
+// naming the line), the guard with its else passes in both forms (the one-line
+// form is the idiom CONSTRAINTS.md documents), a `readyState` test that is
 // about something else is not this rule's business, and the whole catalogue is
 // clean.
 //
@@ -59,6 +60,14 @@ test('the brace-less form of the same mistake fails too', () => {
 
 test('the guard with its else branch passes', () => {
   const r = run(f('card-init-guard-else.card'));
+  assert.strictEqual(r.code, 0, `the else runs the init — ${r.out}`);
+  assert.doesNotMatch(r.out, /FAIL/);
+});
+
+test('the documented one-line idiom with its else passes', () => {
+  // CONSTRAINTS.md prescribes `if (…loading) document.addEventListener(…, init);
+  // else init();` — the brace-less branch used to fail it whatever followed.
+  const r = run(f('card-init-statement-else.card'));
   assert.strictEqual(r.code, 0, `the else runs the init — ${r.out}`);
   assert.doesNotMatch(r.out, /FAIL/);
 });
