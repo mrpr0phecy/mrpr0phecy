@@ -2,7 +2,7 @@
 /**
  * screenshot.mjs — look at a page at 360 px and 1440 px without a desktop.
  *
- * AGENTS.md §5 says a change is not finished until you have looked at it at
+ * AGENTS.md §5 asks you to inspect visible UI changes at
  * both widths. In a sandbox that is the slow part: Playwright's browser
  * download is often blocked, apt is often unavailable, and the one Chromium
  * that installs from npm alone (@sparticuz/chromium) dies on a missing
