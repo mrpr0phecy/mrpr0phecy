@@ -1,10 +1,10 @@
 # The Most Useful Site in the World + MrProphecy
 
-**1,288 free tools that run entirely in your browser — no backend, no signup, no tracking, no ads.**
+**1,289 free tools that run entirely in your browser — no backend, no signup, no tracking, no ads.**
 
 Live: **<https://www.themostusefulsiteintheworld.com>** — one static domain, two deliberately separate products that never cross-promote.
 
-- **The Most Useful Site in the World** — 1,288 self-contained tools across **29 categories** (calculators, converters, generators, health, finance, STEM, productivity …). Every tool is a fragment in [`cards/`](cards/) that runs offline in the page; the catalogue at [`index.html`](index.html) → `tool.html?card=` is the entry point. Also [`ai.html`](ai.html) **Lantern** — private, on-device AI that answers from *your* documents and memory, with an optional WebGPU model. Nothing leaves the browser.
+- **The Most Useful Site in the World** — 1,289 self-contained tools across **29 categories** (calculators, converters, generators, health, finance, STEM, productivity …). Every tool is a fragment in [`cards/`](cards/) that runs offline in the page; the catalogue at [`index.html`](index.html) → `tool.html?card=` is the entry point. Also [`ai.html`](ai.html) **Lantern** — private, on-device AI that answers from *your* documents and memory, with an optional WebGPU model. Nothing leaves the browser.
 - **MrProphecy** — UK hip hop and animated soundscapes from **Luton** — 233 videos, 1,360+ subscribers. Entry point: [`listen.html`](listen.html) → `radio.html` / `youtubepromo.html`.
 
 Zero framework, zero build step in production, zero runtime dependencies. `main` *is* the deploy — GitHub Pages serves it in ~60 s. The repo is mature and stable: tool count is derived from `cards/cards.json`, not a growth target.
@@ -82,8 +82,8 @@ money-related.
 | | |
 |---|---|
 | **Live** | <https://www.themostusefulsiteintheworld.com> · <https://www.mrprophecy.com> (same repo, `CNAME`) |
-| **Stack** | Static HTML/CSS/JS — **no build step in production, no framework, no dependencies, no backend**. All 1,288 tools are fragments in `cards/` |
-| **Catalogue** | **1,288 tools · 29 categories · 67 top-level pages** — everything derived from `cards/cards.json` via `npm run build`. Tool count is not a growth target |
+| **Stack** | Static HTML/CSS/JS — **no build step in production, no framework, no dependencies, no backend**. All 1,289 tools are fragments in `cards/` |
+| **Catalogue** | **1,289 tools · 29 categories · 67 top-level pages** — everything derived from `cards/cards.json` via `npm run build`. Tool count is not a growth target |
 | **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
 | **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
 | **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
