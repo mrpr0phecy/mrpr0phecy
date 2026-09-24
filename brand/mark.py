@@ -109,6 +109,22 @@ MUTED = (150, 186, 200)           # #96bac8 secondary copy on the social card
 # instead; gen_assets.py refuses to run if it ever drops below 4.5:1 (WCAG AA).
 ACCENT_ON_LIGHT = (10, 126, 164)  # #0a7ea4
 
+# ------------------------------------------------------------------ house --
+# The HOUSE accent is the site's fixed brand colour — the one that defines the
+# product externally: the lockups, the Open Graph cards, the press kit. It is
+# deliberately not the UI accent: the page keeps the visitor's picker (default
+# cyan), and nothing in the interface follows the house colour. It also is not
+# the mark's colour: the finder is drawn out of the console, in the console's
+# cyan, and stays that way. See DESIGN.md §3 for the split and the ratios.
+#
+# Amber/ochre rather than blue or purple: the latter is the default palette of
+# every calculator and fintech competitor, and the brand sits against it. On
+# the near-black page the amber is 8.92:1 (measured below), a classic
+# instrument-panel readout; the on-light pair passes the same 4.5:1 WCAG AA
+# floor gen_assets.py enforces for ACCENT_ON_LIGHT.
+HOUSE_ACCENT = (232, 163, 61)      # #e8a33d — fills, rules, marks on dark
+HOUSE_ON_LIGHT = (122, 80, 14)     # #7a500e — accent words on light surfaces
+
 
 def hex_triplet(colour) -> str:
     return "#%02x%02x%02x" % tuple(colour[:3])

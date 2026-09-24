@@ -248,8 +248,11 @@ ${sections.join('\n\n')}
   })();
 
   const today = new Date().toISOString().slice(0, 10);
+  // The directory's category strip uses the shared line-icon set (DESIGN.md
+  // §5) instead of emoji; llms.txt/llms-full.txt above keep the emoji, which
+  // read fine in a plain-text catalogue.
   const navLinks = ordered.map(cat =>
-    `      <a href="#${slugCat(cat)}">${emojiFor(cat)} ${esc(cat)} <span>${byCat.get(cat).length}</span></a>`
+    `      <a href="#${slugCat(cat)}"><svg class="toc-icon" aria-hidden="true" focusable="false"><use href="assets/icons/categories.svg#icon-${slugCat(cat)}"></use></svg>${esc(cat)} <span>${byCat.get(cat).length}</span></a>`
   ).join('\n');
   const sectionsHtml = ordered.map(cat => {
     const items = byCat.get(cat).map(c => {
@@ -325,6 +328,7 @@ ${sections.join('\n\n')}
       border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
     }
     nav.toc a span { color: rgba(230, 250, 255, 0.55); margin-left: 4px; font-size: 0.72rem; }
+    nav.toc a .toc-icon { width: 15px; height: 15px; margin-right: 7px; flex: none; color: var(--accent); }
     nav.toc a:hover { border-color: var(--accent); color: var(--accent); }
     /* Anchor jumps clear the sticky list toolbar, whose height is measured at
        runtime (explore.js writes --xp-sticky-h) rather than assumed. */

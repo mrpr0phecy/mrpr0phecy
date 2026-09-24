@@ -33,9 +33,12 @@ plans, decision ledgers, or extra documentation are required.
 | Visible UI | Also inspect the affected page at 360 and 1440 px (§5). |
 
 A doc that feeds generated output still needs its generator. Run additional
-checks when the impact is uncertain, not by default. CI retains the full deep
-gate on pull requests and pushes to `main`; a routine push does not require a
-duplicate local deep run. Never disable a check to make a change pass.
+checks when the impact is uncertain, not by default. CI runs the fast gate
+(7 checks) on pull requests and pushes, and the full `--deep` gate on pushes
+to `main` (the deploy) and on a nightly schedule — a small PR gets feedback in
+about a minute, and the full sweep stands between any merge and the live site.
+A routine push does not require a duplicate local deep run. Never disable a
+check to make a change pass.
 
 ```bash
 npm run build          # regenerate derived catalogue surfaces

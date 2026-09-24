@@ -62,8 +62,13 @@ the social card's type is the page's type. The card's headline is read out of
 
 The **lockup** is the mark, a hairline, and the wordmark on two lines —
 `THE MOST USEFUL / SITE IN THE WORLD`, Inter 800 caps with 0.14em tracking,
-*USEFUL* in the accent. The home page's hero and footer set the same lockup in
-HTML (`.hero-wordmark` / `.footer-wordmark` with `.wm-line` and `.wm-accent`).
+*USEFUL* in the **house accent** (`#e8a33d` on dark, `#7a500e` on light — the
+brand colour, not the visitor's UI accent; see `DESIGN.md` §3). The home
+page's hero and footer set the same lockup in HTML (`.hero-wordmark` /
+`.footer-wordmark` with `.wm-line` and `.wm-accent`) — in the *page* they stay
+in the visitor's accent, because the page is the product's interface and the
+lockup files are the product's brand. The mark inside every lockup keeps the
+console's cyan.
 
 ## Regenerating
 
