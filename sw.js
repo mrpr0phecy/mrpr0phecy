@@ -93,7 +93,7 @@
 // UNCACHED_PATIENCE_MS (the same fallback an offline visit gets), uncached
 // subresources fail fast so the page renders its error UI, and a navigation
 // preload that never settles no longer stops the fetch from starting.
-const CACHE_VERSION = 'v21-2026-09-23';
+const CACHE_VERSION = 'v22-2026-09-24';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

@@ -78,6 +78,8 @@
     --surface-2: light-dark(#eef2f7, #141e28);
     --accent-hsl: 195 100% 60%;
     --vt-duration: 0.28s;
+    /* The easing every entrance in §12 shares. */
+    --ease-out: cubic-bezier(0.22, 0.7, 0.3, 1);
     /* The height of the sticky chrome above the list. explore.js measures the
        real thing and writes it onto <html> as an inline custom property; the
        declaration here exists so this stylesheet carries every token it uses
@@ -868,6 +870,9 @@ body {
     gap: 6px;
     min-height: 92px;
     padding: clamp(12px, 2vw, 16px) clamp(13px, 2vw, 18px);
+    /* clip keeps the hover sheen (§12) inside the radius; nothing else ever
+       overhangs a tile, so this changes nothing else. */
+    overflow: clip;
     color: inherit;
     background: rgba(20, 30, 40, 0.66);
     border: 1px solid var(--border-light);
@@ -1331,6 +1336,72 @@ button,
     .cat-card:active { transition: none; }
     .cat-card:active,
     .hero-jumps a { transform: none; }
+}
+
+/* ======================================================== 12. motion =====
+   Motion is the difference between a page that renders and a page that
+   arrives: the hero's staged entrance, a sheen on category tiles, sections
+   rising on scroll, and a cross-document fade into a tool view. Everything
+   sits behind no-preference (or hover+fine-pointer), so a visitor who asked
+   for stillness gets the identical page with none of it. */
+@keyframes mp-rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    /* The hero assembles top-down on the first paint: brand, the grid children
+       in source order, then the jump links. One-off — nothing loops. */
+    .hero-brand { animation: mp-rise 0.5s var(--ease-out) both; }
+    .hero-layout > * { animation: mp-rise 0.55s var(--ease-out) both; }
+    .hero-layout > :nth-child(2) { animation-delay: 0.06s; }
+    .hero-layout > :nth-child(3) { animation-delay: 0.12s; }
+    .hero-layout > :nth-child(4) { animation-delay: 0.18s; }
+    .hero-jumps { animation: mp-rise 0.55s var(--ease-out) 0.23s both; }
+
+    /* home-core.js arms the gate only when it can also clear it
+       (IntersectionObserver present) — the hidden state can never be final. */
+    .js-reveal-armed .js-reveal {
+        opacity: 0;
+        transform: translateY(16px);
+        transition: opacity 0.45s ease, transform 0.45s var(--ease-out);
+    }
+    .js-reveal-armed .js-reveal.is-visible { opacity: 1; transform: none; }
+
+    /* Page-to-page: the old view leaves instantly, the new one rises in. */
+    @view-transition { navigation: auto; }
+    ::view-transition-old(root) { animation: none; opacity: 0; }
+    ::view-transition-new(root) { animation: mp-rise var(--vt-duration) var(--ease-out) both; }
+}
+
+/* One pass of light across a tile on hover — a mouse affordance, absent on
+   coarse pointers, same as the tooltips. */
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+    .cat-card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: linear-gradient(105deg,
+            transparent 32%,
+            color-mix(in srgb, var(--accent) 12%, transparent) 45%,
+            rgba(255, 255, 255, 0.09) 50%,
+            color-mix(in srgb, var(--accent) 12%, transparent) 55%,
+            transparent 68%);
+        transform: translateX(-105%);
+        transition: transform 0.55s cubic-bezier(0.3, 0.6, 0.3, 1);
+    }
+    .cat-card:hover::after,
+    .cat-card:focus-visible::after { transform: translateX(105%); }
+}
+
+/* A pressed chip wears the accent — the persistent half of the interaction,
+   like the facet chips in explore.css. Dark text, as on the skip link. */
+.popular-chip[aria-pressed="true"] {
+    color: #04141c;
+    background: var(--accent);
+    border-color: transparent;
 }
 
 /* Nobody prints a tool catalogue, but somebody will print this page — the tools
