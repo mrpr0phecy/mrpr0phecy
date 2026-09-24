@@ -66,6 +66,13 @@
   var facetStamp = null;
 
   /* ------------------------------------------------------------ utilities */
+  // en-GB digit grouping without Intl: the first toLocaleString() call loads
+  // ICU locale data, measured at ~100 ms of main thread on a throttled phone
+  // right as the list mounts. Counts here are small non-negative integers.
+  function fmt(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -189,6 +196,18 @@
     document.documentElement.classList.toggle('xp-has-float', !!document.querySelector('.xp-tb-float'));
   }
 
+  /* Coalesced into one animation frame. Reading scrollWidth straight after a
+     toolbar or facet rebuild forced a synchronous layout of the whole list
+     mid-task (the largest self-time in a throttled load profile); in rAF the
+     read reuses the layout the frame performs anyway. The fade is cosmetic,
+     so one frame late is invisible. */
+  var fadeQueued = false;
+  function scheduleOverflowFades() {
+    if (fadeQueued) return;
+    fadeQueued = true;
+    requestAnimationFrame(function () { fadeQueued = false; syncOverflowFades(); });
+  }
+
   function syncOverflowFades() {
     markFloatingClearance();
     var rows = document.querySelectorAll(FADE_ROWS);
@@ -196,7 +215,7 @@
   }
 
   function watchOverflowFades() {
-    syncOverflowFades();
+    scheduleOverflowFades();
     // One capturing listener on the document, not one per row. Scroll events
     // do not bubble, but a capture-phase listener still receives them from
     // every scroller under the document — including the rows that do not exist
@@ -376,7 +395,7 @@
     return '' +
       '<div class="xp-bar-top">' +
       '<div class="xp-field">' +
-      '<input id="xp-input" type="search" autocomplete="off" placeholder="Filter ' + state.rows.length.toLocaleString('en-GB') + ' tools…" aria-label="Filter tools" enterkeyhint="search" />' +
+      '<input id="xp-input" type="search" autocomplete="off" placeholder="Filter ' + fmt(state.rows.length) + ' tools…" aria-label="Filter tools" enterkeyhint="search" />' +
       '<button type="button" class="xp-clear" data-xp-clear aria-label="Clear filter">✕</button>' +
       '</div>' +
       '<div class="xp-tools">' +
@@ -461,8 +480,8 @@
 
     if (els.count) {
       els.count.innerHTML = list.length === state.rows.length
-        ? '<strong>' + state.rows.length.toLocaleString('en-GB') + '</strong> tools'
-        : '<strong>' + list.length.toLocaleString('en-GB') + '</strong> of ' + state.rows.length.toLocaleString('en-GB') +
+        ? '<strong>' + fmt(state.rows.length) + '</strong> tools'
+        : '<strong>' + fmt(list.length) + '</strong> of ' + fmt(state.rows.length) +
           (state.q ? ' for “' + esc(state.q) + '”' : '');
     }
     if (els.more) {
@@ -475,7 +494,7 @@
     if (els.facets && facetStamp !== state.cat) {
       els.facets.innerHTML = facetHTML();
       facetStamp = state.cat;
-      syncOverflowFades();
+      scheduleOverflowFades();
     }
     syncCatSelect();
     syncToolboxButtons();
@@ -540,9 +559,9 @@
     if (els.empty) els.empty.hidden = list.length > 0;
     if (els.count) {
       els.count.innerHTML = list.length === state.rows.length
-        ? '<strong>' + state.rows.length.toLocaleString('en-GB') + '</strong> tools' +
+        ? '<strong>' + fmt(state.rows.length) + '</strong> tools' +
           (state.shown < state.rows.length ? ' · showing the first ' + state.shown + ' of each category' : '')
-        : '<strong>' + list.length.toLocaleString('en-GB') + '</strong> of ' + state.rows.length.toLocaleString('en-GB') +
+        : '<strong>' + fmt(list.length) + '</strong> of ' + fmt(state.rows.length) +
           (state.q ? ' for “' + esc(state.q) + '”' : '');
     }
     if (els.input && els.input.value !== state.q) els.input.value = state.q;

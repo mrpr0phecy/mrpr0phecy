@@ -24,13 +24,13 @@ time.
 
 ```bash
 npm run build          # regenerate every derived file
-npm run verify         # the gate — after every edit
-npm run verify:deep    # + the slow audits — before a push; CI runs it
+npm run verify         # standard gate — after a code/page change batch
+npm run verify:deep    # full audits — shared infrastructure changes; also in CI
 npm test               # the product test suite
 node scripts/screenshot.mjs index.html   # look at a page at 360 and 1440 px
 ```
 
-AGENTS.md §1–§2 has the timings and the one-time scratch setup (outside the
+AGENTS.md §1–§2 has task-based validation and optional scratch setup (outside the
 repository — nothing is ever installed into it).
 
 ## Lantern — the standalone AI
@@ -87,9 +87,9 @@ money-related.
 | **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
 | **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
 | **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
-| **Quality gate** | `npm run verify` after every edit · `npm run verify:deep` before push · CI runs `--deep` + production monitor |
+| **Quality gate** | Task-based local validation (AGENTS.md §1) · CI runs `--deep` + production monitor |
 | **Operations** | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage / rollback / fix-forward. `node scripts/check-production.js` probes the *live* site after every deploy and every 6 h (self-closing alert issue) |
-| **Add a tool** | `bash scripts/add-tool.sh <slug> "<Category>" "<msg>"` or by hand per `AGENTS.md` §4, then `npm run build && npm run verify:deep` |
+| **Add a tool** | `bash scripts/add-tool.sh <slug> "<Category>" "<msg>"` or by hand per `AGENTS.md` §4, then build, smoke-test and verify per §1 |
 
 ## Local preview
 

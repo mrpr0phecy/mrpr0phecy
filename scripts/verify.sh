@@ -3,11 +3,11 @@
 #
 #   bash scripts/verify.sh          # the gate: 7 checks, all of them, ~5 s
 #   bash scripts/verify.sh --deep   # + 4 slow audits, ~75 s with jsdom in
-#                                   #   /tmp/tenv (as CI has it) — before a push
+#                                   #   /tmp/tenv (as CI has it)
 #   bash scripts/verify.sh --live   # + ask the deployed site what it serves
 #
-# The design is one sentence: the suite is short enough to always run
-# completely, so there is nothing to schedule, scope, parallelise or skip.
+# Local validation is task-based: see AGENTS.md §1. Batch edits before
+# running this gate; docs-only changes do not need it. No checks are disabled.
 #
 # The site brain (a 4.5 MB generated retrieval index, its 857-line builder, its
 # evaluator, and the rule that any edit to a public doc forced a
@@ -37,13 +37,13 @@
 #   6. SEO        no top-level page is missing a <title>
 #   7. Lantern    the on-site AI engine's structural contracts hold
 #
-# --deep adds the audits that only matter once, before a push: egress
+# --deep adds the audits for shared infrastructure changes and CI: egress
 # classification, accessibility, cross-card name collisions, CSS leaks, every
 # generated surface's drift check, the full card JS sweep (syntax, inline
 # handlers, parallel arrays), the product test suite and the measured quality
 # floors. They were cut from the gate because
 # they cost ~20 s and change nothing about an edit in progress — not because
-# they are wrong. Run them before pushing; CI runs them on every push and PR.
+# they are wrong. CI runs them on pushes to main and pull requests.
 #
 # Nothing here writes to the repository except the count re-derivation in
 # check 5, which fixes drift in place and tells you to commit the result.
@@ -251,7 +251,7 @@ lantern() {
 }
 
 # ---------------------------------------------------------------------------
-# --deep: the audits that matter once, before a push
+# --deep: shared infrastructure audits and the CI gate
 # ---------------------------------------------------------------------------
 
 deep_card_safety() {
@@ -435,5 +435,5 @@ fi
 if [ "$DEEP" = "1" ]; then
   printf '\033[32mVERIFY PASSED\033[0m — gate and deep audits, %d note(s). Safe to push.\n' "$NOTES"
 else
-  printf '\033[32mVERIFY PASSED\033[0m — the gate, %d note(s). Run --deep before pushing a cards/ or generator change.\n' "$NOTES"
+  printf '\033[32mVERIFY PASSED\033[0m — the gate, %d note(s). Use --deep for shared infrastructure changes (AGENTS.md §1); CI runs it too.\n' "$NOTES"
 fi

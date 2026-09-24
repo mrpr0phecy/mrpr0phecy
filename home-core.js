@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 23;
+  const APP_VERSION = 24;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -199,7 +199,12 @@
       if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
       try { target.focus({ preventScroll: true }); } catch (err2) { try { target.focus(); } catch (err3) {} }
     });
-    measureLimit();
+    // First measurement in the next frame, not mid-script: reading the
+    // search box's rect during the deferred-script pass forced a full layout
+    // of the page before first paint (~160 ms on a throttled phone profile).
+    // limit starts at 220, so a visitor who scrolls in that frame still gets
+    // sensible behaviour; load and fonts.ready re-measure below.
+    requestAnimationFrame(relayout);
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', relayout, { passive: true });
     window.addEventListener('load', relayout);
@@ -308,6 +313,7 @@
     var boxes = ['tool-search', 'stickySearchInput'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
     var clearBtn = document.getElementById('mainSearchClear');
     chips.forEach(function (chip) {
+      if (chip.id === 'heroSurpriseBtn') return;
       chip.addEventListener('click', function (e) {
         var q = chip.getAttribute('data-query') || chip.textContent.trim();
         if (!q) return;
@@ -332,6 +338,50 @@
           location.href = 'tools.html?q=' + encodeURIComponent(q);
         }
       });
+    });
+  }
+
+  /* --------------------------------------------------- surprise / random tool */
+  var VIRAL_TOOLS = [
+    'acoustic-levitation-standing-wave', 'reaction-time', 'cellular-automata-lab',
+    'wifi-qr-generator', 'audio-tone-frequency-generator', 'bmi', 'compoundinterest',
+    'mortgage', 'loan', 'percentages', 'bmr', 'age-calculator', 'youtube-dj',
+    'metronome', 'pomodoro-timer', 'color-contrast-checker', 'lines-planes-3d-calculator',
+    'adhd-time-task-lab', 'latex-table-maths-studio', 'morse-code-audio-trainer',
+    'stellar-evolution-hr-diagram', 'subatomic-decay-chain-simulator', 'fluid-dynamics-navier-stokes',
+    'quantum-tunneling-wave-packet-sim', 'dna-to-protein-translation-lab',
+    'neural-network-from-scratch', 'conways-game-of-life-advanced', 'fractal-mandelbrot-explorer',
+    'secret-message-encoder', 'speed-typing-test', 'world-clock-meeting-planner',
+    'dog-human-age-epigenetic-calc', 'lucid-dreaming-reality-tester',
+    'breathing-box-relaxation-guide', 'unit-converter', 'currency', 'salary', 'tax',
+    'qrtool', 'jwt-decoder', 'markdown-live-editor'
+  ];
+
+  function pickRandomTool() {
+    var pool = VIRAL_TOOLS;
+    var slug = pool[Math.floor(Math.random() * pool.length)];
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'surprise_me_click', { tool: slug });
+    }
+    location.href = 'tool.html?card=' + encodeURIComponent(slug) + '&surprise=1';
+  }
+
+  function setupSurpriseButtons() {
+    ['heroSurpriseBtn', 'stickySurpriseBtn'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        pickRandomTool();
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        pickRandomTool();
+      }
     });
   }
 
@@ -515,6 +565,7 @@
     setupStickyBar();
     setupSearch();
     setupPopularChips();
+    setupSurpriseButtons();
     setupPanels();
     syncPopoverA11y();
     popoverFallback();
