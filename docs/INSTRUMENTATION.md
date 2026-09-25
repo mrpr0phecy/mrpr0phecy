@@ -2,7 +2,7 @@
 
 Why this exists
 ---------------
-Most of the 1307 tools are long-tail. We have no idea what people type that
+Most of the 1308 tools are long-tail. We have no idea what people type that
 *doesn't* match, which categories actually get used, or which cards people
 expand but never finish. Without that, every roadmap decision is a guess. The
 zero-result search log is deliberately the first (and most valuable) signal
