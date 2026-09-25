@@ -34,7 +34,7 @@
  *
  * Everything is exported on MM.locators and used by maps/app.js for the place
  * panel, by maps/core/gazetteer.js so the search box accepts these codes, and
- * by maps/embed.js so any of the 1,308 cards can have them too.
+ * by maps/embed.js so any of the 1,309 cards can have them too.
  */
 (function (root) {
   'use strict';

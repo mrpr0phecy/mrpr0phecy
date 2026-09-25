@@ -1,0 +1,318 @@
+<h2 id="cbsim-title" style="margin-top:0;color:var(--accent);">👁️ Colour Blindness Simulator — See Your Image or Palette as Colour-Blind People Do</h2>
+
+<div id="cbsim-root">
+<p id="cbsim-desc" class="small" style="color:rgba(230,250,255,0.7);margin:0 0 14px;">
+  Drop in a chart, map, UI screenshot or photo and see it through protanopia, deuteranopia, tritanopia and
+  achromatopsia side by side, with a severity slider. Paste a palette to find colour pairs that merge. Runs locally.
+</p>
+
+<div class="cbsim-drop" id="cbsim-drop">
+  <input type="file" id="cbsim-file" accept="image/*" aria-label="Choose an image" class="cbsim-fileinput">
+  <label for="cbsim-file" class="cbsim-btn cbsim-primary" style="display:inline-block;">Choose an image…</label>
+  <button type="button" id="cbsim-sample" class="cbsim-btn">Use the sample chart</button>
+  <p class="cbsim-hint" style="margin:8px 0 0;">Or drop a file here, or paste a screenshot with Ctrl/⌘+V. Nothing leaves your device.</p>
+</div>
+
+<div class="cbsim-opts">
+  <div class="cbsim-field"><label for="cbsim-sev" class="cbsim-lbl">Severity <span id="cbsim-sevv" class="cbsim-val">100% (dichromacy)</span></label><input type="range" id="cbsim-sev" min="1" max="10" step="1" value="10"></div>
+  <div class="cbsim-field"><label for="cbsim-big" class="cbsim-lbl">Large view</label><select id="cbsim-big"><option value="grid" selected>Grid of all types</option><option value="protan">Original vs protan</option><option value="deutan">Original vs deutan</option><option value="tritan">Original vs tritan</option><option value="achroma">Original vs achromatopsia</option></select></div>
+  <div class="cbsim-field cbsim-field-btn"><button type="button" id="cbsim-sheet" class="cbsim-btn" disabled>⬇ Download comparison sheet</button></div>
+</div>
+<p id="cbsim-status" class="cbsim-status" role="status" aria-live="polite"></p>
+
+<div id="cbsim-grid" class="cbsim-grid"></div>
+
+<h3 class="cbsim-h3">Palette check</h3>
+<p class="cbsim-hint" style="margin:0 0 8px;">Paste the colours of your chart, map or brand. Pairs that land too close together under a simulation are listed — those are the ones people will mix up.</p>
+<div class="cbsim-palrow">
+  <input type="text" id="cbsim-pal" aria-label="Palette colours (hex)" value="#e41a1c #377eb8 #4daf4a #984ea3 #ff7f00" spellcheck="false" autocomplete="off">
+  <button type="button" id="cbsim-safe" class="cbsim-btn">Try a safe palette</button>
+</div>
+<div id="cbsim-swatches" class="cbsim-swatches"></div>
+<ul id="cbsim-issues" class="cbsim-issues"></ul>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.6);font-size:0.85rem;">
+  <summary style="cursor:pointer;">How the simulation works, who it affects, and how to design around it</summary>
+  <p style="margin-top:8px;"><strong>Who.</strong> Red–green colour vision deficiency affects roughly 1 in 12 men and 1 in 200 women of
+    Northern European descent (it is X-linked, hence the imbalance). The commonest form by far is deuteranomaly —
+    weakened green cones — at around 5% of men; protanomaly, protanopia and deuteranopia are each about 1%. Tritan
+    (blue–yellow) defects are rare, roughly 1 in 10,000, and affect both sexes equally. Achromatopsia, seeing no
+    colour at all, is rarer still at about 1 in 30,000; it is included here because a grey rendering is also the
+    fastest test of whether your design depends on hue alone.</p>
+  <p><strong>How.</strong> Each pixel is converted from sRGB to linear light, multiplied by a 3×3 matrix from Machado,
+    Oliveira and Fernandes' physiologically based model (IEEE TVCG, 2009), and converted back. Their model is built
+    from cone spectral sensitivities and the opponent-colour stage of human vision, and it produces one matrix per
+    type and severity; the slider picks from their published table in steps of 10%, where 100% is dichromacy (a cone
+    type missing entirely) and lower values are anomalous trichromacy (a cone type shifted). Achromatopsia is the
+    relative luminance of each pixel. The result is what a person with normal vision would see that is equivalent to
+    what the colour-blind viewer sees — it cannot show you their experience, only which colours collapse together.</p>
+  <p><strong>The palette check.</strong> Every colour you enter is pushed through the same matrices, then converted to CIE
+    L*a*b*, and each pair's difference (ΔE, CIE76) is measured. A ΔE below about 10 between two data colours means
+    people will struggle to tell adjacent bars, lines or map regions apart; below 5 they will not manage at all. The
+    default palette is a common charting default and fails for red–green viewers; <em>Try a safe palette</em> loads
+    Okabe and Ito's eight colours, designed to stay distinct under all three dichromacies.</p>
+  <p><strong>Designing around it.</strong> Never let colour be the only carrier of meaning: add labels, patterns, shapes or
+    direct annotation. Vary lightness as well as hue — pairs that differ in lightness survive every simulation, which is
+    why the grey view is so revealing. Avoid red-versus-green for good/bad states; blue-versus-orange does the same job
+    for everyone. Check charts at the severity most people actually have (around 50–70%) as well as at 100%.</p>
+</details>
+
+<style>
+#cbsim-root{color:#e6faff;}
+#cbsim-root [hidden]{display:none !important;}
+#cbsim-root .cbsim-drop{border:2px dashed rgba(45,212,255,0.35);border-radius:12px;padding:14px;text-align:center;background:rgba(45,212,255,0.04);}
+#cbsim-root .cbsim-drop.cbsim-over{border-color:var(--accent,#2dd4ff);background:rgba(45,212,255,0.12);}
+#cbsim-root .cbsim-fileinput{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;}
+#cbsim-root .cbsim-fileinput:focus-visible + label{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+#cbsim-root .cbsim-lbl{color:var(--accent,#2dd4ff);font-weight:600;font-size:12.5px;display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;}
+#cbsim-root .cbsim-val{color:rgba(230,250,255,0.6);font-weight:500;text-align:right;}
+#cbsim-root select,#cbsim-root input[type=text]{box-sizing:border-box;width:100%;min-width:0;padding:9px 10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:#e6faff;font-size:14px;font-family:inherit;}
+#cbsim-root input[type=range]{width:100%;margin:12px 0 0;accent-color:var(--accent,#2dd4ff);}
+#cbsim-root .cbsim-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px 14px;margin-top:12px;align-items:end;}
+#cbsim-root .cbsim-field{min-width:0;}
+#cbsim-root .cbsim-btn{padding:8px 14px;min-height:40px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.92);cursor:pointer;font-size:13.5px;font-weight:600;font-family:inherit;touch-action:manipulation;box-sizing:border-box;}
+#cbsim-root .cbsim-btn:hover:not(:disabled){background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#cbsim-root .cbsim-btn:disabled{opacity:.5;cursor:default;}
+#cbsim-root .cbsim-primary{background:var(--accent,#2dd4ff);color:#03141c;border-color:transparent;}
+#cbsim-root .cbsim-primary:hover:not(:disabled){background:var(--accent,#2dd4ff);filter:brightness(1.08);}
+#cbsim-root .cbsim-hint{font-size:12.8px;color:rgba(230,250,255,0.6);line-height:1.5;}
+#cbsim-root .cbsim-status{min-height:1.3em;margin:8px 0 0;color:var(--accent,#2dd4ff);font-size:13.5px;}
+#cbsim-root .cbsim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px;margin-top:8px;}
+#cbsim-root .cbsim-grid.cbsim-two{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));}
+#cbsim-root .cbsim-panel{background:#0d1620;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px;min-width:0;}
+#cbsim-root .cbsim-panel canvas{display:block;width:100%;height:auto;border-radius:6px;background:#000;}
+#cbsim-root .cbsim-ptitle{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:0 0 6px;font-size:14px;font-weight:700;}
+#cbsim-root .cbsim-ptitle small{font-weight:500;color:rgba(230,250,255,0.55);font-size:12px;text-align:right;}
+#cbsim-root .cbsim-pfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;}
+#cbsim-root .cbsim-pfoot .cbsim-hint{font-size:12px;}
+#cbsim-root .cbsim-sbtn{padding:5px 10px;min-height:32px;font-size:12.5px;}
+#cbsim-root .cbsim-h3{margin:20px 0 6px;font-size:16px;color:var(--accent,#2dd4ff);}
+#cbsim-root .cbsim-palrow{display:flex;flex-wrap:wrap;gap:8px;}
+#cbsim-root .cbsim-palrow input{flex:1 1 240px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+#cbsim-root .cbsim-swatches{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-top:10px;font-size:12.5px;}
+#cbsim-root .cbsim-swrow{display:flex;gap:4px;min-width:0;}
+#cbsim-root .cbsim-sw{flex:1 1 0;height:34px;border-radius:5px;border:1px solid rgba(255,255,255,0.12);min-width:0;}
+#cbsim-root .cbsim-issues{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.55;}
+#cbsim-root .cbsim-issues li{margin:3px 0;}
+#cbsim-root .cbsim-ok{color:#39ff5a;}
+#cbsim-root .cbsim-bad{color:#ffb020;}
+#cbsim-root .cbsim-grey{color:rgba(230,250,255,0.6);}
+#cbsim-root .cbsim-chip{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin:0 3px 0 1px;border:1px solid rgba(255,255,255,0.2);}
+#cbsim-root button:focus-visible,#cbsim-root select:focus-visible,#cbsim-root input:focus-visible,#cbsim-root summary:focus-visible{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+</style>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var ROOT_ID = 'cbsim-root', KEY = 'cbsim.v1', MAX_SIDE = 1100;
+  function alive() { return !!document.getElementById(ROOT_ID); }
+
+  // Machado, Oliveira & Fernandes (2009) simulation matrices, severity 0.1 … 1.0, applied in linear RGB.
+  var M = {
+    protan: [[0.856167, 0.182038, -0.038205, 0.029342, 0.955115, 0.015544, -0.002880, -0.001563, 1.004443], [0.734766, 0.334872, -0.069637, 0.051840, 0.919198, 0.028963, -0.004928, -0.004209, 1.009137], [0.630323, 0.465641, -0.095964, 0.069181, 0.890046, 0.040773, -0.006308, -0.007724, 1.014032], [0.539009, 0.579343, -0.118352, 0.082546, 0.866121, 0.051332, -0.007136, -0.011959, 1.019095], [0.458064, 0.679578, -0.137642, 0.092785, 0.846313, 0.060902, -0.007494, -0.016807, 1.024301], [0.385450, 0.769005, -0.154455, 0.100526, 0.829802, 0.069673, -0.007442, -0.022190, 1.029632], [0.319627, 0.849633, -0.169261, 0.106241, 0.815969, 0.077790, -0.007025, -0.028051, 1.035076], [0.259411, 0.923008, -0.182420, 0.110296, 0.804340, 0.085364, -0.006276, -0.034346, 1.040622], [0.203876, 0.990338, -0.194214, 0.112975, 0.794542, 0.092483, -0.005222, -0.041043, 1.046265], [0.152286, 1.052583, -0.204868, 0.114503, 0.786281, 0.099216, -0.003882, -0.048116, 1.051998]],
+    deutan: [[0.866435, 0.177704, -0.044139, 0.049567, 0.939063, 0.011370, -0.003453, 0.007233, 0.996220], [0.760729, 0.319078, -0.079807, 0.090568, 0.889315, 0.020117, -0.006027, 0.013325, 0.992702], [0.675425, 0.433850, -0.109275, 0.125303, 0.847755, 0.026942, -0.007950, 0.018572, 0.989378], [0.605511, 0.528560, -0.134071, 0.155318, 0.812366, 0.032316, -0.009376, 0.023176, 0.986200], [0.547494, 0.607765, -0.155259, 0.181692, 0.781742, 0.036566, -0.010410, 0.027275, 0.983136], [0.498864, 0.674741, -0.173604, 0.205199, 0.754872, 0.039929, -0.011131, 0.030969, 0.980162], [0.457771, 0.731899, -0.189670, 0.226409, 0.731012, 0.042579, -0.011595, 0.034333, 0.977261], [0.422823, 0.781057, -0.203881, 0.245752, 0.709602, 0.044646, -0.011843, 0.037423, 0.974421], [0.392952, 0.823610, -0.216562, 0.263559, 0.690210, 0.046232, -0.011910, 0.040281, 0.971630], [0.367322, 0.860646, -0.227968, 0.280085, 0.672501, 0.047413, -0.011820, 0.042940, 0.968881]],
+    tritan: [[0.926670, 0.092514, -0.019184, 0.021191, 0.964503, 0.014306, 0.008437, 0.054813, 0.936750], [0.895720, 0.133330, -0.029050, 0.029997, 0.945400, 0.024603, 0.013027, 0.104707, 0.882266], [0.905871, 0.127791, -0.033662, 0.026856, 0.941251, 0.031893, 0.013410, 0.148296, 0.838294], [0.948035, 0.089490, -0.037526, 0.014364, 0.946792, 0.038844, 0.010853, 0.193991, 0.795156], [1.017277, 0.027029, -0.044306, -0.006113, 0.958479, 0.047634, 0.006379, 0.248708, 0.744913], [1.104996, -0.046633, -0.058363, -0.032137, 0.971635, 0.060503, 0.001336, 0.317922, 0.680742], [1.193214, -0.109812, -0.083402, -0.058496, 0.979410, 0.079086, -0.002346, 0.403492, 0.598854], [1.257728, -0.139648, -0.118081, -0.078003, 0.975409, 0.102594, -0.003316, 0.501214, 0.502102], [1.278864, -0.125333, -0.153531, -0.084748, 0.957674, 0.127074, -0.000989, 0.601151, 0.399838], [1.255528, -0.076749, -0.178779, -0.078411, 0.930809, 0.147602, 0.004733, 0.691367, 0.303900]]
+  };
+  var TYPES = [
+    { id: 'normal', name: 'Original', who: 'as you see it' },
+    { id: 'protan', full: 'Protanopia', partial: 'Protanomaly', who: 'no or weak red cones · about 1% of men each' },
+    { id: 'deutan', full: 'Deuteranopia', partial: 'Deuteranomaly', who: 'no or weak green cones · about 1% and 5% of men' },
+    { id: 'tritan', full: 'Tritanopia', partial: 'Tritanomaly', who: 'blue–yellow · roughly 1 in 10,000' },
+    { id: 'achroma', name: 'Achromatopsia', who: 'no colour at all · about 1 in 30,000' }
+  ];
+  var TO_LIN = new Float32Array(256), TO_SRGB = new Uint8ClampedArray(4096);
+  (function () {
+    for (var i = 0; i < 256; i++) { var c = i / 255; TO_LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    for (var k = 0; k < 4096; k++) { var l = k / 4095; TO_SRGB[k] = Math.round(255 * (l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055)); }
+  })();
+  function enc(v) { return TO_SRGB[v <= 0 ? 0 : v >= 1 ? 4095 : Math.round(v * 4095)]; }
+  function simulatePixel(r, g, b, type, sev) { // r,g,b 0–255 → [r,g,b] 0–255
+    var lr = TO_LIN[r], lg = TO_LIN[g], lb = TO_LIN[b];
+    if (type === 'normal') return [r, g, b];
+    if (type === 'achroma') { var y = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb, e = enc(y); return [e, e, e]; }
+    var m = M[type][sev - 1];
+    return [enc(m[0] * lr + m[1] * lg + m[2] * lb), enc(m[3] * lr + m[4] * lg + m[5] * lb), enc(m[6] * lr + m[7] * lg + m[8] * lb)];
+  }
+  var scratch = null;
+  function blankImage(w, h) { if (!scratch) { scratch = document.createElement('canvas'); scratch.width = 1; scratch.height = 1; } var x = scratch.getContext('2d'); return x ? x.createImageData(w, h) : new ImageData(w, h); }
+  function simulateImage(src, type, sev) { // src ImageData → new ImageData
+    var d = src.data, n = d.length, out = blankImage(src.width, src.height), o = out.data, i;
+    if (type === 'normal') { o.set(d); return out; }
+    if (type === 'achroma') { for (i = 0; i < n; i += 4) { var e = enc(0.2126 * TO_LIN[d[i]] + 0.7152 * TO_LIN[d[i + 1]] + 0.0722 * TO_LIN[d[i + 2]]); o[i] = e; o[i + 1] = e; o[i + 2] = e; o[i + 3] = d[i + 3]; } return out; }
+    var m = M[type][sev - 1], m0 = m[0], m1 = m[1], m2 = m[2], m3 = m[3], m4 = m[4], m5 = m[5], m6 = m[6], m7 = m[7], m8 = m[8];
+    for (i = 0; i < n; i += 4) {
+      var lr = TO_LIN[d[i]], lg = TO_LIN[d[i + 1]], lb = TO_LIN[d[i + 2]];
+      o[i] = enc(m0 * lr + m1 * lg + m2 * lb); o[i + 1] = enc(m3 * lr + m4 * lg + m5 * lb); o[i + 2] = enc(m6 * lr + m7 * lg + m8 * lb); o[i + 3] = d[i + 3];
+    }
+    return out;
+  }
+  function toLab(r, g, b) { // sRGB 0–255 → CIE L*a*b* (D65)
+    var lr = TO_LIN[r], lg = TO_LIN[g], lb = TO_LIN[b];
+    var x = (0.4124 * lr + 0.3576 * lg + 0.1805 * lb) / 0.95047, y = 0.2126 * lr + 0.7152 * lg + 0.0722 * lb, z = (0.0193 * lr + 0.1192 * lg + 0.9505 * lb) / 1.08883;
+    var f = function (t) { return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; };
+    var fx = f(x), fy = f(y), fz = f(z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function deltaE(a, b) { return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2)); }
+  function parseHex(s) { var m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s.trim()); if (!m) return null; var h = m[1]; if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2]; return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+  function hex(rgb) { return '#' + rgb.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''); }
+
+  function drawSample(c) { // a chart that goes wrong for red–green viewers
+    c.width = 900; c.height = 600; var x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, 900, 600);
+    x.fillStyle = '#111'; x.font = '700 26px Arial, sans-serif'; x.fillText('Quarterly results by region', 30, 46);
+    var cols = ['#e41a1c', '#4daf4a', '#377eb8', '#ff7f00', '#984ea3'], names = ['North', 'South', 'East', 'West', 'Online'], vals = [0.72, 0.55, 0.83, 0.4, 0.62];
+    for (var i = 0; i < 5; i++) { var h = vals[i] * 300; x.fillStyle = cols[i]; x.fillRect(60 + i * 100, 400 - h, 70, h); x.fillStyle = '#333'; x.font = '15px Arial, sans-serif'; x.fillText(names[i], 60 + i * 100, 425); }
+    x.strokeStyle = '#999'; x.beginPath(); x.moveTo(50, 400.5); x.lineTo(560, 400.5); x.stroke();
+    // legend
+    x.font = '15px Arial, sans-serif'; ['Target met', 'Below target'].forEach(function (t, k) { x.fillStyle = k ? '#e41a1c' : '#4daf4a'; x.fillRect(600, 90 + k * 30, 18, 18); x.fillStyle = '#333'; x.fillText(t, 626, 105 + k * 30); });
+    // traffic lights
+    var tl = ['#2ecc40', '#ffdc00', '#ff4136']; for (i = 0; i < 3; i++) { x.fillStyle = tl[i]; x.beginPath(); x.arc(640 + i * 70, 250, 26, 0, Math.PI * 2); x.fill(); }
+    x.fillStyle = '#333'; x.fillText('Status: go / wait / stop', 600, 300);
+    // rainbow strip
+    for (i = 0; i < 300; i++) { x.fillStyle = 'hsl(' + (i * 1.2) + ',85%,50%)'; x.fillRect(600 + i, 340, 1, 40); }
+    x.fillStyle = '#333'; x.fillText('Heat scale', 600, 400);
+    // pie
+    var pie = [0.35, 0.25, 0.2, 0.2], a0 = -Math.PI / 2; for (i = 0; i < 4; i++) { var a1 = a0 + pie[i] * Math.PI * 2; x.fillStyle = cols[i]; x.beginPath(); x.moveTo(300, 510); x.arc(300, 510, 75, a0, a1); x.closePath(); x.fill(); a0 = a1; }
+    x.fillStyle = '#333'; x.fillText('Share by region', 400, 500);
+    x.fillStyle = '#e41a1c'; x.fillRect(600, 440, 130, 60); x.fillStyle = '#4daf4a'; x.fillRect(740, 440, 130, 60);
+    x.fillStyle = '#fff'; x.font = '700 16px Arial, sans-serif'; x.fillText('DELETE', 634, 476); x.fillText('SAVE', 782, 476);
+  }
+
+  function init() {
+    var root = document.getElementById(ROOT_ID);
+    if (!root || root.getAttribute('data-ready') === '1') return;
+    root.setAttribute('data-ready', '1');
+    var $ = function (id) { return document.getElementById(id); };
+    var S = load(), src = null, srcName = 'image', panels = {}, sayTimer = 0, renderTimer = 0;
+    function load() { var d = null; try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; } var s = { sev: 10, big: 'grid', pal: '#e41a1c #377eb8 #4daf4a #984ea3 #ff7f00' }; if (d && typeof d === 'object') { if (+d.sev >= 1 && +d.sev <= 10) s.sev = Math.round(+d.sev); if (/^(grid|protan|deutan|tritan|achroma)$/.test(d.big)) s.big = d.big; if (typeof d.pal === 'string') s.pal = d.pal.slice(0, 400); } return s; }
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+    function say(msg) { if (!alive()) return; $('cbsim-status').textContent = msg; clearTimeout(sayTimer); sayTimer = setTimeout(function () { if (alive()) $('cbsim-status').textContent = ''; }, 7000); }
+    function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
+    function typeLabel(t) { if (t.id === 'normal' || t.id === 'achroma') return t.name; return S.sev === 10 ? t.full : t.partial + ' ' + S.sev * 10 + '%'; }
+
+    // ---------- panels ----------
+    function buildPanels() {
+      var grid = $('cbsim-grid'); while (grid.firstChild) grid.removeChild(grid.firstChild); panels = {};
+      var shown = S.big === 'grid' ? TYPES : TYPES.filter(function (t) { return t.id === 'normal' || t.id === S.big; });
+      grid.classList.toggle('cbsim-two', S.big !== 'grid');
+      shown.forEach(function (t) {
+        var p = el('div', 'cbsim-panel'), h = el('p', 'cbsim-ptitle'), strong = el('span', '', typeLabel(t)), small = el('small', '', t.who), c = document.createElement('canvas'), f = el('div', 'cbsim-pfoot'), b = el('button', 'cbsim-btn cbsim-sbtn', 'Save PNG');
+        b.type = 'button'; b.addEventListener('click', function () { savePanel(t); });
+        c.setAttribute('role', 'img'); c.setAttribute('aria-label', typeLabel(t) + ' simulation of your image');
+        h.appendChild(strong); h.appendChild(small); p.appendChild(h); p.appendChild(c); f.appendChild(el('span', 'cbsim-hint', '')); f.appendChild(b); p.appendChild(f); grid.appendChild(p);
+        panels[t.id] = { canvas: c, title: strong, type: t };
+      });
+    }
+    function render() {
+      if (!src || !alive()) return;
+      var ids = Object.keys(panels), k = 0;
+      (function step() {
+        if (!alive()) return;
+        if (k >= ids.length) { $('cbsim-sheet').disabled = false; return; }
+        var p = panels[ids[k++]], c = p.canvas; c.width = src.width; c.height = src.height;
+        p.title.textContent = typeLabel(p.type); c.setAttribute('aria-label', typeLabel(p.type) + ' simulation of your image');
+        c.getContext('2d').putImageData(simulateImage(src, p.type.id, S.sev), 0, 0);
+        setTimeout(step, 0);
+      })();
+    }
+    function scheduleRender() { clearTimeout(renderTimer); renderTimer = setTimeout(function () { if (!alive()) return; render(); renderPalette(); }, 60); }
+    function setSource(canvasLike, name) {
+      var w = canvasLike.naturalWidth || canvasLike.width, h = canvasLike.naturalHeight || canvasLike.height;
+      if (!w || !h) { say('Could not read that image.'); return; }
+      var k = Math.min(1, MAX_SIDE / Math.max(w, h)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      var x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(canvasLike, 0, 0, c.width, c.height);
+      try { src = x.getImageData(0, 0, c.width, c.height); } catch (e) { say('Could not read that image.'); return; }
+      srcName = (name || 'image').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 40) || 'image';
+      render(); say(c.width + '×' + c.height + ' — simulated for ' + (S.big === 'grid' ? 'all types' : 'one type') + '.');
+    }
+    function loadFile(file) {
+      if (!file || !/^image\//.test(file.type)) { say('That does not look like an image file.'); return; }
+      var url = URL.createObjectURL(file), im = document.createElement('img');
+      im.onload = function () { URL.revokeObjectURL(url); if (alive()) setSource(im, file.name); };
+      im.onerror = function () { URL.revokeObjectURL(url); say('Could not decode that image.'); };
+      im.src = url;
+    }
+    function savePanel(t) {
+      var p = panels[t.id]; if (!p) return;
+      p.canvas.toBlob(function (blob) { if (!blob || !alive()) return; download(blob, srcName + '-' + typeLabel(t).toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.png'); }, 'image/png');
+    }
+    function download(blob, name) { var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true; root.appendChild(a); a.click(); root.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 4000); say('Saved ' + name + '.'); }
+    function saveSheet() { // labelled comparison sheet: 2 or 3 columns of panels
+      if (!src) return;
+      var list = TYPES.filter(function (t) { return S.big === 'grid' || t.id === 'normal' || t.id === S.big; });
+      var cols = list.length > 2 ? 3 : 2, rows = Math.ceil(list.length / cols), pw = Math.min(src.width, 640), ph = Math.round(src.height * pw / src.width), pad = 24, cap = 54;
+      var c = document.createElement('canvas'); c.width = cols * pw + (cols + 1) * pad; c.height = rows * (ph + cap) + (rows + 1) * pad + 30; var x = c.getContext('2d');
+      x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+      list.forEach(function (t, i) {
+        var cx = pad + (i % cols) * (pw + pad), cy = pad + Math.floor(i / cols) * (ph + cap + pad), p = panels[t.id];
+        x.drawImage(p.canvas, cx, cy, pw, ph);
+        x.fillStyle = '#111'; x.font = '700 18px Arial, sans-serif'; x.fillText(typeLabel(t), cx, cy + ph + 24);
+        x.fillStyle = '#555'; x.font = '13px Arial, sans-serif'; x.fillText(t.who, cx, cy + ph + 44);
+      });
+      x.fillStyle = '#888'; x.font = '12px Arial, sans-serif'; x.fillText('Simulated with the Machado, Oliveira & Fernandes (2009) model · themostusefulsiteintheworld.com/colour-blindness-simulator', pad, c.height - 12);
+      c.toBlob(function (blob) { if (blob && alive()) download(blob, srcName + '-colour-vision-sheet.png'); }, 'image/png');
+    }
+
+    // ---------- palette ----------
+    function renderPalette() {
+      if (!alive()) return;
+      var box = $('cbsim-swatches'), issues = $('cbsim-issues'); while (box.firstChild) box.removeChild(box.firstChild); while (issues.firstChild) issues.removeChild(issues.firstChild);
+      var cols = ($('cbsim-pal').value.match(/#?[0-9a-fA-F]{3,6}\b/g) || []).map(parseHex).filter(Boolean).slice(0, 16);
+      if (cols.length < 2) { issues.appendChild(el('li', 'cbsim-hint', 'Enter at least two hex colours, e.g. #e41a1c #4daf4a.')); return; }
+      var anyBad = false;
+      TYPES.forEach(function (t) {
+        var lab = el('div', '', typeLabel(t)), row = el('div', 'cbsim-swrow'), sims = cols.map(function (c) { return simulatePixel(c[0], c[1], c[2], t.id, S.sev); });
+        sims.forEach(function (sc, i) { var sw = el('div', 'cbsim-sw'); sw.style.background = hex(sc); sw.title = hex(cols[i]) + ' → ' + hex(sc); sw.setAttribute('data-orig', hex(cols[i])); sw.setAttribute('data-sim', hex(sc)); row.appendChild(sw); });
+        box.appendChild(lab); box.appendChild(row);
+        if (t.id === 'normal') return;
+        var labs = sims.map(function (sc) { return toLab(sc[0], sc[1], sc[2]); }), worst = [];
+        for (var i = 0; i < cols.length; i++) for (var j = i + 1; j < cols.length; j++) { var dE = deltaE(labs[i], labs[j]); if (dE < 12) worst.push({ i: i, j: j, dE: dE }); }
+        worst.sort(function (a, b) { return a.dE - b.dE; });
+        if (!worst.length) return;
+        var grey = t.id === 'achroma'; if (!grey) anyBad = true; // greyscale is informational: it also predicts black-and-white printing
+        var li = el('li', grey ? 'cbsim-grey' : 'cbsim-bad'); li.appendChild(el('strong', '', (grey ? 'Greyscale / black-and-white print' : typeLabel(t)) + ': '));
+        worst.slice(0, 4).forEach(function (w, k) {
+          if (k) li.appendChild(document.createTextNode(' · '));
+          var c1 = el('span', 'cbsim-chip'); c1.style.background = hex(cols[w.i]); var c2 = el('span', 'cbsim-chip'); c2.style.background = hex(cols[w.j]);
+          li.appendChild(c1); li.appendChild(document.createTextNode(hex(cols[w.i]) + ' and ')); li.appendChild(c2); li.appendChild(document.createTextNode(hex(cols[w.j]) + ' (ΔE ' + w.dE.toFixed(0) + (w.dE < 5 ? ', indistinguishable' : ', hard to tell apart') + ')'));
+        });
+        if (worst.length > 4) li.appendChild(document.createTextNode(' + ' + (worst.length - 4) + ' more'));
+        issues.appendChild(li);
+      });
+      if (!anyBad) issues.insertBefore(el('li', 'cbsim-ok', 'Every pair stays at least ΔE 12 apart under protan, deutan and tritan simulations — this palette holds up.'), issues.firstChild);
+    }
+
+    // ---------- wiring ----------
+    $('cbsim-sev').value = String(S.sev); $('cbsim-big').value = S.big; $('cbsim-pal').value = S.pal;
+    function sevLabel() { $('cbsim-sevv').textContent = S.sev * 10 + '%' + (S.sev === 10 ? ' (dichromacy)' : ' (anomalous trichromacy)'); }
+    sevLabel();
+    $('cbsim-sev').addEventListener('input', function () { S.sev = Math.max(1, Math.min(10, Math.round(+this.value))); sevLabel(); save(); scheduleRender(); });
+    $('cbsim-big').addEventListener('change', function () { S.big = this.value; save(); buildPanels(); render(); });
+    $('cbsim-pal').addEventListener('input', function () { S.pal = this.value.slice(0, 400); save(); renderPalette(); });
+    $('cbsim-safe').addEventListener('click', function () { S.pal = '#000000 #e69f00 #56b4e9 #009e73 #f0e442 #0072b2 #d55e00 #cc79a7'; $('cbsim-pal').value = S.pal; save(); renderPalette(); say('Okabe–Ito palette loaded — eight colours built to survive colour blindness.'); });
+    $('cbsim-sheet').addEventListener('click', saveSheet);
+    $('cbsim-sample').addEventListener('click', function () { var c = document.createElement('canvas'); drawSample(c); setSource(c, 'sample-chart'); });
+    $('cbsim-file').addEventListener('change', function () { if (this.files && this.files[0]) loadFile(this.files[0]); this.value = ''; });
+    var drop = $('cbsim-drop');
+    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('cbsim-over'); });
+    drop.addEventListener('dragleave', function () { drop.classList.remove('cbsim-over'); });
+    drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('cbsim-over'); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+    function onPaste(e) {
+      if (!alive()) { document.removeEventListener('paste', onPaste); return; }
+      var items = e.clipboardData && e.clipboardData.items; if (!items) return;
+      for (var i = 0; i < items.length; i++) if (items[i].type && items[i].type.indexOf('image/') === 0) { var f = items[i].getAsFile(); if (f) { e.preventDefault(); loadFile(f); return; } }
+    }
+    document.addEventListener('paste', onPaste);
+    var watchdog = setInterval(function () { if (!alive()) { clearInterval(watchdog); clearTimeout(renderTimer); document.removeEventListener('paste', onPaste); } }, 2000);
+
+    buildPanels();
+    var sample = document.createElement('canvas'); drawSample(sample); setSource(sample, 'sample-chart');
+    renderPalette();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
