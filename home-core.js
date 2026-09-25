@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 25;
+  const APP_VERSION = 26;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -151,6 +151,11 @@
     if (!bar) return;
     var limit = 220;
     var shown = null;
+    // The bar is always laid out (it hides with opacity/visibility, not
+    // display), so its height is measured with the search position — on load
+    // and resize — and never read on the scroll path, where reading
+    // offsetHeight straight after toggling a class forced a synchronous layout.
+    var barH = 0;
     function measureLimit() {
       var search = document.getElementById('tool-search');
       if (!search) return;
@@ -159,7 +164,7 @@
       limit = Math.max(0, Math.round(window.scrollY + r.bottom - 8));
     }
     function publish(show) {
-      var reserve = bar.offsetHeight || 56;
+      var reserve = barH || 56;
       document.documentElement.style.setProperty('--xp-bar-reserve', Math.round(reserve) + 'px');
       document.documentElement.style.setProperty('--xp-sticky-h', show ? Math.round(reserve) + 'px' : '0px');
     }
@@ -172,6 +177,7 @@
       publish(show);
     }
     function relayout() {
+      barH = bar.offsetHeight || barH;
       measureLimit();
       shown = null;
       onScroll();
@@ -182,17 +188,23 @@
     function jumpTo(id, smooth) {
       var target = document.getElementById(id);
       if (!target) return;
-      var reserve = bar.offsetHeight || 64;
+      var reserve = barH || bar.offsetHeight || 64;
       var top = target.getBoundingClientRect().top + window.scrollY - reserve - 10;
       var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       window.scrollTo({ top: Math.max(0, top), behavior: (smooth && !reduced) ? 'smooth' : 'auto' });
     }
     document.addEventListener('click', function (e) {
+      // Someone else already handled it (toolbox.js opens the panel for
+      // a[href="#toolbox"]), or the visitor wants a new tab/window.
+      if (e.defaultPrevented || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       var a = e.target.closest && e.target.closest('a[href^="#"]');
       if (!a) return;
       var id = (a.getAttribute('href') || '').slice(1);
+      try { id = decodeURIComponent(id); } catch (err0) {}
       var target = id && document.getElementById(id);
-      if (!id || !target) return;
+      // Popovers live in the top layer: there is nothing to scroll to, and
+      // "jumping" to one scrolled the page under the open panel.
+      if (!id || !target || target.hasAttribute('popover')) return;
       e.preventDefault();
       jumpTo(id, true);
       try { history.pushState(null, '', '#' + id); } catch (err) {}
@@ -228,10 +240,23 @@
     // yanks the hero box out from under the visitor mid-word. Only an explicit
     // Enter (or a prefilled/shared query) scrolls to the results.
     var status = document.getElementById('heroSearchStatus');
+    function listReady() {
+      return !!(window.mpExplore && (typeof window.mpExplore.ready !== 'function' || window.mpExplore.ready()));
+    }
+    function directory(value) {
+      location.href = 'tools.html' + (value ? '?q=' + encodeURIComponent(value) : '');
+    }
     function report(value) {
       if (!status) return;
       if (!value) { status.textContent = ''; return; }
       if (!window.mpExplore) return;
+      // The list never arrived (offline, blocked, timed out — report() runs
+      // after the catalogue promise has settled, so not ready means failed):
+      // "No matches" would be a lie. Say what Enter will actually do.
+      if (!listReady()) {
+        status.textContent = 'The list could not load here — press Enter to search the full directory';
+        return;
+      }
       var n = window.mpExplore.rows().length;
       status.textContent = n
         ? (n === 1 ? '1 match — Enter to open it' : n + ' matches — Enter to see them')
@@ -258,7 +283,10 @@
         if (clearBtn) clearBtn.style.display = value ? 'block' : 'none';
         updateChipStates(value.trim());
         clearTimeout(box._mpTimer);
-        box._mpTimer = setTimeout(function () { apply(value, false); }, 120);
+        // 80 ms, the list's own filter delay: filtering is a lookup into a
+        // pre-sorted, memoised list now, so the wait only has to absorb a
+        // burst of keystrokes, not pay for a sort.
+        box._mpTimer = setTimeout(function () { apply(value, false); }, 80);
       });
       box.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter') return;
@@ -268,9 +296,13 @@
         // Enter on a single unambiguous match goes straight to the tool; that is
         // the whole point of a launcher. Filter first: rows() reflects the
         // last debounced keystroke, not what was just typed.
+        clearTimeout(box._mpTimer);
         if (window.mpExplore) {
           var pending = window.mpExplore.filter(value);
           var openMatch = function () {
+            // The catalogue failed to load: the static directory has every
+            // tool in its HTML and honours ?q=, so Enter still finds it.
+            if (!listReady()) { directory(value); return; }
             var rows = window.mpExplore.rows();
             if (rows.length === 1) { location.href = rows[0].url; return; }
             // j/k navigation only works outside a text box, so with matches on
@@ -378,6 +410,7 @@
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       var t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.repeat) return;
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault();
         pickRandomTool();
@@ -536,7 +569,6 @@
     if (!els.length) return;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     if (!('IntersectionObserver' in window)) return;
-    document.documentElement.classList.add('js-reveal-armed');
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
@@ -545,6 +577,9 @@
       });
     }, { rootMargin: '0px 0px -6% 0px', threshold: 0.01 });
     els.forEach(function (el) { io.observe(el); });
+    // Armed only once every section is observed: the class is what hides
+    // them, so arming first and then throwing would leave sections invisible.
+    document.documentElement.classList.add('js-reveal-armed');
   }
 
   /* ------------------------------------------------------- service worker */
@@ -559,19 +594,29 @@
     else window.addEventListener('load', function () { setTimeout(doRegister, 1500); });
   }
 
+  // Each feature is isolated: one that throws (a browser quirk, an extension
+  // rewriting the DOM, a missing element) must not take the search box, the
+  // panels or offline support down with it. The first versions of this file
+  // ran them in one straight line, so an exception in the theme code left the
+  // whole page inert.
+  function safely(name, fn) {
+    try { return fn(); }
+    catch (e) { try { if (window.console) console.warn('[home-core] ' + name + ' failed:', e); } catch (e2) {} }
+  }
+
   function init() {
-    if (forwardDeepLinks()) return;
-    setupTheme();
-    setupStickyBar();
-    setupSearch();
-    setupPopularChips();
-    setupSurpriseButtons();
-    setupPanels();
-    syncPopoverA11y();
-    popoverFallback();
-    setupReveal();
-    handleAppEntry();
-    registerServiceWorker();
+    if (safely('deep links', forwardDeepLinks)) return;
+    safely('theme', setupTheme);
+    safely('sticky bar', setupStickyBar);
+    safely('search', setupSearch);
+    safely('popular chips', setupPopularChips);
+    safely('surprise', setupSurpriseButtons);
+    safely('panels', setupPanels);
+    safely('popover a11y', syncPopoverA11y);
+    safely('popover fallback', popoverFallback);
+    safely('reveal', setupReveal);
+    safely('app entry', handleAppEntry);
+    safely('service worker', registerServiceWorker);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -96,7 +96,13 @@
 // v23: the brand redesign. The mark (logo-mark.svg, the favicon and icons) is
 // redrawn and the hero and footer lockups change markup and home.css, so a
 // returning visitor must not keep the old sheet against the new page.
-const CACHE_VERSION = 'v25-2026-09-24';
+// v26: the list layer's responsiveness and failure pass. explore.js sorts once
+// per order and memoises the filter (typing no longer re-sorts 1,285 rows),
+// warms the catalogue on search intent, validates the payload and re-arms on
+// `online`; toolbox.js re-reads storage before every change so another tab's
+// additions are never overwritten; home-core.js isolates each feature so one
+// failure cannot leave the page inert. All three are precached by version.
+const CACHE_VERSION = 'v26-2026-09-25';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

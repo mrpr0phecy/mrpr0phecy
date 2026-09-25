@@ -349,7 +349,7 @@ with one job and none of them large:
 | `home-deferred.css` | about 9 KB | rules for containers hidden at first paint; applied after it (13 KB gzip for the pair) |
 | `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
 | `toolbox.js` | about 32 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none); its lite-tier fetch waits for the visitor to reach for the toolbox |
-| `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
+| `explore.js` | about 59 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
 | `home-core.js` | about 27 KB | theme/accent, panels, the search bridge, deep links, service worker |
 
 `scripts/check-critical-css.py` holds the two rules that make this safe: the
