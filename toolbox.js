@@ -236,17 +236,34 @@
   }
 
   function paintCounts() {
+    // Runs on every toolbox change, over every ＋ on the page (up to a few
+    // hundred once the visitor has paged far down the list). Almost nothing
+    // changes between two paints, so write only what moved: the same-value
+    // class/attribute churn was the visible cost of a ＋ click.
     var n = slugs.length;
     var buttons = document.querySelectorAll('[data-toolbox-add]');
     for (var b = 0; b < buttons.length; b++) {
-      var btnSlug = buttons[b].getAttribute('data-toolbox-add');
-      buttons[b].setAttribute('aria-pressed', String(has(btnSlug)));
-      buttons[b].classList.toggle('xp-in', has(btnSlug));
+      var inBox = has(buttons[b].getAttribute('data-toolbox-add'));
+      // An absent attribute (a button this script never painted) must be
+      // written, not skipped; a settled one must not be rewritten on every
+      // emit.
+      var is = inBox ? 'true' : 'false';
+      if (buttons[b].getAttribute('aria-pressed') !== is ||
+          buttons[b].classList.contains('xp-in') !== inBox) {
+        buttons[b].setAttribute('aria-pressed', is);
+        buttons[b].classList.toggle('xp-in', inBox);
+      }
     }
+    var badge = n ? String(n) : '';
     var nodes = document.querySelectorAll('[data-toolbox-count]');
-    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = n ? String(n) : '';
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].textContent !== badge) nodes[i].textContent = badge;
+    }
     var counter = document.getElementById('toolboxCardCount');
-    if (counter) counter.textContent = n === 1 ? '1 tool' : n + ' tools';
+    if (counter) {
+      var label = n === 1 ? '1 tool' : n + ' tools';
+      if (counter.textContent !== label) counter.textContent = label;
+    }
   }
 
   function copyText(text, okMsg) {

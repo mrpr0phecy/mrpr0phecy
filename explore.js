@@ -34,8 +34,8 @@
   // the error UI, not "Searching the catalogue…" forever. The worker bounds
   // the headers at UNCACHED_PATIENCE_MS and fails fast; this covers a body
   // that stops arriving after them (and any browser the worker does not
-  // control yet). Generous on purpose: the file is ~1 MB and a slow radio
-  // link still gets its chance; past it, the list offers a retry.
+  // control yet). Generous on purpose: the file is ~700 KB minified and a
+  // slow radio link still gets its chance; past it, the list offers a retry.
   var CATALOGUE_TIMEOUT_MS = 12000;
   var SORTS = {
     az: 'A–Z',
@@ -61,9 +61,18 @@
   var catalogueReady = true;
   var queuedQuery = null;
   var ensureCatalogue = function () {};
-  var paintKey = '';
-  var paintCount = -1;
   var facetStamp = null;
+  // One sorted copy of the whole catalogue per sort mode. A query never
+  // changes the relative order of two rows — it only decides which rows
+  // survive — so the O(n log n) Collator sort is done once per mode (when
+  // the visitor first picks it) and every keystroke afterwards is a single
+  // O(n) pass over the cached order instead of a fresh sort. Cleared when
+  // the catalogue is (re)loaded, because a reload replaces state.rows.
+  var sortOrders = {};
+  // The rows() answer for the current (q, cat, sort): setQuery, logSearch,
+  // render() and the home page's match counter all ask for it in one
+  // keystroke, and only the first ask pays for the filter pass.
+  var lastVisible = null;
 
   /* ------------------------------------------------------------ utilities */
   // en-GB digit grouping without Intl: the first toLocaleString() call loads
@@ -316,8 +325,20 @@
       featured: !!t.featured,
       url: t.url || ('tool.html?card=' + encodeURIComponent(t.slug))
     };
-    row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
+    // _hay is deliberately NOT built here: building all 1,285 haystacks
+    // (title + description + category + tags + slug, lowercased) was the
+    // heaviest string work in finish() and none of it is needed for the
+    // first render, which shows rows in title order. haystack() builds a
+    // row's on first search and warmHaystacks() pre-builds the rest at idle,
+    // so the cost never lands on the "first row appears" path.
     return row;
+  }
+
+  function haystack(row) {
+    if (row._hay === undefined) {
+      row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
+    }
+    return row._hay;
   }
 
   function rowFromElement(el, catName) {
@@ -352,33 +373,81 @@
   }
 
   /* ------------------------------------------------------------ filtering */
-  function matches(row, q) {
-    if (!q) return true;
+  function matches(row, words) {
     // Every word has to appear somewhere: "truck weight" should not return
-    // every trucking tool plus every weight tool. _hay is filled once when the
-    // catalogue arrives; fixtures and static rows still build it here.
-    var hay = row._hay || norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
-    var words = q.split(/\s+/).filter(Boolean);
+    // every trucking tool plus every weight tool. `words` is split once by
+    // visible() — splitting per row re-ran the same regex 1,285 times on
+    // every keystroke for the same answer. The haystack is built lazily
+    // (haystack) and pre-warmed at idle (warmHaystacks).
+    var hay = haystack(row);
     for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false;
     return true;
   }
 
-  function sorted(list) {
-    var out = list.slice();
-    if (state.sort === 'az') out.sort(function (a, b) { return byTitle(a.title, b.title); });
-    else if (state.sort === 'za') out.sort(function (a, b) { return byTitle(a.title, b.title, 'za'); });
-    else if (state.sort === 'popular') out.sort(function (a, b) { return (b.pop - a.pop) || byTitle(a.title, b.title); });
-    else if (state.sort === 'newest') out.sort(function (a, b) { return String(b.updated).localeCompare(String(a.updated)) || byTitle(a.title, b.title); });
-    else if (state.sort === 'category') out.sort(function (a, b) { return (a.catName || '').localeCompare(b.catName || '') || byTitle(a.title, b.title); });
+  /* One comparator per mode, byte-for-byte the comparators sorted() used.
+     They are only *called* differently: the full catalogue is sorted once
+     per mode and the order is kept (see ordered), because filtering never
+     reorders what it keeps. */
+  function comparatorFor(mode) {
+    if (mode === 'az') return function (a, b) { return byTitle(a.title, b.title); };
+    if (mode === 'za') return function (a, b) { return byTitle(a.title, b.title, 'za'); };
+    if (mode === 'popular') return function (a, b) { return (b.pop - a.pop) || byTitle(a.title, b.title); };
+    if (mode === 'newest') return function (a, b) { return String(b.updated).localeCompare(String(a.updated)) || byTitle(a.title, b.title); };
+    if (mode === 'category') return function (a, b) { return (a.catName || '').localeCompare(b.catName || '') || byTitle(a.title, b.title); };
+    return function (a, b) { return byTitle(a.title, b.title); };
+  }
+
+  function ordered() {
+    var arr = sortOrders[state.sort];
+    if (!arr) {
+      arr = state.rows.slice();
+      arr.sort(comparatorFor(state.sort));
+      sortOrders[state.sort] = arr;
+    }
+    return arr;
+  }
+
+  /* Filter a cached order, not sort a filtered list — same sequence either
+     way, one Collator sort per mode instead of one per keystroke. The
+     answer is memoised on (q, cat, sort) because a keystroke asks for it up
+     to three times: render, logSearch and the home page's match counter. */
+  function visible() {
+    var key = state.sort + '\u0001' + state.cat + '\u0001' + norm(state.q);
+    if (lastVisible && lastVisible.key === key) return lastVisible.list;
+    var q = norm(state.q).trim();
+    var words = q ? q.split(/\s+/) : null;
+    var cat = state.cat;
+    var list = ordered();
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (cat && r.catName !== cat) continue;
+      if (words && !matches(r, words)) continue;
+      out.push(r);
+    }
+    lastVisible = { key: key, list: out };
     return out;
   }
 
-  function visible() {
-    var q = norm(state.q).trim();
-    return sorted(state.rows.filter(function (r) {
-      if (state.cat && r.catName !== state.cat) return false;
-      return matches(r, q);
-    }));
+  /* Rebuild the search haystacks for the whole catalogue in small idle
+     chunks after the first render. A search that arrives mid-warm builds
+     each row's haystack on demand (haystack), so results are always
+     complete; the warm pass just moves that cost off the keystroke. */
+  var hayGen = 0;
+  function warmHaystacks() {
+    var gen = ++hayGen;
+    var rows = state.rows;
+    var i = 0;
+    var CHUNK = 150;
+    var next = function () {
+      if (gen !== hayGen) return;   // the catalogue reloaded; that pass owns it now
+      var end = Math.min(i + CHUNK, rows.length);
+      while (i < end) { haystack(rows[i]); i++; }
+      if (i < rows.length) {
+        (window.requestIdleCallback || setTimeout)(next, { timeout: 2000 });
+      }
+    };
+    (window.requestIdleCallback || setTimeout)(next, { timeout: 2000 });
   }
 
   /* -------------------------------------------------------------- toolbar */
@@ -454,28 +523,142 @@
       '</li>';
   }
 
-  function render(opts) {
-    var list = visible();
-    if (state.mode !== 'json' && state.staticRows) return renderStatic(list);
-    var shown = Math.min(state.shown, list.length);
-    var key = state.sort + '\n' + state.cat + '\n' + norm(state.q).trim();
-    var append = !!(opts && opts.append && key === paintKey && shown > paintCount &&
-      els.list && els.list.querySelector('.xp-row[data-slug]'));
-    if (append) {
-      var extra = '';
-      for (var j = paintCount; j < shown; j++) extra += rowHTML(list[j], j);
-      if (extra) els.list.insertAdjacentHTML('beforeend', extra);
-    } else if (!(key === paintKey && shown === paintCount && els.list && els.list.children.length)) {
-      var html = '';
-      for (var i = 0; i < shown; i++) html += rowHTML(list[i], i);
-      els.list.innerHTML = html || '<li class="xp-row"><div class="xp-empty">' +
+  /* ------------------------------------ paint: build, append or patch ----- */
+  // A keystroke changes a few rows, not sixty. Rebuilding the whole list —
+  // parsing ~78 KB of HTML into the DOM per keystroke — measured ~50 ms of
+  // jank on the 4x-throttled profile. paintRows does the minimum instead:
+  // row nodes are kept keyed by slug, what arrived is inserted, what left is
+  // removed, what stayed is re-ordered, and a node that is already in place
+  // is not touched at all. When the diff is bigger than half the window
+  // (a sort change, a different query), one innerHTML write is cheaper than
+  // sixty DOM moves, and it falls back to the original full build.
+  function paintRows(list, shown) {
+    var listEl = els.list;
+    if (!shown) {
+      listEl.innerHTML = '<li class="xp-row"><div class="xp-empty">' +
         '<strong>Nothing matches that.</strong><br>Try a shorter word — “calculator”, “converter”, “planner” — or ' +
         '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the plain directory</a>.' +
         '</div></li>';
       state.current = -1;
+      return;
     }
-    paintKey = key;
-    paintCount = shown;
+    var target = [];
+    for (var i = 0; i < shown; i++) target.push(list[i]);
+    // What is in the DOM now: only the row nodes, in order.
+    var current = listEl.querySelectorAll('.xp-row[data-slug]');
+    if (!current.length) {
+      var html = '';
+      for (var i2 = 0; i2 < shown; i2++) html += rowHTML(target[i2], i2);
+      listEl.innerHTML = html;
+      state.current = -1;
+      return;
+    }
+    // No-op: the same rows in the same order. (A re-render with an unchanged
+    // key would otherwise pay for the walk below to prove nothing moved.)
+    var same = current.length === target.length;
+    if (same) {
+      for (var s = 0; s < target.length; s++) {
+        if (current[s].getAttribute('data-slug') !== target[s].slug) { same = false; break; }
+      }
+    }
+    if (same) return;
+    // Pure append (“Show more”): the current window is a prefix of the
+    // target, and one insertAdjacentHTML write was already the minimum.
+    var isAppend = target.length > current.length;
+    if (isAppend) {
+      for (var j = 0; j < current.length; j++) {
+        if (current[j].getAttribute('data-slug') !== target[j].slug) { isAppend = false; break; }
+      }
+    }
+    if (isAppend) {
+      var extra = '';
+      for (var k = current.length; k < target.length; k++) extra += rowHTML(target[k], k);
+      listEl.insertAdjacentHTML('beforeend', extra);
+      return;
+    }
+    var keep = lcsKeep(
+      Array.prototype.map.call(current, function (n) { return n.getAttribute('data-slug'); }),
+      target.map(function (r) { return r.slug; })
+    );
+    if (keep * 2 < Math.max(current.length, target.length)) {
+      var html2 = '';
+      for (var i3 = 0; i3 < shown; i3++) html2 += rowHTML(target[i3], i3);
+      listEl.innerHTML = html2;
+      state.current = -1;
+      return;
+    }
+    // The patch. Build only the rows that are not in the DOM yet — one
+    // parse, even when several arrive at once.
+    var bySlug = {};
+    for (var c = 0; c < current.length; c++) bySlug[current[c].getAttribute('data-slug')] = current[c];
+    var fresh = [];
+    for (var t = 0; t < target.length; t++) if (!bySlug[target[t].slug]) fresh.push(t);
+    var freshNodes = {};
+    if (fresh.length) {
+      var holder = document.createElement('ul');
+      var holderHtml = '';
+      for (var f = 0; f < fresh.length; f++) holderHtml += rowHTML(target[fresh[f]], fresh[f]);
+      holder.innerHTML = holderHtml;
+      holder.querySelectorAll('li[data-slug]').forEach(function (n) { freshNodes[n.getAttribute('data-slug')] = n; });
+    }
+    // Drop the rows that left the window — and anything that is not a row
+    // at all (a stray empty-state node must not survive into the patch).
+    var keepSet = {};
+    for (var m = 0; m < target.length; m++) keepSet[target[m].slug] = true;
+    var kids = Array.prototype.slice.call(listEl.children);
+    for (var r2 = 0; r2 < kids.length; r2++) {
+      var child = kids[r2];
+      var isRow = child.classList && child.classList.contains('xp-row') && child.hasAttribute('data-slug');
+      if (!isRow || !keepSet[child.getAttribute('data-slug')]) child.remove();
+    }
+    // Walk the target left to right: each node lands directly after the
+    // previous one, and a node that is already there is left alone.
+    var anchor = null;
+    for (var w = 0; w < target.length; w++) {
+      var node = bySlug[target[w].slug] || freshNodes[target[w].slug];
+      if (node.previousSibling !== anchor) {
+        listEl.insertBefore(node, anchor ? anchor.nextSibling : null);
+      }
+      anchor = node;
+    }
+    // data-index follows the row’s new position (the row markup contract),
+    // and a re-render clears the j/k selection exactly as the full build
+    // did. An open ▸ row keeps its state: its node survives, and a filter
+    // that keeps the row should not collapse it.
+    for (var v = 0; v < target.length; v++) {
+      var rowNode = bySlug[target[v].slug] || freshNodes[target[v].slug];
+      if (rowNode.getAttribute('data-index') !== String(v)) rowNode.setAttribute('data-index', String(v));
+      if (rowNode.classList.contains('xp-current')) rowNode.classList.remove('xp-current');
+    }
+    state.current = -1;
+  }
+
+  // How many of b’s items appear in a in the same relative order (the
+  // longest common subsequence). Both lists are at most PAGE_SIZE, so this
+  // is at most 60×60 entries — a few microseconds, paid to keep the patch
+  // itself cheap.
+  function lcsKeep(a, b) {
+    var n = a.length, m = b.length;
+    if (!n || !m) return 0;
+    var prev = new Array(m + 1), cur = new Array(m + 1);
+    for (var j = 0; j <= m; j++) prev[j] = 0;
+    for (var i = 1; i <= n; i++) {
+      cur[0] = 0;
+      for (var j2 = 1; j2 <= m; j2++) {
+        cur[j2] = a[i - 1] === b[j2 - 1] ? prev[j2 - 1] + 1 : (prev[j2] > cur[j2 - 1] ? prev[j2] : cur[j2 - 1]);
+      }
+      var tmp = prev; prev = cur; cur = tmp;
+    }
+    return prev[m];
+  }
+
+  function render(opts) {
+    var list = (opts && opts.list) || visible();
+    if (state.mode !== 'json' && state.staticRows) return renderStatic(list);
+    var shown = Math.min(state.shown, list.length);
+    // The paint decides for itself what to do: paintRows compares the DOM
+    // against the target and chooses no-op, append, patch or full build.
+    paintRows(list, shown);
     els.list.setAttribute('data-xp-total', String(list.length));
 
     if (els.count) {
@@ -597,11 +780,18 @@
   }
 
   function syncToolboxButtons() {
+    // Runs on every toolbox change (toolbox.js subscribes it) over every ＋
+    // in the list. Only the one button whose state actually moved should be
+    // written — same guard as toolbox.js's paintCounts, which covers the
+    // rows this one does not (featured and trending are outside els.wrap).
     if (!window.mpToolbox) return;
     els.wrap.querySelectorAll('[data-toolbox-add]').forEach(function (btn) {
       var inBox = window.mpToolbox.has(btn.getAttribute('data-toolbox-add'));
-      btn.classList.toggle('xp-in', inBox);
-      btn.setAttribute('aria-pressed', String(inBox));
+      var is = inBox ? 'true' : 'false';
+      if (btn.getAttribute('aria-pressed') !== is || btn.classList.contains('xp-in') !== inBox) {
+        btn.setAttribute('aria-pressed', is);
+        btn.classList.toggle('xp-in', inBox);
+      }
     });
   }
 
@@ -644,16 +834,18 @@
       if (els.list) {
         els.list.innerHTML = '<li class="xp-row"><div class="xp-empty xp-pending">Searching the catalogue…</div></li>';
       }
-      paintKey = '';
-      paintCount = -1;
       var pending = ensureCatalogue();
       if (opts && opts.scroll && pending && pending.then) {
         pending.then(function () { if (els.wrap) smoothScroll(els.wrap, 'start'); });
       }
       return pending;
     }
-    if (opts && opts.silent !== true) logSearch(state.q.trim(), visible().length);
-    render();
+    // One filter pass per keystroke: logSearch and render read the same
+    // list, and the home page's match counter (rows()) reuses it via the
+    // memo in visible() instead of re-filtering 1,285 rows a third time.
+    var list = visible();
+    if (opts && opts.silent !== true) logSearch(state.q.trim(), list.length);
+    render({ list: list });
     syncOtherInputs(state.q);
     if (opts && opts.scroll) smoothScroll(els.wrap, 'start');
     pushState();
@@ -707,8 +899,10 @@
     var clear = document.getElementById('mainSearchClear');
     if (clear) clear.style.display = value ? 'block' : 'none';
     // While a filter is on, the browse chrome steps aside: one results surface,
-    // one number, no "7 tools" above "Found 4 tools".
-    document.querySelectorAll('[data-xp-browse]').forEach(function (section) {
+    // one number, no "7 tools" above "Found 4 tools". els.browse is captured
+    // at mount: the sections are static page chrome, so the query is paid
+    // once, not on every keystroke.
+    (els.browse || []).forEach(function (section) {
       section.style.display = value ? 'none' : '';
     });
   }
@@ -882,6 +1076,10 @@
     els.wrap = container.parentNode;
     els.container = container;
     els.more = container.parentNode.querySelector('[data-xp-more]');
+    // The browse sections the filter hides while it runs — static chrome,
+    // captured once here instead of re-queried per keystroke in
+    // syncOtherInputs.
+    els.browse = document.querySelectorAll('[data-xp-browse]');
 
     // The toolbar sits directly above the list it filters.
     var bar = document.createElement('div');
@@ -948,6 +1146,11 @@
       }
       function finish(data) {
         catalogueReady = true;
+        // A (re)load replaces state.rows: every cached order, the memoised
+        // visible() answer and any in-flight haystack warm pass belong to
+        // the previous catalogue and must not leak into this one.
+        sortOrders = {};
+        lastVisible = null;
         state.rows = data.tools.map(rowFromTool);
         categoryCounts = data.categories.map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
         bar.innerHTML = toolbarHTML();
@@ -956,8 +1159,6 @@
         els.count = bar.querySelector('#xp-count');
         els.facets = bar.querySelector('[data-xp-facets]');
         facetStamp = null;
-        paintKey = '';
-        paintCount = -1;
         if (queuedQuery == null) applyFromUrl();
         else state.q = queuedQuery;
         wire();
@@ -966,6 +1167,7 @@
         if (state.q) logSearch(state.q.trim(), visible().length);
         syncOtherInputs(state.q);
         pushState();
+        warmHaystacks();
         document.dispatchEvent(new CustomEvent('mp:explore-ready'));
       }
       function fail() {
@@ -977,8 +1179,6 @@
         // happened, with a retry next to the directory link.
         loading = null;
         catalogueReady = false;
-        paintKey = '';
-        paintCount = -1;
         bar.innerHTML = '<span class="xp-count">The full list could not load here. ' +
           '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">Open the plain directory →</a></span>';
         if (els.list) {
@@ -1014,8 +1214,6 @@
         e.preventDefault();
         bar.innerHTML = '<span class="xp-count">Loading the full list…</span>';
         if (els.list) els.list.innerHTML = '<li class="xp-row"><div class="xp-empty xp-pending">Loading the catalogue…</div></li>';
-        paintKey = '';
-        paintCount = -1;
         loadCatalogue();
       });
       if (wantsNow()) return loadCatalogue();
@@ -1108,6 +1306,10 @@
       li.setAttribute('data-index', String(idx));
     });
     render();
+    // Same idle warm pass as the JSON mode: the static rows' haystacks are
+    // built on first search, and pre-building them off the keystroke keeps
+    // the first filter on a 1,205-row index as cheap as on the home page.
+    warmHaystacks();
     document.dispatchEvent(new CustomEvent('mp:explore-ready'));
     return Promise.resolve();
   }

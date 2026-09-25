@@ -222,6 +222,32 @@ Two mount shapes, and the difference is a deliberate performance decision:
     toolbox, not at `DOMContentLoaded`.** It is 123 KB of JSON for a panel that
     is closed at first paint; it is now fetched on pointer-intent, focus, the
     panel opening, or a tool being added.
+  The 2026-09-25 pass measured the same profile again and took the catalogue's
+  main-thread cost apart — JSON decode, one row object per tool, one sort, one
+  filter, one render. Each piece is now as cheap as it can be, and the proof
+  is in `scripts/tests/explore-list.test.js` (the optimised pipeline is
+  re-implemented as a reference and must agree with it on every sort mode)
+  and `scripts/tests/explore-render.test.js` (node reuse in a real DOM):
+  - **`tools-index.json` is minified.** The 2-space formatting was ~250 KB of
+    whitespace over 1,285 tools — free in the editor, paid by every visitor in
+    wire size and decode time. It is a generated artefact (`.gitattributes`:
+    `-diff linguist-generated`), so nothing reads it for its formatting.
+  - **Each sort mode is sorted once, not per keystroke.** A filter never
+    reorders the rows it keeps, so the Collator sort of 1,285 rows is done on
+    the first pick of a mode and cached; a keystroke is a single O(n) pass
+    over the cached order. The cache and the memoised `visible()` answer are
+    cleared when the catalogue (re)loads.
+  - **A row's search haystack is built lazily and warmed at idle.** Building
+    all 1,285 haystacks (title + description + category + tags + slug) was the
+    heaviest string work in the load, and the first render needs none of it.
+    The first search builds what it touches; idle chunks pre-build the rest so
+    a later keystroke never pays for it.
+  - **A keystroke patches the list instead of rebuilding it.** Re-rendering
+    sixty rows was a ~78 KB innerHTML parse per keystroke (~50 ms of jank on
+    the 4x profile). Rows are now keyed by slug: what arrived is inserted,
+    what left is removed, what stayed is re-ordered, and a node already in
+    place is untouched. When the diff is bigger than half the window (a sort
+    change, a different query) it falls back to the single innerHTML write.
 - **`data-explore="static"` (`tools.html`, `tools-index.html`, category
   pages).** The rows are already in the served HTML, so the engine never
   rebuilds them: it decorates them in place (category chip, ＋ button, details
@@ -349,7 +375,7 @@ with one job and none of them large:
 | `home-deferred.css` | about 9 KB | rules for containers hidden at first paint; applied after it (13 KB gzip for the pair) |
 | `explore.css` | about 25 KB | the list layer's styles, shared with the four other page types |
 | `toolbox.js` | about 32 KB | saved list, ＋ buttons, the toolbox panel (built here if the page has none); its lite-tier fetch waits for the visitor to reach for the toolbox |
-| `explore.js` | about 48 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
+| `explore.js` | about 63 KB | the list engine: fetch, filter, sort, reveal, keyboard, URL state |
 | `home-core.js` | about 27 KB | theme/accent, panels, the search bridge, deep links, service worker |
 
 `scripts/check-critical-css.py` holds the two rules that make this safe: the
@@ -1053,7 +1079,7 @@ list. Two rules, both learned the hard way:
   in agreement with the list; a query filters the list and the browse sections
   (featured/trending/categories) step aside while it is on.
 
-**`tools-index.json` is about 900 KB and it is every list's data.** The home page
+**`tools-index.json` is about 700 KB (minified) and it is every list's data.** The home page
 fetches it when the visitor reaches the list (not at parse time), and
 `tools.html` / `tools-index.html` / the category pages *contain* its output
 already, so they never fetch it at all. It duplicates the

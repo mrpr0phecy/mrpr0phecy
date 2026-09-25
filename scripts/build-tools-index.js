@@ -222,7 +222,13 @@ function build() {
 function main() {
   const isCheck = process.argv.includes('--check');
   const indexData = build();
-  const jsonStr = JSON.stringify(indexData, null, 2) + '\n';
+  // Minified on purpose. The home page's list fetches this on scroll and
+  // JSON.parse()s it on the main thread, so the 2-space formatting (~250 KB
+  // of whitespace over 1,285 tools) was free in the editor but paid in parse
+  // time and wire size by every visitor. It is a generated artefact (see
+  // .gitattributes: -diff linguist-generated), so nothing reads it for its
+  // formatting.
+  const jsonStr = JSON.stringify(indexData) + '\n';
 
   if (isCheck) {
     if (!fs.existsSync(OUTPUT_JSON)) {

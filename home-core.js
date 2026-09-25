@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 25;
+  const APP_VERSION = 26;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -54,8 +54,15 @@
   // one changed last owns the pressed state: a chip press highlights that one
   // chip, and typing anything that is not exactly a chip's query clears them
   // all, so the highlight never claims the list shows something it does not.
+  // The chips are static hero markup, so the node list is found once and
+  // reused — updateChipStates runs on every keystroke.
+  var chipNodes = null;
+  function chips() {
+    if (!chipNodes) chipNodes = document.querySelectorAll('.popular-chip');
+    return chipNodes;
+  }
   function updateChipStates(value) {
-    document.querySelectorAll('.popular-chip').forEach(function (chip) {
+    chips().forEach(function (chip) {
       var on = !!value && chip.getAttribute('data-query') === value;
       chip.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
@@ -308,11 +315,11 @@
   // the results, so this delegates there and only updates the two search boxes
   // that already exist on the page.
   function setupPopularChips() {
-    var chips = document.querySelectorAll('.popular-chip');
-    if (!chips.length) return;
+    var chipEls = chips();
+    if (!chipEls.length) return;
     var boxes = ['tool-search', 'stickySearchInput'].map(function (id) { return document.getElementById(id); }).filter(Boolean);
     var clearBtn = document.getElementById('mainSearchClear');
-    chips.forEach(function (chip) {
+    chipEls.forEach(function (chip) {
       if (chip.id === 'heroSurpriseBtn') return;
       chip.addEventListener('click', function (e) {
         var q = chip.getAttribute('data-query') || chip.textContent.trim();
@@ -467,16 +474,20 @@
 
     // A gift opener on a page nobody donates from is decoration; counting the
     // clicks is how the donate copy gets better instead of being rewritten on
-    // instinct.
-    document.querySelectorAll('a[href*="donate.html"], a[href*="paypal.me"]').forEach(function (a) {
-      a.addEventListener('click', function () {
-        if (typeof window.gtag === 'function') window.gtag('event', 'donate_click', { from: location.pathname });
-      });
-    });
-    document.querySelectorAll('a[href*="sponsor.html"]').forEach(function (a) {
-      a.addEventListener('click', function () {
-        if (typeof window.gtag === 'function') window.gtag('event', 'sponsor_click', { from: location.pathname });
-      });
+    // instinct. One delegated click on the document replaces one listener per
+    // matching anchor plus two whole-document attribute scans at load: the
+    // page has a handful of these links and grows more (panels, the
+    // contributions popover), and the closest() check runs only when a click
+    // actually lands.
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[href*="donate.html"], a[href*="paypal.me"], a[href*="sponsor.html"]');
+      if (!a || typeof window.gtag !== 'function') return;
+      var href = a.getAttribute('href') || '';
+      if (href.indexOf('donate.html') !== -1 || href.indexOf('paypal.me') !== -1) {
+        window.gtag('event', 'donate_click', { from: location.pathname });
+      } else if (href.indexOf('sponsor.html') !== -1) {
+        window.gtag('event', 'sponsor_click', { from: location.pathname });
+      }
     });
   }
 

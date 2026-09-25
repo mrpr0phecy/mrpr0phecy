@@ -41,6 +41,10 @@ function extract(name) {
 const state = { q: '', cat: '', sort: 'az', shown: 60, rows: [] };
 const sandbox = {
   state,
+  // explore.js keeps these at module scope; the extracted functions read and
+  // write them exactly as they do in the page.
+  sortOrders: {},
+  lastVisible: null,
   console,
   localStorage: { getItem: () => null, setItem: () => {} },
   Date,
@@ -54,9 +58,10 @@ const sandbox = {
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 const code = [extract('esc'), extract('norm'), extract('sortTitle'), extract('byTitle'),
-  extract('matches'), extract('sorted'), extract('visible')].join('\n');
-vm.runInContext(code + '\nthis.api = { esc, norm, matches, sorted, visible };', sandbox, { filename: 'explore-filters.js' });
-const { esc, norm, matches, sorted, visible } = sandbox.api;
+  extract('haystack'), extract('matches'), extract('comparatorFor'), extract('ordered'),
+  extract('visible')].join('\n');
+vm.runInContext(code + '\nthis.api = { esc, norm, haystack, matches, ordered, visible };', sandbox, { filename: 'explore-filters.js' });
+const { esc, norm, haystack, matches, ordered, visible } = sandbox.api;
 
 /* ---------------------------------------------------------------- fixtures -- */
 const rows = [
@@ -125,6 +130,94 @@ state.rows = rows;
   assert.deepStrictEqual(rows.map(r => r.slug), before, 'the fixture list is left alone');
 }
 
+/* --------------------------- 2b. DRIVEN: the optimised pipeline ---------- */
+// The 2026-09-25 pass moved three costs off the keystroke: the sort (now one
+// full pass per mode, cached in sortOrders), the word split (now once per
+// query) and the haystack (now built lazily per row). Each of those is a
+// re-implementation of the old behaviour, so each is driven here against the
+// same fixtures the old code is still asserted on above.
+{
+  state.q = '';
+  state.cat = '';
+
+  // matches() now takes the pre-split words. A partial word still fails:
+  // "truck weight" is not satisfied by a row that has only "truck".
+  const truckRow = rows.find(r => r.slug === 'truck-axle-weight-bridge-formula');
+
+  // rowFromTool() rows ship without _hay, exactly like this fresh one:
+  // built on first use, kept afterwards. (The fixture rows above were
+  // already warmed by the filter tests, so the laziness needs a row that
+  // has never been matched.)
+  const freshRow = { slug: 'zebra-fresh-tool', title: 'Fresh Tool', desc: 'something unique-zebra',
+    catName: 'A Category', tags: [], pop: 0, updated: '', featured: false,
+    url: 'tool.html?card=zebra-fresh-tool', cat: 'a-category', _hay: undefined };
+  assert.strictEqual(freshRow._hay, undefined, 'a fresh row has no haystack yet');
+  assert.ok(haystack(freshRow).includes('unique-zebra'), 'the haystack reaches the description');
+  assert.strictEqual(freshRow._hay, haystack(freshRow), 'a second read is the cached one');
+  assert.ok(matches(freshRow, ['unique-zebra']), 'a fresh row matches from its lazily built haystack');
+
+  assert.ok(!matches(truckRow, ['truck', 'bridge', 'moon']), 'a word the row lacks fails the match');
+  assert.ok(matches(truckRow, ['weight', 'truck']), 'word order does not matter');
+  // words arrive pre-lowercased from visible() (norm) — the contract matches
+  // has always had.
+  assert.ok(matches(rows.find(r => r.slug === 'bmi'), ['body']), 'the haystack is lowercased at build time');
+
+  // The cached order must be equivalent to the old algorithm — sort the
+  // filtered list with the same comparators — for every sort mode.
+  const col = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+  const refTitle = (t) => String(t == null ? '' : t).replace(/^[^\p{L}\p{N}]+/u, '') || String(t == null ? '' : t);
+  const refByTitle = (a, b, dir) => {
+    const c = col.compare(refTitle(a), refTitle(b));
+    return dir === 'za' ? -c : c;
+  };
+  const refHay = (r) => String(r.title + ' ' + r.desc + ' ' + r.catName + ' ' + r.tags.join(' ') + ' ' + r.slug).toLowerCase();
+  const reference = (q, cat, sort) => {
+    const words = q ? q.toLowerCase().split(/\s+/).filter(Boolean) : [];
+    const filtered = rows.filter(r =>
+      (!cat || r.catName === cat) &&
+      words.every(w => refHay(r).includes(w)));
+    const out = filtered.slice();
+    if (sort === 'az') out.sort((a, b) => refByTitle(a.title, b.title));
+    else if (sort === 'za') out.sort((a, b) => refByTitle(a.title, b.title, 'za'));
+    else if (sort === 'popular') out.sort((a, b) => (b.pop - a.pop) || refByTitle(a.title, b.title));
+    else if (sort === 'newest') out.sort((a, b) => String(b.updated).localeCompare(String(a.updated)) || refByTitle(a.title, b.title));
+    else if (sort === 'category') out.sort((a, b) => (a.catName || '').localeCompare(b.catName || '') || refByTitle(a.title, b.title));
+    return out.map(r => r.slug);
+  };
+  for (const [q, cat, sort] of [
+    ['', '', 'az'], ['a', '', 'az'], ['truck weight', '', 'az'],
+    ['weight', '', 'za'], ['tandem', '', 'popular'], ['', 'Finance & Money', 'newest'],
+    ['e', '', 'category'], ['', '', 'popular'], ['weight', '', 'category']
+  ]) {
+    state.q = q; state.cat = cat; state.sort = sort;
+    assert.deepStrictEqual(Array.from(visible(), r => r.slug), reference(q, cat, sort),
+      `visible() matches the old algorithm for q="${q}" cat="${cat}" sort=${sort}`);
+  }
+  state.q = ''; state.cat = ''; state.sort = 'az';
+
+  // The order cache must not leak between queries: filtering "a", then
+  // clearing, then filtering again gives the same rows the first time did —
+  // i.e. the second pass over a cached order is not a stale one.
+  state.q = 'a';
+  const firstA = Array.from(visible(), r => r.slug);
+  state.q = 'tandem';
+  visible();
+  state.q = 'a';
+  assert.deepStrictEqual(Array.from(visible(), r => r.slug), firstA, 're-filtering after another query reuses the order, not a stale answer');
+
+  // A replaced catalogue invalidates the cache: swapping state.rows under the
+  // same (q, cat, sort) must produce the NEW rows, not the memoised old ones.
+  // finish() does sortOrders = {} / lastVisible = null; mimic that here.
+  const saved = state.rows;
+  state.rows = [rows[1]];
+  sandbox.sortOrders = {};
+  sandbox.lastVisible = null;
+  assert.deepStrictEqual(Array.from(visible(), r => r.slug), ['bmi'], 'a reloaded catalogue is not answered from the old memo');
+  state.rows = saved;
+  sandbox.sortOrders = {};
+  sandbox.lastVisible = null;
+}
+
 /* ----------------------------------------------------- 3. DRIVEN: escaping */
 {
   assert.strictEqual(esc('<img src=x onerror="alert(1)">'),
@@ -177,6 +270,20 @@ state.rows = rows;
     'the catalogue fetch must time out instead of hanging the list');
   assert(/data-xp-retry/.test(SOURCE),
     'a failed catalogue load must offer a retry next to the directory link');
+
+  // The 2026-09-25 pass: each sort mode is sorted once and the order is
+  // reused; a catalogue (re)load must clear that cache and the memoised
+  // visible() answer, or a retry after a failed fetch answers a fresh
+  // download with the previous catalogue's rows.
+  assert(/var sortOrders = \{\};/.test(SOURCE), 'the sorted order is cached per mode');
+  assert(/sortOrders = \{\};/.test(SOURCE), 'and the cache is cleared when the catalogue (re)loads');
+  // The haystack is never built eagerly in rowFromTool — that was the heaviest
+  // string work in finish() and the first render does not need it.
+  const rowFn = SOURCE.split('function rowFromTool(')[1].split('\n  }')[0];
+  assert(!/_hay\s*=/.test(rowFn), 'rowFromTool must not build the haystack');
+  assert(/row\._hay === undefined/.test(SOURCE), 'the haystack is built lazily on first search');
+  assert(/function warmHaystacks/.test(SOURCE) && /warmHaystacks\(\);/.test(SOURCE),
+    'the haystacks are pre-warmed at idle after the first render');
 }
 
 console.log('explore-list: filtering, sorting, escaping and the list contracts all hold');

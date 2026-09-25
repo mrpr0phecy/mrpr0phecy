@@ -20,13 +20,15 @@ paint can show. This guard enforces the properties the split depends on:
   2. home.css is linked render-blocking, home-deferred.css is linked without
      blocking (media="print" + onload swap) with a <noscript> fallback;
   3. the asset version is the same in every place that decides it —
-     index.html's ?v= on all seven of its own assets, APP_VERSION in
-     home-core.js (the page's script) and CACHE_VERSION in sw.js — so a page can
-     never be served against another deploy's CSS or JS. The home page's own
-     asset list changed on 2026-09-21 (home-app.js + home-features.js out;
-     home-core.js + the shared list layer explore.css / explore.js /
-     toolbox.js in), which is exactly the kind of change that ships a stale
-     script if the three owners are not compared;
+     index.html's ?v= on all six of its own assets (risk-notices.js was the
+     seventh until the home page stopped loading it on 2026-09-25; tool.html
+     is its only caller), APP_VERSION in home-core.js (the page's script) and
+     CACHE_VERSION in sw.js — so a page can never be served against another
+     deploy's CSS or JS. The home page's own asset list changed on
+     2026-09-21 (home-app.js + home-features.js out; home-core.js + the shared
+     list layer explore.css / explore.js / toolbox.js in), which is exactly the
+     kind of change that ships a stale script if the three owners are not
+     compared;
   4. every selector in home-deferred.css is confined to a container that is
      hidden at first paint (the HIDDEN list below) — anything else, e.g. a
      moved `.card` or `.hero-discovery` rule, fails loudly;
@@ -259,11 +261,13 @@ def main() -> int:
 
     # 3 — one version across the page, the app and the service worker
     # The page's own versioned assets. home-app.js was in this alternation until
-    # the launcher rewrite deleted it; explore.css/explore.js/toolbox.js are
-    # checked for a ?v= just below, and their exact value is pinned against
-    # CACHE_VERSION by scripts/tests/no-live-tools.test.js.
-    linked = {m.group(2) for m in re.finditer(
-        r'(home(?:-deferred)?\.css|risk-notices\.js)\?v=(\d+)', index)}
+    # the launcher rewrite deleted it; risk-notices.js joined the list after
+    # the home page stopped loading it (2026-09-25, tool.html is its only
+    # caller — no-live-tools.test.js pins that); explore.css/explore.js/
+    # toolbox.js are checked for a ?v= just below, and their exact value is
+    # pinned against CACHE_VERSION by scripts/tests/no-live-tools.test.js.
+    linked = {m.group(1) for m in re.finditer(
+        r'home(?:-deferred)?\.css\?v=(\d+)', index)}
     app = re.search(r"const APP_VERSION = (\d+);", read(APP))
     cache_version = re.search(r"CACHE_VERSION\s*=\s*'v(\d+)-", sw)
     if not cache_version:

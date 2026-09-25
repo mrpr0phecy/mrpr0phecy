@@ -96,7 +96,17 @@
 // v23: the brand redesign. The mark (logo-mark.svg, the favicon and icons) is
 // redrawn and the hero and footer lockups change markup and home.css, so a
 // returning visitor must not keep the old sheet against the new page.
-const CACHE_VERSION = 'v25-2026-09-24';
+// v26: the main page stopped paying for code it never runs. risk-notices.js
+// (whose only caller is tool.html) left index.html; explore.js now sorts each
+// sort mode once and reuses the order on every keystroke, builds each row's
+// search haystack lazily and warms it at idle, reuses one visible() answer
+// across the filter pass, the zero-search log and the match counter, and
+// patches the row list on a keystroke (nodes are kept keyed by slug) instead
+// of reparsing ~78 KB of HTML; home-core.js consolidated its donate/sponsor
+// analytics into one delegated click; tools-index.json ships minified (its
+// .gitattributes already treats it as a generated artefact). The precache
+// keeps risk-notices.js — an offline tool page still needs its shell notices.
+const CACHE_VERSION = 'v26-2026-09-25';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

@@ -67,11 +67,17 @@ const sw = read('sw.js');
 const cacheVersion = (sw.match(/CACHE_VERSION\s*=\s*'v(\d+)-/) || [])[1];
 assert.ok(cacheVersion, 'sw.js must declare CACHE_VERSION as vN-date');
 for (const asset of ['explore.css', 'explore.js', 'toolbox.js', 'home-core.js',
-                     'home.css', 'home-deferred.css', 'risk-notices.js']) {
+                     'home.css', 'home-deferred.css']) {
   assert.ok(index.includes(`${asset}?v=${cacheVersion}`),
     `${asset} must be loaded with ?v=${cacheVersion} — an unversioned asset is served from another deploy's cache`);
   assert.ok(fs.existsSync(path.join(ROOT, asset)), `${asset} is linked but not in the repository`);
 }
+// risk-notices.js left the home page on 2026-09-25: nothing there calls
+// SiteRiskNotices (the file says so in its own header) and its only caller is
+// tool.html. It stays in sw.js's precache so an offline tool page keeps its
+// shell notices — so the page must not pay for a script it never runs.
+assert.ok(!index.includes('risk-notices.js'),
+  'index.html must not load risk-notices.js — tool.html is its only caller');
 assert.ok(sw.includes(`/explore.css`) && sw.includes(`/toolbox.js`),
   'sw.js must precache the list layer, or a returning visitor gets a 503 for it');
 
