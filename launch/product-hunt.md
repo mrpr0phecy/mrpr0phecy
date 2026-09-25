@@ -8,22 +8,22 @@
 
 ## Tagline (60 characters max — this is the most important line)
 
-**Primary:** `1,310 free browser tools. No accounts, no display ads. Open source.`
+**Primary:** `1,311 free browser tools. No accounts, no display ads. Open source.`
 
 **Alternates:**
-- `1,310 free browser tools. No accounts, no display ads. Open source.`
-- `1,310 free, private, browser-side tools. Open source.`
-- `The most useful site in the world. 1,310 tools. Free.`
+- `1,311 free browser tools. No accounts, no display ads. Open source.`
+- `1,311 free, private, browser-side tools. Open source.`
+- `The most useful site in the world. 1,311 tools. Free.`
 
 ## Short description (260 characters max)
 
-> A non-commercial catalogue of 1,310 free, browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, colour contrast checker, invoice generator, and 1,200+ more. No accounts, no display ads. Open source. One person, built in two years, in Luton, UK.
+> A non-commercial catalogue of 1,311 free, browser-side tools. Mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, colour contrast checker, invoice generator, and 1,200+ more. No accounts, no display ads. Open source. One person, built in two years, in Luton, UK.
 
 ## Long description
 
 > **The Most Useful Site in the World** is a non-commercial project I\'ve been building for two years.
 >
-> The whole site is 1,310 free, browser-side tools. Every one of them runs in your browser, with no account, no email, no display ads, no upsell.
+> The whole site is 1,311 free, browser-side tools. Every one of them runs in your browser, with no account, no email, no display ads, no upsell.
 >
 > The catalogue includes:
 > - **Finance:** mortgage, compound interest, debt payoff, salary, lease vs buy, stamp duty, affordability, investment, unit-price comparator, credit card
@@ -94,7 +94,7 @@ Just me. Single maker launch.
 > Author here. A few things I should have put in the main post:
 >
 > - The site is **non-commercial.** There is no business model. There is no display ad inventory, no email list, no newsletter, no upsell, no pop-up. The donate link has been live for 9 months; total donations received: £34.50. (The third-party scripts on the site are Google Analytics, for measurement, and three.js / cannon.js / the YouTube IFrame API on the specific tool pages that need them. None are advertising.)
-> - The number **is honest and checkable.** There are 1,310 separate tool pages and a `cards.json` file with an entry for each of them. The count is exposed at the top of `/tools.html`.
+> - The number **is honest and checkable.** There are 1,311 separate tool pages and a `cards.json` file with an entry for each of them. The count is exposed at the top of `/tools.html`.
 > - The **no-display-ads claim is verifiable.** View source on any page. You will not find an ad slot, an ads.txt file, an ad network script, or a sponsored-content block. The whole markup is the tool and its text.
 > - The site is **open source.** https://github.com/mrpr0phecy/mrpr0phecy. The repo is about 91 MB in total, most of it a photo library that two of the non-tool pages use.
 > - I am **one person**, based in Luton, UK. I work on this in the evenings and weekends.
@@ -102,7 +102,7 @@ Just me. Single maker launch.
 >
 > **If you only click one thing on the site**, that guide is the one.
 >
-> **If you want to embed a tool** (e.g. on your own site or in a school newsletter), `/embed.html` gives you a one-line iframe for any of the 1,310 tools.
+> **If you want to embed a tool** (e.g. on your own site or in a school newsletter), `/embed.html` gives you a one-line iframe for any of the 1,311 tools.
 >
 > Happy to answer questions. I read every comment.
 
@@ -114,7 +114,7 @@ Just me. Single maker launch.
 
 2. **Hunters, not just makers.** Get a hunter (someone with a good PH reputation) to submit the post instead of submitting it yourself. Posts with hunters get 2-3× the page-1 visibility. Ask a maker friend with a 100+ follower count to hunt it.
 
-3. **Avoid the "AI" trap.** Don\'t call it "AI-powered" in the tagline. PH\'s audience is allergic to the word. The tagline is "1,310 free browser tools" — no buzzwords.
+3. **Avoid the "AI" trap.** Don\'t call it "AI-powered" in the tagline. PH\'s audience is allergic to the word. The tagline is "1,311 free browser tools" — no buzzwords.
 
 4. **Don\'t launch on a Friday or weekend.** Tuesday, Wednesday, or Thursday only.
 

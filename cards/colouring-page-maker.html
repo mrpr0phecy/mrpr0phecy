@@ -1,0 +1,315 @@
+<h2 id="clrp-title" style="margin-top:0;color:var(--accent);">🖍️ Colouring Page Maker — Turn Any Photo Into Printable Line Art</h2>
+
+<div id="clrp-root">
+<p id="clrp-desc" class="small" style="color:rgba(230,250,255,0.7);margin:0 0 14px;">
+  Drop in a photo of your dog, your house or your kid and get clean black-and-white outlines to colour in, or a soft
+  pencil sketch. Adjust detail and line weight, add a name at the top, and download a PNG or a print-ready A4/Letter PDF.
+</p>
+
+<div class="clrp-drop" id="clrp-drop">
+  <input type="file" id="clrp-file" accept="image/*" aria-label="Choose a photo" class="clrp-fileinput">
+  <label for="clrp-file" class="clrp-btn clrp-primary" style="display:inline-block;">Choose a photo…</label>
+  <button type="button" id="clrp-sample" class="clrp-btn">Try the sample</button>
+  <p class="clrp-hint" style="margin:8px 0 0;">Or drop a picture here, or paste one with Ctrl/⌘+V. Everything happens on your device — nothing is uploaded.</p>
+</div>
+
+<div class="clrp-opts">
+  <div class="clrp-field"><label for="clrp-style" class="clrp-lbl">Style</label><select id="clrp-style"><option value="lines" selected>Colouring page (clean outlines)</option><option value="sketch">Pencil sketch (soft shading)</option><option value="bold">Bold cartoon outlines</option></select></div>
+  <div class="clrp-field"><label for="clrp-detail" class="clrp-lbl">Detail <span id="clrp-detailv" class="clrp-val">4</span></label><input type="range" id="clrp-detail" min="1" max="10" step="1" value="4"></div>
+  <div class="clrp-field"><label for="clrp-weight" class="clrp-lbl">Line weight <span id="clrp-weightv" class="clrp-val">2</span></label><input type="range" id="clrp-weight" min="1" max="4" step="1" value="2"></div>
+  <div class="clrp-field"><label for="clrp-paper" class="clrp-lbl">PDF paper</label><select id="clrp-paper"><option value="a4" selected>A4</option><option value="letter">US Letter</option></select></div>
+  <div class="clrp-field" style="grid-column:1 / -1;"><label for="clrp-caption" class="clrp-lbl">Title on the page (optional)</label><input type="text" id="clrp-caption" maxlength="50" placeholder="Emma’s colouring page"></div>
+</div>
+<div class="clrp-checks">
+  <label class="clrp-check"><input type="checkbox" id="clrp-clean" checked> Remove specks and noise</label>
+  <label class="clrp-check"><input type="checkbox" id="clrp-compare"> Show the original next to it</label>
+</div>
+
+<div class="clrp-wrap" style="margin-top:12px;">
+  <button type="button" id="clrp-png" class="clrp-btn clrp-primary" disabled>⬇ Download PNG</button>
+  <button type="button" id="clrp-pdf" class="clrp-btn" disabled>⬇ Download PDF to print</button>
+  <span id="clrp-info" class="clrp-hint"></span>
+</div>
+<p id="clrp-status" class="clrp-status" role="status" aria-live="polite"></p>
+
+<div class="clrp-stage" id="clrp-stage">
+  <div class="clrp-pane" id="clrp-origpane" hidden><canvas id="clrp-orig" role="img" aria-label="Original photo"></canvas></div>
+  <div class="clrp-pane"><canvas id="clrp-out" role="img" aria-label="Line art result"></canvas></div>
+</div>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.6);font-size:0.85rem;">
+  <summary style="cursor:pointer;">Getting good outlines, and how the conversion works</summary>
+  <p style="margin-top:8px;"><strong>Pick the right photo.</strong> The best colouring pages come from pictures with a clear subject on a
+    plain background, in even light: a pet on a sofa, a child against a wall, a car, a building. Busy backgrounds
+    (foliage, gravel, patterned fabric) turn into a mess of scribbles; a quick crop before you start helps more than any
+    slider. Strong shadows become black blobs, so shoot in shade or on an overcast day if you can.</p>
+  <p><strong>The sliders.</strong> <em>Detail</em> sets how fine a change in brightness counts as an edge: low values keep only
+    the big shapes (good for toddlers and thick crayons), high values pick up fur, hair and texture (better for older
+    kids or adults with fine pens). <em>Line weight</em> thickens every line after detection, which makes pages easier
+    to colour inside and prints more reliably on cheap printers. <em>Remove specks</em> deletes isolated dots and tiny
+    fragments that are not connected to anything larger.</p>
+  <p><strong>How it works.</strong> The photo’s contrast is normalised and each colour channel is blurred by an amount
+    set by the detail slider so that texture finer than that is ignored. The Canny edge detector then measures how
+    quickly colour changes at every pixel (red, green and blue are combined, so a yellow sun on a blue sky still has
+    an edge even where the brightness happens to match), thins each edge to a single pixel along the direction of
+    change, and keeps faint edges only where they connect to strong ones — which is why the result is made of
+    continuous contours rather than the speckle a simple threshold gives. Lines are then thickened to your chosen
+    weight and any connected fragment shorter than a couple of dozen pixels is dropped. The pencil sketch uses a different trick: the greyscale image is
+    divided by a blurred, inverted copy of itself (a “colour dodge” blend), which lifts flat areas to white and leaves
+    soft graphite-like shading only where tone changes quickly. Bold cartoon outlines run the line method at a lower
+    detail setting with heavy thickening.</p>
+  <p><strong>Printing.</strong> The PDF places the drawing on a full page with a small margin, portrait or landscape to match
+    the picture, with your title at the top. Print at 100% (not “fit to page”) for the intended line weight.
+    Everything runs locally in your browser, so a photo of your children never leaves your device.</p>
+</details>
+
+<style>
+#clrp-root{color:#e6faff;}
+#clrp-root [hidden]{display:none !important;}
+#clrp-root .clrp-drop{border:2px dashed rgba(45,212,255,0.35);border-radius:12px;padding:14px;text-align:center;background:rgba(45,212,255,0.04);}
+#clrp-root .clrp-drop.clrp-over{border-color:var(--accent,#2dd4ff);background:rgba(45,212,255,0.12);}
+#clrp-root .clrp-fileinput{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none;}
+#clrp-root .clrp-fileinput:focus-visible + label{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+#clrp-root .clrp-lbl{color:var(--accent,#2dd4ff);font-weight:600;font-size:12.5px;display:flex;justify-content:space-between;margin-bottom:4px;}
+#clrp-root .clrp-val{color:rgba(230,250,255,0.6);font-weight:500;}
+#clrp-root select,#clrp-root input[type=text]{box-sizing:border-box;width:100%;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:#e6faff;font-size:14px;font-family:inherit;}
+#clrp-root input[type=range]{width:100%;margin:12px 0 0;accent-color:var(--accent,#2dd4ff);}
+#clrp-root .clrp-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:10px;margin-top:12px;}
+#clrp-root .clrp-field{min-width:0;}
+#clrp-root .clrp-checks{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;}
+#clrp-root .clrp-check{display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13.5px;}
+#clrp-root .clrp-check input{width:17px;height:17px;accent-color:var(--accent,#2dd4ff);margin:0;}
+#clrp-root .clrp-wrap{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+#clrp-root .clrp-btn{padding:8px 14px;min-height:40px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.92);cursor:pointer;font-size:13.5px;font-weight:600;font-family:inherit;touch-action:manipulation;box-sizing:border-box;}
+#clrp-root .clrp-btn:hover:not(:disabled){background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#clrp-root .clrp-btn:disabled{opacity:.5;cursor:default;}
+#clrp-root .clrp-primary{background:var(--accent,#2dd4ff);color:#03141c;border-color:transparent;}
+#clrp-root .clrp-primary:hover:not(:disabled){background:var(--accent,#2dd4ff);filter:brightness(1.08);}
+#clrp-root .clrp-hint{font-size:12.8px;color:rgba(230,250,255,0.6);line-height:1.5;}
+#clrp-root .clrp-status{min-height:1.3em;margin:8px 0 0;color:var(--accent,#2dd4ff);font-size:13.5px;}
+#clrp-root .clrp-stage{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:10px;}
+#clrp-root .clrp-pane{background:#0d1620;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px;min-width:0;}
+#clrp-root .clrp-pane canvas{display:block;width:100%;height:auto;max-height:70vh;object-fit:contain;background:#fff;border-radius:6px;}
+#clrp-root button:focus-visible,#clrp-root select:focus-visible,#clrp-root input:focus-visible,#clrp-root summary:focus-visible{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+</style>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var ROOT_ID = 'clrp-root', KEY = 'clrp.v1', MAX_SIDE = 1400;
+  function alive() { return !!document.getElementById(ROOT_ID); }
+
+  // ---------- image maths ----------
+  function gaussianBlur(src, w, h, sigma) { // Float32Array in → new Float32Array
+    var r = Math.max(1, Math.ceil(sigma * 3)), k = new Float32Array(2 * r + 1), sum = 0, i;
+    for (i = -r; i <= r; i++) { k[i + r] = Math.exp(-(i * i) / (2 * sigma * sigma)); sum += k[i + r]; }
+    for (i = 0; i < k.length; i++) k[i] /= sum;
+    var tmp = new Float32Array(w * h), out = new Float32Array(w * h), x, y, j, acc;
+    for (y = 0; y < h; y++) { var row = y * w; for (x = 0; x < w; x++) { acc = 0; for (j = -r; j <= r; j++) { var xx = x + j; if (xx < 0) xx = 0; else if (xx >= w) xx = w - 1; acc += src[row + xx] * k[j + r]; } tmp[row + x] = acc; } }
+    for (x = 0; x < w; x++) { for (y = 0; y < h; y++) { acc = 0; for (j = -r; j <= r; j++) { var yy = y + j; if (yy < 0) yy = 0; else if (yy >= h) yy = h - 1; acc += tmp[yy * w + x] * k[j + r]; } out[y * w + x] = acc; } }
+    return out;
+  }
+  function toGray(data, w, h) { var g = new Float32Array(w * h); for (var i = 0, p = 0; i < w * h; i++, p += 4) { var a = data[p + 3] / 255; g[i] = (0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]) * a + 255 * (1 - a); } return g; }
+  function planesOf(data, w, h, gray) { // R, G, B composited on white, stretched by the grey image's 1st–99th percentile so thresholds mean the same on flat photos
+    var hist = new Uint32Array(256), n = w * h, i; for (i = 0; i < n; i++) hist[gray[i] | 0]++;
+    var lo = 0, hi = 255, acc = 0; for (i = 0; i < 256; i++) { acc += hist[i]; if (acc >= n * 0.01) { lo = i; break; } } acc = 0; for (i = 255; i >= 0; i--) { acc += hist[i]; if (acc >= n * 0.01) { hi = i; break; } }
+    var k = hi - lo < 40 ? 1 : 255 / (hi - lo); if (k === 1) lo = 0;
+    var R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n);
+    for (i = 0; i < n; i++) { var p = i * 4, a = data[p + 3] / 255, wht = 255 * (1 - a); R[i] = (data[p] * a + wht - lo) * k; G[i] = (data[p + 1] * a + wht - lo) * k; B[i] = (data[p + 2] * a + wht - lo) * k; }
+    return [R, G, B];
+  }
+  function cannyLines(planes, w, h, sigma, hi, lo) { // Canny over colour: blur each channel → Sobel → combine the three gradients (so a yellow sun on a blue sky still has an edge even when the brightness matches) → thin to 1 px → keep weak edges only when connected to strong ones
+    var n = w * h, mag = new Float32Array(n), dir = new Uint8Array(n), x, y, i, c;
+    var g = planes.map(function (pl) { return gaussianBlur(pl, w, h, sigma); }), norm = 1 / Math.sqrt(g.length);
+    for (y = 1; y < h - 1; y++) for (x = 1; x < w - 1; x++) {
+      i = y * w + x;
+      var sum = 0, bx = 0, by = 0, best = -1;
+      for (c = 0; c < g.length; c++) {
+        var p = g[c];
+        var gx = (p[i - w + 1] + 2 * p[i + 1] + p[i + w + 1]) - (p[i - w - 1] + 2 * p[i - 1] + p[i + w - 1]);
+        var gy = (p[i + w - 1] + 2 * p[i + w] + p[i + w + 1]) - (p[i - w - 1] + 2 * p[i - w] + p[i - w + 1]);
+        var m2 = gx * gx + gy * gy; sum += m2; if (m2 > best) { best = m2; bx = gx; by = gy; }
+      }
+      mag[i] = Math.sqrt(sum) * norm;
+      var ax = Math.abs(bx), ay = Math.abs(by);
+      dir[i] = ay <= 0.4142 * ax ? 0 : ax <= 0.4142 * ay ? 2 : (bx * by > 0 ? 3 : 1);
+    }
+    var thin = new Uint8Array(n), stack = new Int32Array(n), sp = 0, out = new Uint8Array(n);
+    for (y = 1; y < h - 1; y++) for (x = 1; x < w - 1; x++) {
+      i = y * w + x; var m = mag[i]; if (m < lo) continue;
+      var a, b, d = dir[i];
+      if (d === 0) { a = mag[i - 1]; b = mag[i + 1]; } else if (d === 2) { a = mag[i - w]; b = mag[i + w]; } else if (d === 3) { a = mag[i - w - 1]; b = mag[i + w + 1]; } else { a = mag[i - w + 1]; b = mag[i + w - 1]; }
+      if (m >= a && m >= b) { thin[i] = 1; if (m >= hi) { out[i] = 1; stack[sp++] = i; } }
+    }
+    while (sp) { // hysteresis: grow strong edges through connected weak ones
+      var p = stack[--sp], px = p % w;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue; var qx = px + dx; if (qx < 0 || qx >= w) continue; var q = p + dy * w + dx; if (q < 0 || q >= n) continue;
+        if (thin[q] && !out[q]) { out[q] = 1; stack[sp++] = q; }
+      }
+    }
+    return out;
+  }
+  function dilate(bin, w, h, times) {
+    for (var t = 0; t < times; t++) {
+      var out = new Uint8Array(w * h);
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var i = y * w + x; if (bin[i] || (x > 0 && bin[i - 1]) || (x < w - 1 && bin[i + 1]) || (y > 0 && bin[i - w]) || (y < h - 1 && bin[i + w])) out[i] = 1; }
+      bin = out;
+    }
+    return bin;
+  }
+  function removeSpecks(bin, w, h, minSize) { // drop 8-connected components smaller than minSize pixels
+    var n = w * h, seen = new Uint8Array(n), stack = new Int32Array(n), comp = new Int32Array(n), i;
+    for (i = 0; i < n; i++) {
+      if (!bin[i] || seen[i]) continue;
+      var sp = 0, count = 0; stack[sp++] = i; seen[i] = 1;
+      while (sp) {
+        var p = stack[--sp], px = p % w; comp[count++] = p;
+        for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue; var qx = px + dx; if (qx < 0 || qx >= w) continue; var q = p + dy * w + dx; if (q < 0 || q >= n) continue;
+          if (bin[q] && !seen[q]) { seen[q] = 1; stack[sp++] = q; }
+        }
+      }
+      if (count < minSize) for (var k = 0; k < count; k++) bin[comp[k]] = 0;
+    }
+    return bin;
+  }
+  function sketch(gray, w, h, sigma) { // colour-dodge pencil sketch → Uint8ClampedArray gray values
+    var inv = new Float32Array(w * h), i; for (i = 0; i < w * h; i++) inv[i] = 255 - gray[i];
+    var bl = gaussianBlur(inv, w, h, sigma), out = new Uint8ClampedArray(w * h);
+    for (i = 0; i < w * h; i++) {
+      var d = 255 - bl[i], dodge = d <= 0 ? 255 : Math.min(255, gray[i] * 255 / d);
+      var shaded = dodge * (0.5 + 0.5 * gray[i] / 255); // keep some of the original tone so smooth shadows still read as graphite
+      var t = (shaded - 128) * 1.25 + 128 + 12; out[i] = t < 0 ? 0 : t > 255 ? 255 : t;
+    }
+    return out;
+  }
+  function drawSample(c) {
+    c.width = 900; c.height = 700; var x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 700); g.addColorStop(0, '#9fd3ff'); g.addColorStop(1, '#e8f4ff'); x.fillStyle = g; x.fillRect(0, 0, 900, 700);
+    x.fillStyle = '#6ab04c'; x.fillRect(0, 520, 900, 180);
+    x.fillStyle = '#f6c343'; x.beginPath(); x.arc(760, 120, 60, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#d7773b'; x.fillRect(250, 300, 300, 230); x.fillStyle = '#b3442c'; x.beginPath(); x.moveTo(220, 300); x.lineTo(400, 160); x.lineTo(580, 300); x.closePath(); x.fill();
+    x.fillStyle = '#4a2f1b'; x.fillRect(370, 420, 60, 110); x.fillStyle = '#bde3ff'; x.fillRect(280, 340, 60, 60); x.fillRect(460, 340, 60, 60);
+    x.strokeStyle = '#4a2f1b'; x.lineWidth = 4; x.strokeRect(280, 340, 60, 60); x.strokeRect(460, 340, 60, 60); x.beginPath(); x.moveTo(310, 340); x.lineTo(310, 400); x.moveTo(280, 370); x.lineTo(340, 370); x.moveTo(490, 340); x.lineTo(490, 400); x.moveTo(460, 370); x.lineTo(520, 370); x.stroke();
+    x.fillStyle = '#5b3a1e'; x.fillRect(120, 380, 30, 150); x.fillStyle = '#2e8b57'; x.beginPath(); x.arc(135, 350, 70, 0, Math.PI * 2); x.fill(); x.fillStyle = '#3cb371'; x.beginPath(); x.arc(100, 320, 45, 0, Math.PI * 2); x.arc(175, 315, 48, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#fff'; [[80, 110, 40], [140, 100, 50], [200, 115, 38], [640, 200, 35], [700, 190, 48], [760, 210, 36]].forEach(function (b) { x.beginPath(); x.arc(b[0], b[1], b[2], 0, Math.PI * 2); x.fill(); });
+    x.fillStyle = '#e74c3c'; x.beginPath(); x.arc(690, 470, 26, 0, Math.PI * 2); x.fill(); x.fillStyle = '#c0392b'; x.beginPath(); x.arc(660, 450, 12, 0, Math.PI * 2); x.arc(720, 450, 12, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#2c3e50'; x.beginPath(); x.ellipse(690, 528, 60, 16, 0, 0, Math.PI * 2); x.fill();
+  }
+
+  function init() {
+    var root = document.getElementById(ROOT_ID);
+    if (!root || root.getAttribute('data-ready') === '1') return;
+    root.setAttribute('data-ready', '1');
+    var $ = function (id) { return document.getElementById(id); };
+    var S = load(), src = null, gray = null, srcName = 'photo', outC = $('clrp-out'), origC = $('clrp-orig'), timer = 0, sayTimer = 0, busy = false, dirty = false;
+    function load() { var d = null; try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; } var s = { style: 'lines', detail: 4, weight: 2, paper: 'a4', clean: true, compare: false, caption: '' }; if (d && typeof d === 'object') { if (/^(lines|sketch|bold)$/.test(d.style)) s.style = d.style; if (+d.detail >= 1 && +d.detail <= 10) s.detail = Math.round(+d.detail); if (+d.weight >= 1 && +d.weight <= 4) s.weight = Math.round(+d.weight); if (d.paper === 'a4' || d.paper === 'letter') s.paper = d.paper; if (typeof d.clean === 'boolean') s.clean = d.clean; if (typeof d.compare === 'boolean') s.compare = d.compare; if (typeof d.caption === 'string') s.caption = d.caption.slice(0, 50); } return s; }
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+    function say(msg, sticky) { if (!alive()) return; $('clrp-status').textContent = msg; clearTimeout(sayTimer); if (!sticky) sayTimer = setTimeout(function () { if (alive()) $('clrp-status').textContent = ''; }, 7000); }
+
+    function setSource(img, name) {
+      var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height; if (!w || !h) { say('Could not read that image.'); return; }
+      var k = Math.min(1, MAX_SIDE / Math.max(w, h)); origC.width = Math.max(1, Math.round(w * k)); origC.height = Math.max(1, Math.round(h * k));
+      var x = origC.getContext('2d', { willReadFrequently: true }); x.fillStyle = '#fff'; x.fillRect(0, 0, origC.width, origC.height); x.drawImage(img, 0, 0, origC.width, origC.height);
+      try { src = x.getImageData(0, 0, origC.width, origC.height); } catch (e) { say('Could not read that image.'); return; }
+      gray = toGray(src.data, src.width, src.height); srcName = (name || 'photo').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9-_]+/g, '-').slice(0, 40) || 'photo';
+      process();
+    }
+    function process() {
+      if (!src || busy) { if (src) dirty = true; return; }
+      busy = true; dirty = false; say('Drawing the lines…', true);
+      setTimeout(function () {
+        if (!alive()) return;
+        var w = src.width, h = src.height, t0 = Date.now(), out = outC.getContext('2d'), img = out.createImageData(w, h), d = img.data, i;
+        outC.width = w; outC.height = h;
+        if (S.style === 'sketch') {
+          var sk = sketch(gray, w, h, 2 + (10 - S.detail) * 1.4);
+          for (i = 0; i < w * h; i++) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = sk[i]; d[i * 4 + 3] = 255; }
+        } else {
+          var detail = S.style === 'bold' ? Math.max(1, S.detail - 3) : S.detail;
+          var scale = Math.min(2, Math.max(0.5, Math.max(w, h) / 1000)), sigma = (1.0 + (10 - detail) * 0.28) * scale, hi = 1.6 * (18 + (10 - detail) * 5) / sigma, lo = hi * 0.25; // hi ≈ the Sobel response of a step of (18…63) grey levels after blurring by sigma
+          var bin = cannyLines(planesOf(src.data, w, h, gray), w, h, sigma, hi, lo);
+          if (S.clean) bin = removeSpecks(bin, w, h, Math.round((18 + (10 - detail) * 6) * scale) + 6); // fur and grass come out as short fragments; contours are long
+          var thick = S.weight - 1 + (S.style === 'bold' ? 2 : 0) + (scale > 1.2 ? 1 : 0); if (thick > 0) bin = dilate(bin, w, h, thick);
+          for (i = 0; i < w * h; i++) { var v = bin[i] ? 0 : 255; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
+        }
+        out.putImageData(img, 0, 0);
+        drawCaption(out, w, h);
+        $('clrp-png').disabled = false; $('clrp-pdf').disabled = false;
+        $('clrp-info').textContent = w + '×' + h + ' · ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s';
+        say('Done. Adjust the sliders or download.');
+        busy = false; if (dirty) process();
+      }, 20);
+    }
+    function drawCaption(x, w, h) {
+      var t = (S.caption || '').trim(); if (!t) return;
+      var fs = Math.round(Math.min(w, h) / 14); x.font = '700 ' + fs + 'px "Comic Sans MS", "Chalkboard SE", "Segoe Print", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'top';
+      x.lineWidth = Math.max(4, fs / 6); x.lineJoin = 'round'; x.strokeStyle = '#fff'; x.fillStyle = '#000';
+      x.strokeText(t, w / 2, fs * 0.4); x.fillText(t, w / 2, fs * 0.4);
+    }
+    function schedule() { clearTimeout(timer); timer = setTimeout(process, 150); }
+
+    // ---------- intake ----------
+    function loadFile(file) {
+      if (!file || !/^image\//.test(file.type)) { say('That does not look like an image file.'); return; }
+      var url = URL.createObjectURL(file), im = document.createElement('img');
+      im.onload = function () { URL.revokeObjectURL(url); if (alive()) setSource(im, file.name); };
+      im.onerror = function () { URL.revokeObjectURL(url); say('Could not decode that image.'); };
+      im.src = url;
+    }
+    $('clrp-file').addEventListener('change', function () { if (this.files && this.files[0]) loadFile(this.files[0]); this.value = ''; });
+    $('clrp-sample').addEventListener('click', function () { var c = document.createElement('canvas'); drawSample(c); setSource(c, 'sample-house'); });
+    var drop = $('clrp-drop');
+    drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('clrp-over'); });
+    drop.addEventListener('dragleave', function () { drop.classList.remove('clrp-over'); });
+    drop.addEventListener('drop', function (e) { e.preventDefault(); drop.classList.remove('clrp-over'); if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+    function onPaste(e) {
+      if (!alive()) { document.removeEventListener('paste', onPaste); return; }
+      var items = e.clipboardData && e.clipboardData.items; if (!items) return;
+      for (var i = 0; i < items.length; i++) if (items[i].type && items[i].type.indexOf('image/') === 0) { var f = items[i].getAsFile(); if (f) { e.preventDefault(); loadFile(f); return; } }
+    }
+    document.addEventListener('paste', onPaste);
+
+    // ---------- controls ----------
+    function apply() {
+      $('clrp-style').value = S.style; $('clrp-detail').value = String(S.detail); $('clrp-detailv').textContent = String(S.detail); $('clrp-weight').value = String(S.weight); $('clrp-weightv').textContent = String(S.weight);
+      $('clrp-paper').value = S.paper; $('clrp-clean').checked = S.clean; $('clrp-compare').checked = S.compare; $('clrp-caption').value = S.caption;
+      $('clrp-weight').closest('.clrp-field').hidden = S.style === 'sketch'; $('clrp-clean').closest('.clrp-check').hidden = S.style === 'sketch';
+      $('clrp-origpane').hidden = !S.compare;
+    }
+    $('clrp-style').addEventListener('change', function () { S.style = this.value; save(); apply(); schedule(); });
+    $('clrp-detail').addEventListener('input', function () { S.detail = +this.value; $('clrp-detailv').textContent = String(S.detail); save(); schedule(); });
+    $('clrp-weight').addEventListener('input', function () { S.weight = +this.value; $('clrp-weightv').textContent = String(S.weight); save(); schedule(); });
+    $('clrp-paper').addEventListener('change', function () { S.paper = this.value; save(); });
+    $('clrp-clean').addEventListener('change', function () { S.clean = this.checked; save(); schedule(); });
+    $('clrp-compare').addEventListener('change', function () { S.compare = this.checked; save(); apply(); });
+    $('clrp-caption').addEventListener('input', function () { S.caption = this.value.slice(0, 50); save(); schedule(); });
+
+    // ---------- downloads ----------
+    function download(blob, name) { var url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = name; a.hidden = true; root.appendChild(a); a.click(); root.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 4000); say('Saved ' + name + '.'); }
+    $('clrp-png').addEventListener('click', function () { outC.toBlob(function (b) { if (b && alive()) download(b, srcName + '-colouring-page.png'); }, 'image/png'); });
+    $('clrp-pdf').addEventListener('click', function () {
+      var w = outC.width, h = outC.height, landscape = w > h, pw = S.paper === 'letter' ? 612 : 595, ph = S.paper === 'letter' ? 792 : 842;
+      if (landscape) { var t = pw; pw = ph; ph = t; }
+      var margin = 36, k = Math.min((pw - 2 * margin) / w, (ph - 2 * margin) / h), dw = w * k, dh = h * k, dx = (pw - dw) / 2, dy = (ph - dh) / 2;
+      var jpeg = atob(outC.toDataURL('image/jpeg', 0.92).split(',')[1]);
+      var content = 'q\n' + dw.toFixed(2) + ' 0 0 ' + dh.toFixed(2) + ' ' + dx.toFixed(2) + ' ' + dy.toFixed(2) + ' cm\n/Im1 Do\nQ\n';
+      var objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im1 4 0 R >> >> /Contents 5 0 R >>', '<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length + ' >>\nstream\n' + jpeg + '\nendstream', '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream'];
+      var parts = ['%PDF-1.4\n'], len = parts[0].length, offs = [];
+      objs.forEach(function (body, i) { offs.push(len); var s = (i + 1) + ' 0 obj\n' + body + '\nendobj\n'; parts.push(s); len += s.length; });
+      parts.push('xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + offs.map(function (o) { return ('0000000000' + o).slice(-10) + ' 00000 n \n'; }).join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + len + '\n%%EOF');
+      var chunks = parts.map(function (str) { var u = new Uint8Array(str.length); for (var i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xff; return u; });
+      download(new Blob(chunks, { type: 'application/pdf' }), srcName + '-colouring-page-' + S.paper + '.pdf');
+    });
+
+    var watchdog = setInterval(function () { if (!alive()) { clearInterval(watchdog); clearTimeout(timer); document.removeEventListener('paste', onPaste); } }, 2000);
+    apply();
+    var sample = document.createElement('canvas'); drawSample(sample); setSource(sample, 'sample-house');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
