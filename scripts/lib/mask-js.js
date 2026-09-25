@@ -16,6 +16,21 @@
 // the bug it exists to prevent. Every offset must survive, so the assertion at
 // the end is part of the contract, not a sanity check.
 
+// A `/` after one of these words starts a regex, not a division: deciding by
+// the previous character alone read `return /[",]/.test(s)` as a division, so
+// the quote inside the class opened a phantom string that blanked the rest of
+// the script — and every check after it saw nothing.
+const REGEX_AFTER_WORD = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete',
+  'void', 'throw', 'case', 'do', 'else', 'yield', 'await']);
+function wordBefore(code, i) {
+  let j = i - 1;
+  while (j >= 0 && /\s/.test(code[j])) j--;
+  const end = j + 1;
+  while (j >= 0 && /[A-Za-z0-9_$]/.test(code[j])) j--;
+  if (j >= 0 && code[j] === '.') return '';  // obj.return / x is a division
+  return code.slice(j + 1, end);
+}
+
 /** Blank strings, comments and regex literals, keeping every offset and line. */
 function mask(code) {
   const out = code.split('');
@@ -42,7 +57,7 @@ function mask(code) {
       blank(start, i);
       continue;
     }
-    if (c === '/' && (prev === '' || '(,=:[!&|?{};+-*%^~<>'.includes(prev))) {
+    if (c === '/' && (prev === '' || '(,=:[!&|?{};+-*%^~<>'.includes(prev) || REGEX_AFTER_WORD.has(wordBefore(code, i)))) {
       // A regex literal or a division: decide by whether it closes on the line.
       const start = i;
       i += 1;

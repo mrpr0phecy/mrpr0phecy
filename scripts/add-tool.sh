@@ -20,6 +20,10 @@ SLUG="${1:?slug}"; CAT="${2:?category}"; MSG="${3:?commit message}"; PUSH=1
 [ "${4:-}" = "--no-push" ] && PUSH=0
 FILE="cards/$SLUG.html"
 [ -f "$FILE" ] || { echo "no such card: $FILE"; exit 1; }
+# build-sitemap.py lists what git tracks (its rule 3), so a brand-new card has
+# to be staged before the build — otherwise the sitemap under-counts it and the
+# gate fails with "cards absent from sitemap.xml" on the first run.
+git add "$FILE"
 
 # 1. category registration (explicit map near the top of the generator)
 if ! grep -q "'$SLUG':" generate-cards-json.js; then
