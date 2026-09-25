@@ -2,18 +2,18 @@
 
 **Target:** Hacker News (news.ycombinator.com) — Submit link under "Show HN"
 **When:** Tuesday, 09:00 ET (the slot that has the most US East Coast traffic and the highest Show HN success rate)
-**Title:** Show HN: 1,303 free browser tools, no accounts, no display ads, open source
+**Title:** Show HN: 1,304 free browser tools, no accounts, no display ads, open source
 
 ---
 
 ## Title (the only thing that matters on HN)
 
-**Primary (recommended):** `Show HN: 1,303 free browser tools, no accounts, no display ads`
+**Primary (recommended):** `Show HN: 1,304 free browser tools, no accounts, no display ads`
 
 **Alternates (shorter is better on HN):**
-- `Show HN: 1,303 free browser-side tools, no display ads, no accounts`
-- `Show HN: A non-profit catalogue of 1,303 free browser tools`
-- `Show HN: I built 1,303 free tools because the internet forgot how to`
+- `Show HN: 1,304 free browser-side tools, no display ads, no accounts`
+- `Show HN: A non-profit catalogue of 1,304 free browser tools`
+- `Show HN: I built 1,304 free tools because the internet forgot how to`
 
 **The "I built" framing is intentional** — it is the most-clicked Show HN title pattern in the last 18 months.
 
@@ -23,15 +23,15 @@
 
 > Hi HN,
 >
-> I'm Russell. I built a site with 1,303 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, BPM and tempo tools, and 1,200 others. Every one of them runs entirely in the browser. No accounts, no email, no display ads, no upsell.
+> I'm Russell. I built a site with 1,304 free browser-side tools — mortgage calculator, BMI, compound interest, password generator, BPM tapper, JSON formatter, eyepiece calculator, sleep cycle planner, colour contrast checker, invoice generator, BPM and tempo tools, and 1,200 others. Every one of them runs entirely in the browser. No accounts, no email, no display ads, no upsell.
 >
-> The whole site is one HTML page per tool, vanilla JavaScript, no framework, no build step. The catalogue is open-source on GitHub. There is a JSON file of all 1,303 tools, a sitemap, an RSS feed, an llms.txt, and an `embed.html` that gives you a one-line iframe for any tool.
+> The whole site is one HTML page per tool, vanilla JavaScript, no framework, no build step. The catalogue is open-source on GitHub. There is a JSON file of all 1,304 tools, a sitemap, an RSS feed, an llms.txt, and an `embed.html` that gives you a one-line iframe for any tool.
 >
 > The thing I most want feedback on:
 >
 > 1. **Are the math tools right?** I have a "How mortgages really work" guide on the site that walks through the assumptions of the mortgage calculator. I would love a real-estate or mortgage-broker HN\'er to tell me where it is wrong.
 >
-> 2. **What is missing?** The catalogue is at 1,303 tools. I add ~10 a month based on what people email in. The 10 most-requested categories right now are: more music-theory tools, more recipe-scaling, more UK tax/national-insurance, more astronomy, more craft (knitting/crochet patterns), more small-business invoicing, more diabetes/insulin tools, more sleep/circadian tools, more language learning, and more accessibility (screen-reader-first tool design). If you are an expert in any of those, I would love to know what is actually missing.
+> 2. **What is missing?** The catalogue is at 1,304 tools. I add ~10 a month based on what people email in. The 10 most-requested categories right now are: more music-theory tools, more recipe-scaling, more UK tax/national-insurance, more astronomy, more craft (knitting/crochet patterns), more small-business invoicing, more diabetes/insulin tools, more sleep/circadian tools, more language learning, and more accessibility (screen-reader-first tool design). If you are an expert in any of those, I would love to know what is actually missing.
 >
 > 3. **Is the no-display-ads thing worth the engineering cost?** I run Google Analytics for measurement (so I can tell which guides convert) but I do not run display ads, ad networks, retargeting pixels, or any kind of ad-tech on the site. The "no ads" commitment is enforced at the source — there is no ad slot in the markup, because the markup is yours to read. The trade-off is that I can't do paid acquisition. I think it is the right call. Am I wrong?
 >
@@ -52,8 +52,8 @@
 >
 > - The site is **non-commercial**. I am not selling anything. There is a donate link and a sponsor link, and the donate link has been live for 9 months. Total donations received: £34.50.
 > - The most-used tool this month is the **mortgage calculator** (~22% of sessions). The least-used is the **3D Spirograph Nebula**, which I built because the GIF looked cool. They are all one HTML file and one JavaScript file. Total repo size: about 91 MB, most of it a photo library two of the non-tool pages use.
-> - The number is honest and checkable. There are 1,303 separate tool pages and a JSON catalogue with an entry for each of them. The count is exposed at the top of `/tools.html`.
-> - The "no display ads" thing is not a marketing line. There is no ad slot, no ad network script, no sponsored-content block, and no retargeting pixel in the HTML of any page. (Google Analytics runs on every standalone page for measurement; Analytics does not place ads. The 1,303 tool cards are HTML fragments that inherit measurement from their host page. The "no ads" commitment is about ad inventory, not measurement.)
+> - The number is honest and checkable. There are 1,304 separate tool pages and a JSON catalogue with an entry for each of them. The count is exposed at the top of `/tools.html`.
+> - The "no display ads" thing is not a marketing line. There is no ad slot, no ad network script, no sponsored-content block, and no retargeting pixel in the HTML of any page. (Google Analytics runs on every standalone page for measurement; Analytics does not place ads. The 1,304 tool cards are HTML fragments that inherit measurement from their host page. The "no ads" commitment is about ad inventory, not measurement.)
 > - I am one person, based in Luton, UK. I work on this in the evenings and weekends. The site is not a startup. It is a hobby that has grown.
 >
 > **If you only click one thing on the site**, the "How mortgages really work" guide at https://www.themostusefulsiteintheworld.com/guides/mortgage.html is the one I am proudest of. The bank\'s calculator never tells you the total interest. The guide walks through it.
@@ -77,7 +77,7 @@
 If the post hits the front page:
 
 1. **Reply to every comment in the first hour** — HN rewards fast engagement.
-2. **Post the technical-writeup link** as a comment if you have one (e.g. a "how I built 1,303 tools in vanilla JS" post on your blog).
+2. **Post the technical-writeup link** as a comment if you have one (e.g. a "how I built 1,304 tools in vanilla JS" post on your blog).
 3. **Cross-post the link to the relevant subreddit** in your second post — but only after the HN post is at least 2 hours old, to avoid the "vote manipulation" accusation.
 4. **Do not** delete the post if it goes negative. HN values resilience.
 
