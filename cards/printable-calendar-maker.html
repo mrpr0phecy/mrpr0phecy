@@ -1,0 +1,433 @@
+<h2 id="pcal-title" style="margin-top:0;color:var(--accent);">📅 Printable Calendar Maker — Any Month or Year as a PDF</h2>
+
+<div id="pcal-root">
+<p id="pcal-desc" class="small" style="color:rgba(230,250,255,0.7);margin:0 0 14px;">
+  Make a clean printable calendar for any month or year: Monday or Sunday start, UK bank holidays or US federal
+  holidays, week numbers, your own birthdays and events, A4 or Letter, portrait or landscape. PDF built in your browser.
+</p>
+
+<div class="pcal-grid2">
+  <div class="pcal-side">
+    <div class="pcal-opts">
+      <div class="pcal-field"><label for="pcal-year" class="pcal-lbl">Year</label><input type="number" id="pcal-year" min="1900" max="2199" step="1"></div>
+      <div class="pcal-field"><label for="pcal-month" class="pcal-lbl">Pages</label>
+        <select id="pcal-month">
+          <option value="all">Every month · 12 pages</option><option value="year">Year at a glance · 1 page</option>
+          <option value="0">January</option><option value="1">February</option><option value="2">March</option><option value="3">April</option><option value="4">May</option><option value="5">June</option><option value="6">July</option><option value="7">August</option><option value="8">September</option><option value="9">October</option><option value="10">November</option><option value="11">December</option>
+        </select></div>
+      <div class="pcal-field"><label for="pcal-start" class="pcal-lbl">Week starts on</label><select id="pcal-start"><option value="1">Monday</option><option value="0">Sunday</option></select></div>
+      <div class="pcal-field"><label for="pcal-hol" class="pcal-lbl">Holidays</label>
+        <select id="pcal-hol"><option value="none">None</option><option value="ew">England &amp; Wales</option><option value="sc">Scotland</option><option value="ni">Northern Ireland</option><option value="us">US federal</option></select></div>
+      <div class="pcal-field"><label for="pcal-paper" class="pcal-lbl">Paper</label><select id="pcal-paper"><option value="a4">A4</option><option value="letter">US Letter</option></select></div>
+      <div class="pcal-field"><label for="pcal-orient" class="pcal-lbl">Orientation</label><select id="pcal-orient"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>
+      <div class="pcal-field"><label for="pcal-accent" class="pcal-lbl">Accent colour</label><input type="color" id="pcal-accent" class="pcal-color" value="#1f6f8b"></div>
+      <div class="pcal-field"><label for="pcal-heading" class="pcal-lbl">Title (optional)</label><input type="text" id="pcal-heading" maxlength="40" placeholder="e.g. The Smiths"></div>
+    </div>
+    <div class="pcal-checks">
+      <label class="pcal-check"><input type="checkbox" id="pcal-weeknums"> ISO week numbers</label>
+      <label class="pcal-check"><input type="checkbox" id="pcal-minis" checked> Previous / next mini months</label>
+      <label class="pcal-check"><input type="checkbox" id="pcal-notes"> Notes lines</label>
+      <label class="pcal-check"><input type="checkbox" id="pcal-shade" checked> Shade weekends</label>
+    </div>
+  </div>
+  <div>
+    <label for="pcal-events" class="pcal-lbl">Your events (one per line: date, then text)</label>
+    <textarea id="pcal-events" class="pcal-events" rows="8" spellcheck="false" placeholder="14/03 Mum's birthday&#10;2026-07-20 Holiday starts&#10;25 Dec Christmas dinner at ours"></textarea>
+    <p id="pcal-evinfo" class="pcal-hint" style="margin:6px 0 0;">Dates like <code>14/03</code> (every year), <code>2026-03-14</code>, <code>14 Mar</code> or <code>Mar 14</code>.</p>
+    <div class="pcal-wrap" style="margin-top:10px;">
+      <button type="button" id="pcal-pdf" class="pcal-btn pcal-primary">⬇ Download PDF</button>
+      <button type="button" id="pcal-print" class="pcal-btn">🖨 Print</button>
+      <button type="button" id="pcal-png" class="pcal-btn">Save page as PNG</button>
+    </div>
+    <p id="pcal-status" class="pcal-status" role="status" aria-live="polite"></p>
+  </div>
+</div>
+
+<div class="pcal-stage">
+  <div class="pcal-pager">
+    <button type="button" id="pcal-prev" class="pcal-btn pcal-small" aria-label="Previous page">‹</button>
+    <span id="pcal-pageinfo" class="pcal-hint"></span>
+    <button type="button" id="pcal-next" class="pcal-btn pcal-small" aria-label="Next page">›</button>
+  </div>
+  <canvas id="pcal-preview" class="pcal-preview" role="img" aria-label="Preview of the calendar page"></canvas>
+</div>
+
+<details style="margin-top:12px;color:rgba(230,250,255,0.6);font-size:0.85rem;">
+  <summary style="cursor:pointer;">Holiday rules, week numbers, events and printing tips</summary>
+  <p style="margin-top:8px;"><strong>Holidays are worked out from the rules, not looked up.</strong> For England and Wales that means New
+    Year’s Day, Good Friday, Easter Monday, the early May and spring bank holidays, the summer bank holiday, Christmas
+    Day and Boxing Day, with substitute days when a holiday falls at the weekend. Scotland swaps Easter Monday for
+    2 January, takes its summer holiday on the first Monday of August and adds St Andrew’s Day; Northern Ireland adds
+    St Patrick’s Day and the Twelfth of July. The US federal list is the eleven holidays with their observed days.
+    Easter is computed with the standard Gregorian method, so any year from 1900 to 2199 works. One-off holidays
+    announced by governments — a coronation, a jubilee, a day of mourning — cannot be predicted by a rule, so add
+    those as events yourself.</p>
+  <p><strong>Week numbers</strong> follow ISO 8601: week 1 is the week containing the first Thursday of the year, and weeks
+    run Monday to Sunday. The numbers are shown in a narrow column on the left and are exact whichever day you choose
+    to start the printed week on.</p>
+  <p><strong>Events</strong> are one per line. A date without a year repeats every year, so a birthdays list written once
+    works for every calendar you print. Accepted forms are day/month (<code>14/03</code>, British order), an ISO date
+    (<code>2026-03-14</code>), or a day and month name in either order (<code>14 Mar</code>, <code>March 14</code>). Up to
+    three lines fit in a day square; longer text is shortened to fit. Everything you type stays in this browser and
+    is remembered for next time.</p>
+  <p><strong>Printing.</strong> The PDF is drawn at 150 dots per inch, one page per month (or a single year page), and
+    opens in any PDF viewer. Print at 100% with the paper size you picked so the grid uses the whole sheet.
+    “Notes lines” adds ruled space under the grid for shopping lists and reminders. The accent colour is used for
+    the title, holidays and today’s highlight only, so the calendar stays cheap to print.</p>
+</details>
+
+<style>
+#pcal-root{color:#e6faff;}
+#pcal-root [hidden]{display:none !important;}
+#pcal-root .pcal-grid2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;}
+@media (max-width:760px){#pcal-root .pcal-grid2{grid-template-columns:1fr;}}
+#pcal-root .pcal-lbl{color:var(--accent,#2dd4ff);font-weight:600;font-size:12.5px;display:block;margin-bottom:4px;}
+#pcal-root input[type=text],#pcal-root input[type=number],#pcal-root select,#pcal-root .pcal-events{box-sizing:border-box;width:100%;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;color:#e6faff;font-size:14px;font-family:inherit;}
+#pcal-root .pcal-color{box-sizing:border-box;width:100%;height:38px;padding:2px 4px;border-radius:8px;border:1px solid rgba(45,212,255,0.3);background:#070f18;cursor:pointer;}
+#pcal-root .pcal-events{min-height:150px;resize:vertical;line-height:1.5;}
+#pcal-root .pcal-side{display:flex;flex-direction:column;gap:10px;min-width:0;}
+#pcal-root .pcal-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:8px;}
+#pcal-root .pcal-field{min-width:0;}
+#pcal-root .pcal-checks{display:flex;flex-wrap:wrap;gap:6px 14px;}
+#pcal-root .pcal-check{display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13.5px;}
+#pcal-root .pcal-check input{width:17px;height:17px;accent-color:var(--accent,#2dd4ff);margin:0;}
+#pcal-root .pcal-wrap{display:flex;flex-wrap:wrap;gap:8px;}
+#pcal-root .pcal-btn{padding:8px 14px;min-height:40px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.06);color:rgba(230,250,255,0.92);cursor:pointer;font-size:13.5px;font-weight:600;font-family:inherit;touch-action:manipulation;white-space:nowrap;}
+#pcal-root .pcal-btn:hover:not(:disabled){background:rgba(45,212,255,0.15);border-color:rgba(45,212,255,0.4);}
+#pcal-root .pcal-btn:disabled{opacity:.5;cursor:default;}
+#pcal-root .pcal-primary{background:var(--accent,#2dd4ff);color:#03141c;border-color:transparent;}
+#pcal-root .pcal-primary:hover:not(:disabled){background:var(--accent,#2dd4ff);filter:brightness(1.08);}
+#pcal-root .pcal-small{min-height:32px;padding:4px 12px;font-size:18px;line-height:1;}
+#pcal-root .pcal-hint{font-size:12.8px;color:rgba(230,250,255,0.6);line-height:1.5;}
+#pcal-root .pcal-hint code{background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;}
+#pcal-root .pcal-status{min-height:1.3em;margin:8px 0 0;color:var(--accent,#2dd4ff);font-size:13.5px;}
+#pcal-root .pcal-stage{margin-top:14px;background:#0d1620;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:8px;}
+#pcal-root .pcal-pager{display:flex;align-items:center;gap:10px;}
+#pcal-root .pcal-preview{display:block;max-width:100%;height:auto;box-shadow:0 8px 30px rgba(0,0,0,0.5);background:#fff;}
+#pcal-root button:focus-visible,#pcal-root select:focus-visible,#pcal-root input:focus-visible,#pcal-root textarea:focus-visible,#pcal-root summary:focus-visible{outline:2px solid var(--accent,#2dd4ff);outline-offset:2px;}
+</style>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var ROOT_ID = 'pcal-root';
+  var KEY = 'pcal.v1';
+  var PAPER = { a4: { w: 595.28, h: 841.89, px: [1240, 1754], name: 'A4' }, letter: { w: 612, h: 792, px: [1275, 1650], name: 'Letter' } };
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  var MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  var DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  var FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  function alive() { return !!document.getElementById(ROOT_ID); }
+  function dim(y, m) { return new Date(Date.UTC(y, m + 1, 0)).getUTCDate(); }
+  function dow(y, m, d) { return new Date(Date.UTC(y, m, d)).getUTCDay(); }
+  function key(m, d) { return (m + 1) * 100 + d; }
+  function easter(y) { // Anonymous Gregorian algorithm → {m, d}
+    var a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451), month = Math.floor((h + l - 7 * m + 114) / 31) - 1, day = ((h + l - 7 * m + 114) % 31) + 1;
+    return { m: month, d: day };
+  }
+  function addDays(y, m, d, n) { var t = new Date(Date.UTC(y, m, d + n)); return { y: t.getUTCFullYear(), m: t.getUTCMonth(), d: t.getUTCDate() }; }
+  function nthDow(y, m, wd, n) { var first = dow(y, m, 1), d = 1 + ((wd - first + 7) % 7) + (n - 1) * 7; return d; }
+  function lastDow(y, m, wd) { var last = dim(y, m), wl = dow(y, m, last); return last - ((wl - wd + 7) % 7); }
+  function isoWeek(y, m, d) {
+    var t = new Date(Date.UTC(y, m, d)), day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day);
+    var y1 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1)); return Math.ceil(((t - y1) / 86400000 + 1) / 7);
+  }
+  // Holidays for a year → { 'MMDD-key': name }
+  function holidays(y, region) {
+    var out = {};
+    if (region === 'none') return out;
+    function put(m, d, name) { var k = key(m, d); out[k] = out[k] ? out[k] + ' / ' + name : name; }
+    var fixed = [];
+    function subst(m, d, name) { fixed.push({ m: m, d: d, name: name }); }
+    function resolveFixed() { // UK style: weekday holidays first, then weekend ones move to the next free weekday
+      var taken = {};
+      fixed.forEach(function (f) { var wd = dow(y, f.m, f.d); if (wd !== 0 && wd !== 6) { put(f.m, f.d, f.name); taken[key(f.m, f.d)] = 1; } });
+      fixed.forEach(function (f) {
+        var wd = dow(y, f.m, f.d); if (wd !== 0 && wd !== 6) return;
+        var t = { y: y, m: f.m, d: f.d };
+        do { t = addDays(t.y, t.m, t.d, 1); } while (t.y === y && (dow(t.y, t.m, t.d) === 0 || dow(t.y, t.m, t.d) === 6 || taken[key(t.m, t.d)]));
+        if (t.y === y) { put(t.m, t.d, f.name + ' (substitute)'); taken[key(t.m, t.d)] = 1; }
+      });
+    }
+    function observed(m, d, name) { // US style: Sat → Friday before, Sun → Monday after
+      var wd = dow(y, m, d);
+      if (wd === 6) { var f = addDays(y, m, d, -1); if (f.y === y) put(f.m, f.d, name + ' (observed)'); else put(m, d, name); }
+      else if (wd === 0) { var n = addDays(y, m, d, 1); put(n.m, n.d, name + ' (observed)'); }
+      else put(m, d, name);
+    }
+    var e = easter(y), gf = addDays(y, e.m, e.d, -2), em = addDays(y, e.m, e.d, 1);
+    if (region === 'ew' || region === 'sc' || region === 'ni') {
+      subst(0, 1, 'New Year’s Day');
+      if (region === 'sc') subst(0, 2, '2nd January');
+      if (region === 'ni') subst(2, 17, 'St Patrick’s Day');
+      put(gf.m, gf.d, 'Good Friday');
+      if (region !== 'sc') put(em.m, em.d, 'Easter Monday');
+      put(4, nthDow(y, 4, 1, 1), 'Early May bank holiday');
+      put(4, lastDow(y, 4, 1), 'Spring bank holiday');
+      if (region === 'ni') subst(6, 12, 'Battle of the Boyne');
+      if (region === 'sc') put(7, nthDow(y, 7, 1, 1), 'Summer bank holiday'); else put(7, lastDow(y, 7, 1), 'Summer bank holiday');
+      if (region === 'sc') subst(10, 30, 'St Andrew’s Day');
+      subst(11, 25, 'Christmas Day');
+      subst(11, 26, 'Boxing Day');
+      resolveFixed();
+    } else if (region === 'us') {
+      observed(0, 1, 'New Year’s Day');
+      put(0, nthDow(y, 0, 1, 3), 'Martin Luther King Jr. Day');
+      put(1, nthDow(y, 1, 1, 3), 'Presidents’ Day');
+      put(4, lastDow(y, 4, 1), 'Memorial Day');
+      if (y >= 2021) observed(5, 19, 'Juneteenth');
+      observed(6, 4, 'Independence Day');
+      put(8, nthDow(y, 8, 1, 1), 'Labor Day');
+      put(9, nthDow(y, 9, 1, 2), 'Columbus Day');
+      observed(10, 11, 'Veterans Day');
+      put(10, nthDow(y, 10, 4, 4), 'Thanksgiving');
+      observed(11, 25, 'Christmas Day');
+      if (dow(y + 1, 0, 1) === 6) put(11, 31, 'New Year’s Day (observed)');
+    }
+    return out;
+  }
+  function parseEvents(text) { // → [{y|null, m, d, text}], bad count
+    var out = [], bad = 0;
+    text.split('\n').forEach(function (line) {
+      var s = line.trim(); if (!s) return;
+      var m, y = null, mo, d;
+      if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})\s*[:,-]?\s*(.*)$/))) { y = +m[1]; mo = +m[2] - 1; d = +m[3]; s = m[4]; }
+      else if ((m = s.match(/^(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{4}))?\s*[:,-]?\s*(.*)$/))) { d = +m[1]; mo = +m[2] - 1; y = m[3] ? +m[3] : null; s = m[4]; }
+      else if ((m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,})\.?(?:\s+(\d{4}))?\s*[:,-]?\s*(.*)$/)) && MON3.indexOf(m[2].slice(0, 3).toLowerCase()) >= 0) { d = +m[1]; mo = MON3.indexOf(m[2].slice(0, 3).toLowerCase()); y = m[3] ? +m[3] : null; s = m[4]; }
+      else if ((m = s.match(/^([A-Za-z]{3,})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\s*[:,-]?\s*(.*)$/)) && MON3.indexOf(m[1].slice(0, 3).toLowerCase()) >= 0) { mo = MON3.indexOf(m[1].slice(0, 3).toLowerCase()); d = +m[2]; y = m[3] ? +m[3] : null; s = m[4]; }
+      else { bad++; return; }
+      if (mo < 0 || mo > 11 || d < 1 || d > 31) { bad++; return; }
+      out.push({ y: y, m: mo, d: d, text: (s || 'Event').slice(0, 60) });
+    });
+    return { events: out, bad: bad };
+  }
+
+  function init() {
+    var root = document.getElementById(ROOT_ID);
+    if (!root || root.getAttribute('data-ready') === '1') return;
+    root.setAttribute('data-ready', '1');
+    var $ = function (id) { return document.getElementById(id); };
+    var now = new Date(), S = load(), raf = 0, sayTimer = 0, page = 0;
+    function load() {
+      var d = null; try { d = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { d = null; }
+      var s = { year: now.getFullYear(), month: String(now.getMonth()), start: 1, hol: 'ew', paper: 'a4', orient: 'portrait', accent: '#1f6f8b', heading: '', events: '', weeknums: false, minis: true, notes: false, shade: true };
+      if (d && typeof d === 'object') {
+        if (+d.year >= 1900 && +d.year <= 2199) s.year = Math.floor(+d.year);
+        if (typeof d.month === 'string' && (d.month === 'all' || d.month === 'year' || /^(\d|1[01])$/.test(d.month))) s.month = d.month;
+        if (d.start === 0 || d.start === 1) s.start = d.start;
+        if (['none', 'ew', 'sc', 'ni', 'us'].indexOf(d.hol) >= 0) s.hol = d.hol;
+        if (PAPER[d.paper]) s.paper = d.paper;
+        if (d.orient === 'landscape' || d.orient === 'portrait') s.orient = d.orient;
+        if (typeof d.accent === 'string' && /^#[0-9a-f]{6}$/i.test(d.accent)) s.accent = d.accent;
+        if (typeof d.heading === 'string') s.heading = d.heading.slice(0, 40);
+        if (typeof d.events === 'string') s.events = d.events.slice(0, 6000);
+        ['weeknums', 'minis', 'notes', 'shade'].forEach(function (k) { if (typeof d[k] === 'boolean') s[k] = d[k]; });
+      }
+      return s;
+    }
+    var saveTimer = 0;
+    function save() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }, 250); }
+    function say(msg) { if (!alive()) return; $('pcal-status').textContent = msg; clearTimeout(sayTimer); sayTimer = setTimeout(function () { if (alive()) $('pcal-status').textContent = ''; }, 6000); }
+    function el(tag, attrs) { var n = document.createElement(tag); if (attrs) Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); }); return n; }
+    function pageList() { if (S.month === 'all') { var a = []; for (var i = 0; i < 12; i++) a.push({ kind: 'month', m: i }); return a; } if (S.month === 'year') return [{ kind: 'year' }]; return [{ kind: 'month', m: +S.month }]; }
+    function pageSize() { var P = PAPER[S.paper]; return S.orient === 'landscape' ? [P.px[1], P.px[0]] : [P.px[0], P.px[1]]; }
+    function fit(x, text, maxW) { if (x.measureText(text).width <= maxW) return text; var t = text; while (t.length > 1 && x.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; }
+    function eventsFor(y) { var all = parseEvents(S.events).events, map = {}; all.forEach(function (ev) { if (ev.y !== null && ev.y !== y) return; if (ev.d > dim(y, ev.m)) return; var k = key(ev.m, ev.d); (map[k] = map[k] || []).push(ev.text); }); return map; }
+    function isToday(y, m, d) { return y === now.getFullYear() && m === now.getMonth() && d === now.getDate(); }
+
+    // ---------- month page ----------
+    function drawMini(x, y, m, px, py, w, hol, accent, label) {
+      var cw = w / 7, rh = cw * 0.95, fs = Math.round(cw * 0.55);
+      x.fillStyle = '#222'; x.font = '700 ' + Math.round(fs * 1.1) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+      x.fillText(label || (MONTHS[m] + ' ' + y), px, py);
+      x.font = fs + 'px ' + FONT; x.textAlign = 'center';
+      x.fillStyle = '#777';
+      for (var i = 0; i < 7; i++) x.fillText(DAYS[(i + S.start) % 7][0], px + cw * i + cw / 2, py + rh);
+      var first = (dow(y, m, 1) - S.start + 7) % 7, n = dim(y, m), r = 1;
+      for (var d = 1; d <= n; d++) {
+        var col = (first + d - 1) % 7; if (d > 1 && col === 0) r++;
+        var isHol = !!hol[key(m, d)];
+        x.fillStyle = isHol ? accent : (((col + S.start) % 7 === 0 || (col + S.start) % 7 === 6) ? '#999' : '#222');
+        x.font = (isHol ? '700 ' : '') + fs + 'px ' + FONT;
+        x.fillText(String(d), px + cw * col + cw / 2, py + rh * (r + 1));
+      }
+      return py + rh * 8;
+    }
+    function drawMonth(y, m) {
+      var sz = pageSize(), W = sz[0], H = sz[1], cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var x = cv.getContext('2d'); if (!x) return cv;
+      var accent = S.accent, hol = holidays(y, S.hol), evs = eventsFor(y), land = W > H, u = Math.min(W, H) / 1240;
+      x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+      var mg = Math.round(70 * u), top = mg;
+      // title
+      x.fillStyle = accent; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+      x.font = '700 ' + Math.round(72 * u) + 'px ' + FONT;
+      x.fillText(MONTHS[m], mg, top + Math.round(64 * u));
+      var tw = x.measureText(MONTHS[m]).width;
+      x.fillStyle = '#555'; x.font = '300 ' + Math.round(72 * u) + 'px ' + FONT; x.fillText(' ' + y, mg + tw, top + Math.round(64 * u));
+      if (S.heading) { x.fillStyle = '#777'; x.font = Math.round(22 * u) + 'px ' + FONT; x.fillText(S.heading, mg, top + Math.round(100 * u)); }
+      var headerBottom = top + Math.round(110 * u);
+      if (S.minis) {
+        var mw = Math.round(200 * u), gap = Math.round(30 * u);
+        var pm = m === 0 ? [y - 1, 11] : [y, m - 1], nm = m === 11 ? [y + 1, 0] : [y, m + 1];
+        drawMini(x, pm[0], pm[1], W - mg - mw * 2 - gap, top + Math.round(18 * u), mw, holidays(pm[0], S.hol), accent);
+        drawMini(x, nm[0], nm[1], W - mg - mw, top + Math.round(18 * u), mw, holidays(nm[0], S.hol), accent);
+        headerBottom = Math.max(headerBottom, top + Math.round(18 * u) + mw / 7 * 0.95 * 8 + Math.round(10 * u));
+      }
+      // grid geometry
+      var first = (dow(y, m, 1) - S.start + 7) % 7, n = dim(y, m), rows = Math.ceil((first + n) / 7);
+      var wkW = S.weeknums ? Math.round(44 * u) : 0, gx = mg + wkW, gw = W - 2 * mg - wkW;
+      var notesH = S.notes ? Math.round((land ? 150 : 260) * u) : 0;
+      var gy = headerBottom + Math.round(10 * u), dayHdr = Math.round(34 * u), gh = H - gy - mg - notesH - dayHdr - (S.notes ? Math.round(30 * u) : 0);
+      var cw = gw / 7, rh = gh / rows;
+      // day headers
+      x.fillStyle = accent; x.fillRect(gx, gy, gw, dayHdr);
+      x.fillStyle = '#fff'; x.font = '600 ' + Math.round(17 * u) + 'px ' + FONT; x.textAlign = 'center'; x.textBaseline = 'middle';
+      for (var i = 0; i < 7; i++) { var nm2 = DAYS[(i + S.start) % 7]; x.fillText(cw > 120 * u ? nm2 : nm2.slice(0, 3), gx + cw * i + cw / 2, gy + dayHdr / 2); }
+      var top2 = gy + dayHdr;
+      // weekend shading
+      if (S.shade) { x.fillStyle = '#f3f3f3'; for (i = 0; i < 7; i++) { var wd = (i + S.start) % 7; if (wd === 0 || wd === 6) x.fillRect(gx + cw * i, top2, cw, rh * rows); } }
+      // cells
+      var d = 1;
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < 7; c++) {
+          var idx = r * 7 + c; if (idx < first || d > n) continue;
+          var cx = gx + cw * c, cy = top2 + rh * r, k = key(m, d), hname = hol[k], today = isToday(y, m, d);
+          if (today) { x.fillStyle = accent; x.globalAlpha = 0.12; x.fillRect(cx, cy, cw, rh); x.globalAlpha = 1; }
+          x.fillStyle = hname ? accent : '#222'; x.font = '600 ' + Math.round(24 * u) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+          x.fillText(String(d), cx + Math.round(9 * u), cy + Math.round(30 * u));
+          var lines = [], maxLines = Math.max(1, Math.floor((rh - 42 * u) / (19 * u)));
+          if (hname) lines.push({ t: hname, hol: true });
+          (evs[k] || []).forEach(function (t) { lines.push({ t: t, hol: false }); });
+          x.font = Math.round(14.5 * u) + 'px ' + FONT;
+          lines.slice(0, maxLines).forEach(function (ln, li) {
+            x.fillStyle = ln.hol ? accent : '#333';
+            if (li === maxLines - 1 && lines.length > maxLines) { x.fillStyle = '#777'; x.fillText('+' + (lines.length - maxLines + 1) + ' more', cx + Math.round(9 * u), cy + Math.round(52 * u) + li * 19 * u); return; }
+            x.fillText(fit(x, ln.t, cw - 16 * u), cx + Math.round(9 * u), cy + Math.round(52 * u) + li * 19 * u);
+          });
+          d++;
+        }
+      }
+      // week numbers
+      if (S.weeknums) {
+        x.fillStyle = '#999'; x.font = Math.round(13 * u) + 'px ' + FONT; x.textAlign = 'center'; x.textBaseline = 'middle';
+        for (r = 0; r < rows; r++) { var th = addDays(y, m, 1, r * 7 - first + (S.start === 1 ? 3 : 4)); x.fillText('W' + isoWeek(th.y, th.m, th.d), mg + wkW / 2, top2 + rh * r + rh / 2); }
+      }
+      // grid lines
+      x.strokeStyle = '#c9c9c9'; x.lineWidth = Math.max(1, Math.round(1.2 * u));
+      x.beginPath();
+      for (i = 0; i <= 7; i++) { x.moveTo(gx + cw * i, top2); x.lineTo(gx + cw * i, top2 + rh * rows); }
+      for (r = 0; r <= rows; r++) { x.moveTo(gx, top2 + rh * r); x.lineTo(gx + gw, top2 + rh * r); }
+      x.stroke();
+      // notes
+      if (S.notes) {
+        var ny = top2 + rh * rows + Math.round(30 * u);
+        x.fillStyle = '#777'; x.font = '600 ' + Math.round(15 * u) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic'; x.fillText('Notes', mg, ny + Math.round(12 * u));
+        x.strokeStyle = '#d8d8d8'; x.beginPath();
+        var lh = Math.round(34 * u), ly = ny + Math.round(30 * u);
+        while (ly + lh <= H - mg + 1) { x.moveTo(mg, ly + lh); x.lineTo(W - mg, ly + lh); ly += lh; }
+        x.stroke();
+      }
+      x.fillStyle = '#aaa'; x.font = Math.round(11 * u) + 'px ' + FONT; x.textAlign = 'right'; x.textBaseline = 'alphabetic';
+      x.fillText(holLabel() + ' · themostusefulsiteintheworld.com', W - mg, H - Math.round(mg * 0.45));
+      return cv;
+    }
+    function holLabel() { return { none: '', ew: 'Bank holidays: England & Wales', sc: 'Bank holidays: Scotland', ni: 'Bank holidays: Northern Ireland', us: 'US federal holidays' }[S.hol]; }
+    // ---------- year page ----------
+    function drawYear(y) {
+      var sz = pageSize(), W = sz[0], H = sz[1], cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var x = cv.getContext('2d'); if (!x) return cv;
+      var accent = S.accent, hol = holidays(y, S.hol), land = W > H, u = Math.min(W, H) / 1240, mg = Math.round(70 * u);
+      x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
+      x.fillStyle = accent; x.font = '700 ' + Math.round(84 * u) + 'px ' + FONT; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+      x.fillText(String(y), mg, mg + Math.round(70 * u));
+      if (S.heading) { x.fillStyle = '#777'; x.font = Math.round(24 * u) + 'px ' + FONT; x.textAlign = 'right'; x.fillText(S.heading, W - mg, mg + Math.round(70 * u)); }
+      var cols = land ? 4 : 3, rowsN = 12 / cols, gapX = Math.round(50 * u), top = mg + Math.round(120 * u);
+      var mw = (W - 2 * mg - gapX * (cols - 1)) / cols, availH = H - top - mg, mh = availH / rowsN;
+      var cw = Math.min(mw / 7, (mh - 20 * u) / 8 / 0.95), realW = cw * 7;
+      for (var m = 0; m < 12; m++) {
+        var col = m % cols, row = Math.floor(m / cols), px = mg + col * (mw + gapX) + (mw - realW) / 2, py = top + row * mh + Math.round(24 * u);
+        drawMini(x, y, m, px, py, realW, hol, accent, MONTHS[m]);
+      }
+      x.fillStyle = '#aaa'; x.font = Math.round(11 * u) + 'px ' + FONT; x.textAlign = 'right';
+      x.fillText(holLabel() + ' · themostusefulsiteintheworld.com', W - mg, H - Math.round(mg * 0.45));
+      return cv;
+    }
+    function drawPage(p) { return p.kind === 'year' ? drawYear(S.year) : drawMonth(S.year, p.m); }
+
+    // ---------- preview ----------
+    function schedule() { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; if (alive()) paint(); }); }
+    function paint() {
+      var pages = pageList(); if (page >= pages.length) page = 0;
+      var cv = drawPage(pages[page]), pv = $('pcal-preview'), x = pv.getContext('2d');
+      pv.width = Math.round(cv.width / 2); pv.height = Math.round(cv.height / 2);
+      if (x) { x.imageSmoothingQuality = 'high'; x.drawImage(cv, 0, 0, pv.width, pv.height); }
+      var p = pages[page]; pv.setAttribute('aria-label', 'Preview of ' + (p.kind === 'year' ? 'the ' + S.year + ' year page' : MONTHS[p.m] + ' ' + S.year));
+      $('pcal-pageinfo').textContent = 'Page ' + (page + 1) + ' of ' + pages.length + ' · ' + (p.kind === 'year' ? S.year + ' at a glance' : MONTHS[p.m] + ' ' + S.year) + ' · ' + PAPER[S.paper].name + ' ' + S.orient;
+      $('pcal-prev').disabled = page === 0; $('pcal-next').disabled = page >= pages.length - 1;
+      var ev = parseEvents(S.events), hy = holidays(S.year, S.hol), hc = Object.keys(hy).length;
+      $('pcal-evinfo').textContent = (ev.events.length ? ev.events.length + ' event' + (ev.events.length === 1 ? '' : 's') + (ev.bad ? ' · ' + ev.bad + ' line' + (ev.bad === 1 ? '' : 's') + ' not understood' : '') + '. ' : '') + (hc ? hc + ' holiday' + (hc === 1 ? '' : 's') + ' in ' + S.year + '. ' : '') + 'Dates like 14/03 (every year), 2026-03-14, 14 Mar or Mar 14.';
+    }
+
+    // ---------- PDF ----------
+    function buildPdf(pages, pw, ph) {
+      var objs = ['<< /Type /Catalog /Pages 2 0 R >>', ''], kids = [];
+      pages.forEach(function (p, i) {
+        var pn = objs.length + 1, content = 'q\n' + pw + ' 0 0 ' + ph + ' 0 0 cm\n/Im' + i + ' Do\nQ\n';
+        kids.push(pn + ' 0 R');
+        objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im' + i + ' ' + (pn + 1) + ' 0 R >> >> /Contents ' + (pn + 2) + ' 0 R >>');
+        objs.push('<< /Type /XObject /Subtype /Image /Width ' + p.w + ' /Height ' + p.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + p.jpeg.length + ' >>\nstream\n' + p.jpeg + '\nendstream');
+        objs.push('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+      });
+      objs[1] = '<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + pages.length + ' >>';
+      var parts = ['%PDF-1.4\n'], len = parts[0].length, offs = [];
+      objs.forEach(function (body, i) { offs.push(len); var s = (i + 1) + ' 0 obj\n' + body + '\nendobj\n'; parts.push(s); len += s.length; });
+      var xref = 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + offs.map(function (o) { return String(o).padStart(10, '0') + ' 00000 n \n'; }).join('');
+      parts.push(xref + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + len + '\n%%EOF');
+      var chunks = parts.map(function (str) { var u = new Uint8Array(str.length); for (var i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 0xff; return u; });
+      return new Blob(chunks, { type: 'application/pdf' });
+    }
+    function makePdf() {
+      var P = PAPER[S.paper], pw = S.orient === 'landscape' ? P.h : P.w, ph = S.orient === 'landscape' ? P.w : P.h, pages = [];
+      pageList().forEach(function (p) { var cv = drawPage(p), url = cv.toDataURL('image/jpeg', 0.9), b64 = url.indexOf(',') >= 0 ? url.split(',')[1] : ''; pages.push({ jpeg: atob(b64), w: cv.width, h: cv.height }); });
+      return buildPdf(pages, pw, ph);
+    }
+    function fileName(ext) { var part = S.month === 'all' ? 'all-months' : S.month === 'year' ? 'year' : MONTHS[+S.month].toLowerCase(); return 'calendar-' + S.year + '-' + part + '-' + S.paper + '-' + S.orient + '.' + ext; }
+    function download(blob, name) { var url = URL.createObjectURL(blob), a = el('a', { href: url, download: name }); a.hidden = true; root.appendChild(a); a.click(); root.removeChild(a); setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 4000); }
+    $('pcal-pdf').addEventListener('click', function () {
+      try { var blob = makePdf(); download(blob, fileName('pdf')); say('Saved ' + fileName('pdf') + ' — ' + pageList().length + ' page' + (pageList().length === 1 ? '' : 's') + ', ' + Math.round(blob.size / 1024) + ' KB. Print at 100%.'); }
+      catch (e) { say('Could not build the PDF in this browser.'); }
+    });
+    $('pcal-print').addEventListener('click', function () {
+      var w = null; try { w = window.open('', '_blank'); } catch (e) { w = null; }
+      var blob = null; try { blob = makePdf(); } catch (e) { blob = null; }
+      if (!blob) { if (w) w.close(); say('Could not build the PDF.'); return; }
+      var url = URL.createObjectURL(blob);
+      if (w && !w.closed) { try { w.location.href = url; say('Opened the PDF in a new tab — print it from there at 100%.'); } catch (e) { download(blob, fileName('pdf')); } }
+      else { download(blob, fileName('pdf')); say('Pop-up blocked, so the PDF was downloaded instead.'); }
+      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 120000);
+    });
+    $('pcal-png').addEventListener('click', function () {
+      var pages = pageList(), cv = drawPage(pages[Math.min(page, pages.length - 1)]);
+      cv.toBlob(function (b) { if (!alive() || !b) return; var p = pages[Math.min(page, pages.length - 1)], name = 'calendar-' + S.year + '-' + (p.kind === 'year' ? 'year' : MONTHS[p.m].toLowerCase()) + '.png'; download(b, name); say('Saved ' + name + ' (' + cv.width + '×' + cv.height + ').'); }, 'image/png');
+    });
+    $('pcal-prev').addEventListener('click', function () { if (page > 0) { page--; schedule(); } });
+    $('pcal-next').addEventListener('click', function () { if (page < pageList().length - 1) { page++; schedule(); } });
+
+    // ---------- bind ----------
+    var year = $('pcal-year'); year.value = S.year; year.addEventListener('input', function () { var v = Math.floor(+year.value); if (v >= 1900 && v <= 2199) { S.year = v; save(); schedule(); } });
+    year.addEventListener('blur', function () { year.value = S.year; });
+    function bindSel(id, k, num) { var s = $(id); s.value = String(S[k]); s.addEventListener('change', function () { S[k] = num ? +s.value : s.value; page = 0; save(); schedule(); }); }
+    bindSel('pcal-month', 'month'); bindSel('pcal-start', 'start', true); bindSel('pcal-hol', 'hol'); bindSel('pcal-paper', 'paper'); bindSel('pcal-orient', 'orient');
+    var accent = $('pcal-accent'); accent.value = S.accent; accent.addEventListener('input', function () { S.accent = accent.value; save(); schedule(); });
+    var heading = $('pcal-heading'); heading.value = S.heading; heading.addEventListener('input', function () { S.heading = heading.value.slice(0, 40); save(); schedule(); });
+    var events = $('pcal-events'); events.value = S.events; events.addEventListener('input', function () { S.events = events.value.slice(0, 6000); save(); schedule(); });
+    ['weeknums', 'minis', 'notes', 'shade'].forEach(function (k) { var b = $('pcal-' + k); b.checked = S[k]; b.addEventListener('change', function () { S[k] = b.checked; save(); schedule(); }); });
+    schedule();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
