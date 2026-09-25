@@ -66,8 +66,30 @@
       return cleanSlugs(JSON.parse(raw));
     } catch (e) { return []; }
   }
+  // Whether storage is the source of truth right now. In private mode (or
+  // when the quota is full) the write fails and the in-memory list is the
+  // only copy — re-reading storage then would wipe the visitor's session.
+  var storageOk = true;
   function write() {
-    try { localStorage.setItem(KEY, JSON.stringify(slugs)); } catch (e) { /* private mode: session only */ }
+    try { localStorage.setItem(KEY, JSON.stringify(slugs)); storageOk = true; }
+    catch (e) { storageOk = false; /* private mode: session only */ }
+  }
+  /* Another tab (or this page before a back/forward restore) may have changed
+     the toolbox: every list page and tool.html share it. Every mutation starts
+     from what is stored, so adding a tool here can never silently drop the
+     one just added on tool.html in another tab — the whole list is written
+     back on each change, which is exactly how that used to happen. */
+  function refresh() {
+    if (!storageOk) return false;
+    var next = read();
+    if (next.join(',') === slugs.join(',')) return false;
+    slugs = next;
+    return true;
+  }
+  function repaint() {
+    paintCounts();
+    renderPanel();
+    listeners.forEach(function (fn) { try { fn(slugs.slice()); } catch (e) {} });
   }
   function emit() {
     write();
@@ -80,12 +102,14 @@
   function index(slug) { return slugs.indexOf(slug); }
   function has(slug) { return index(slug) !== -1; }
   function add(slug) {
+    refresh();
     if (!slug || !SLUG_RE.test(slug) || has(slug)) return false;
     slugs.push(slug);
     emit();
     return true;
   }
   function remove(slug) {
+    refresh();
     var i = index(slug);
     if (i === -1) return false;
     slugs.splice(i, 1);
@@ -93,10 +117,12 @@
     return true;
   }
   function toggle(slug) {
+    refresh();
     var added = has(slug) ? (remove(slug), false) : (add(slug), true);
     return added;
   }
   function move(slug, dir) {
+    refresh();
     var i = index(slug), j = i + dir;
     if (i === -1 || j < 0 || j >= slugs.length) return false;
     var tmp = slugs[j];
@@ -437,6 +463,7 @@
           if (Array.isArray(data)) list = data; else if (data && Array.isArray(data.tools)) list = data.tools;
         } catch (e) { toast('That file is not a toolbox export'); return; }
         if (!list) { toast('That file is not a toolbox export'); return; }
+        refresh();
         var merged = slugs.slice();
         list.forEach(function (s) { if (typeof s === 'string' && merged.indexOf(s) === -1) merged.push(s); });
         var before = slugs.length;
@@ -507,6 +534,7 @@
     document.body.appendChild(bar);
     bar.addEventListener('click', function (e) {
       if (e.target.closest('[data-shared-add]')) {
+        refresh();
         var merged = slugs.slice();
         fresh.forEach(function (s) { if (merged.indexOf(s) === -1) merged.push(s); });
         replace(merged);
@@ -601,6 +629,18 @@
     renderPanel();
     watchForIntent();
     readShared();
+    // Keep this page honest when the toolbox changes elsewhere: a `storage`
+    // event from another tab, or a back/forward restore (bfcache pages miss
+    // storage events while frozen) after adding a tool on its own page.
+    if (typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', function (e) {
+        if (e.key !== null && e.key !== KEY) return;
+        if (refresh()) repaint();
+      });
+      window.addEventListener('pageshow', function (e) {
+        if (e.persisted && refresh()) repaint();
+      });
+    }
   }
 
   /* Rows that ship as plain links get the ＋ here, not in the markup: with

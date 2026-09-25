@@ -269,7 +269,28 @@
      INSTRUMENTATION.md, `__mp_` keys reserved for exactly this). A search that
      returns nothing is the most valuable signal on the page: it says which
      tool does not exist yet. */
+  /* The write is deferred until the query settles. It used to run on every
+     debounced keystroke — a synchronous JSON parse + stringify + localStorage
+     write on the typing path — and it logged every prefix on the way to the
+     real query ("mortg" as a zero-result search). Now only the query the
+     visitor stopped on is recorded, and a pending one is flushed if they leave
+     the page (Enter on a single match navigates straight away). */
+  var pendingLog = null, pendingLogTimer = null;
+  function flushSearchLog() {
+    clearTimeout(pendingLogTimer);
+    pendingLogTimer = null;
+    var item = pendingLog;
+    pendingLog = null;
+    if (item) writeSearchLog(item.q, item.n);
+  }
   function logSearch(q, count) {
+    if (!q) return;
+    pendingLog = { q: q, n: count };
+    clearTimeout(pendingLogTimer);
+    pendingLogTimer = setTimeout(flushSearchLog, 900);
+  }
+  if (typeof window.addEventListener === 'function') window.addEventListener('pagehide', flushSearchLog);
+  function writeSearchLog(q, count) {
     if (!q) return;
     try {
       var map = JSON.parse(localStorage.getItem('__mp_zero_searches') || '{}');
@@ -336,7 +357,7 @@
       tags.push(tagEl.textContent.replace(/^#/, '').trim());
     });
     var group = el.closest ? el.closest('[data-xp-group]') : null;
-    return {
+    var row = {
       slug: slug,
       title: (titleEl ? titleEl.textContent : a.textContent).trim(),
       desc: descEl ? descEl.textContent.trim() : '',
@@ -349,36 +370,66 @@
       featured: el.getAttribute('data-featured') === '1',
       url: a.getAttribute('href')
     };
+    // The search haystack, built once — not rebuilt for every row on every
+    // keystroke (tools.html filters 1,285 served rows).
+    row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
+    return row;
   }
 
   /* ------------------------------------------------------------ filtering */
-  function matches(row, q) {
+  function matches(row, q, words) {
     if (!q) return true;
     // Every word has to appear somewhere: "truck weight" should not return
     // every trucking tool plus every weight tool. _hay is filled once when the
     // catalogue arrives; fixtures and static rows still build it here.
+    // `words` is the query already split — visible() splits it once per
+    // filter instead of once per row (1,285 splits per keystroke before).
     var hay = row._hay || norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
-    var words = q.split(/\s+/).filter(Boolean);
+    if (!words) words = q.split(/\s+/).filter(Boolean);
     for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false;
     return true;
   }
 
   function sorted(list) {
+    /* The whole list is sorted once per sort order and remembered; a keystroke
+       then only filters that pre-sorted list, which keeps its order. Before,
+       every keystroke re-sorted up to 1,285 rows with the collator (and
+       visible() ran two or three times per keystroke), so typing paid for a
+       full sort each time. Keyed on the array and its length: the catalogue
+       arriving, or a fixture growing, is a new key. Callers get a copy, so the
+       source list — and the cache — are never mutated. */
+    var memo = sorted.memo;
+    if (!memo || memo.list !== list || memo.len !== list.length) {
+      memo = sorted.memo = { list: list, len: list.length, by: {} };
+    }
+    var hit = memo.by[state.sort];
+    if (hit) return hit.slice();
     var out = list.slice();
     if (state.sort === 'az') out.sort(function (a, b) { return byTitle(a.title, b.title); });
     else if (state.sort === 'za') out.sort(function (a, b) { return byTitle(a.title, b.title, 'za'); });
     else if (state.sort === 'popular') out.sort(function (a, b) { return (b.pop - a.pop) || byTitle(a.title, b.title); });
     else if (state.sort === 'newest') out.sort(function (a, b) { return String(b.updated).localeCompare(String(a.updated)) || byTitle(a.title, b.title); });
     else if (state.sort === 'category') out.sort(function (a, b) { return (a.catName || '').localeCompare(b.catName || '') || byTitle(a.title, b.title); });
-    return out;
+    memo.by[state.sort] = out;
+    return out.slice();
   }
 
   function visible() {
+    /* Memoised on everything the answer depends on. One keystroke used to
+       compute this three times (the zero-result log, the render, and the hero
+       box's match count via rows()); now the second and third are free. */
     var q = norm(state.q).trim();
-    return sorted(state.rows.filter(function (r) {
-      if (state.cat && r.catName !== state.cat) return false;
-      return matches(r, q);
-    }));
+    var memo = visible.memo;
+    if (memo && memo.rows === state.rows && memo.len === state.rows.length &&
+        memo.q === q && memo.cat === state.cat && memo.sort === state.sort) return memo.out;
+    var words = q ? q.split(/\s+/).filter(Boolean) : [];
+    var cat = state.cat;
+    var out = sorted(state.rows).filter(function (r) {
+      if (cat && r.catName !== cat) return false;
+      return matches(r, q, words);
+    });
+    visible.memo = { rows: state.rows, len: state.rows.length, q: q, cat: cat, sort: state.sort, out: out };
+    return out;
   }
 
   /* -------------------------------------------------------------- toolbar */
@@ -790,7 +841,13 @@
     catch (e) { return 'comfortable'; }
   }
 
+  var wired = false;
   function wire() {
+    // Once per page. finish() can run again after a failed attempt (a retry
+    // that succeeds), and wiring twice would double every keyboard shortcut,
+    // facet click and "show more".
+    if (wired) return;
+    wired = true;
     // Toolbar
     els.bar.addEventListener('input', function (e) {
       if (e.target.id !== 'xp-input') return;
@@ -940,6 +997,7 @@
          idle. A search that arrives first is queued, not dropped. */
       catalogueReady = false;
       var loading = null;
+      var failed = false;
       function wantsNow() {
         try {
           var params = new URLSearchParams(location.search);
@@ -947,9 +1005,18 @@
         } catch (e) { return false; }
       }
       function finish(data) {
+        // Validate before touching any state: a truncated or malformed
+        // response (a captive portal's HTML, a half-written cache entry) must
+        // land in fail() with the page exactly as it was, not half-mounted.
+        if (!data || !Array.isArray(data.tools) || !data.tools.length || !Array.isArray(data.categories)) {
+          throw new Error('catalogue payload is malformed');
+        }
+        var nextRows = data.tools.filter(function (t) { return t && t.slug && t.title; }).map(rowFromTool);
+        if (!nextRows.length) throw new Error('catalogue has no usable rows');
         catalogueReady = true;
-        state.rows = data.tools.map(rowFromTool);
-        categoryCounts = data.categories.map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
+        failed = false;
+        state.rows = nextRows;
+        categoryCounts = data.categories.filter(Boolean).map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
         bar.innerHTML = toolbarHTML();
         els.input = bar.querySelector('#xp-input');
         els.field = bar.querySelector('.xp-field');
@@ -977,6 +1044,7 @@
         // happened, with a retry next to the directory link.
         loading = null;
         catalogueReady = false;
+        failed = true;
         paintKey = '';
         paintCount = -1;
         bar.innerHTML = '<span class="xp-count">The full list could not load here. ' +
@@ -1001,10 +1069,35 @@
         loading = fetch('tools-index.json', ctrl ? { signal: ctrl.signal } : undefined)
           .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
           .then(function (data) { clearTimer(); finish(data); })
-          .catch(function (err) { clearTimer(); fail(err); });
+          .catch(function (err) {
+            clearTimer();
+            // Network, HTTP, malformed payload or a throw while building the
+            // list: every one of them ends in the same honest state — a
+            // retry and the plain directory — never a blank or frozen list.
+            try { if (window.console) console.warn('[explore] catalogue:', err && err.message ? err.message : err); } catch (e) {}
+            fail(err);
+          });
         return loading;
       }
       ensureCatalogue = loadCatalogue;
+      // A connection that comes back heals the list on its own: no reload,
+      // no hunting for the retry button.
+      window.addEventListener('online', function () {
+        if (failed && !catalogueReady) loadCatalogue();
+      });
+      /* Intent: a visitor who focuses (or points at) the search box, or a
+         popular chip, is about to search. Starting the catalogue then, rather
+         than on their first keystroke, hides most of its download behind the
+         time it takes to type a word. Deduped by loadCatalogue's `loading`. */
+      var INTENT = '#tool-search, #stickySearchInput, .popular-chip:not(.surprise-chip), .hero-search, [data-xp-warm]';
+      var onIntent = function (e) {
+        if (catalogueReady || loading) return;
+        var t = e.target;
+        if (t && t.nodeType === 1 && t.closest && t.closest(INTENT)) loadCatalogue();
+      };
+      ['focusin', 'pointerdown', 'pointerover', 'touchstart'].forEach(function (type) {
+        document.addEventListener(type, onIntent, { capture: true, passive: true });
+      });
       // Retry for a failed catalogue load: delegated from the wrapper because
       // fail() replaces both the bar and the list contents, while the wrapper
       // itself is stable across failure and success. A tap while a fetch is
@@ -1127,7 +1220,15 @@
     setCategory: setCategory,
     focusInput: focusInput,
     clear: clear,
-    rows: function () { return visible(); },
+    // A copy: visible() is memoised, and a caller must never be able to
+    // mutate the cached result.
+    rows: function () { return visible().slice(); },
+    // Whether the rows are actually loaded (the home page's catalogue can
+    // still be in flight, or have failed). home-core.js uses this to send a
+    // search to the full directory instead of reporting "No matches" for a
+    // list that never arrived.
+    ready: function () { return catalogueReady; },
+    warm: function () { return ensureCatalogue(); },
     state: state
   };
 
@@ -1138,7 +1239,7 @@
   // filter() with the same query is idempotent.
   document.addEventListener('click', function (e) {
     var chip = e.target.closest && e.target.closest('.popular-chip');
-    if (!chip) return;
+    if (!chip || chip.id === 'heroSurpriseBtn' || chip.classList.contains('surprise-chip')) return;
     if (e.defaultPrevented) return;
     var q = chip.getAttribute('data-query') || chip.textContent.trim();
     if (!q) return;
