@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="icon" href="favicon.ico" sizes="32x32">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>EDGE OF TOMORROW — anime 4v1 rift horror</title>
+<meta name="description" content="EDGE OF TOMORROW: a fast anime-styled 4v1 asymmetric action horror game that runs entirely in your browser. Seal the rift anchors, fight back, escape — or hunt as the Slayer. No download, no sign-up.">
+<link rel="canonical" href="https://www.themostusefulsiteintheworld.com/edgeoftomorrow.html">
+<meta property="og:title" content="EDGE OF TOMORROW — anime 4v1 rift horror">
+<meta property="og:description" content="A fast anime-styled 4v1 asymmetric action horror game that runs entirely in your browser. Seal the anchors, fight back, escape — or hunt as the Slayer.">
+<meta property="og:url" content="https://www.themostusefulsiteintheworld.com/edgeoftomorrow.html">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://www.themostusefulsiteintheworld.com/og-tools.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b0820">
+<style>
+  /* ============================================================
+     EDGE OF TOMORROW — presentation shell.
+     Thin page around edgeoftomorrow-assets/ (core → sim → ai → net
+     → audio → render → engine). All game logic lives in the modules;
+     this file is markup, styling and menu wiring.
+     ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #0b0820;
+    color: #e9e6ff;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #cv { position: fixed; inset: 0; display: block; touch-action: none; cursor: crosshair; background: #0b0820; }
+  .hide { display: none !important; }
+
+  /* ---------- shared panel look: hard edges, neon rim, no soft shadows ---------- */
+  .panel {
+    background: linear-gradient(180deg, rgba(26,18,58,.96), rgba(11,8,32,.98));
+    border: 2px solid rgba(120,90,220,.55);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 34px rgba(110,70,220,.28), inset 0 1px 0 rgba(190,170,255,.14);
+  }
+
+  /* ---------- title screen ---------- */
+  #menu {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: center;
+    padding: 18px; overflow: auto;
+    background:
+      radial-gradient(1200px 620px at 50% -10%, rgba(120,60,220,.34), transparent 62%),
+      radial-gradient(900px 500px at 85% 105%, rgba(255,50,110,.2), transparent 60%),
+      #0b0820;
+  }
+  .menu-card { width: min(940px, 100%); padding: 26px 24px 22px; }
+  .kicker {
+    font-size: 11px; letter-spacing: .34em; text-transform: uppercase;
+    color: #8f7cf0; font-weight: 800;
+  }
+  h1.logo {
+    font-size: clamp(38px, 9vw, 88px);
+    line-height: .92; letter-spacing: -.02em; font-weight: 900;
+    margin: 6px 0 2px;
+    /* the anime title card: hard offset shadow, not a blur */
+    color: #fff;
+    text-shadow:
+      3px 3px 0 #ff2f6d,
+      6px 6px 0 #6d3bff,
+      0 0 30px rgba(255,80,150,.45);
+  }
+  h1.logo em { font-style: normal; color: #ffd254; }
+  .tagline { color: #b6aee8; font-size: clamp(13px, 2.6vw, 16px); max-width: 62ch; margin-top: 8px; line-height: 1.5; }
+
+  .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0 14px; }
+  .role {
+    text-align: left; padding: 14px 14px 12px; cursor: pointer;
+    background: rgba(18,12,44,.9); border: 2px solid rgba(110,80,200,.4);
+    color: #e9e6ff; font-family: inherit; transition: border-color .12s, transform .12s;
+  }
+  .role:hover { transform: translateY(-2px); }
+  .role[aria-pressed="true"] { border-color: #ffd254; box-shadow: 0 0 22px rgba(255,210,84,.28); }
+  .role b { display: block; font-size: 17px; letter-spacing: .04em; }
+  .role span { display: block; font-size: 12px; color: #a99fe0; margin-top: 5px; line-height: 1.45; }
+  .role.slayer[aria-pressed="true"] { border-color: #ff2f6d; box-shadow: 0 0 22px rgba(255,47,109,.3); }
+
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn {
+    cursor: pointer; font-family: inherit; font-weight: 800; letter-spacing: .1em;
+    text-transform: uppercase; font-size: 14px; padding: 13px 20px;
+    color: #0b0820; background: #ffd254; border: 2px solid #0b0820;
+    box-shadow: 4px 4px 0 rgba(109,59,255,.85);
+    transition: transform .1s, box-shadow .1s;
+  }
+  .btn:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 rgba(109,59,255,.9); }
+  .btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 rgba(109,59,255,.9); }
+  .btn.ghost { background: transparent; color: #cfc6ff; border-color: rgba(150,120,240,.6); box-shadow: none; }
+  .btn.ghost:hover { background: rgba(120,90,220,.18); }
+  .btn.danger { background: #ff2f6d; color: #fff; box-shadow: 4px 4px 0 rgba(0,0,0,.5); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  label.fld { display: block; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8f7cf0; font-weight: 800; margin-bottom: 5px; }
+  input[type=text] {
+    font-family: inherit; font-size: 15px; padding: 10px 12px; width: 100%;
+    background: rgba(8,5,24,.9); color: #fff; border: 2px solid rgba(120,90,220,.5);
+    outline: none; text-transform: uppercase; letter-spacing: .08em;
+  }
+  input[type=text]:focus { border-color: #ffd254; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+
+  .netbox { padding: 14px; margin-bottom: 14px; background: rgba(10,6,30,.7); border: 1px dashed rgba(140,110,240,.4); }
+  .netbox p { font-size: 12.5px; color: #a99fe0; line-height: 1.55; }
+  .netbox code { color: #ffd254; background: rgba(255,210,84,.1); padding: 1px 5px; }
+
+  .keys { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 14px; }
+  .key { font-size: 12px; color: #b6aee8; }
+  .key b { display: inline-block; min-width: 58px; color: #fff; background: rgba(120,90,220,.3);
+    border: 1px solid rgba(150,120,240,.5); padding: 2px 6px; margin-right: 7px; font-size: 11px; text-align: center; }
+
+  .fineprint { margin-top: 16px; font-size: 11px; color: #6f66a8; line-height: 1.6; border-top: 1px solid rgba(120,90,220,.25); padding-top: 12px; }
+
+  /* ---------- lobby ---------- */
+  #lobby { position: fixed; inset: 0; z-index: 38; display: flex; align-items: center; justify-content: center; padding: 18px;
+    background: rgba(6,4,20,.9); }
+  .lobby-card { width: min(560px, 100%); padding: 22px; }
+  .code { font-size: clamp(30px, 8vw, 52px); font-weight: 900; letter-spacing: .18em; color: #ffd254;
+    text-shadow: 3px 3px 0 #6d3bff; margin: 6px 0 4px; }
+  #roster { margin: 14px 0; font-size: 14px; line-height: 1.9; color: #cfc6ff; min-height: 60px; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+  .hud-tl { position: absolute; left: 14px; top: 12px; }
+  .hud-tr { position: absolute; right: 14px; top: 12px; text-align: right; }
+  .hud-bl { position: absolute; left: 14px; bottom: 12px; }
+  .hud-bc { position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px; text-align: center; }
+
+  .pill { display: inline-block; padding: 5px 11px; font-size: 12px; font-weight: 800; letter-spacing: .1em;
+    background: rgba(8,5,24,.82); border: 1px solid rgba(130,100,230,.5); text-transform: uppercase; }
+  #clock { font-size: 26px; font-weight: 900; letter-spacing: .06em; color: #fff;
+    text-shadow: 0 0 16px rgba(140,100,255,.7); }
+  #anchors { font-size: 15px; font-weight: 900; color: #78ffb0; }
+  .bar-track { width: 118px; height: 7px; background: rgba(0,0,0,.6); border: 1px solid rgba(130,100,230,.45); margin-top: 4px; }
+  .bar-fill { display: block; height: 100%; background: #78ffb0; transition: width .1s linear; }
+
+  #bars { width: min(320px, 44vw); }
+  .bar { position: relative; height: 15px; background: rgba(4,2,14,.85);
+    border: 2px solid rgba(140,110,240,.55); margin-bottom: 5px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 100%; background: #78ffb0; transition: width .08s linear; }
+  .bar > i.crit { background: #ff2f6d; }
+  .bar > i.slayer { background: #ff2f6d; }
+  .bar.ult > i { background: #48e8ff; }
+  .bar.stam > i { background: #ffd254; }
+  .bar span { position: absolute; right: 6px; top: -1px; font-size: 10px; font-weight: 800; letter-spacing: .1em;
+    color: rgba(255,255,255,.9); text-shadow: 0 1px 2px #000; }
+  #ultWrap.ready { animation: ultpulse .8s infinite; }
+  @keyframes ultpulse { 0%,100% { box-shadow: 0 0 0 rgba(72,232,255,0); } 50% { box-shadow: 0 0 20px rgba(72,232,255,.85); } }
+  #state { font-size: 11px; letter-spacing: .18em; color: #ffd254; font-weight: 800; }
+
+  #team { position: absolute; right: 14px; top: 96px; width: 168px; font-size: 11px; }
+  .team-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; opacity: .95; }
+  .team-row.dead, .team-row.escaped { opacity: .38; text-decoration: line-through; }
+  .team-row.me .team-name { color: #ffd254; }
+  .team-row.slayer .team-name { color: #ff2f6d; }
+  .team-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-shadow: 0 1px 3px #000; }
+  .team-bar { width: 46px; height: 5px; background: rgba(0,0,0,.7); border: 1px solid rgba(255,255,255,.16); }
+  .team-bar i { display: block; height: 100%; background: #78ffb0; }
+  .team-row.slayer .team-bar i { background: #ff2f6d; }
+
+  #prompt { font-size: 14px; font-weight: 800; letter-spacing: .1em; color: #fff;
+    text-shadow: 0 2px 0 #0b0820, 0 0 18px rgba(120,90,255,.9); }
+  #banner { position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
+    font-size: clamp(24px, 6vw, 48px); font-weight: 900; letter-spacing: .12em; color: #fff;
+    text-shadow: 3px 3px 0 #ff2f6d, 6px 6px 0 #6d3bff; white-space: nowrap; }
+  #fps { font-size: 10px; color: #6f66a8; letter-spacing: .1em; }
+  #terrorBar { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+    box-shadow: inset 0 0 140px rgba(255,20,60,.55); transition: opacity .18s; }
+
+  /* skill check */
+  #skill { position: absolute; left: 50%; bottom: 24%; transform: translateX(-50%);
+    width: min(300px, 70vw); height: 22px; background: rgba(4,2,14,.9);
+    border: 2px solid rgba(140,110,240,.7); }
+  #skillZone { position: absolute; top: 0; bottom: 0; left: 62%; width: 10%; background: rgba(255,210,84,.45);
+    border-left: 2px solid #ffd254; border-right: 2px solid #ffd254; }
+  #skillZone.great { background: rgba(255,210,84,.95); }
+  #skillNeedle { position: absolute; top: -4px; bottom: -4px; width: 3px; background: #fff;
+    box-shadow: 0 0 10px #fff; }
+
+  /* ---------- results ---------- */
+  #results { position: fixed; inset: 0; z-index: 42; display: flex; align-items: center; justify-content: center;
+    padding: 18px; overflow: auto; background: rgba(5,3,16,.94); }
+  .res-card { width: min(680px, 100%); padding: 24px; }
+  #resTitle { font-size: clamp(30px, 8vw, 60px); font-weight: 900; letter-spacing: -.01em; line-height: 1; }
+  #resTitle.win { color: #78ffb0; text-shadow: 3px 3px 0 #0b6b45; }
+  #resTitle.lose { color: #ff2f6d; text-shadow: 3px 3px 0 #5c0a22; }
+  #resSub { color: #a99fe0; font-size: 14px; margin: 8px 0 16px; }
+  table.score { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.score th { text-align: left; font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: #8f7cf0; padding: 6px 8px; border-bottom: 1px solid rgba(130,100,230,.35); }
+  table.score td { padding: 7px 8px; border-bottom: 1px solid rgba(130,100,230,.16); }
+  table.score tr.me td { background: rgba(255,210,84,.1); }
+  table.score tr.slayer td { color: #ff9ab5; }
+  .grade { font-weight: 900; font-size: 16px; }
+  .grade.S { color: #ffd254; } .grade.A { color: #78ffb0; }
+  .grade.B { color: #48e8ff; } .grade.C, .grade.D { color: #a99fe0; }
+
+  /* ---------- touch controls ---------- */
+  #touch { position: fixed; inset: 0; z-index: 22; pointer-events: none; }
+  .tbtn { position: absolute; pointer-events: auto; width: 74px; height: 74px; border-radius: 50%;
+    background: rgba(18,12,44,.72); border: 2px solid rgba(150,120,240,.6); color: #fff;
+    font-family: inherit; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+  .tbtn:active { background: rgba(255,210,84,.5); }
+  #tDash { right: 18px; bottom: 128px; }
+  #tUlt  { right: 106px; bottom: 62px; }
+  #tUse  { right: 18px; bottom: 40px; }
+  #tAtk  { right: 106px; bottom: 152px; background: rgba(255,47,109,.35); }
+
+  @media (max-width: 720px) {
+    .roles, .fields { grid-template-columns: 1fr; }
+    #team { display: none; }
+    .menu-card { padding: 20px 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #ultWrap.ready { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="EDGE OF TOMORROW game canvas"></canvas>
+
+<!-- ============================ HUD ============================ -->
+<div id="hud" class="hide">
+  <div id="terrorBar"></div>
+  <div class="hud-tl">
+    <div id="clock" class="pill">4:00</div>
+    <div style="margin-top:8px">
+      <span class="pill">ANCHORS <span id="anchors">0 / 4</span></span>
+      <div class="bar-track"><i id="anchorBar" class="bar-fill" style="width:0%"></i></div>
+    </div>
+  </div>
+
+  <div class="hud-tr">
+    <div id="fps">60 fps</div>
+  </div>
+
+  <div id="team"></div>
+
+  <div class="hud-bl">
+    <div id="bars">
+      <div class="bar"><i id="hp"></i><span id="hpText">100 / 100</span></div>
+      <div class="bar stam"><i id="stam"></i></div>
+      <div class="bar ult" id="ultWrap"><i id="ult"></i><span>ULT</span></div>
+      <div id="state">HEALTHY</div>
+    </div>
+  </div>
+
+  <div class="hud-bc">
+    <div id="prompt" class="hide"></div>
+  </div>
+
+  <div id="skill" class="hide">
+    <div id="skillZone"></div>
+    <div id="skillNeedle"></div>
+  </div>
+
+  <div id="banner" class="hide"></div>
+</div>
+
+<!-- ============================ TOUCH ============================ -->
+<div id="touch" class="hide">
+  <button class="tbtn" id="tAtk" type="button">ATTACK</button>
+  <button class="tbtn" id="tDash" type="button">DASH</button>
+  <button class="tbtn" id="tUlt" type="button">ULT</button>
+  <button class="tbtn" id="tUse" type="button">USE</button>
+</div>
+
+<!-- ============================ MENU ============================ -->
+<div id="menu">
+  <div class="menu-card panel">
+    <div class="kicker">Asymmetric 4v1 · Rift Horror · Anime Action</div>
+    <h1 class="logo">EDGE OF <em>TOMORROW</em></h1>
+    <p class="tagline">
+      Four survivors. One Slayer. A dead city folding in on itself.
+      Seal <b>4 rift anchors</b> to power the gates and escape — or deplete the Slayer's core and end it by force.
+      The Slayer is faster, hits twice as hard, and can see the echo of everyone who sprints.
+      You are not helpless: you have a blade, a dash, and an ultimate.
+    </p>
+
+    <div class="roles" role="group" aria-label="Choose your side">
+      <button class="role" id="roleSurv" type="button" aria-pressed="true">
+        <b>SURVIVOR</b>
+        <span>Seal anchors, dodge the cleave, revive your team, escape through the rift. Burst movement, i-frame dash, fight-back blade.</span>
+      </button>
+      <button class="role slayer" id="roleSlayer" type="button" aria-pressed="false">
+        <b>SLAYER</b>
+        <span>Hunt all four. Two hits to down, then hook them. Smash anchors to steal progress. Sprint past them and commit the Cataclysm.</span>
+      </button>
+    </div>
+
+    <div class="fields">
+      <div>
+        <label class="fld" for="pname">Callsign</label>
+        <input type="text" id="pname" maxlength="14" value="YOU" autocomplete="off" spellcheck="false">
+      </div>
+      <div>
+        <label class="fld" for="proom">Room code (optional)</label>
+        <input type="text" id="proom" maxlength="8" placeholder="ABC2K" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn" id="btnSolo" type="button">Play solo (4v1 vs bots)</button>
+      <button class="btn ghost" id="btnHost" type="button">Host a room</button>
+      <button class="btn ghost" id="btnJoin" type="button">Join a room</button>
+    </div>
+
+    <div class="netbox">
+      <p><b>Multiplayer, honestly:</b> hosting opens a room that other browser tabs and windows on this
+      machine join instantly over <code>BroadcastChannel</code> — real message passing, no server, no
+      sign-up, and the same host-authoritative netcode a relay would use. Cross-device play needs a
+      relay server; the wire format is already final for it (see <code>edgeoftomorrow-assets/NETCODE.md</code>).
+      Empty slots are always filled with bots, so a room of one is still a full match.</p>
+    </div>
+
+    <div class="keys">
+      <div class="key"><b>WASD</b> move</div>
+      <div class="key"><b>Mouse</b> aim</div>
+      <div class="key"><b>Shift</b> sprint</div>
+      <div class="key"><b>Space</b> dash (i-frames)</div>
+      <div class="key"><b>Click</b> attack</div>
+      <div class="key"><b>F</b> / right-click: use</div>
+      <div class="key"><b>Q</b> ultimate</div>
+      <div class="key"><b>Esc</b> release mouse</div>
+    </div>
+
+    <p class="fineprint">
+      An original work by The Most Useful Site in the World. Not affiliated with, endorsed by, or
+      connected to any other game or studio; all names, characters and mechanics here are original.
+      Runs entirely in your browser — no download, no account, no tracking on this page.
+    </p>
+  </div>
+</div>
+
+<!-- ============================ LOBBY ============================ -->
+<div id="lobby" class="hide">
+  <div class="lobby-card panel">
+    <div class="kicker">Room open</div>
+    <div class="code" id="roomCode">—</div>
+    <p style="font-size:13px;color:#a99fe0">Open this page in another tab or window and join with that code.</p>
+    <div id="roster"></div>
+    <div class="row">
+      <button class="btn" id="btnStart" type="button">Start match</button>
+      <button class="btn ghost" id="btnLeave" type="button">Leave</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ RESULTS ============================ -->
+<div id="results" class="hide">
+  <div class="res-card panel">
+    <div id="resTitle">VICTORY</div>
+    <div id="resSub"></div>
+    <table class="score">
+      <thead><tr><th>Player</th><th>Side</th><th>Fate</th><th>Score</th><th>Grade</th></tr></thead>
+      <tbody id="resBody"></tbody>
+    </table>
+    <div class="row" style="margin-top:18px">
+      <button class="btn" id="btnAgain" type="button">Play again</button>
+      <button class="btn ghost" id="btnMenu" type="button">Main menu</button>
+    </div>
+  </div>
+</div>
+
+<script src="edgeoftomorrow-assets/eot-core.js"></script>
+<script src="edgeoftomorrow-assets/eot-sim.js"></script>
+<script src="edgeoftomorrow-assets/eot-ai.js"></script>
+<script src="edgeoftomorrow-assets/eot-net.js"></script>
+<script src="edgeoftomorrow-assets/eot-audio.js"></script>
+<script src="edgeoftomorrow-assets/eot-render.js"></script>
+<script src="edgeoftomorrow-assets/eot-engine.js"></script>
+<script>
+(function () {
+'use strict';
+
+var $ = function (id) { return document.getElementById(id); };
+var EOT = { Core: window.EOTCore, Sim: window.EOTSim, Net: window.EOTNet, Engine: window.EOTEngine, Audio: window.EOTAudio };
+
+var state = { role: 'survivor', room: '', name: 'YOU' };
+var game = null;
+
+/* ---------- menu wiring ---------- */
+function setRole(r) {
+  state.role = r;
+  $('roleSurv').setAttribute('aria-pressed', String(r === 'survivor'));
+  $('roleSlayer').setAttribute('aria-pressed', String(r === 'slayer'));
+  EOT.Audio.ui();
+}
+$('roleSurv').addEventListener('click', function () { setRole('survivor'); });
+$('roleSlayer').addEventListener('click', function () { setRole('slayer'); });
+
+function readFields() {
+  state.name = ($('pname').value || 'YOU').toUpperCase().slice(0, 14);
+  state.room = ($('proom').value || '').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 8);
+}
+
+function show(id) {
+  ['menu', 'lobby', 'results'].forEach(function (k) { $(k).classList.toggle('hide', k !== id); });
+  $('hud').classList.toggle('hide', id !== null);
+  $('touch').classList.toggle('hide', id !== null || !isTouch());
+}
+function isTouch() { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0; }
+
+function hudRefs() {
+  return {
+    clock: $('clock'), anchors: $('anchors'), anchorBar: $('anchorBar'),
+    hp: $('hp'), hpText: $('hpText'), stam: $('stam'), ult: $('ult'), ultWrap: $('ultWrap'),
+    state: $('state'), skill: $('skill'), skillNeedle: $('skillNeedle'), skillZone: $('skillZone'),
+    prompt: $('prompt'), banner: $('banner'), team: $('team'), fps: $('fps'),
+    terrorBar: $('terrorBar'), roster: $('roster')
+  };
+}
+
+function newGame() {
+  if (game) { game.destroy(); game = null; }
+  game = new EOT.Engine.Game({
+    canvas: $('cv'), hud: hudRefs(), playerName: state.name, roomCode: state.room,
+    onState: onGameState
+  });
+  game._remoteQueue = [];
+  /* remote inputs arrive through the session; queue them for the next tick */
+  var origEvent = game.session && game.session.onEvent;
+  return game;
+}
+
+function onGameState(s, g) {
+  if (s === 'playing') show(null);
+  else if (s === 'lobby') { show('lobby'); $('roomCode').textContent = g.roomCode || '—'; }
+  else if (s === 'results') { show('results'); renderResults(g.results); }
+  else show('menu');
+}
+
+function renderResults(res) {
+  if (!res) return;
+  var t = $('resTitle');
+  t.textContent = res.localWon ? 'VICTORY' : 'DEFEAT';
+  t.className = res.localWon ? 'win' : 'lose';
+  var why = {
+    escape: 'The team made it through the rift.',
+    partial: 'Some escaped. The rest did not.',
+    regicide: 'The Slayer\u2019s core shattered. It is over.',
+    wipe: 'Nobody left the city.',
+    clock: 'The night closed before anyone got out.'
+  }[res.reason] || '';
+  $('resSub').textContent = why + '  ·  ' + res.stats.anchors + ' anchors sealed  ·  ' +
+    res.stats.escapes + ' escaped  ·  ' + res.length + 's';
+  var body = $('resBody');
+  body.textContent = '';
+  res.rows.forEach(function (r) {
+    var tr = document.createElement('tr');
+    if (r.id === (game && game.localId)) tr.className = 'me';
+    if (r.role === 'slayer') tr.className += ' slayer';
+    [['', r.name + (r.bot ? ' \u00b7' : '')],
+     ['', r.role],
+     ['', r.state],
+     ['', String(r.score)],
+     ['grade ' + r.grade, r.grade]].forEach(function (cell) {
+      var td = document.createElement('td');
+      if (cell[0]) { var sp = document.createElement('span'); sp.className = cell[0]; sp.textContent = cell[1]; td.appendChild(sp); }
+      else td.textContent = cell[1];
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+
+/* ---------- actions ---------- */
+$('btnSolo').addEventListener('click', function () {
+  readFields(); EOT.Audio.init(); EOT.Audio.resume();
+  newGame().startSolo({ role: state.role === 'slayer' ? EOT.Sim.ROLES.SLAYER : EOT.Sim.ROLES.SURV });
+  EOT.Audio.ui();
+  game.start();
+});
+
+$('btnHost').addEventListener('click', function () {
+  readFields(); EOT.Audio.init(); EOT.Audio.resume();
+  newGame().startHost({ role: state.role === 'slayer' ? EOT.Sim.ROLES.SLAYER : EOT.Sim.ROLES.SURV, room: state.room });
+  EOT.Audio.ui();
+  game.start();
+  $('roomCode').textContent = game.roomCode;
+  show('lobby');
+});
+
+$('btnJoin').addEventListener('click', function () {
+  readFields(); EOT.Audio.init(); EOT.Audio.resume();
+  if (!state.room) { $('proom').focus(); $('proom').style.borderColor = '#ff2f6d'; return; }
+  newGame().startClient({ room: state.room, role: state.role === 'slayer' ? EOT.Sim.ROLES.SLAYER : EOT.Sim.ROLES.SURV });
+  EOT.Audio.ui();
+  game.start();
+  show('lobby');
+});
+
+$('btnStart').addEventListener('click', function () {
+  if (!game) return;
+  EOT.Audio.resume();
+  game.beginMatch();
+  show(null);
+});
+$('btnLeave').addEventListener('click', function () {
+  if (game) { game.destroy(); game = null; }
+  show('menu'); EOT.Audio.uiBack();
+});
+$('btnAgain').addEventListener('click', function () {
+  var role = state.role, name = state.name;
+  if (game) { game.destroy(); game = null; }
+  state.role = role; state.name = name;
+  newGame().startSolo({ role: state.role === 'slayer' ? EOT.Sim.ROLES.SLAYER : EOT.Sim.ROLES.SURV });
+  game.start();
+  show(null);
+});
+$('btnMenu').addEventListener('click', function () {
+  if (game) { game.destroy(); game = null; }
+  show('menu'); EOT.Audio.uiBack();
+});
+
+/* ---------- touch buttons map onto the same input struct ---------- */
+function bindTouch(id, key, edge) {
+  var el = $(id);
+  if (!el) return;
+  var down = function (e) { e.preventDefault(); EOT.Audio.resume();
+    if (game) { if (edge) game.input.markPress(key); else game.input.keys[key] = true; } };
+  var up = function (e) { e.preventDefault(); if (game) game.input.release(key); };
+  el.addEventListener('touchstart', down, { passive: false });
+  el.addEventListener('touchend', up, { passive: false });
+  el.addEventListener('mousedown', down);
+  el.addEventListener('mouseup', up);
+}
+bindTouch('tAtk', 'mouse0', false);
+bindTouch('tUse', 'f', false);
+bindTouch('tDash', ' ', true);
+bindTouch('tUlt', 'q', true);
+
+/* ---------- ?room= deep link, so a room code is shareable as a URL ---------- */
+(function () {
+  try {
+    var q = new URLSearchParams(location.search);
+    var r = (q.get('room') || '').toUpperCase().replace(/[^A-Z2-9]/g, '');
+    if (EOT.Net.validRoomCode(r)) { $('proom').value = r; state.room = r; }
+    var n = q.get('name');
+    if (n) { $('pname').value = n.toUpperCase().slice(0, 14); }
+  } catch (e) { /* no URLSearchParams: ignore, the fields still work */ }
+})();
+
+/* ---------- boot ---------- */
+show('menu');
+/* Prime the renderer so the first frame is not a blank flash: draw the arena
+ * behind the menu with no players in it. */
+(function prime() {
+  try {
+    var g = new EOT.Engine.Game({ canvas: $('cv'), hud: {} });
+    g.world = EOT.Sim.makeWorld({ seed: 'menu-backdrop' });
+    EOT.Sim.buildArena(g.world);
+    g.renderer.cam.x = EOT.Sim.K.WORLD.w / 2;
+    g.renderer.cam.y = EOT.Sim.K.WORLD.h / 2;
+    g.renderer.cam.tzoom = 0.62;
+    g.renderer.cam.zoom = 0.62;
+    var spin = function () {
+      if (game) return;
+      g.renderer.cam.tx = EOT.Sim.K.WORLD.w / 2 + Math.cos(Date.now() / 9000) * 420;
+      g.renderer.cam.ty = EOT.Sim.K.WORLD.h / 2 + Math.sin(Date.now() / 9000) * 420;
+      g.renderer.update(0.016, null);
+      g.renderer.render(g.world, { localId: -1, terror: 0 });
+      requestAnimationFrame(spin);
+    };
+    spin();
+  } catch (e) { /* backdrop is decorative; never block the menu on it */ }
+})();
+
+window.EOTGame = { get game() { return game; }, state: state };
+})();
+</script>
+</body>
+</html>
