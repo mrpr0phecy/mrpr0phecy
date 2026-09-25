@@ -6,7 +6,7 @@
 MrProphecy (the maker)
   └── The Most Useful Site in the World (the catalogue product)
         ├── the homepage chrome (home-core.js)
-        ├── 1,311 tools (each is a utility, not a sub-brand)
+        ├── 1,312 tools (each is a utility, not a sub-brand)
         ├── the list layer: explore.js / explore.css / toolbox.js
         └── Lantern (a separate browser AI; not a tool)
 ```
@@ -29,7 +29,7 @@ MrProphecy (the maker)
 
 | Surface | Voice | Example |
 |---|---|---|
-| `index.html` hero/search | Product + light maker charm | "1,311 tools that actually run." |
+| `index.html` hero/search | Product + light maker charm | "1,312 tools that actually run." |
 | Tool card fragment (`cards/*.html`) | Utility | Labels, placeholders, results. No lore. |
 | Deep page (`tools/*.html`) | Utility + one-line provenance | "WHO BMI · Last reviewed 2026-09-19" + disclaimer |
 | `tools-index.html` / `categories/*.html` | Product | Directory copy, no character |
