@@ -240,6 +240,94 @@ console.log('smoke-sim: determinism + full-match run');
   ok('awakening: emits awakening event', evs.some(e => e.t === 'awakening'));
 }
 
+/* ---- 6h. Rift Nova is reachable: [R] with full charge fires it ---- */
+{
+  const w = buildMatch('nova', { human: true });
+  const surv = w.players[0], slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  surv.ult = S.K.ULT_CHARGE_MAX;
+  surv.x = slayer.x + 80; surv.y = slayer.y;
+  slayer.invuln = 0; slayer.iframes = 0;
+  const inp = S.makeInput(); inp.ult = true;
+  const evs = S.step(w, { [surv.id]: inp });
+  ok('nova: [R] with full charge fires the survivor ultimate', surv.ult === 0 && surv.ultT > 0,
+    'ult=' + surv.ult + ' ultT=' + surv.ultT.toFixed(2));
+  ok('nova: emits the ultSurv callout on the press tick', evs.some(e => e.t === 'ultSurv'));
+  const evs2 = S.step(w, {});
+  ok('nova: the charge tick resolves the nova burst', evs2.some(e => e.t === 'nova'));
+  ok('nova: damages and knocks the Slayer back', slayer.hp < S.K.SLAYER_HP && Math.abs(slayer.vx) > 0,
+    'slayerHp=' + slayer.hp + ' vx=' + slayer.vx.toFixed(0));
+}
+
+/* ---- 6i. Hook stages: three stages on the hook, not instant death ---- */
+{
+  const w = buildMatch('stages', { human: true });
+  const surv = w.players[0], slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  surv.state = S.STATE.HOOKED; surv.hookId = 0; surv.hooks = 1;
+  surv.hookT = S.K.HOOK_TIME;
+  w.hooks[0].occupant = surv.id;
+  const stages = [];
+  for (let t = 0; t < 60 * 200 && surv.state === S.STATE.HOOKED; t++) {
+    S.prepare(w);
+    for (const e of S.step(w, {})) if (e.t === 'hookStage') stages.push(e.stage);
+  }
+  ok('hooks: a hooked survivor advances through stages before dying',
+    stages.length === S.K.HOOK_STAGES - 1 && surv.state === S.STATE.DEAD,
+    'stages=' + stages.join(',') + ' final=' + surv.state);
+}
+
+/* ---- 6j. Vault: the dash key crosses a dropped pallet instead of dashing ---- */
+{
+  const w = buildMatch('vault', { human: true });
+  const surv = w.players[0];
+  const pal = w.pallets[0];
+  pal.palletState = 'down';
+  surv.x = pal.x; surv.y = pal.y - 30;
+  surv.dashCd = 0; surv.stamina = S.K.STAM_MAX;
+  const inp = S.makeInput(); inp.dash = true;
+  const evs = S.step(w, { [surv.id]: inp });
+  ok('vault: dash near a dropped pallet vaults over it', surv.y > pal.y + 20 && surv.dashT <= 0,
+    'y=' + surv.y.toFixed(0) + ' palY=' + pal.y.toFixed(0));
+  ok('vault: emits a vault event', evs.some(e => e.t === 'vault'));
+}
+
+/* ---- 6k. Skill checks fire repeatedly, and the press owns the check ---- */
+{
+  const w = buildMatch('checks', { human: true });
+  const surv = w.players[0];
+  const anc = w.anchors.find(a => !S.blocked(w, a.x, a.y, 30)) || w.anchors[0];
+  surv.x = anc.x + 30; surv.y = anc.y;
+  const inp = S.makeInput(); inp.interact = true;
+  let checks = 0;
+  for (let t = 0; t < 60 * 25 && checks < 3; t++) {
+    S.prepare(w);
+    const evs = S.step(w, { [surv.id]: inp });
+    if (evs.some(e => e.t === 'skillcheck')) checks++;
+  }
+  ok('skill checks: an anchor summons multiple checks (trigger clock was dead)', checks >= 2,
+    checks + ' checks in 25s');
+  /* a press during the window resolves the check and must NOT swing */
+  surv.skill = { t: 0, ttl: 1.0, frac: 0.74, inGreat: true };
+  surv.atkPhase = null; surv.atkCd = 0;
+  const swing = S.makeInput(); swing.interact = true; swing.attack = true;
+  const evs2 = S.step(w, { [surv.id]: swing });
+  ok('skill checks: the press resolves the check and never starts a swing',
+    evs2.some(e => e.t === 'great') && surv.atkPhase === null,
+    'atkPhase=' + surv.atkPhase);
+}
+
+/* ---- 6l. Rift Weaver plants stasis snares with the item key ---- */
+{
+  const w = buildMatch('weaver', { human: true });
+  const slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  slayer.classId = S.SLAYER_ARCHETYPES.WEAVER;
+  slayer.trapCd = 0;
+  const inp = S.makeInput(); inp.item = true;
+  const evs = S.step(w, { [slayer.id]: inp });
+  ok('weaver: item key places a stasis trap and starts its cooldown',
+    w.traps.length === 1 && slayer.trapCd > 0, 'traps=' + w.traps.length + ' cd=' + slayer.trapCd.toFixed(1));
+  ok('weaver: emits trapPlace', evs.some(e => e.t === 'trapPlace'));
+}
+
 /* ---- 7. win conditions ---- */
 {
   /* REGICIDE: zeroing the slayer core ends it for the survivors */
@@ -346,7 +434,7 @@ if (process.env.EOT_BALANCE !== '0') {
     reasons.set(w.winReason, (reasons.get(w.winReason) || 0) + 1);
     hits += kinds.get('hit') || 0;
     swings += kinds.get('slash') || 0;
-    ults += kinds.get('ult') || 0;
+    ults += (kinds.get('ultSurv') || 0) + (kinds.get('ultSlayer') || 0) + (kinds.get('nova') || 0);
     downs += kinds.get('down') || 0;
     anchors += w.stats.anchorsDone;
     escapes += w.stats.escapes;

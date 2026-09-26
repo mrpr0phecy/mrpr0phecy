@@ -372,6 +372,13 @@ function playEvent(e) {
     case 'matchStart': matchStart(); break;
     case 'core': nova(); eliminate(); break;
     case 'anchorHit': hit(true); break;
+    case 'anchorSmash': hit(true); break;
+    case 'good': skill(); break;
+    case 'hookStage': hook(); break;
+    case 'pickup': hit(false); break;
+    case 'dropVictim': hit(false); break;
+    case 'toolUsed': serum(); break;
+    case 'decoySpawned': ping(); break;
     case 'palletDrop': palletDrop(); break;
     case 'palletBreak': palletBreak(); break;
     case 'palletStun': palletStun(); break;

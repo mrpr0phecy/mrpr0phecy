@@ -89,7 +89,8 @@ InputState.prototype.pollGamepad = function () {
     else this.keys['f'] = false;
 
     if (b[4] && b[4].pressed || b[1] && b[1].pressed) this.markPress(' ');
-    if (b[5] && b[5].pressed || b[3] && b[3].pressed) this.markPress('q');
+    if (b[3] && b[3].pressed) this.markPress('r');          /* Y / Triangle: ultimate */
+    if (b[5] && b[5].pressed) this.markPress('q');          /* RB: Chrono-Rewind */
     if (b[10] && b[10].pressed) this.keys['shift'] = true;
     if (b[12] && b[12].pressed) this.markPress('t');
   }
@@ -118,11 +119,14 @@ InputState.prototype.toInput = function () {
   i.crouch = this.down('c') || this.down('control') || this.down('Control');
   i.attack = this.down('mouse0') || this.down('j') || this.down('z');
   i.dash = this.hit(' ') || this.hit('space') || this.down('mouse2') || this.down('k') || this.down('x');
-  i.ult = this.hit('r') || this.hit('q');
-  i.rewind = this.hit('q') || this.hit('r');
-  i.interact = this.down('e') || this.down('f') || this.down(' ');
-  i.item = this.hit('f') || this.hit('g');
-  i.cancel = this.hit('g') || this.hit('f');
+  /* One verb per key. Q = Chrono-Rewind, R = the ultimate (Rift Nova /
+   * Awakening), G = use item / drop victim. Space never interacts — it is
+   * the dash/vault/skill-check key and must mean exactly one family. */
+  i.ult = this.hit('r');
+  i.rewind = this.hit('q');
+  i.interact = this.down('e') || this.down('f');
+  i.item = this.hit('g');
+  i.cancel = this.hit('g');
   i.emote = this.hit('t');
   i.overclock = this.down('shift') || this.down('Shift');
   return i;
@@ -201,7 +205,7 @@ Game.prototype.startSolo = function (opts) {
   this.renderer.cam.tx = this.renderer.cam.x;
   this.renderer.cam.ty = this.renderer.cam.y;
   this.setState('playing');
-  this.banner('SURVIVE THE NIGHT');
+  this.consumeEvents(this.world.events);
   return this;
 };
 
@@ -233,6 +237,7 @@ Game.prototype.startPractice = function (opts) {
   this.renderer.cam.ty = this.renderer.cam.y;
   this.setState('playing');
   this.banner('PRACTICE ARENA — NO STAKES');
+  this.consumeEvents(this.world.events);
   return this;
 };
 
@@ -316,7 +321,11 @@ Game.prototype.beginMatch = function () {
     this.session.broadcastLobby('play');
   }
   this.setState('playing');
-  this.banner('SEAL THE RIFTS');
+  if (this.world && this.world.events && this.world.events.length) {
+    this.consumeEvents(this.world.events);
+  } else {
+    this.banner('SEAL THE RIFTS');
+  }
 };
 
 Game.prototype.setState = function (s) {
@@ -558,11 +567,40 @@ Game.prototype.consumeEvents = function (events) {
     } else if (e.t === 'parry') {
       this.hitstop = Math.max(this.hitstop, 0.1);
       this.slowmo = Math.max(this.slowmo, 0.2);
-    } else if (e.t === 'ult') {
+    } else if (e.t === 'ultSurv' || e.t === 'ultSlayer' || e.t === 'nova') {
       this.hitstop = Math.max(this.hitstop, 0.11);
-    } else if (e.t === 'down' || e.t === 'eliminate' || e.t === 'core') {
+      if (e.by === this.localId || e.to === this.localId) this.slowmo = Math.max(this.slowmo, 0.14);
+    } else if (e.t === 'gatesPowered') {
+      this.banner('RIFTS POWERED — OPEN A GATE, GET OUT');
+      this.hitstop = Math.max(this.hitstop, 0.12);
+    } else if (e.t === 'anchorDone') {
+      if (e.by === this.localId) this.banner('ANCHOR SEALED');
+    } else if (e.t === 'down' || e.t === 'eliminate') {
       this.hitstop = Math.max(this.hitstop, 0.13);
       this.slowmo = Math.max(this.slowmo, 0.28);
+    } else if (e.t === 'matchEnd' && e.reason === 'regicide') {
+      this.hitstop = Math.max(this.hitstop, 0.2);
+      this.slowmo = Math.max(this.slowmo, 0.5);
+    } else if (e.t === 'hookStage') {
+      this.hitstop = Math.max(this.hitstop, 0.06);
+    }
+  }
+  /* One-shot coaching: the game teaches its verbs by letting them happen. */
+  if (!this._coach) this._coach = {};
+  for (var j = 0; j < events.length; j++) {
+    var ev2 = events[j];
+    if (ev2.t === 'skillcheck' && !this._coach.check) {
+      this._coach.check = 1;
+      this.banner('SKILL CHECK — TAP [CLICK] / [SPACE] ON GOLD');
+    } else if (ev2.t === 'matchStart' && !this._coach.start) {
+      this._coach.start = 1;
+      this.banner(this.localRole === S.ROLES.SLAYER ? 'HUNT THEM ALL DOWN' : 'SEAL THE ANCHORS — THEN ESCAPE');
+    } else if (ev2.t === 'down' && ev2.to === this.localId && !this._coach.down) {
+      this._coach.down = 1;
+      this.banner('DOWNED — TEAMMATES CAN REVIVE YOU');
+    } else if (ev2.t === 'hook' && ev2.to === this.localId && !this._coach.hooked) {
+      this._coach.hooked = 1;
+      this.banner('HOOKED — ' + (S.K.HOOK_STAGES) + ' STAGES UNTIL THE RIFT TAKES YOU');
     }
   }
 };
@@ -616,7 +654,8 @@ Game.prototype.updateHud = function (dt) {
     if (h.ultWrap) h.ultWrap.classList.toggle('ready', me.ult >= S.K.ULT_CHARGE_MAX);
   }
   if (me && h.state) h.state.textContent = me.state === S.STATE.DOWNED ? 'DOWNED' :
-    (me.state === S.STATE.HOOKED ? 'HOOKED' : (me.hp <= me.maxHp * 0.5 ? 'INJURED' : 'HEALTHY'));
+    (me.state === S.STATE.HOOKED ? ('HOOKED — STAGE ' + Math.max(1, me.hooks || 1) + '/' + S.K.HOOK_STAGES) :
+      (me.hp <= me.maxHp * 0.5 ? 'INJURED' : 'HEALTHY'));
 
   /* item box update */
   if (h.itemBox && me) {
@@ -645,14 +684,21 @@ Game.prototype.updateHud = function (dt) {
     }
   }
 
-  /* skill check prompt */
+  /* Skill check: the good band, the gold great band, and the needle all read
+   * straight from the sim's windows — the HUD cannot lie about timing. */
   if (h.skill) {
     var on = !!(me && me.skill);
     h.skill.classList.toggle('hide', !on);
     if (on && h.skillNeedle && h.skillZone) {
       h.skillNeedle.style.left = (me.skill.frac * 100) + '%';
       h.skillZone.classList.toggle('great', !!me.skill.inGreat);
-      h.skillZone.style.left = '62%';
+      if (h.skillGood) {
+        h.skillGood.style.left = (S.K.SKILL_GOOD_LO * 100) + '%';
+        h.skillGood.style.width = ((S.K.SKILL_GOOD_HI - S.K.SKILL_GOOD_LO) * 100) + '%';
+      }
+      var greatW = (me.classId === S.SURV_CLASSES.ENGINEER) ? S.K.SKILL_GREAT_ENGINEER : S.K.SKILL_GREAT;
+      h.skillZone.style.left = (S.K.SKILL_GREAT_LO * 100) + '%';
+      h.skillZone.style.width = (greatW * 100) + '%';
     }
   }
 
@@ -683,7 +729,7 @@ Game.prototype.updateHud = function (dt) {
 
 Game.prototype._promptLabel = function (me) {
   if (!me || !S.alive(me)) return '';
-  if (me.skill) return 'CLICK on the gold zone — GREAT bonus';
+  if (me.skill) return 'TAP [CLICK] / [SPACE] in the gold zone — GREAT bonus';
   if (me.interactKind === 'repair') return me.overclock ? '⚡ OVERCLOCKING ANCHOR (3x SPEED)...' : 'Sealing anchor… [HOLD SHIFT TO OVERCLOCK]';
   if (me.interactKind === 'gate') return 'Opening rift…';
   if (me.interactKind === 'rescue') return 'Reviving…';
@@ -697,9 +743,9 @@ Game.prototype._promptLabel = function (me) {
   for (var pi = 0; pi < (w.pallets || []).length; pi++) {
     var plt = w.pallets[pi];
     if (C.dist(me.x, me.y, plt.x, plt.y) < 55) {
-      if (plt.palletState === 'up' && me.role === S.ROLES.SURV) return '[E] / [F] THROW DOWN PALLET (STUN)';
+      if (plt.palletState === 'up' && me.role === S.ROLES.SURV) return '[E] THROW DOWN PALLET (STUN)';
       if (plt.palletState === 'down') {
-        if (me.role === S.ROLES.SLAYER) return '[E] / [CLICK] SMASH PALLET';
+        if (me.role === S.ROLES.SLAYER) return '[E] SMASH PALLET';
         return '[SPACE] VAULT PALLET';
       }
     }
@@ -709,7 +755,7 @@ Game.prototype._promptLabel = function (me) {
   if (me.role === S.ROLES.SURV && !me.item) {
     for (var ci = 0; ci < (w.chests || []).length; ci++) {
       var ch = w.chests[ci];
-      if (!ch.searched && C.dist(me.x, me.y, ch.x, ch.y) < 45) return '[E] / [F] SEARCH SUPPLY CRATE';
+      if (!ch.searched && C.dist(me.x, me.y, ch.x, ch.y) < 45) return '[E] SEARCH SUPPLY CRATE';
     }
   }
 
@@ -717,29 +763,29 @@ Game.prototype._promptLabel = function (me) {
   for (var li = 0; li < (w.lockers || []).length; li++) {
     var lk = w.lockers[li];
     if (C.dist(me.x, me.y, lk.x, lk.y) < 45) {
-      if (me.role === S.ROLES.SLAYER) return '[E] / [F] SEARCH PHASE POD';
-      if (lk.occupant < 0) return '[E] / [F] HIDE IN PHASE POD';
+      if (me.role === S.ROLES.SLAYER) return '[E] SEARCH PHASE POD';
+      if (lk.occupant < 0) return '[E] HIDE IN PHASE POD';
     }
   }
 
   if (me.item) {
-    return '[F] USE ' + me.item.toUpperCase() + ' (HELD ITEM)';
+    return '[G] USE ' + me.item.toUpperCase();
   }
 
   if (this.localRole === S.ROLES.SLAYER) {
     for (var i = 0; i < w.players.length; i++) {
       var q = w.players[i];
-      if (q.role === S.ROLES.SURV && q.state === S.STATE.DOWNED && C.dist(me.x, me.y, q.x, q.y) < 50) return '[E] / [F] TAKE THEM';
+      if (q.role === S.ROLES.SURV && q.state === S.STATE.DOWNED && C.dist(me.x, me.y, q.x, q.y) < 50) return '[E] TAKE THEM';
     }
-    if (me.carrying >= 0) return '[E] / [F] HOOK  ·  [G] DROP';
+    if (me.carrying >= 0) return '[E] HOOK  ·  [G] DROP';
     var an = null, bd = 1e9;
     for (var a = 0; a < w.anchors.length; a++) {
       if (w.anchors[a].done) continue;
       var d = C.dist(me.x, me.y, w.anchors[a].x, w.anchors[a].y);
       if (d < bd) { bd = d; an = w.anchors[a]; }
     }
-    if (an && bd < S.K.ANCHOR_R + S.K.INTERACT_R) return '[E] / [F] SMASH ANCHOR';
-    if (me.classId === S.SLAYER_ARCHETYPES.WEAVER) return '[F] PLACE STASIS TRAP';
+    if (an && bd < S.K.ANCHOR_R + S.K.INTERACT_R) return '[E] SMASH ANCHOR';
+    if (me.classId === S.SLAYER_ARCHETYPES.WEAVER) return '[G] PLACE STASIS TRAP';
     return '';
   }
   var near = null, nbd = 1e9;
@@ -751,7 +797,7 @@ Game.prototype._promptLabel = function (me) {
     if (dd < nbd) { nbd = dd; near = m; }
   }
   if (near && nbd < 60) {
-    return '[F] ' + (near.state === S.STATE.HOOKED ? 'CUT DOWN' : (near.state === S.STATE.DOWNED ? 'REVIVE' : 'HEAL')) + ' ' + near.name.toUpperCase();
+    return '[E] ' + (near.state === S.STATE.HOOKED ? 'CUT DOWN' : (near.state === S.STATE.DOWNED ? 'REVIVE' : 'HEAL')) + ' ' + near.name.toUpperCase();
   }
   var g = null, gbd = 1e9;
   for (var k = 0; k < w.gates.length; k++) {
@@ -760,7 +806,7 @@ Game.prototype._promptLabel = function (me) {
   }
   if (g && gbd < S.K.GATE_R + S.K.INTERACT_R) {
     if (g.open) return 'ESCAPING — hold still';
-    if (g.powered) return '[F] OPEN RIFT';
+    if (g.powered) return '[E] OPEN RIFT';
     return 'Rift unpowered — seal ' + (S.K.ANCHORS_NEEDED - S.anchorsDone(w)) + ' more anchors';
   }
   var a2 = null, abd = 1e9;
@@ -769,7 +815,7 @@ Game.prototype._promptLabel = function (me) {
     var d2 = C.dist(me.x, me.y, w.anchors[b].x, w.anchors[b].y);
     if (d2 < abd) { abd = d2; a2 = w.anchors[b]; }
   }
-  if (a2 && abd < S.K.ANCHOR_R + S.K.INTERACT_R) return '[F] SEAL ANCHOR';
+  if (a2 && abd < S.K.ANCHOR_R + S.K.INTERACT_R) return '[E] SEAL ANCHOR';
   return '';
 };
 
