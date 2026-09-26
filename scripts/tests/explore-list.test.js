@@ -177,6 +177,13 @@ state.rows = rows;
     'the catalogue fetch must time out instead of hanging the list');
   assert(/data-xp-retry/.test(SOURCE),
     'a failed catalogue load must offer a retry next to the directory link');
+
+  // iOS/Safari: the filter field must not auto-capitalise or zoom, and the
+  // keyboard Search key must flush the list (it fires `search`, not Enter).
+  assert(SOURCE.includes('autocapitalize="none"') && SOURCE.includes('inputmode="search"'),
+    'the filter field is a search box on a phone, not a sentence');
+  assert(SOURCE.includes("addEventListener('search'"),
+    'Safari keyboard Search must flush the pending filter');
 }
 
 console.log('explore-list: filtering, sorting, escaping and the list contracts all hold');

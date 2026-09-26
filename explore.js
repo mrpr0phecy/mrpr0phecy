@@ -446,7 +446,7 @@
     return '' +
       '<div class="xp-bar-top">' +
       '<div class="xp-field">' +
-      '<input id="xp-input" type="search" autocomplete="off" placeholder="Filter ' + fmt(state.rows.length) + ' tools…" aria-label="Filter tools" enterkeyhint="search" />' +
+      '<input id="xp-input" type="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="search" placeholder="Filter ' + fmt(state.rows.length) + ' tools…" aria-label="Filter tools" enterkeyhint="search" />' +
       '<button type="button" class="xp-clear" data-xp-clear aria-label="Clear filter">✕</button>' +
       '</div>' +
       '<div class="xp-tools">' +
@@ -855,6 +855,14 @@
       if (els.field) els.field.classList.toggle('xp-has-value', !!value);
       clearTimeout(els.bar._qt);
       els.bar._qt = setTimeout(function () { setQuery(value); }, 80);
+    });
+    // Safari/iOS: the keyboard Search key and the native field-clear control
+    // fire `search`, not always a keydown Enter. Flush the pending debounce so
+    // the list matches what is in the box before the visitor looks away.
+    els.bar.addEventListener('search', function (e) {
+      if (e.target.id !== 'xp-input') return;
+      clearTimeout(els.bar._qt);
+      setQuery(e.target.value);
     });
     els.bar.addEventListener('change', function (e) {
       if (e.target.id === 'xp-sort') { state.sort = e.target.value; state.shown = PAGE_SIZE; render(); pushState(); }
