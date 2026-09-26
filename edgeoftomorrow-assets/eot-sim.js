@@ -38,13 +38,13 @@ var K = {
 
   /* Movement speeds (units / sec) */
   SURV_WALK: 168,
-  SURV_SPRINT: 274,
+  SURV_SPRINT: 282,
   SURV_CROUCH: 96,
-  SURV_INJURED_MUL: 0.9,
+  SURV_INJURED_MUL: 0.94,
   SURV_DOWN_SPEED: 46,
 
   SLAYER_WALK: 212,
-  SLAYER_SPRINT: 292,
+  SLAYER_SPRINT: 288,
   SLAYER_STUNNED_MUL: 0.35,
 
   ACCEL: 14,
@@ -60,7 +60,7 @@ var K = {
   /* Dash */
   DASH_SPEED: 640,
   DASH_TIME: 0.22,
-  DASH_CD: 1.1,
+  DASH_CD: 0.95,
   DASH_IFRAMES: 0.18,
 
   /* Survivor Combat */
@@ -70,19 +70,19 @@ var K = {
   SURV_ATK_RECOVER: 0.22,
   SURV_ATK_RANGE: 52,
   SURV_ATK_ARC: 105,
-  SURV_ATK_DMG: 10,
+  SURV_ATK_DMG: 18,
   SURV_ATK_STUN: 0.34,
   SURV_ATK_CD: 0.5,
 
   /* Slayer Combat */
-  SLAYER_HP: 380,
+  SLAYER_HP: 320,
   SLAYER_ATK_WINDUP: 0.28,
   SLAYER_ATK_ACTIVE: 0.13,
-  SLAYER_ATK_RECOVER: 0.5,
-  SLAYER_ATK_RANGE: 74,
+  SLAYER_ATK_RECOVER: 0.62,
+  SLAYER_ATK_RANGE: 68,
   SLAYER_ATK_ARC: 116,
   SLAYER_ATK_DMG: 50,
-  SLAYER_ATK_CD: 0.75,
+  SLAYER_ATK_CD: 0.8,
 
   /* Ultimates */
   ULT_CHARGE_MAX: 100,
@@ -100,30 +100,35 @@ var K = {
   /* Objectives (Rift Anchors) */
   ANCHORS: 7,
   ANCHORS_NEEDED: 4,
-  ANCHOR_RATE_1: 1 / 17,
-  ANCHOR_RATE_2: 1 / 12,
-  ANCHOR_RATE_3: 1 / 9,
+  ANCHOR_RATE_1: 1 / 12,
+  ANCHOR_RATE_2: 1 / 9.5,
+  ANCHOR_RATE_3: 1 / 7.5,
   ANCHOR_REGRESS: 0.24,
   ANCHOR_SMASH_TIME: 1.15,
   ANCHOR_R: 40,
 
-  SKILL_CHECK_EVERY: 0.34,
-  SKILL_CHECK_CHANCE: 0.5,
-  SKILL_WINDOW: 0.42,
-  SKILL_GREAT: 0.1,
+  /* Skill checks. SKILL_CHECK_EVERY is the quiet gap between checks on an
+   * anchor; SKILL_GREAT_* describe the timing window the HUD draws. */
+  SKILL_CHECK_EVERY: 1.5,
+  SKILL_CHECK_CHANCE: 0.38,
+  SKILL_WINDOW: 1.0,
+  SKILL_GREAT_LO: 0.70,
+  SKILL_GOOD_LO: 0.60,
+  SKILL_GOOD_HI: 0.88,
+  SKILL_GREAT: 0.08,
+  SKILL_GREAT_ENGINEER: 0.14,
   SKILL_MISS_REGRESS: 0.07,
 
   /* Gates & Escape */
   GATES: 2,
   GATE_R: 52,
-  GATE_CHANNEL: 3.0,
+  GATE_CHANNEL: 3.2,
   GATE_ESCAPE_TIME: 0.9,
 
   /* Health & Downed States */
   BLEEDOUT: 30,
   PICKUP_TIME: 1.35,
-  HOOK_TIME: 22,
-  HOOKS_TO_DIE: 2,
+  HOOK_TIME: 18,
   RESCUE_TIME: 1.9,
   HEAL_TIME: 4.2,
   HEAL_DELAY: 3.5,
@@ -151,7 +156,9 @@ var K = {
   HEAVY_CHARGE_TIME: 0.35,
   RAGE_MAX: 100,
   AWAKENING_TIME: 15.0,
-  OVERCLOCK_SPEED_MUL: 2.6
+  OVERCLOCK_SPEED_MUL: 2.6,
+  TRAP_COOLDOWN: 7.0,
+  TRAP_MAX: 6
 };
 
 var ROLES = { SURV: 'survivor', SLAYER: 'slayer' };
@@ -184,7 +191,9 @@ var PHASE = {
   OVER: 'over'
 };
 
-/* Packed 8-bit input bitmask */
+/* Packed input bitmask. Bits 0-7 fit a byte; ITEM/HEAVY ride above it (the
+ * wire format carries the whole integer). REWIND and ULT are distinct so a
+ * survivor can Chrono-Rewind [Q] while Rift Nova [R] is charged. */
 var F = {
   SPRINT:   1 << 0,
   CROUCH:   1 << 1,
@@ -192,8 +201,10 @@ var F = {
   DASH:     1 << 3,
   ULT:      1 << 4,
   INTERACT: 1 << 5,
-  CANCEL:   1 << 6,
-  EMOTE:    1 << 7
+  REWIND:   1 << 6,
+  EMOTE:    1 << 7,
+  ITEM:     1 << 8,
+  HEAVY:    1 << 9
 };
 
 function makeInput() {
@@ -211,10 +222,11 @@ function inputFlags(inp) {
   if (inp.crouch) f |= F.CROUCH;
   if (inp.attack || inp.heavy) f |= F.ATTACK;
   if (inp.dash) f |= F.DASH;
-  if (inp.ult || inp.rewind) f |= F.ULT;
+  if (inp.ult) f |= F.ULT;
   if (inp.interact) f |= F.INTERACT;
-  if (inp.cancel || inp.item) f |= F.CANCEL;
+  if (inp.rewind) f |= F.REWIND;
   if (inp.emote) f |= F.EMOTE;
+  if (inp.item || inp.cancel) f |= F.ITEM;
   return f;
 }
 
@@ -224,9 +236,9 @@ function inputFromFlags(x, y, aim, f) {
     sprint: !!(f & F.SPRINT), crouch: !!(f & F.CROUCH),
     attack: !!(f & F.ATTACK), dash: !!(f & F.DASH),
     ult: !!(f & F.ULT), interact: !!(f & F.INTERACT),
-    cancel: !!(f & F.CANCEL), emote: !!(f & F.EMOTE),
-    item: !!(f & F.CANCEL), rewind: !!(f & F.ULT),
-    overclock: false, heavy: false
+    cancel: !!(f & F.ITEM), emote: !!(f & F.EMOTE),
+    item: !!(f & F.ITEM), rewind: !!(f & F.REWIND),
+    overclock: !!(f & F.SPRINT), heavy: !!(f & F.ATTACK)
   };
 }
 
@@ -425,8 +437,8 @@ var PLAYER_FIELDS = [
   'interactId', 'interactT', 'interactKind', 'skill',
   'echoT', 'chaseT', 'inChase', 'score',
   'aim', 'flash', 'hitFlash', 'sprintingNow', 'boostT', 'vaultCd',
-  'item', 'itemUses', 'blindT', 'riposteT', 'rewindCd',
-  'rage', 'rageT', 'inLocker', 'heavyCharge', 'overclock'
+  'item', 'itemUses', 'blindT', 'riposteT', 'rewindCd', 'parryT',
+  'rage', 'rageT', 'inLocker', 'heavyCharge', 'overclock', 'trapCd'
 ];
 
 function addPlayer(world, spec) {
@@ -507,12 +519,14 @@ function addPlayer(world, spec) {
     itemUses: 0,
     blindT: 0,
     riposteT: 0,
+    parryT: 0,
     rewindCd: 0,
     rage: 0,
     rageT: 0,
     inLocker: -1,
     heavyCharge: 0,
-    overclock: 0
+    overclock: 0,
+    trapCd: 0
   };
 
   world.players.push(p);
@@ -527,18 +541,29 @@ function spawnPositions(world) {
   var survs = world.players.filter(function (p) { return p.role === ROLES.SURV; });
   var slayer = world.players.find(function (p) { return p.role === ROLES.SLAYER; });
 
-  var cx = W * 0.35 + rnd() * (W * 0.3);
-  var cy = H * 0.35 + rnd() * (H * 0.3);
+  /* Survivors arrive spread around the arena, each near a different region:
+   * the Slayer can only terrorise one of them, and the rest get to breathe,
+   * learn the anchors, and play the game. (A spawning cluster meant one
+   * patrol found the whole team and the match ended in a 40-second wipe.) */
+  var anchorsAvail = world.anchors.slice();
   for (var i = 0; i < survs.length; i++) {
-    var ang = (i / Math.max(1, survs.length)) * Math.PI * 2 + rnd() * 0.4;
-    var rad = 90 + rnd() * 60;
-    survs[i].x = clamp(cx + Math.cos(ang) * rad, T + 40, W - T - 40);
-    survs[i].y = clamp(cy + Math.sin(ang) * rad, T + 40, H - T - 40);
+    var sxp, syp;
+    if (anchorsAvail.length > 0) {
+      var pick = anchorsAvail.splice(Math.floor(rnd() * anchorsAvail.length), 1)[0];
+      var ang = rnd() * Math.PI * 2;
+      sxp = pick.x + Math.cos(ang) * (110 + rnd() * 80);
+      syp = pick.y + Math.sin(ang) * (110 + rnd() * 80);
+    } else {
+      sxp = T + 200 + rnd() * (W - T * 2 - 400);
+      syp = T + 200 + rnd() * (H - T * 2 - 400);
+    }
+    survs[i].x = clamp(sxp, T + 40, W - T - 40);
+    survs[i].y = clamp(syp, T + 40, H - T - 40);
   }
   if (slayer) {
-    var sx = cx < W * 0.5 ? W - T - 180 : T + 180;
-    var sy = cy < H * 0.5 ? H - T - 180 : T + 180;
-    slayer.x = sx; slayer.y = sy;
+    /* Slayer starts centrally, so every survivor is roughly one region away. */
+    slayer.x = W * 0.5 + (rnd() - 0.5) * 240;
+    slayer.y = H * 0.5 + (rnd() - 0.5) * 240;
   }
 }
 
@@ -655,8 +680,10 @@ function stepPlayer(world, p, inp, dt, rndSkill, slayer) {
   p.dashCd = Math.max(0, p.dashCd - dt);
   p.blindT = Math.max(0, (p.blindT || 0) - dt);
   p.riposteT = Math.max(0, (p.riposteT || 0) - dt);
+  p.parryT = Math.max(0, (p.parryT || 0) - dt);
   p.rewindCd = Math.max(0, (p.rewindCd || 0) - dt);
   p.rageT = Math.max(0, (p.rageT || 0) - dt);
+  p.trapCd = Math.max(0, (p.trapCd || 0) - dt);
   p.echoT -= dt;
   p.chaseT = Math.max(0, p.chaseT - dt);
 
@@ -690,6 +717,16 @@ function stepPlayer(world, p, inp, dt, rndSkill, slayer) {
     return;
   }
 
+  /* -------- Skill check interrupt --------
+   * The check owns the press: attack/dash during an active window resolves
+   * the check and is swallowed, so hitting a gold zone can never launch a
+   * swing or dash you did not mean. This is the "the game ate my input" fix. */
+  var usedCombat = false;
+  if (p.skill && (inp.attack || inp.dash)) {
+    resolveSkillCheck(world, p);
+    usedCombat = true;
+  }
+
   /* Facing tracks aim */
   if (typeof inp.aim === 'number') {
     p.aim = inp.aim;
@@ -707,9 +744,13 @@ function stepPlayer(world, p, inp, dt, rndSkill, slayer) {
     if (p.stamDelay <= 0) p.stamina = clamp(p.stamina + K.STAM_REGEN * dt, 0, K.STAM_MAX);
   }
 
-  /* ---------------- Dash / Vault ---------------- */
-  var dashCd = p.classId === SURV_CLASSES.SCOUT ? K.DASH_CD * 0.77 : K.DASH_CD;
-  if (inp.dash && p.dashCd <= 0 && p.dashT <= 0 && p.stamina >= K.STAM_DASH && p.stun <= 0 && !isSlayer) {
+  /* ---------------- Dash / Vault ----------------
+   * The dash key means "go over there fast": near a window or a dropped
+   * pallet it becomes a vault (both roles), otherwise a burst dash. */
+  if (!usedCombat && inp.dash && p.vaultCd <= 0 && tryVault(world, p)) {
+    /* vaulted — input consumed */
+  } else if (!usedCombat && inp.dash && p.dashCd <= 0 && p.dashT <= 0 && p.stamina >= K.STAM_DASH && p.stun <= 0 && !isSlayer) {
+    var dashCd = p.classId === SURV_CLASSES.SCOUT ? K.DASH_CD * 0.77 : K.DASH_CD;
     p.dashT = K.DASH_TIME;
     p.dashCd = dashCd;
     p.dashAng = (inp.x || inp.y) ? Math.atan2(inp.y, inp.x) : p.facing;
@@ -780,11 +821,6 @@ function stepPlayer(world, p, inp, dt, rndSkill, slayer) {
     useItem(world, p);
   }
 
-  /* ---------------- Chrono-Rewind ---------------- */
-  if ((inp.rewind || (inp.ult && !isSlayer)) && p.rewindCd <= 0 && !isSlayer && p.stun <= 0) {
-    triggerChronoRewind(world, p);
-  }
-
   /* ---------------- Chase Tracking & Slayer Rage ---------------- */
   updateChase(world, p, slayer, dt);
 
@@ -809,24 +845,40 @@ function stepPlayer(world, p, inp, dt, rndSkill, slayer) {
         }
       }
     }
-  } else if (inp.attack && p.atkCd <= 0 && p.blindT <= 0) {
+  } else if (inp.attack && !usedCombat && p.atkCd <= 0 && p.blindT <= 0) {
     startAttack(world, p);
   } else {
     p.atkCd = Math.max(0, p.atkCd - dt);
   }
 
-  /* ---------------- Slayer Ultimate / Awakening ---------------- */
-  if (isSlayer) {
-    if (p.ultT > 0) {
-      p.ultT -= dt;
+  /* ---------------- Ultimates: Rift Nova / Cataclysm ----------------
+   * Survivor: [R] fires the Rift Nova when charged (damage + knockback);
+   *           [Q] is Chrono-Rewind. They are separate keys and separate
+   *           wire bits so both are always reachable.
+   * Slayer:   [R] or [Q] triggers the Cataclysm dash-strike + Awakening. */
+  if (p.ultT > 0) {
+    p.ultT -= dt;
+    if (isSlayer) {
       var dashSp = p.classId === SLAYER_ARCHETYPES.SOVEREIGN ? 820 : K.SLAYER_ULT_DASH;
       p.vx = Math.cos(p.ultAng) * dashSp;
       p.vy = Math.sin(p.ultAng) * dashSp;
       moveAndCollide(world, p, dt);
-      if (!p.atkHitDone) { resolveUltHit(world, p); p.atkHitDone = true; }
-      if (p.ultT <= 0) { p.ultT = 0; p.atkHitDone = false; }
-    } else if (inp.ult && p.ult >= K.ULT_CHARGE_MAX) {
+    }
+    if (!p.atkHitDone) {
+      resolveUltHit(world, p);
+      p.atkHitDone = true;
+      if (!isSlayer) p.vx = p.vy = 0;
+    }
+    if (p.ultT <= 0) { p.ultT = 0; p.atkHitDone = false; }
+  } else if (isSlayer) {
+    if ((inp.ult || inp.rewind) && p.ult >= K.ULT_CHARGE_MAX) {
       startUlt(world, p);
+    }
+  } else {
+    if (inp.ult && p.ult >= K.ULT_CHARGE_MAX && p.stun <= 0) {
+      startUlt(world, p);
+    } else if (inp.rewind && p.rewindCd <= 0 && p.stun <= 0) {
+      triggerChronoRewind(world, p);
     }
   }
 
@@ -905,6 +957,15 @@ function stepInteract(world, p, inp, dt, rndSkill, isSlayer) {
   /* Slayer carried victim handling */
   if (isSlayer) {
     if (p.carrying >= 0) return stepCarry(world, p, inp, dt);
+
+    /* Rift Weaver: [G] places a stasis snare at their feet. */
+    if ((inp.item || inp.cancel) && p.classId === SLAYER_ARCHETYPES.WEAVER &&
+        p.trapCd <= 0 && (world.traps || []).length < K.TRAP_MAX) {
+      world.traps.push({ id: world.traps.length, x: p.x, y: p.y, arm: 0, by: p.id });
+      p.trapCd = K.TRAP_COOLDOWN;
+      ev(world, { t: 'trapPlace', by: p.id, x: p.x, y: p.y });
+      return;
+    }
 
     /* Break Pallet */
     if (inp.interact || inp.attack) {
@@ -1036,23 +1097,6 @@ function stepInteract(world, p, inp, dt, rndSkill, isSlayer) {
     }
   }
 
-  /* Fast Vault over window / prop */
-  if (inp.dash && p.vaultCd <= 0) {
-    for (var vi = 0; vi < world.props.length; vi++) {
-      var vp = world.props[vi];
-      if (vp.type !== 'vault') continue;
-      if (C.circleBox(p.x, p.y, K.PLAYER_R + 10, vp.x, vp.y, vp.w, vp.h)) {
-        var vcd = p.classId === SURV_CLASSES.SCOUT ? 1.4 : 2.0;
-        p.vaultCd = vcd;
-        var va = p.facing;
-        p.x += Math.cos(va) * (vp.w + 40);
-        p.y += Math.sin(va) * (vp.h + 40);
-        p.boostT = 0.5;
-        ev(world, { t: 'vault', by: p.id, x: p.x, y: p.y });
-        return;
-      }
-    }
-  }
 
   /* Unhook teammate */
   var hooked = world.players.find(function (q) {
@@ -1132,51 +1176,25 @@ function stepInteract(world, p, inp, dt, rndSkill, isSlayer) {
     anc.progress = clamp(anc.progress + baseRate * dt, 0, 1);
     p.score.obj += dt * (p.overclock ? 14 : 7);
 
-    /* Dynamic Skill Check Trigger */
+    /* Dynamic Skill Check Trigger. `lastSkill` holds the match clock at the
+     * previous check; the clock counts DOWN, so the quiet gap since then is
+     * `lastSkill - world.time`. (The old comparison ran the other way and
+     * fired at most one check per anchor — the game's best interaction was
+     * effectively dead.) */
+    var checkGap = p.overclock ? K.SKILL_CHECK_EVERY * 0.6 : K.SKILL_CHECK_EVERY;
     var checkChance = p.overclock ? K.SKILL_CHECK_CHANCE * 1.8 : K.SKILL_CHECK_CHANCE;
-    if (!p.skill && world.time - (anc.lastSkill || 0) > (p.overclock ? 1.8 : K.SKILL_CHECK_EVERY) && rndSkill() < checkChance * dt) {
+    if (!p.skill && (!anc.lastSkill || anc.lastSkill - world.time >= checkGap) && rndSkill() < checkChance * dt) {
       anc.lastSkill = world.time;
-      p.skill = { t: 0, ttl: 1.0, frac: 0, inGreat: false };
+      p.skill = { t: 0, ttl: K.SKILL_WINDOW, frac: 0, inGreat: false };
       ev(world, { t: 'skillcheck', by: p.id, x: anc.x, y: anc.y });
     }
 
     if (p.skill) {
       p.skill.t += dt;
       p.skill.frac = p.skill.t / p.skill.ttl;
-      var greatWin = p.classId === SURV_CLASSES.ENGINEER ? 0.08 : K.SKILL_GREAT;
-      p.skill.inGreat = p.skill.frac >= 0.70 && p.skill.frac <= (0.70 + greatWin);
-
-      if (inp.dash || inp.attack) {
-        /* Skill check hit attempt */
-        if (p.skill.inGreat) {
-          var bonusChunk = p.overclock ? 0.06 : 0.025;
-          anc.progress = clamp(anc.progress + bonusChunk, 0, 1);
-          p.score.obj += p.overclock ? 120 : 60;
-          p.ult = clamp(p.ult + 8, 0, K.ULT_CHARGE_MAX);
-          ev(world, { t: 'great', by: p.id, x: anc.x, y: anc.y });
-        } else if (p.skill.frac >= 0.60 && p.skill.frac <= 0.88) {
-          p.score.obj += 25;
-          ev(world, { t: 'good', by: p.id, x: anc.x, y: anc.y });
-        } else {
-          /* Missed skill check */
-          var missPen = p.overclock ? 0.12 : K.SKILL_MISS_REGRESS;
-          anc.progress = clamp(anc.progress - missPen, 0, 1);
-          alert(world, anc.x, anc.y, 2.0, 'fail');
-          if (p.overclock) {
-            p.hp = Math.max(1, p.hp - 12);
-            p.stun = 0.7;
-            ev(world, { t: 'overclockShock', by: p.id, x: anc.x, y: anc.y });
-          } else {
-            ev(world, { t: 'fail', by: p.id, x: anc.x, y: anc.y });
-          }
-        }
-        p.skill = null;
-      } else if (p.skill.t >= p.skill.ttl) {
-        anc.progress = clamp(anc.progress - K.SKILL_MISS_REGRESS, 0, 1);
-        alert(world, anc.x, anc.y, 2.0, 'fail');
-        ev(world, { t: 'fail', by: p.id, x: anc.x, y: anc.y });
-        p.skill = null;
-      }
+      p.skill.inGreat = p.skill.frac >= K.SKILL_GREAT_LO &&
+        p.skill.frac <= (K.SKILL_GREAT_LO + skillGreatWin(p));
+      if (p.skill.t >= p.skill.ttl) failSkillCheck(world, p, anc);
     }
 
     if (anc.progress >= 1 && !anc.done) {
@@ -1196,6 +1214,97 @@ function stepInteract(world, p, inp, dt, rndSkill, isSlayer) {
   p.interactKind = null;
   p.interactT = 0;
   p.skill = null;
+}
+
+function skillGreatWin(p) {
+  return p.classId === SURV_CLASSES.ENGINEER ? K.SKILL_GREAT_ENGINEER : K.SKILL_GREAT;
+}
+
+function failSkillCheck(world, p, anc) {
+  var missPen = p.overclock ? 0.12 : K.SKILL_MISS_REGRESS;
+  anc.progress = clamp(anc.progress - missPen, 0, 1);
+  alert(world, anc.x, anc.y, 2.0, 'fail');
+  if (p.overclock) {
+    p.hp = Math.max(1, p.hp - 12);
+    p.stun = 0.7;
+    ev(world, { t: 'overclockShock', by: p.id, x: anc.x, y: anc.y });
+  } else {
+    ev(world, { t: 'fail', by: p.id, x: anc.x, y: anc.y });
+  }
+  p.skill = null;
+}
+
+/* Pressing the skill-check key resolves the check immediately against the
+ * window the HUD is showing — great, good, or miss. */
+function resolveSkillCheck(world, p) {
+  var anc = null;
+  for (var i = 0; i < world.anchors.length; i++) {
+    if (world.anchors[i].id === p.interactId) { anc = world.anchors[i]; break; }
+  }
+  if (!anc) anc = nearestAnchor(world, p);
+  if (!anc || !p.skill) { p.skill = null; return; }
+  if (p.skill.inGreat) {
+    var bonusChunk = p.overclock ? 0.06 : 0.025;
+    anc.progress = clamp(anc.progress + bonusChunk, 0, 1);
+    p.score.obj += p.overclock ? 120 : 60;
+    p.ult = clamp(p.ult + (p.classId === SURV_CLASSES.ENGINEER ? 14 : 8), 0, K.ULT_CHARGE_MAX);
+    ev(world, { t: 'great', by: p.id, x: anc.x, y: anc.y });
+    p.skill = null;
+  } else if (p.skill.frac >= K.SKILL_GOOD_LO && p.skill.frac <= K.SKILL_GOOD_HI) {
+    p.score.obj += 25;
+    ev(world, { t: 'good', by: p.id, x: anc.x, y: anc.y });
+    p.skill = null;
+  } else {
+    failSkillCheck(world, p, anc);
+  }
+}
+
+/* Vault over a window prop or a dropped pallet along facing. The vault key
+ * never silently becomes a wasted dash: if there is something to cross,
+ * the player crosses it. */
+function tryVault(world, p) {
+  for (var vi = 0; vi < world.props.length; vi++) {
+    var vp = world.props[vi];
+    if (vp.type !== 'vault') continue;
+    if (!C.circleBox(p.x, p.y, K.PLAYER_R + 10, vp.x, vp.y, vp.w, vp.h)) continue;
+    var over = Math.max(vp.w, vp.h) * 0.5 + K.PLAYER_R + 34;
+    var dirs = [p.facing, p.facing + Math.PI];
+    var landed = false;
+    for (var d = 0; d < dirs.length; d++) {
+      var nx = vp.x + vp.w * 0.5 + Math.cos(dirs[d]) * over;
+      var ny = vp.y + vp.h * 0.5 + Math.sin(dirs[d]) * over;
+      var W = K.WORLD.w, H = K.WORLD.h, T = 60;
+      nx = clamp(nx, T + K.PLAYER_R, W - T - K.PLAYER_R);
+      ny = clamp(ny, T + K.PLAYER_R, H - T - K.PLAYER_R);
+      if (!blocked(world, nx, ny, K.PLAYER_R)) {
+        p.x = nx; p.y = ny; landed = true;
+        break;
+      }
+    }
+    if (!landed) return false;
+    p.vaultCd = p.classId === SURV_CLASSES.SCOUT ? 1.4 : 2.0;
+    p.boostT = 0.5;
+    ev(world, { t: 'vault', by: p.id, x: p.x, y: p.y });
+    return true;
+  }
+  for (var pi = 0; pi < (world.pallets || []).length; pi++) {
+    var pal = world.pallets[pi];
+    if (pal.palletState !== 'down') continue;
+    var halfLong = Math.max(pal.w, pal.h) * 0.5;
+    var halfShort = Math.min(pal.w, pal.h) * 0.5;
+    if (Math.abs(p.x - pal.x) > halfLong + K.PLAYER_R + 6) continue;
+    if (Math.abs(p.y - pal.y) > halfShort + K.PLAYER_R + 26) continue;
+    /* Cross to the far side — a vault is a crossing, not a shuffle. */
+    var crossY = pal.w >= pal.h;
+    var side = crossY ? (p.y <= pal.y ? 1 : -1) : (p.x <= pal.x ? 1 : -1);
+    if (crossY) p.y = pal.y + side * (halfShort + K.PLAYER_R + 24);
+    else p.x = pal.x + side * (halfLong + K.PLAYER_R + 24);
+    p.vaultCd = p.classId === SURV_CLASSES.SCOUT ? 1.2 : 1.8;
+    p.boostT = 0.5;
+    ev(world, { t: 'vault', by: p.id, x: p.x, y: p.y });
+    return true;
+  }
+  return false;
 }
 
 function powerGates(world) {
@@ -1228,6 +1337,10 @@ function startAttack(world, p) {
   var windup = isSlayer ? K.SLAYER_ATK_WINDUP : (p.classId === SURV_CLASSES.DUELIST ? K.SURV_ATK_WINDUP * 0.75 : K.SURV_ATK_WINDUP);
   p.atkT = windup;
   p.atkHitDone = false;
+  if (!isSlayer) {
+    /* Clash window: the swing plus a hair of follow-through. */
+    p.parryT = windup + K.SURV_ATK_ACTIVE + 0.12;
+  }
   ev(world, { t: 'swing', by: p.id, role: p.role, x: p.x, y: p.y, ang: p.facing });
 }
 
@@ -1252,14 +1365,19 @@ function resolveAttackHit(world, p) {
     var angTo = Math.atan2(q.y - p.y, q.x - p.x);
     if (Math.abs(C.angDiff(p.aim, angTo)) > arc * 0.5) continue;
 
-    /* Check for Parry / Clash */
-    if (isSlayer && q.atkPhase && (q.atkPhase === 'windup' || q.atkPhase === 'active')) {
+    /* Check for Parry / Clash — any survivor whose blade is still committed
+     * (windup, active, or the first heartbeat of recovery) meets the swing
+     * with steel. The window is generous on purpose: a clash should be a
+     * reliable answer to a telegraphed swing, not a frame trap. */
+    var bladeCommitted = q.atkPhase && (q.parryT > 0 || q.atkPhase === 'windup' || q.atkPhase === 'active');
+    if (isSlayer && bladeCommitted) {
       var survFacingAngle = Math.abs(C.angDiff(q.aim, Math.atan2(p.y - q.y, p.x - q.x)));
       if (survFacingAngle < 1.8) {
         /* Clash Parry successful! */
         p.stun = 0.75;
         p.rage = Math.min(K.RAGE_MAX, p.rage + 22);
         q.riposteT = 0.85;
+        q.ult = clamp(q.ult + 20, 0, K.ULT_CHARGE_MAX);
         q.score.stun += 180;
         ev(world, { t: 'parry', by: q.id, slayerId: p.id, x: (p.x + q.x) * 0.5, y: (p.y + q.y) * 0.5 });
         hitAny = true;
@@ -1292,6 +1410,8 @@ function startUlt(world, p) {
   p.ult = 0;
   p.ultT = isSlayer ? K.SLAYER_ULT_TIME : K.SURV_ULT_TIME;
   p.ultAng = p.aim;
+  p.atkPhase = null;          /* the ultimate cancels a winding swing */
+  p.atkHitDone = false;
 
   if (isSlayer) {
     /* Trigger Awakening Berserk */
@@ -1299,7 +1419,10 @@ function startUlt(world, p) {
     ev(world, { t: 'awakening', slayerId: p.id, x: p.x, y: p.y });
   }
 
-  ev(world, { t: isSlayer ? 'ultSlayer' : 'ultSurv', by: p.id, x: p.x, y: p.y, ang: p.ultAng });
+  ev(world, {
+    t: isSlayer ? 'ultSlayer' : 'ultSurv', by: p.id, x: p.x, y: p.y,
+    ang: p.ultAng, role: isSlayer ? 'slayer' : 'survivor'
+  });
 }
 
 function resolveUltHit(world, p) {
@@ -1312,8 +1435,17 @@ function resolveUltHit(world, p) {
     if (q === p || q.role === p.role || !alive(q)) continue;
     if (q.inLocker >= 0) continue;
     if (C.dist(p.x, p.y, q.x, q.y) <= r + K.PLAYER_R) {
-      damage(world, p, q, dmg, 1.4, 'ult');
+      damage(world, p, q, dmg, isSlayer ? 1.4 : 1.0, 'ult');
+      if (!isSlayer && q.role === ROLES.SLAYER) {
+        /* Rift Nova knocks the Slayer off their feet — the regicide tool. */
+        var ka = Math.atan2(q.y - p.y, q.x - p.x);
+        q.vx += Math.cos(ka) * K.SURV_ULT_KNOCK;
+        q.vy += Math.sin(ka) * K.SURV_ULT_KNOCK;
+      }
     }
+  }
+  if (!isSlayer) {
+    ev(world, { t: 'nova', by: p.id, x: p.x, y: p.y, r: r });
   }
 }
 
@@ -1368,7 +1500,16 @@ function stepDowned(world, p, inp, dt, slayer) {
 
 function stepHooked(world, p, dt) {
   p.hookT -= dt;
-  if (p.hookT <= 0) eliminate(world, p, 'hook');
+  if (p.hookT > 0) return;
+  if (p.hooks >= K.HOOK_STAGES) {
+    eliminate(world, p, 'hook');
+  } else {
+    /* The rift drags them a stage deeper — the team still has time to save
+     * them, and an early save leaves more stages for later. */
+    p.hooks++;
+    p.hookT = K.HOOK_TIME;
+    ev(world, { t: 'hookStage', to: p.id, x: p.x, y: p.y, stage: p.hooks });
+  }
 }
 
 function stepCarried(world, p, dt) {
@@ -1383,6 +1524,11 @@ function stepCarry(world, slayer, inp, dt) {
   var victim = world.byId.get(slayer.carrying);
   if (!victim || victim.state !== STATE.CARRIED) {
     slayer.carrying = -1;
+    return;
+  }
+  if (inp.item || inp.cancel) {
+    /* Deliberate drop — the prompt promises [G] DROP, so it must exist. */
+    dropCarried(world, slayer, 'drop');
     return;
   }
   victim.carryT += dt;
@@ -1400,11 +1546,12 @@ function stepCarry(world, slayer, inp, dt) {
         hk.occupant = victim.id;
         victim.state = STATE.HOOKED;
         victim.hookId = hk.id;
+        victim.hooks = Math.min(K.HOOK_STAGES, victim.hooks + 1);
         victim.hookT = K.HOOK_TIME;
         victim.carrier = -1;
         slayer.carrying = -1;
         slayer.score.obj += 200;
-        ev(world, { t: 'hook', by: slayer.id, to: victim.id, hookId: hk.id, x: hk.x, y: hk.y });
+        ev(world, { t: 'hook', by: slayer.id, to: victim.id, hookId: hk.id, x: hk.x, y: hk.y, stage: victim.hooks });
         return;
       }
     }
@@ -1643,10 +1790,11 @@ function snapshot(world) {
       inChase: p.inChase ? 1 : 0, carrying: (p.carrying === undefined ? -1 : p.carrying),
       hitFlash: round2(p.hitFlash), boostT: round2(p.boostT || 0),
       item: p.item || '', itemUses: p.itemUses || 0, blindT: round2(p.blindT || 0),
-      riposteT: round2(p.riposteT || 0), rewindCd: round2(p.rewindCd || 0),
+      riposteT: round2(p.riposteT || 0), parryT: round2(p.parryT || 0), rewindCd: round2(p.rewindCd || 0),
       rage: round1(p.rage || 0), rageT: round2(p.rageT || 0),
       inLocker: p.inLocker !== undefined ? p.inLocker : -1,
-      overclock: p.overclock || 0
+      overclock: p.overclock || 0,
+      trapCd: round2(p.trapCd || 0)
     });
   }
   var as = [];
@@ -1724,9 +1872,9 @@ function applySnapshot(world, s) {
       aim: sp.facing, flash: 0, hitFlash: sp.hitFlash, sprintingNow: false,
       boostT: sp.boostT || 0, vaultCd: 0,
       item: sp.item || null, itemUses: sp.itemUses || 0,
-      blindT: sp.blindT || 0, riposteT: sp.riposteT || 0, rewindCd: sp.rewindCd || 0,
+      blindT: sp.blindT || 0, riposteT: sp.riposteT || 0, parryT: sp.parryT || 0, rewindCd: sp.rewindCd || 0,
       rage: sp.rage || 0, rageT: sp.rageT || 0, inLocker: sp.inLocker !== undefined ? sp.inLocker : -1,
-      heavyCharge: 0, overclock: sp.overclock || 0
+      heavyCharge: 0, overclock: sp.overclock || 0, trapCd: sp.trapCd || 0
     };
     world.byId.set(p.id, p);
     return p;

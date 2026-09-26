@@ -8,18 +8,30 @@ helpless — they have a blade, a dash with i-frames, and an ultimate.
 ## The loop
 
 **Survivors (4):** seal **4 of 7 rift anchors** → the two rift gates power →
-open a gate and escape. Repairing is loud and triggers skill checks. Survivors
-can fight back: a light attack stuns the Slayer, and a charged **Rift Nova**
-knocks him off. Depleting the Slayer's core (380 HP) is a real win — *regicide*.
+open a gate and escape. Repairing is loud and triggers **skill checks**: the
+press owns the check (click/Space resolves it and can never accidentally swing
+or dash), a great hit feeds the ultimate, a miss regresses the anchor. Survivors
+can fight back: attacking *into* the Slayer's telegraphed swing is a **clash
+parry** (a generous, reliable window — not a frame trap), and a charged
+**Rift Nova** [R] damages and knocks him off. Depleting the Slayer's core
+(320 HP) is a real win — *regicide*.
 
-**Slayer (1):** faster, hits twice as hard (two hits = down), can smash anchors
-to steal progress, pick up the downed and hook them, and sprint a **Cataclysm**
-dash-strike when charged. Wins by wiping the team or letting the clock close.
+**Slayer (1):** marginally faster, hits twice as hard (two hits = down), can
+smash anchors to steal progress, pick up the downed and hook them, and sprint a
+**Cataclysm** dash-strike + Awakening when charged. Wins by wiping the team or
+letting the clock close.
 
-The state machine every survivor cycles through is the source of the fear and
-the fun: **hide → chase → downed → recovery → hide.** Interfering with
-hide/chase/recovery is good teamwork; the downed window is where the pressure
-lives.
+A hooked survivor passes through **three stages** [18s each] before the rift
+takes them: the save is a decision with real time to make it, an early save
+leaves stages in the bank, and the hook's pip display tells the team exactly
+how urgent it is. The state machine every survivor cycles through is the
+source of the fear and the fun: **hide → chase → downed → recovery → hide.**
+Interfering with hide/chase/recovery is good teamwork; the downed window is
+where the pressure lives.
+
+One verb per key, and every verb is reachable: `Q` rewind, `R` ultimate,
+`G` item/drop, `E/F` interact, Space dash-and-vault (a dropped pallet or a
+window is always crossed, never dashed past), click attack/skill-check.
 
 ## Why it is high-octane (and how we keep it that way)
 
@@ -36,15 +48,18 @@ lives.
 ## Balance is data, not vibes
 
 `test/smoke-sim.js` plays dozens of full matches headlessly and prints a
-tuning report (win split, swings, hits, downs, anchors, escapes, endings).
-Balance changes are made against that report, then re-measured. The target is
-a survivor win rate near ~40–45% with a spread of *all four* endings (escape,
-wipe, regicide, clock) so no outcome dominates. As of the foundation build:
-survivors ≈ 43%, endings well distributed.
+tuning report (win split, swings, hits, downs, ults, anchors, escapes,
+endings). Balance changes are made against that report, then re-measured. The
+target is a survivor win rate near ~40–45% with a spread of endings (escape,
+partial, wipe, regicide, clock) so no outcome dominates. As of this build,
+pooled over 48 bot matches: **survivors ≈ 42%**, endings
+`wipe ≈ 42% · escape ≈ 21% · regicide ≈ 21% · partial ≈ 8% · clock ≈ 8%`,
+average match ≈ 84s.
 
 Key levers, all in `eot-sim.js` `K`:
 `ANCHORS_NEEDED`, `ANCHOR_RATE_*`, `SURV/SLAYER_SPRINT`, `DASH_*`,
-`SLAYER_HP`, `SURV_ATK_DMG`, `BLEEDOUT`, `RESCUE_TIME`, `MATCH_TIME`.
+`SLAYER_HP`, `SURV_ATK_DMG`, `SKILL_CHECK_*`, `HOOK_TIME`, `HOOK_STAGES`,
+`BLEEDOUT`, `RESCUE_TIME`, `GATE_CHANNEL`, `MATCH_TIME`.
 
 ## The anime look (no assets, all geometry)
 

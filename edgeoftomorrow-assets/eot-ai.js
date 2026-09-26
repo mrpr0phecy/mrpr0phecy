@@ -92,7 +92,10 @@ function survivorInput(world, p, out) {
   reset(out);
   var slayer = findSlayer(world);
   var dSlayer = slayer ? C.dist(p.x, p.y, slayer.x, slayer.y) : Infinity;
-  var threatened = dSlayer < 240;
+  /* Fear is earned: a heartbeat through the wall is not a reason to abandon
+   * the anchor. Run when the Slayer can actually see you, or is close. */
+  var slayerLos = slayer ? lineOfSight(world, p.x, p.y, slayer.x, slayer.y) : false;
+  var threatened = dSlayer < 150 || (dSlayer < 260 && slayerLos);
   var rnd = world.rndAi;
 
   /* Use consumable items when helpful */
@@ -197,6 +200,16 @@ function survivorInput(world, p, out) {
     return out;
   }
 
+  /* Is the Slayer occupied with someone else? Then the team can move. */
+  var slayerBusy = false;
+  if (slayer) {
+    for (var sb = 0; sb < world.players.length; sb++) {
+      var o = world.players[sb];
+      if (o !== p && o.role !== ROLES.SLAYER && o.state === STATE.ALIVE && o.inChase &&
+          C.dist(slayer.x, slayer.y, o.x, o.y) < 320) { slayerBusy = true; break; }
+    }
+  }
+
   /* --- 2. Rescue a downed teammate if safe --- */
   var downed = null, bd = Infinity;
   for (var i = 0; i < world.players.length; i++) {
@@ -205,25 +218,62 @@ function survivorInput(world, p, out) {
     var d = C.dist(p.x, p.y, q.x, q.y);
     if (d < bd) { bd = d; downed = q; }
   }
-  if (downed && (dSlayer > 280 || !slayer)) {
+  if (downed && (dSlayer > 220 || !slayer || (slayerBusy && dSlayer > 160))) {
     var sd = steer(world, p, downed.x, downed.y);
     out.x = sd.x; out.y = sd.y; out.aim = Math.atan2(downed.y - p.y, downed.x - p.x);
     out.sprint = bd > 80;
-    if (bd < K.PLAYER_R + 32) { out.interact = true; out.sprint = false; }
+    if (bd < K.PLAYER_R + 24) { out.interact = true; out.sprint = false; out.x = 0; out.y = 0; }
     return out;
   }
 
-  /* --- 3. Unhook a hooked teammate if safe --- */
+  /* --- 3. Unhook a hooked teammate. Saves under pressure are the whole
+   *     drama of the role: go when the coast is clear, or risk it when the
+   *     hook is about to drag them a stage deeper. --- */
   for (var h = 0; h < world.players.length; h++) {
     var m = world.players[h];
     if (m === p || m.role === ROLES.SLAYER || m.state !== STATE.HOOKED) continue;
-    if (dSlayer < 220) break;
+    var desperate = m.hookT < 6 && dSlayer > 140;
+    var canSave = dSlayer > 150 || desperate || (slayerBusy && dSlayer > 110);
+    if (!canSave) continue;
     var hd = C.dist(p.x, p.y, m.x, m.y);
     var hs = steer(world, p, m.x, m.y);
     out.x = hs.x; out.y = hs.y; out.aim = Math.atan2(m.y - p.y, m.x - p.x);
     out.sprint = hd > 90;
-    if (hd < K.PLAYER_R + 40) { out.interact = true; out.sprint = false; }
+    if (hd < K.INTERACT_R - 8) { out.interact = true; out.sprint = false; out.x = 0; out.y = 0; }
     return out;
+  }
+
+  /* --- 3b. Patch up an injured teammate when the Slayer is elsewhere.
+   *     One caregiver per patient — a team of four must not spend the whole
+   *     match playing ambulance while the anchors go unsealed. --- */
+  if (dSlayer > 320 || !slayer) {
+    var hurt = null, hbd = Infinity;
+    for (var hi = 0; hi < world.players.length; hi++) {
+      var q2 = world.players[hi];
+      if (q2 === p || q2.role === ROLES.SLAYER) continue;
+      if (q2.state !== STATE.ALIVE || q2.hp >= S.K.SURV_HP * 0.85) continue;
+      var claimed = false;
+      for (var hc = 0; hc < world.players.length; hc++) {
+        var helper = world.players[hc];
+        if (helper === p || helper.role !== ROLES.SURV || helper.state !== STATE.ALIVE) continue;
+        if (helper.interactKind === 'heal' && C.dist(helper.x, helper.y, q2.x, q2.y) < 60) { claimed = true; break; }
+      }
+      if (claimed) continue;
+      var hdist = C.dist(p.x, p.y, q2.x, q2.y);
+      if (hdist < hbd) { hbd = hdist; hurt = q2; }
+    }
+    if (hurt && ((hbd < 90 && hurt.hp < 70) || (hbd < 220 && hurt.hp < 35))) {
+      if (hbd < K.INTERACT_R - 8) {
+        out.interact = true; out.x = 0; out.y = 0;
+        out.aim = Math.atan2(hurt.y - p.y, hurt.x - p.x);
+      } else {
+        var hst = steer(world, p, hurt.x, hurt.y);
+        out.x = hst.x; out.y = hst.y;
+        out.aim = Math.atan2(hurt.y - p.y, hurt.x - p.x);
+        out.sprint = true;
+      }
+      return out;
+    }
   }
 
   /* --- 4. Escape if a gate is open --- */
@@ -249,18 +299,20 @@ function survivorInput(world, p, out) {
     var og = steer(world, p, poweredGate.x, poweredGate.y);
     out.x = og.x; out.y = og.y; out.aim = Math.atan2(poweredGate.y - p.y, poweredGate.x - p.x);
     out.sprint = pgd > 100;
-    if (pgd < K.GATE_R + 20) { out.interact = true; out.sprint = false; out.x = 0; out.y = 0; }
+    if (pgd < K.GATE_R - 8) { out.interact = true; out.sprint = false; out.x = 0; out.y = 0; }
     return out;
   }
 
-  /* --- 5. Search nearby supply chest if without item --- */
-  if (!p.item && rnd() < 0.08) {
+  /* --- 5. Grab a supply crate only if it is genuinely on the way ---
+   *     (this used to roll every tick, so every bot detoured to crates
+   *     constantly and the anchors never got sealed) */
+  if (!p.item && rnd() < 0.015) {
     for (var ci = 0; ci < (world.chests || []).length; ci++) {
       var ch = world.chests[ci];
-      if (!ch.searched && C.dist(p.x, p.y, ch.x, ch.y) < 180) {
+      if (!ch.searched && C.dist(p.x, p.y, ch.x, ch.y) < 110) {
         var cs = steer(world, p, ch.x, ch.y);
         out.x = cs.x; out.y = cs.y;
-        if (C.dist(p.x, p.y, ch.x, ch.y) < K.CHEST_R + 10) {
+        if (C.dist(p.x, p.y, ch.x, ch.y) < K.CHEST_R - 8) {
           out.interact = true; out.x = 0; out.y = 0;
         }
         return out;
@@ -274,6 +326,12 @@ function survivorInput(world, p, out) {
     var an = world.anchors[a];
     if (an.done) continue;
     var ad = C.dist(p.x, p.y, an.x, an.y) - an.progress * (p.classId === S.SURV_CLASSES.ENGINEER ? 240 : 180);
+    /* Spread the team: an anchor a mate is already working is someone else's. */
+    for (var wj = 0; wj < world.players.length; wj++) {
+      var mate = world.players[wj];
+      if (mate === p || mate.role !== ROLES.SURV || mate.state !== STATE.ALIVE) continue;
+      if (C.dist(mate.x, mate.y, an.x, an.y) < 110) { ad += 320; break; }
+    }
     if (ad < tbd) { tbd = ad; target = an; }
   }
   if (!target) {
@@ -286,7 +344,7 @@ function survivorInput(world, p, out) {
     var ps = steer(world, p, pg.x, pg.y);
     out.x = ps.x; out.y = ps.y; out.aim = ps.ang;
     out.sprint = true;
-    if (C.dist(p.x, p.y, pg.x, pg.y) < K.GATE_R + 20 && pg.powered) { out.interact = true; out.sprint = false; }
+    if (C.dist(p.x, p.y, pg.x, pg.y) < K.GATE_R - 8 && pg.powered) { out.interact = true; out.sprint = false; out.x = 0; out.y = 0; }
     return out;
   }
 
@@ -295,11 +353,13 @@ function survivorInput(world, p, out) {
   out.aim = Math.atan2(target.y - p.y, target.x - p.x);
   var td = C.dist(p.x, p.y, target.x, target.y);
   out.sprint = td > 120 && p.stamina > 25;
-  if (td < K.ANCHOR_R + K.INTERACT_R - 6) {
+  if (td < K.ANCHOR_R + K.INTERACT_R - 14) {
     out.interact = true; out.sprint = false; out.x = 0; out.y = 0;
-    /* Hit the skill check: aim for great window */
-    if (p.skill && p.skill.inGreat) out.attack = true;
-    else if (p.skill && p.skill.frac > 0.9) out.attack = true;
+    /* Hit the skill check: great if they can see it, good as the fallback —
+     * never press after the window closes (that used to be a forced miss). */
+    if (p.skill && (p.skill.inGreat || p.skill.frac >= 0.84)) {
+      out.attack = true;
+    }
   }
   if (out.interact && rnd() < 0.02) { out.x = rnd() - 0.5; out.y = rnd() - 0.5; }
   return out;
@@ -324,11 +384,13 @@ function slayerInput(world, p, out) {
       var d = C.dist(p.x, p.y, h.x, h.y);
       if (d < hd) { hd = d; hook = h; }
     }
+    /* Nothing free? Carry them toward the least-loaded hook anyway — a
+     * wiggle-free drop at 12s is a timer the Slayer can read. */
     if (hook) {
       var hs = steer(world, p, hook.x, hook.y);
       out.x = hs.x; out.y = hs.y; out.aim = Math.atan2(hook.y - p.y, hook.x - p.x);
       out.sprint = true;
-      if (hd < K.INTERACT_R + 10) out.interact = true;
+      if (hd < K.INTERACT_R - 6) { out.interact = true; out.x = 0; out.y = 0; }
       return out;
     }
   }
@@ -339,6 +401,22 @@ function slayerInput(world, p, out) {
     if (plt.palletState === 'down' && C.dist(p.x, p.y, plt.x, plt.y) < K.INTERACT_R + 15) {
       out.interact = true;
       out.attack = true;
+      return out;
+    }
+  }
+
+  /* --- Rift Weaver: seed stasis snares on the objectives and chokes --- */
+  if (p.classId === S.SLAYER_ARCHETYPES.WEAVER && p.trapCd <= 0 &&
+      (world.traps || []).length < S.K.TRAP_MAX && rnd() < 0.10) {
+    var atObjective = false;
+    for (var ta = 0; ta < world.anchors.length; ta++) {
+      if (!world.anchors[ta].done && C.dist(p.x, p.y, world.anchors[ta].x, world.anchors[ta].y) < 120) { atObjective = true; break; }
+    }
+    for (var tp = 0; tp < (world.pallets || []).length; tp++) {
+      if (C.dist(p.x, p.y, world.pallets[tp].x, world.pallets[tp].y) < 90) { atObjective = true; break; }
+    }
+    if (atObjective) {
+      out.item = true;
       return out;
     }
   }
@@ -355,7 +433,7 @@ function slayerInput(world, p, out) {
   if (downed && dd < 140) {
     var ds = steer(world, p, downed.x, downed.y);
     out.x = ds.x; out.y = ds.y; out.aim = Math.atan2(downed.y - p.y, downed.x - p.x);
-    if (dd < K.PLAYER_R + 30) out.interact = true;
+    if (dd < K.PLAYER_R + 24) { out.interact = true; out.x = 0; out.y = 0; }
     return out;
   }
 
@@ -406,7 +484,7 @@ function slayerInput(world, p, out) {
     var as = steer(world, p, patrol.x, patrol.y);
     out.x = as.x; out.y = as.y; out.aim = as.ang;
     out.sprint = true;
-    if (C.dist(p.x, p.y, patrol.x, patrol.y) < K.ANCHOR_R + 25 && patrol.progress > 0.05) {
+    if (C.dist(p.x, p.y, patrol.x, patrol.y) < K.ANCHOR_R + K.INTERACT_R - 14 && patrol.progress > 0.05) {
       out.interact = true;
     }
     return out;

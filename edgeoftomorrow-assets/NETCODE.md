@@ -31,7 +31,7 @@ divergence hash.
 Message types live in `N.MSG` (numeric, stable — this is the contract a relay
 implements). The hot path is tiny:
 
-- `INPUT`: `[seq:1][mx:1][my:1][aim:1][flags:1]` = 5 bytes per player per tick.
+- `INPUT`: `[seq:1][mx:1][my:1][aim:1][flags:2]` = 6 bytes per player per tick (`flags` carries 10 bits: move/combat verbs plus separate REWIND and ITEM bits, so Q-rewind and R-ultimate stay distinguishable on the wire).
   At 60 Hz that is 300 B/s per player; 8 players ≈ 2.4 KB/s. Bandwidth is not
   the constraint — snapshot size is, hence the quantised snapshot.
 - `SNAPSHOT`: the flat, ordered `S.snapshot(world)` plus the divergence hash
@@ -93,5 +93,5 @@ Roadmap, in order:
   the sim path; all simulated randomness comes from `C.simRng`.
 - `worldHash` hashes the *snapshot*, never higher precision than the wire.
 - Snapshots interpolate; captures roll back. Don't conflate the two.
-- Keep the input packet ≤ 5 bytes; add a new packet type rather than widening
+- Keep the input packet ≤ 6 bytes; add a new packet type rather than widening
   the 60 Hz path.

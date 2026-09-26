@@ -180,10 +180,23 @@ Renderer.prototype.speedBurst = function (ang) {
   if (this.speedLines.length > 90) this.speedLines.splice(0, this.speedLines.length - 90);
 };
 
-/* Turn a sim event into spectacle. This is the whole game-feel mapping. */
+/* Turn a sim event into spectacle. This is the whole game-feel mapping.
+ * `t` aliases the sim's canonical names onto the table below: the sim emits
+ * ultSurv/ultSlayer/gatesPowered/gateDone/anchorSmash, and every one of them
+ * deserves its moment. */
 Renderer.prototype.onEvent = function (e, local) {
   var isLocal = e.by === local || e.to === local;
-  switch (e.t) {
+  var t = e.t;
+  if (t === 'ultSurv') { e.role = 'survivor'; t = 'ult'; }
+  else if (t === 'ultSlayer') { e.role = 'slayer'; t = 'ult'; }
+  else if (t === 'gatesPowered') { t = 'powered'; if (e.x === undefined) { e.x = 1200; e.y = 1200; } }
+  else if (t === 'gateDone') { t = 'gateOpen'; }
+  else if (t === 'anchorSmash') { t = 'anchorHit'; }
+  else if (t === 'matchEnd' && e.reason === 'regicide') {
+    t = 'core';
+    if (e.x === undefined) { e.x = 1200; e.y = 1200; }
+  }
+  switch (t) {
     case 'swing':
       this.slash(e.x, e.y, e.ang, e.heavy ? 84 : 58, e.heavy ? 2.0 : 1.7,
         e.heavy ? PAL.blood : PAL.neonCyan, e.heavy);
@@ -363,6 +376,32 @@ Renderer.prototype.onEvent = function (e, local) {
       break;
     case 'matchStart':
       this.doFlash([120, 200, 255], 0.35);
+      break;
+    case 'hookStage':
+      this.ring(e.x, e.y, 8, 130, PAL.hook, 0.5, 7);
+      this.text(e.x, e.y - 46, 'STAGE ' + (e.stage || 2), PAL.blood, 24);
+      this.shake(5);
+      if (isLocal) this.doFlash([255, 60, 60], 0.22);
+      break;
+    case 'good':
+      this.text(e.x, e.y - 40, 'GOOD', [190, 230, 255], 18);
+      break;
+    case 'pickup':
+      this.text(e.x, e.y - 34, 'PICKED UP', PAL.blood, 18);
+      break;
+    case 'dropVictim':
+      this.text(e.x, e.y - 34, 'DROPPED', PAL.neonGold, 18);
+      this.burst(e.x, e.y, 10, PAL.neonGold, { speed: 160, size: 3, life: 0.35 });
+      break;
+    case 'toolUsed':
+      this.ring(e.x, e.y, 6, 110, PAL.neonCyan, 0.4, 6);
+      this.text(e.x, e.y - 40, 'NANITE SURGE', PAL.neonCyan, 18);
+      break;
+    case 'decoySpawned':
+      this.ring(e.x, e.y, 6, 150, PAL.neonViolet, 0.5, 6);
+      this.text(e.x, e.y - 36, 'DECOY', PAL.neonViolet, 18);
+      break;
+    case 'matchEnd':
       break;
     default: break;
   }
@@ -827,6 +866,21 @@ Renderer.prototype.drawHooks = function (world, vb) {
       ctx.strokeStyle = C.rgba(PAL.blood, 0.5 + pulse * 0.4);
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(h.x, h.y - 12, 22 + pulse * 5, 0, TAU); ctx.stroke();
+      /* Hook stage pips — how deep the rift has them. Readable at a glance:
+       * filled pips = stages consumed, so the team knows how urgent the save is. */
+      var vict = world.byId ? world.byId.get(h.occupant) : null;
+      if (!vict) {
+        for (var vi = 0; vi < world.players.length; vi++) {
+          if (world.players[vi].id === h.occupant) { vict = world.players[vi]; break; }
+        }
+      }
+      var stages = vict ? Math.max(1, vict.hooks || 1) : 1;
+      for (var sp = 0; sp < 3; sp++) {
+        ctx.beginPath();
+        ctx.arc(h.x - 12 + sp * 12, h.y - 52, 3.5, 0, TAU);
+        if (sp < stages) { ctx.fillStyle = C.css(PAL.blood); ctx.fill(); }
+        else { ctx.strokeStyle = C.rgba(PAL.blood, 0.5); ctx.lineWidth = 1.5; ctx.stroke(); }
+      }
     }
   }
 };
