@@ -80,6 +80,28 @@
   }
   function norm(s) { return String(s == null ? '' : s).toLowerCase(); }
 
+  /* Spotlight-style hits: wrap each query word in the already-escaped title.
+     Words shorter than 2 letters are noise and skipped. Escape first so a
+     search for `<` cannot inject markup. */
+  function highlight(text, words) {
+    var out = esc(text);
+    if (!words || !words.length) return out;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (!w || w.length < 2) continue;
+      var needle = esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!needle) continue;
+      try {
+        out = out.replace(new RegExp('(' + needle + ')', 'gi'), '<mark class="xp-hit">$1</mark>');
+      } catch (e) {}
+    }
+    return out;
+  }
+  function queryWords() {
+    var q = norm(state.q).trim();
+    return q ? q.split(/\s+/).filter(function (w) { return w.length > 1; }) : [];
+  }
+
   /* Nearly every tool title starts with a decorative emoji ("⚖️ Axle Weight…",
      "🎂 Exact Age…"). Sorting the raw string puts every emoji before every
      letter, so an A–Z list opened with a block of symbols and looked random.
@@ -309,7 +331,7 @@
       localStorage.setItem('__mp_searches_last', JSON.stringify({ q: q.slice(0, 60), n: count, at: new Date().toISOString().slice(0, 10) }));
     } catch (e) { /* private mode */ }
   }
-  function logToolView(slug, category) {
+  function logToolView(slug, category, title) {
     try {
       var map = JSON.parse(localStorage.getItem('__mp_tool_views') || '{}');
       map[slug] = (map[slug] || 0) + 1;
@@ -319,6 +341,12 @@
         delete map[keys[0]];
       }
       localStorage.setItem('__mp_tool_views', JSON.stringify(map));
+      var rec = [];
+      try { rec = JSON.parse(localStorage.getItem('__mp_recent') || '[]'); } catch (e2) { rec = []; }
+      if (!Array.isArray(rec)) rec = [];
+      rec = rec.filter(function (x) { return x && x.slug !== slug; });
+      rec.unshift({ slug: slug, title: String(title || slug).slice(0, 80) });
+      localStorage.setItem('__mp_recent', JSON.stringify(rec.slice(0, 8)));
       if (typeof window.gtag === 'function') window.gtag('event', 'tool_open', { slug: slug, category: category || '' });
     } catch (e) {}
   }
@@ -488,10 +516,11 @@
   /* ---------------------------------------------------------------- rows */
   function rowHTML(row, i) {
     var inBox = window.mpToolbox ? window.mpToolbox.has(row.slug) : false;
+    var words = queryWords();
     var tags = row.tags.slice(0, 4).map(function (t) { return '<span class="xp-tag">#' + esc(t) + '</span>'; }).join(' ');
     return '<li class="xp-row" data-slug="' + esc(row.slug) + '" data-index="' + i + '" data-cat="' + esc(row.catName) + '">' +
       '<a class="xp-open" href="' + esc(row.url) + '" data-xp-open title="' + esc(row.title) + '">' +
-      '<span class="xp-title">' + esc(row.title) + '</span>' +
+      '<span class="xp-title">' + highlight(row.title, words) + '</span>' +
       '<span class="xp-cat">' + esc(row.catName) + '</span>' +
       '</a>' +
       '<div class="xp-actions">' +
@@ -520,8 +549,11 @@
       var html = '';
       for (var i = 0; i < shown; i++) html += rowHTML(list[i], i);
       els.list.innerHTML = html || '<li class="xp-row"><div class="xp-empty">' +
-        '<strong>Nothing matches that.</strong><br>Try a shorter word — “calculator”, “converter”, “planner” — or ' +
-        '<a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the plain directory</a>.' +
+        '<strong>Nothing matches that.</strong><br>Try ' +
+        '<button type="button" class="xp-btn" data-xp-suggest="calculator">calculator</button> ' +
+        '<button type="button" class="xp-btn" data-xp-suggest="converter">converter</button> ' +
+        '<button type="button" class="xp-btn" data-xp-suggest="timer">timer</button> ' +
+        'or <a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the directory</a>.' +
         '</div></li>';
       state.current = -1;
     }
@@ -879,6 +911,8 @@
     els.wrap.addEventListener('click', function (e) {
       var chip = e.target.closest('[data-xp-cat]');
       if (chip) setCategory(chip.getAttribute('data-xp-cat'));
+      var sug = e.target.closest('[data-xp-suggest]');
+      if (sug) { setQuery(sug.getAttribute('data-xp-suggest'), { scroll: true }); focusInput(); }
     });
 
     // Rows
@@ -888,7 +922,10 @@
       if (e.target.closest('[data-toolbox-add]')) return;   // toolbox.js owns that
       if (e.target.closest('[data-xp-details]')) { toggleDetails(row); return; }
       var a = e.target.closest('[data-xp-open]');
-      if (a) logToolView(row.getAttribute('data-slug'), row.getAttribute('data-cat'));
+      if (a) {
+        var titleEl = row.querySelector('.xp-title');
+        logToolView(row.getAttribute('data-slug'), row.getAttribute('data-cat'), titleEl ? titleEl.textContent : '');
+      }
     });
 
     if (els.more) els.more.addEventListener('click', function () {

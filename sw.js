@@ -102,7 +102,7 @@
 // `online`; toolbox.js re-reads storage before every change so another tab's
 // additions are never overwritten; home-core.js isolates each feature so one
 // failure cannot leave the page inert. All three are precached by version.
-const CACHE_VERSION = 'v27-2026-09-26';
+const CACHE_VERSION = 'v28-2026-09-26';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

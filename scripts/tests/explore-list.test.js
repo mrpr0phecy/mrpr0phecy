@@ -53,10 +53,10 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 vm.createContext(sandbox);
-const code = [extract('esc'), extract('norm'), extract('sortTitle'), extract('byTitle'),
+const code = [extract('esc'), extract('norm'), extract('highlight'), extract('sortTitle'), extract('byTitle'),
   extract('matches'), extract('sorted'), extract('visible')].join('\n');
-vm.runInContext(code + '\nthis.api = { esc, norm, matches, sorted, visible };', sandbox, { filename: 'explore-filters.js' });
-const { esc, norm, matches, sorted, visible } = sandbox.api;
+vm.runInContext(code + '\nthis.api = { esc, norm, highlight, matches, sorted, visible };', sandbox, { filename: 'explore-filters.js' });
+const { esc, norm, highlight, matches, sorted, visible } = sandbox.api;
 
 /* ---------------------------------------------------------------- fixtures -- */
 const rows = [
@@ -130,6 +130,10 @@ state.rows = rows;
   assert.strictEqual(esc('<img src=x onerror="alert(1)">'),
     '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;', 'row text is escaped');
   assert.strictEqual(norm(null), '', 'a null description does not throw');
+  assert.ok(highlight('BMI Calculator', ['bmi']).includes('class="xp-hit"'),
+    'a matching word is marked in the title');
+  assert.ok(!highlight('<img>', ['img']).includes('<img'),
+    'highlight still escapes markup');
 }
 
 /* ---------------------------------------------------- 4. PINNED: contracts */
@@ -184,6 +188,8 @@ state.rows = rows;
     'the filter field is a search box on a phone, not a sentence');
   assert(SOURCE.includes("addEventListener('search'"),
     'Safari keyboard Search must flush the pending filter');
+  assert(SOURCE.includes('data-xp-suggest'),
+    'a zero-result search offers one-tap suggestions');
 }
 
 console.log('explore-list: filtering, sorting, escaping and the list contracts all hold');
