@@ -789,11 +789,10 @@
     });
     var clear = document.getElementById('mainSearchClear');
     if (clear) clear.style.display = value ? 'block' : 'none';
-    // While a filter is on, the browse chrome steps aside: one results surface,
-    // one number, no "7 tools" above "Found 4 tools".
-    document.querySelectorAll('[data-xp-browse]').forEach(function (section) {
-      section.style.display = value ? 'none' : '';
-    });
+    // The featured list, trending list and category grid stay on the page
+    // while you filter. Hiding them made search feel like the whole site had
+    // collapsed to one box — the shelves are how people discover the other
+    // 1,285 tools they did not type.
   }
 
   function focusInput() {

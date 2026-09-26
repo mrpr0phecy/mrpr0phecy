@@ -154,8 +154,12 @@ state.rows = rows;
     assert(SOURCE.includes(`e.key === ${key}`), `the keyboard map must keep ${key} (${why})`);
   }
 
-  // One results surface: while a filter is on, the browse sections step aside.
-  assert(/data-xp-browse/.test(SOURCE), 'the browse sections must be hidden during a search');
+  // The home shelves (featured, trending, categories) stay on the page during
+  // a search — they are how a visitor discovers tools they did not type.
+  assert(!/section\.style\.display = value \? 'none'/.test(SOURCE),
+    'a search must not hide the featured / category lists');
+  assert(/featured list, trending list and category grid stay/.test(SOURCE),
+    'the list engine documents that the browse shelves stay put');
   assert(/function logSearch/.test(SOURCE) && /__mp_zero_searches/.test(SOURCE),
     'a search that returns nothing is still logged — it is the best "what to build next" signal there is');
 
