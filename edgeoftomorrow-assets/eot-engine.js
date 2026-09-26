@@ -40,6 +40,8 @@ function InputState() {
   this.moveX = 0; this.moveY = 0;
   this.touchMove = null;
   this.touchAim = null;
+  this.gamepadMove = null;
+  this.gamepadAim = null;
   this.pressed = Object.create(null);   /* edge-triggered, cleared each tick */
   this.pointerDown = false;
   this.enabled = false;
@@ -52,31 +54,77 @@ InputState.prototype.hit = function (k) {
 InputState.prototype.markPress = function (k) { this.keys[k] = true; this.pressed[k] = true; };
 InputState.prototype.release = function (k) { this.keys[k] = false; };
 
+/* Poll standard Gamepad API */
+InputState.prototype.pollGamepad = function () {
+  if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
+  var gps = navigator.getGamepads();
+  if (!gps) return;
+  var gp = null;
+  for (var i = 0; i < gps.length; i++) {
+    if (gps[i] && gps[i].connected) { gp = gps[i]; break; }
+  }
+  if (!gp) { this.gamepadMove = null; this.gamepadAim = null; return; }
+
+  /* Left Stick (Move) */
+  var lx = gp.axes[0] || 0, ly = gp.axes[1] || 0;
+  var lm = Math.sqrt(lx * lx + ly * ly);
+  if (lm > 0.18) { this.gamepadMove = { x: lx, y: ly }; }
+  else { this.gamepadMove = null; }
+
+  /* Right Stick (Aim) */
+  var rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
+  var rm = Math.sqrt(rx * rx + ry * ry);
+  if (rm > 0.25) { this.gamepadAim = Math.atan2(ry, rx); }
+
+  /* Buttons mapping (standard controller) */
+  /* B0 = A / Cross (Interact/Use), B1 = B / Circle (Dash), B2 = X / Square (Attack), B3 = Y / Triangle (Ult) */
+  /* B4 = LB (Dash), B5 = RB (Ult), B6 = LT (Interact), B7 = RT (Attack) */
+  /* B10 = L3 (Sprint), B12 = Dpad Up (Ping) */
+  var b = gp.buttons;
+  if (b) {
+    if (b[7] && b[7].pressed || b[2] && b[2].pressed) this.keys['mouse0'] = true;
+    else if (!this.pointerDown) this.keys['mouse0'] = false;
+
+    if (b[6] && b[6].pressed || b[0] && b[0].pressed) this.keys['f'] = true;
+    else this.keys['f'] = false;
+
+    if (b[4] && b[4].pressed || b[1] && b[1].pressed) this.markPress(' ');
+    if (b[5] && b[5].pressed || b[3] && b[3].pressed) this.markPress('q');
+    if (b[10] && b[10].pressed) this.keys['shift'] = true;
+    if (b[12] && b[12].pressed) this.markPress('t');
+  }
+};
+
 /* Build the compact input struct the sim/netcode consume. */
 InputState.prototype.toInput = function () {
+  this.pollGamepad();
   var i = S.makeInput();
-  /* WASD/arrows -> unit-ish move vector. Keys arrive lowercased by the
-   * handler, except named keys like ArrowUp which keep their case. */
+  /* WASD/arrows -> unit-ish move vector */
   var mx = this.moveX, my = this.moveY;
   if (this.down('w') || this.down('ArrowUp')) my -= 1;
   if (this.down('s') || this.down('ArrowDown')) my += 1;
   if (this.down('a') || this.down('ArrowLeft')) mx -= 1;
   if (this.down('d') || this.down('ArrowRight')) mx += 1;
-  /* touch overrides the stick when a finger is down */
+  /* touch overrides stick */
   if (this.touchMove) { mx = this.touchMove.x; my = this.touchMove.y; }
+  else if (this.gamepadMove) { mx = this.gamepadMove.x; my = this.gamepadMove.y; }
+
   var ml = Math.sqrt(mx * mx + my * my);
   if (ml > 1) { mx /= ml; my /= ml; }
   if (ml < 0.12) { mx = 0; my = 0; }
   i.x = mx; i.y = my;
-  i.aim = this.touchAim ? this.touchAim : this.aim;
+  i.aim = (typeof this.gamepadAim === 'number') ? this.gamepadAim : (this.touchAim ? this.touchAim : this.aim);
   i.sprint = this.down('shift') || this.down('Shift');
-  i.crouch = this.down('control') || this.down('Control');
-  i.attack = this.down('mouse0') || this.down('j');
-  i.dash = this.hit(' ') || this.hit('space');
-  i.ult = this.hit('q') || this.hit('e');
-  i.interact = this.down('mouse2') || this.down('f');
-  i.cancel = this.hit('g');
+  i.crouch = this.down('c') || this.down('control') || this.down('Control');
+  i.attack = this.down('mouse0') || this.down('j') || this.down('z');
+  i.dash = this.hit(' ') || this.hit('space') || this.down('mouse2') || this.down('k') || this.down('x');
+  i.ult = this.hit('r') || this.hit('q');
+  i.rewind = this.hit('q') || this.hit('r');
+  i.interact = this.down('e') || this.down('f') || this.down(' ');
+  i.item = this.hit('f') || this.hit('g');
+  i.cancel = this.hit('g') || this.hit('f');
   i.emote = this.hit('t');
+  i.overclock = this.down('shift') || this.down('Shift');
   return i;
 };
 
@@ -89,10 +137,11 @@ function Game(opts) {
   this.input = new InputState();
   this.session = null;
   this.world = null;
-  this.state = 'menu';      /* menu | lobby | playing | results */
-  this.mode = 'solo';       /* solo | host | client */
+  this.state = 'menu';      /* menu | lobby | playing | results | practice */
+  this.mode = 'solo';       /* solo | host | client | practice */
   this.localId = 1;
   this.localRole = S.ROLES.SURV;
+  this.localClass = opts.classId || 'duelist';
   this.roomCode = opts.roomCode || '';
   this.playerName = opts.playerName || 'You';
 
@@ -119,22 +168,27 @@ Game.prototype.startSolo = function (opts) {
   opts = opts || {};
   this.mode = 'solo';
   this.localRole = opts.role || S.ROLES.SURV;
+  this.localClass = opts.classId || (this.localRole === S.ROLES.SLAYER ? S.SLAYER_ARCHETYPES.SOVEREIGN : S.SURV_CLASSES.DUELIST);
   var seed = opts.seed || ('eot-' + Date.now());
   this.world = S.makeWorld({ seed: seed });
   S.buildArena(this.world);
 
-  S.addPlayer(this.world, { id: 1, name: this.playerName, role: this.localRole, bot: false });
+  S.addPlayer(this.world, { id: 1, name: this.playerName, role: this.localRole, classId: this.localClass, bot: false });
   this.localId = 1;
-  /* fill the remaining survivor slots with bots so solo is a full match */
+  /* fill remaining survivor slots with bots */
   var survCount = this.localRole === S.ROLES.SLAYER ? 0 : 1;
   var id = 2;
+  var survClasses = [S.SURV_CLASSES.MEDIC, S.SURV_CLASSES.ENGINEER, S.SURV_CLASSES.SCOUT, S.SURV_CLASSES.DUELIST];
   while (survCount < 4) {
-    S.addPlayer(this.world, { id: id, name: AI.nameFor(S.ROLES.SURV, id), role: S.ROLES.SURV, bot: true });
+    S.addPlayer(this.world, {
+      id: id, name: AI.nameFor(S.ROLES.SURV, id),
+      role: S.ROLES.SURV, classId: survClasses[id % survClasses.length], bot: true
+    });
     id++; survCount++;
   }
-  /* the slayer: a bot, unless the player chose to be it */
+  /* the slayer: a bot, unless player chose slayer */
   if (this.localRole !== S.ROLES.SLAYER) {
-    S.addPlayer(this.world, { id: 9, name: AI.nameFor(S.ROLES.SLAYER, 0), role: S.ROLES.SLAYER, bot: true });
+    S.addPlayer(this.world, { id: 9, name: AI.nameFor(S.ROLES.SLAYER, 0), role: S.ROLES.SLAYER, classId: S.SLAYER_ARCHETYPES.SOVEREIGN, bot: true });
   }
   S.beginMatch(this.world);
 
@@ -151,18 +205,50 @@ Game.prototype.startSolo = function (opts) {
   return this;
 };
 
-/* Host a room other tabs can join over BroadcastChannel. */
+Game.prototype.startPractice = function (opts) {
+  opts = opts || {};
+  this.mode = 'practice';
+  this.localRole = opts.role || S.ROLES.SURV;
+  this.localClass = opts.classId || (this.localRole === S.ROLES.SLAYER ? S.SLAYER_ARCHETYPES.SOVEREIGN : S.SURV_CLASSES.DUELIST);
+  this.world = S.makeWorld({ seed: 'practice-mode' });
+  S.buildArena(this.world);
+
+  S.addPlayer(this.world, { id: 1, name: this.playerName, role: this.localRole, classId: this.localClass, bot: false });
+  this.localId = 1;
+  /* Add 1 sparring dummy */
+  if (this.localRole === S.ROLES.SLAYER) {
+    S.addPlayer(this.world, { id: 2, name: 'DUMMY', role: S.ROLES.SURV, classId: S.SURV_CLASSES.DUELIST, bot: true });
+  } else {
+    S.addPlayer(this.world, { id: 9, name: 'SPARRING SLAYER', role: S.ROLES.SLAYER, classId: S.SLAYER_ARCHETYPES.SOVEREIGN, bot: true });
+  }
+  S.beginMatch(this.world);
+
+  this.session = new N.Session({
+    role: 'host', localId: this.localId, world: this.world,
+    transport: new N.LoopbackTransport()
+  });
+  this.renderer.cam.x = this.world.players[0].x;
+  this.renderer.cam.y = this.world.players[0].y;
+  this.renderer.cam.tx = this.renderer.cam.x;
+  this.renderer.cam.ty = this.renderer.cam.y;
+  this.setState('playing');
+  this.banner('PRACTICE ARENA — NO STAKES');
+  return this;
+};
+
+/* Host a room other tabs can join over BroadcastChannel */
 Game.prototype.startHost = function (opts) {
   opts = opts || {};
   this.mode = 'host';
   this.localRole = opts.role || S.ROLES.SURV;
+  this.localClass = opts.classId || (this.localRole === S.ROLES.SLAYER ? S.SLAYER_ARCHETYPES.SOVEREIGN : S.SURV_CLASSES.DUELIST);
   this.roomCode = opts.room || N.makeRoomCode();
   var transport = new N.BroadcastChannelTransport(this.roomCode);
   if (!transport.available) return this.startSolo(opts);
 
   this.world = S.makeWorld({ seed: 'eot-room-' + this.roomCode });
   S.buildArena(this.world);
-  S.addPlayer(this.world, { id: 1, name: this.playerName, role: this.localRole, bot: false });
+  S.addPlayer(this.world, { id: 1, name: this.playerName, role: this.localRole, classId: this.localClass, bot: false });
   this.localId = 1;
 
   var self = this;
@@ -170,8 +256,6 @@ Game.prototype.startHost = function (opts) {
     role: 'host', localId: 1, world: this.world, transport: transport,
     onPeerChange: function (roster) { self.updateRoster(roster); }
   });
-  /* bots fill whatever humans have not claimed, so a 1-person room is still
-   * a full 4v1 — the match does not wait for a queue */
   this.backfillBots();
   this.setState('lobby');
   this.banner('ROOM ' + this.roomCode);
@@ -182,6 +266,7 @@ Game.prototype.startClient = function (opts) {
   opts = opts || {};
   this.mode = 'client';
   this.roomCode = opts.room || '';
+  this.localClass = opts.classId || S.SURV_CLASSES.DUELIST;
   var transport = new N.BroadcastChannelTransport(this.roomCode);
   if (!transport.available) return this.startSolo(opts);
 
@@ -200,33 +285,38 @@ Game.prototype.startClient = function (opts) {
       }
     }
   });
-  transport.send({ t: N.MSG.HELLO, name: this.playerName, wantRole: opts.role || S.ROLES.SURV });
+  this.session.join(this.playerName, opts.role || S.ROLES.SURV);
   this.setState('lobby');
   return this;
 };
 
 Game.prototype.backfillBots = function () {
   var w = this.world;
-  if (!w) return;
-  var surv = 0, hasSlayer = false, nextId = 10;
+  var survs = 0, hasSlayer = false;
   for (var i = 0; i < w.players.length; i++) {
-    if (w.players[i].role === S.ROLES.SURV) surv++;
-    if (w.players[i].role === S.ROLES.SLAYER) hasSlayer = true;
-    if (w.players[i].id >= nextId) nextId = w.players[i].id + 1;
+    if (w.players[i].role === S.ROLES.SLAYER) hasSlayer = true; else survs++;
   }
-  while (surv < 4) { S.addPlayer(w, { id: nextId++, name: AI.nameFor(S.ROLES.SURV, nextId), role: S.ROLES.SURV, bot: true }); surv++; }
-  if (!hasSlayer) S.addPlayer(w, { id: nextId++, name: AI.nameFor(S.ROLES.SLAYER, 0), role: S.ROLES.SLAYER, bot: true });
+  var id = 2;
+  while (survs < 4) {
+    if (!S.getPlayer(w, id)) {
+      S.addPlayer(w, { id: id, name: AI.nameFor(S.ROLES.SURV, id), role: S.ROLES.SURV, bot: true });
+      survs++;
+    }
+    id++;
+  }
+  if (!hasSlayer) {
+    S.addPlayer(w, { id: 9, name: AI.nameFor(S.ROLES.SLAYER, 0), role: S.ROLES.SLAYER, bot: true });
+  }
 };
 
-/* Lobby countdown -> match start. Hosts drive it; clients follow the phase
- * that arrives in the snapshot. */
 Game.prototype.beginMatch = function () {
-  if (!this.world) return;
-  this.backfillBots();
-  S.beginMatch(this.world);
-  if (this.session) this.session.broadcastLobby();
+  if (this.session && this.session.role === 'host') {
+    this.backfillBots();
+    S.beginMatch(this.world);
+    this.session.broadcastLobby('play');
+  }
   this.setState('playing');
-  this.banner('SURVIVE THE NIGHT');
+  this.banner('SEAL THE RIFTS');
 };
 
 Game.prototype.setState = function (s) {
@@ -248,7 +338,6 @@ Game.prototype._bindInput = function () {
     var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (e.type === 'keydown') {
       if (!e.repeat) inp.markPress(k); else inp.keys[k] = true;
-      /* space/arrows scroll the page otherwise */
       if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.key) >= 0) e.preventDefault();
     } else {
       inp.release(k);
@@ -279,7 +368,7 @@ Game.prototype._bindInput = function () {
   root.addEventListener('mouseup', this._onUp);
   this.canvas.addEventListener('contextmenu', this._onCtx);
 
-  /* touch: left half moves, right half aims/fires */
+  /* touch controls */
   this._touches = new Map();
   this._onTouch = function (e) {
     A.resume();
@@ -347,55 +436,62 @@ Game.prototype.localPlayer = function () {
 Game.prototype.start = function () {
   if (this.running) return;
   this.running = true;
-  this.last = (root.performance && root.performance.now) ? root.performance.now() : Date.now();
+  this.last = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
   var self = this;
-  var frame = function (t) {
+  var frame = function (nowMs) {
     if (!self.running) return;
-    self.raf = root.requestAnimationFrame(frame);
-    self.frame(t);
+    var nowSec = (nowMs || (typeof performance !== 'undefined' ? performance.now() : Date.now())) / 1000;
+    var dt = clamp(nowSec - self.last, 0, 0.25);
+    self.last = nowSec;
+    self.loop(dt);
+    self.raf = requestAnimationFrame(frame);
   };
-  this.raf = root.requestAnimationFrame(frame);
+  this.raf = requestAnimationFrame(frame);
 };
 
 Game.prototype.stop = function () {
   this.running = false;
-  if (this.raf) root.cancelAnimationFrame(this.raf);
-  this.raf = 0;
+  if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
 };
 
-Game.prototype.frame = function (t) {
-  var nowT = t || ((root.performance && root.performance.now) ? root.performance.now() : Date.now());
-  var raw = (nowT - this.last) / 1000;
-  this.last = nowT;
-  /* clamp the frame delta: a backgrounded tab must not try to catch up */
-  var dt = clamp(raw, 0, 0.25);
-
-  this.frames++; this.fpsT += raw;
-  if (this.fpsT >= 0.5) { this.fps = Math.round(this.frames / this.fpsT); this.frames = 0; this.fpsT = 0; }
-
-  /* ---- simulate on a fixed tick ---- */
-  if (this.world && (this.state === 'playing' || this.state === 'lobby')) {
-    /* hitstop suspends the sim, not the renderer */
-    if (this.hitstop > 0) {
-      this.hitstop = Math.max(0, this.hitstop - dt);
-    } else {
-      var scale = this.slowmo > 0 ? 0.35 : 1;
-      if (this.slowmo > 0) this.slowmo = Math.max(0, this.slowmo - dt);
-      this.acc += dt * scale;
-      var steps = 0;
-      while (this.acc >= DT && steps < MAX_STEPS) {
-        this.tick();
-        this.acc -= DT;
-        steps++;
-      }
-      if (this.acc > DT * MAX_STEPS) this.acc = 0;   /* give up rather than spiral */
-    }
+Game.prototype.loop = function (frameDt) {
+  this.fpsT += frameDt; this.frames++;
+  if (this.fpsT >= 0.5) {
+    this.fps = Math.round(this.frames / this.fpsT);
+    this.frames = 0; this.fpsT = 0;
   }
 
-  /* ---- render ---- */
+  /* hitstop freezes the sim tick */
+  if (this.hitstop > 0) {
+    this.hitstop = Math.max(0, this.hitstop - frameDt);
+    this.renderer.update(frameDt, this.localPlayer());
+    this.renderer.render(this.world, {
+      localId: this.localId, localRole: this.localRole, terror: this.terror
+    });
+    this.updateHud(frameDt);
+    return;
+  }
+
+  var effectiveDt = frameDt * (this.slowmo > 0 ? 0.35 : 1);
+  if (this.slowmo > 0) this.slowmo = Math.max(0, this.slowmo - frameDt);
+
+  this.acc += effectiveDt;
+  var steps = 0;
+  while (this.acc >= DT && steps < MAX_STEPS) {
+    if (this.state === 'playing') this.tick();
+    this.acc -= DT;
+    steps++;
+  }
+  if (this.acc >= DT) this.acc = 0;
+
+  this.update(frameDt);
+};
+
+/* Visual frame update */
+Game.prototype.update = function (dt) {
   var me = this.localPlayer();
   var drawMe = me;
-  if (this.mode === 'client' && me && this.session) {
+  if (this.mode === 'client' && this.session) {
     var dp = this.session.localDrawPos();
     if (dp) { drawMe = { x: dp.x, y: dp.y, aim: me.aim }; }
   }
@@ -408,7 +504,7 @@ Game.prototype.frame = function (t) {
   this.updateHud(dt);
 };
 
-/* One simulation tick. This is the only place the world advances. */
+/* One simulation tick */
 Game.prototype.tick = function () {
   var w = this.world;
   var sess = this.session;
@@ -417,7 +513,6 @@ Game.prototype.tick = function () {
 
   var inputs;
   if (this.mode === 'client' && sess) {
-    /* client: send intent, predict locally, never simulate the world */
     var inp = this.input.toInput();
     sess.clientPushInput(inp);
     sess.clientPredict(inp, this.localRole);
@@ -425,7 +520,6 @@ Game.prototype.tick = function () {
     return;
   }
 
-  /* host / solo: bots think, then the world steps */
   inputs = AI.think(w);
   var local = S.getPlayer(w, this.localId);
   if (local && !local.bot && S.alive(local)) {
@@ -434,7 +528,6 @@ Game.prototype.tick = function () {
     inputs[this.localId].aim = this.input.aim;
   }
 
-  /* relay any remote inputs the transport delivered this tick */
   if (sess && this.mode === 'host' && this._remoteQueue && this._remoteQueue.length) {
     for (var i = 0; i < this._remoteQueue.length; i++) {
       var ri = this._remoteQueue[i];
@@ -447,25 +540,24 @@ Game.prototype.tick = function () {
   if (sess) sess.hostTick(inputs);
   this.consumeEvents(events);
 
-  /* client-mode snapshot application is handled by the session; here we keep
-   * the render world's tick aligned for interpolation */
   this._updateTerror();
 
   if (w.phase === S.PHASE.OVER && this.state === 'playing') this.finish();
 };
 
-/* Sim events -> sound + spectacle + hitstop. */
 Game.prototype.consumeEvents = function (events) {
   if (!events || !events.length) return;
   for (var i = 0; i < events.length; i++) {
     var e = events[i];
     this.renderer.onEvent(e, this.localId);
     if (A.started) A.playEvent(e);
-    /* hitstop: heavier for the slayer's hits and for anything that downs */
     if (e.t === 'hit') {
       var near = (e.to === this.localId || e.by === this.localId);
       this.hitstop = Math.max(this.hitstop, e.amount >= 40 ? (near ? 0.075 : 0.05) : 0.03);
       if (near) this.slowmo = Math.max(this.slowmo, e.amount >= 60 ? 0.16 : 0);
+    } else if (e.t === 'parry') {
+      this.hitstop = Math.max(this.hitstop, 0.1);
+      this.slowmo = Math.max(this.slowmo, 0.2);
     } else if (e.t === 'ult') {
       this.hitstop = Math.max(this.hitstop, 0.11);
     } else if (e.t === 'down' || e.t === 'eliminate' || e.t === 'core') {
@@ -482,7 +574,6 @@ Game.prototype._updateTerror = function () {
   var target = 1 - clamp(d / S.K.TERROR_R, 0, 1);
   this.terror += (target - this.terror) * 0.08;
 
-  /* the heartbeat is the proximity alarm: its rate carries the information */
   if (A.started && this.terror > 0.05 && !me.bot) {
     this.heartbeatT -= S.K.FIXED;
     if (this.heartbeatT <= 0) {
@@ -527,6 +618,33 @@ Game.prototype.updateHud = function (dt) {
   if (me && h.state) h.state.textContent = me.state === S.STATE.DOWNED ? 'DOWNED' :
     (me.state === S.STATE.HOOKED ? 'HOOKED' : (me.hp <= me.maxHp * 0.5 ? 'INJURED' : 'HEALTHY'));
 
+  /* item box update */
+  if (h.itemBox && me) {
+    if (me.item) {
+      h.itemBox.classList.remove('hide');
+      var itemNames = {
+        flare: '⚡ FLASH FLARE',
+        serum: '💉 ADRENALINE',
+        tool: '🔧 OVERCLOCK TOOL',
+        decoy: '👥 CHRONO DECOY'
+      };
+      if (h.itemName) h.itemName.textContent = itemNames[me.item] || me.item.toUpperCase();
+    } else {
+      if (h.itemName) h.itemName.textContent = 'NO ITEM (OPEN CRATE)';
+    }
+  }
+
+  /* rewind / rage timer indicator */
+  if (h.rewindStat && me) {
+    if (this.localRole === S.ROLES.SLAYER) {
+      h.rewindStat.textContent = me.rageT > 0 ? '🔥 BERSERK (' + Math.ceil(me.rageT) + 's)' : ('RAGE: ' + Math.round(me.rage) + '%');
+      h.rewindStat.style.color = '#ff2f6d';
+    } else {
+      h.rewindStat.textContent = me.rewindCd > 0 ? ('REWIND: ' + Math.ceil(me.rewindCd) + 's') : '🌀 REWIND READY [Q]';
+      h.rewindStat.style.color = me.rewindCd > 0 ? '#8a82b8' : '#78ffb0';
+    }
+  }
+
   /* skill check prompt */
   if (h.skill) {
     var on = !!(me && me.skill);
@@ -566,26 +684,62 @@ Game.prototype.updateHud = function (dt) {
 Game.prototype._promptLabel = function (me) {
   if (!me || !S.alive(me)) return '';
   if (me.skill) return 'CLICK on the gold zone — GREAT bonus';
-  if (me.interactKind === 'repair') return 'Sealing anchor…';
+  if (me.interactKind === 'repair') return me.overclock ? '⚡ OVERCLOCKING ANCHOR (3x SPEED)...' : 'Sealing anchor… [HOLD SHIFT TO OVERCLOCK]';
   if (me.interactKind === 'gate') return 'Opening rift…';
   if (me.interactKind === 'rescue') return 'Reviving…';
   if (me.interactKind === 'unhook') return 'Cutting down…';
   if (me.interactKind === 'heal') return 'Healing…';
   if (me.interactKind === 'escape') return 'ESCAPING';
+  if (me.interactKind === 'chest') return 'Searching supply crate…';
   var w = this.world;
+
+  /* Check pallets */
+  for (var pi = 0; pi < (w.pallets || []).length; pi++) {
+    var plt = w.pallets[pi];
+    if (C.dist(me.x, me.y, plt.x, plt.y) < 55) {
+      if (plt.palletState === 'up' && me.role === S.ROLES.SURV) return '[E] / [F] THROW DOWN PALLET (STUN)';
+      if (plt.palletState === 'down') {
+        if (me.role === S.ROLES.SLAYER) return '[E] / [CLICK] SMASH PALLET';
+        return '[SPACE] VAULT PALLET';
+      }
+    }
+  }
+
+  /* Check supply chests */
+  if (me.role === S.ROLES.SURV && !me.item) {
+    for (var ci = 0; ci < (w.chests || []).length; ci++) {
+      var ch = w.chests[ci];
+      if (!ch.searched && C.dist(me.x, me.y, ch.x, ch.y) < 45) return '[E] / [F] SEARCH SUPPLY CRATE';
+    }
+  }
+
+  /* Check lockers */
+  for (var li = 0; li < (w.lockers || []).length; li++) {
+    var lk = w.lockers[li];
+    if (C.dist(me.x, me.y, lk.x, lk.y) < 45) {
+      if (me.role === S.ROLES.SLAYER) return '[E] / [F] SEARCH PHASE POD';
+      if (lk.occupant < 0) return '[E] / [F] HIDE IN PHASE POD';
+    }
+  }
+
+  if (me.item) {
+    return '[F] USE ' + me.item.toUpperCase() + ' (HELD ITEM)';
+  }
+
   if (this.localRole === S.ROLES.SLAYER) {
     for (var i = 0; i < w.players.length; i++) {
       var q = w.players[i];
-      if (q.role === S.ROLES.SURV && q.state === S.STATE.DOWNED && C.dist(me.x, me.y, q.x, q.y) < 50) return '[F] TAKE THEM';
+      if (q.role === S.ROLES.SURV && q.state === S.STATE.DOWNED && C.dist(me.x, me.y, q.x, q.y) < 50) return '[E] / [F] TAKE THEM';
     }
-    if (me.carrying >= 0) return '[F] HOOK  ·  [G] DROP';
+    if (me.carrying >= 0) return '[E] / [F] HOOK  ·  [G] DROP';
     var an = null, bd = 1e9;
     for (var a = 0; a < w.anchors.length; a++) {
       if (w.anchors[a].done) continue;
       var d = C.dist(me.x, me.y, w.anchors[a].x, w.anchors[a].y);
       if (d < bd) { bd = d; an = w.anchors[a]; }
     }
-    if (an && bd < S.K.ANCHOR_R + S.K.INTERACT_R) return '[F] SMASH ANCHOR';
+    if (an && bd < S.K.ANCHOR_R + S.K.INTERACT_R) return '[E] / [F] SMASH ANCHOR';
+    if (me.classId === S.SLAYER_ARCHETYPES.WEAVER) return '[F] PLACE STASIS TRAP';
     return '';
   }
   var near = null, nbd = 1e9;
@@ -620,8 +774,6 @@ Game.prototype._promptLabel = function (me) {
 };
 
 Game.prototype._drawTeam = function (el, w) {
-  /* Rebuild only when the roster signature changes — the HUD is updated every
-   * frame and building DOM in a render loop is how games lose their framerate */
   var sig = '';
   for (var i = 0; i < w.players.length; i++) {
     var p = w.players[i];
@@ -670,7 +822,7 @@ Game.prototype.finish = function () {
     winner: w.winner, reason: w.winReason || '', localWon: localWon,
     rows: w.players.map(function (p) {
       var g = S.grade(p);
-      return { name: p.name, role: p.role, state: p.state, score: g.total, grade: g.grade, bot: p.bot, id: p.id };
+      return { name: p.name, role: p.role, classId: p.classId, state: p.state, score: g.total, grade: g.grade, bot: p.bot, id: p.id };
     }).sort(function (a, b) { return b.score - a.score; }),
     stats: { escapes: w.stats.escapes, anchors: w.stats.anchorsDone, eliminations: w.stats.eliminations },
     length: Math.round(w.tick / TICK)
