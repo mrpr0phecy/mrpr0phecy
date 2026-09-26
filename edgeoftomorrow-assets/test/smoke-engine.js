@@ -239,6 +239,23 @@ ok('boot: audio still accepts event calls when unavailable',
     game.renderer.parts.length >= 0 && game.renderer.time > 0,
     game.renderer.time.toFixed(1) + 's of fx time');
 
+  /* the hit FX table must read the sim's payload field (`dmg`), or damage
+   * numbers render as NaN and big hits never escalate to impact frames. */
+  {
+    const r = new R.Renderer(makeCanvas(makeCtx()));
+    r.onEvent({ t: 'hit', by: 2, to: 1, dmg: 50, kind: 'slash', x: 100, y: 100 }, 1);
+    ok('fx: big hit spawns a numeric damage text (not NaN)',
+      r.texts.length === 1 && r.texts[0].s === '50', r.texts.map(t => t.s).join(','));
+    ok('fx: big hit escalates to impact treatment',
+      r.chroma > 0 && r.impact > 0 && r.parts.length >= 20,
+      'chroma=' + r.chroma + ' parts=' + r.parts.length);
+    const r2 = new R.Renderer(makeCanvas(makeCtx()));
+    r2.onEvent({ t: 'hit', by: 2, to: 1, dmg: 20, kind: 'slash', x: 100, y: 100 }, 1);
+    ok('fx: small hit stays light and still shows its number',
+      r2.texts.length === 1 && r2.texts[0].s === '20' && r2.chroma === 0 && r2.parts.length < 20,
+      'parts=' + r2.parts.length);
+  }
+
   game.destroy();
   ok('engine: destroy stops the loop', game.running === false);
 }

@@ -342,7 +342,7 @@ function playEvent(e) {
   switch (e.t) {
     case 'swing': swing(e.heavy); break;
     case 'whiff': whiff(); break;
-    case 'hit': hit(e.amount >= 40); break;
+    case 'hit': hit((e.dmg || 0) >= 40); break;
     case 'slash': hit(false); break;
     case 'parry': parry(); break;
     case 'vault': vault(); break;

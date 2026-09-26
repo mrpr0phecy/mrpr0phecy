@@ -63,7 +63,9 @@ Key levers, all in `eot-sim.js` `K`:
 
 ## The anime look (no assets, all geometry)
 
-Canvas 2D, drawn from geometry so the game is a single self-contained page.
+Canvas 2D, drawn from geometry so the game is a single self-contained page —
+the arena is a true perspective-3D scene (camera rig, depth fog, painter's
+sorted extruded volumes) projected and cel-shaded entirely in Canvas 2D.
 The "anime" is a set of specific choices, not a filter:
 
 - flat colour bands on lit surfaces, never gradients
