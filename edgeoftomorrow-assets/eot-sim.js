@@ -1460,7 +1460,7 @@ function damage(world, attacker, target, amount, stunTime, kind) {
     attacker.ult = clamp(attacker.ult + (amount * 0.4), 0, K.ULT_CHARGE_MAX);
   }
 
-  ev(world, { t: 'hit', from: attacker ? attacker.id : -1, to: target.id, dmg: amount, kind: kind, x: target.x, y: target.y });
+  ev(world, { t: 'hit', by: attacker ? attacker.id : -1, to: target.id, dmg: amount, kind: kind, x: target.x, y: target.y });
 
   if (target.hp <= 0) {
     if (target.role === ROLES.SURV) {

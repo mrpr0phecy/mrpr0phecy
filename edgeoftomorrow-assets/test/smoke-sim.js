@@ -144,6 +144,11 @@ console.log('smoke-sim: determinism + full-match run');
   slayer.atkPhase = 'active'; slayer.atkT = 0.01; slayer.atkHitDone = false;
   S.step(w, {});
   ok('rules: slayer hit registers damage', surv.hp < S.K.SURV_HP, 'hp=' + surv.hp);
+  /* the FX layers (render/audio/engine hitstop) key off the hit payload */
+  const hitEv = (w.events || []).find(e => e.t === 'hit');
+  ok('rules: hit payload carries by + dmg for the FX layers',
+    !!hitEv && hitEv.by === slayer.id && typeof hitEv.dmg === 'number' && hitEv.dmg > 0,
+    hitEv ? ('by=' + hitEv.by + ' dmg=' + hitEv.dmg) : 'no hit event');
   surv.x = slayer.x + 20; slayer.atkCd = 0; slayer.atkPhase = 'active'; slayer.atkT = 0.01; slayer.atkHitDone = false; surv.invuln = 0;
   S.step(w, {});
   ok('rules: second hit downs the survivor', surv.state === S.STATE.DOWNED,

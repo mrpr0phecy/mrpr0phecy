@@ -562,8 +562,9 @@ Game.prototype.consumeEvents = function (events) {
     if (A.started) A.playEvent(e);
     if (e.t === 'hit') {
       var near = (e.to === this.localId || e.by === this.localId);
-      this.hitstop = Math.max(this.hitstop, e.amount >= 40 ? (near ? 0.075 : 0.05) : 0.03);
-      if (near) this.slowmo = Math.max(this.slowmo, e.amount >= 60 ? 0.16 : 0);
+      /* hit payloads carry the damage as `dmg` (see sim `damage()`) */
+      this.hitstop = Math.max(this.hitstop, e.dmg >= 40 ? (near ? 0.075 : 0.05) : 0.03);
+      if (near) this.slowmo = Math.max(this.slowmo, e.dmg >= 60 ? 0.16 : 0);
     } else if (e.t === 'parry') {
       this.hitstop = Math.max(this.hitstop, 0.1);
       this.slowmo = Math.max(this.slowmo, 0.2);
