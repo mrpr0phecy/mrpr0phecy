@@ -21,8 +21,8 @@
 
 var ctx = null, master = null, musicGain = null, sfxGain = null;
 var started = false, muted = false;
+var masterVol = 0.85, sfxVol = 0.9, musicVol = 0.5;
 var noiseBuf = null;
-var heartbeatTimer = 0;
 
 function available() { return typeof (root.AudioContext || root.webkitAudioContext) !== 'undefined'; }
 
@@ -30,8 +30,8 @@ function init() {
   if (started || !available()) return false;
   var AC = root.AudioContext || root.webkitAudioContext;
   try { ctx = new AC(); } catch (e) { return false; }
-  master = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
-  sfxGain = ctx.createGain(); sfxGain.gain.value = 0.9; sfxGain.connect(master);
+  master = ctx.createGain(); master.gain.value = muted ? 0 : masterVol; master.connect(ctx.destination);
+  sfxGain = ctx.createGain(); sfxGain.gain.value = sfxVol; sfxGain.connect(master);
   musicGain = ctx.createGain(); musicGain.gain.value = 0.0; musicGain.connect(master);
 
   /* one shared noise buffer — reused by every percussive hit */
@@ -52,7 +52,19 @@ function resume() {
 
 function setMuted(m) {
   muted = !!m;
-  if (master) master.gain.value = muted ? 0 : 0.85;
+  if (master) master.gain.value = muted ? 0 : masterVol;
+}
+
+function setMasterVolume(v) {
+  masterVol = Math.max(0, Math.min(1, v));
+  if (master && !muted) master.gain.value = masterVol;
+}
+function setSfxVolume(v) {
+  sfxVol = Math.max(0, Math.min(1, v));
+  if (sfxGain) sfxGain.gain.value = sfxVol;
+}
+function setMusicVolume(v) {
+  musicVol = Math.max(0, Math.min(1, v));
 }
 
 function now() { return ctx ? ctx.currentTime : 0; }
@@ -114,6 +126,34 @@ function hit(heavy) {
   noise({ fc: heavy ? 1600 : 2400, fc1: 500, dur: 0.07, gain: heavy ? 0.4 : 0.26, q: 0.7, rate: p });
   tone({ type: 'square', f0: (heavy ? 190 : 300) * p, f1: (heavy ? 60 : 110) * p, dur: heavy ? 0.16 : 0.1, gain: heavy ? 0.22 : 0.13 });
   tone({ type: 'sine', f0: (heavy ? 95 : 140) * p, f1: 42, dur: 0.26, gain: heavy ? 0.3 : 0.18 });
+}
+
+/* Anime parry / clash: resonant metallic ring + harmonic sparkle + low punch */
+function parry() {
+  tone({ type: 'triangle', f0: 1840, f1: 1200, dur: 0.45, gain: 0.32 });
+  tone({ type: 'square', f0: 920, f1: 340, dur: 0.28, gain: 0.22, filter: 'bandpass', fc: 1400, q: 3 });
+  noise({ fc: 3800, fc1: 800, dur: 0.18, gain: 0.35, q: 1.8 });
+  tone({ type: 'sine', f0: 160, f1: 50, dur: 0.35, gain: 0.38 });
+}
+
+function vault() {
+  noise({ fc: 600, fc1: 1800, dur: 0.18, gain: 0.16, q: 1.2, rate: rnd(0.95, 1.1) });
+  tone({ type: 'sine', f0: 220, f1: 340, dur: 0.14, gain: 0.08 });
+}
+
+function trapPlace() {
+  tone({ type: 'square', f0: 440, f1: 880, dur: 0.12, gain: 0.14 });
+  tone({ type: 'sine', f0: 110, f1: 55, dur: 0.24, gain: 0.16 });
+}
+
+function trapTrigger() {
+  noise({ fc: 2200, fc1: 300, dur: 0.35, gain: 0.32, q: 2.2 });
+  tone({ type: 'sawtooth', f0: 580, f1: 80, dur: 0.32, gain: 0.24, filter: 'lowpass', fc: 900 });
+}
+
+function ping() {
+  tone({ type: 'sine', f0: 1480, f1: 1480, dur: 0.22, gain: 0.18 });
+  tone({ type: 'sine', f0: 2220, f1: 2220, dur: 0.18, gain: 0.12, delay: 0.04 });
 }
 
 function dash() {
@@ -232,10 +272,68 @@ function setTension(intensity, dt) {
   if (!musicNodes || !started) return;
   var i = Math.max(0, Math.min(1, intensity));
   var targetFc = 300 + i * 1500;
-  var targetVol = 0.1 + i * 0.16;
+  var targetVol = (0.1 + i * 0.2) * musicVol;
   var k = 1 - Math.pow(0.02, dt || 0.05);
   musicNodes.lp.frequency.value += (targetFc - musicNodes.lp.frequency.value) * k;
   musicGain.gain.value += (targetVol - musicGain.gain.value) * k;
+}
+
+function palletDrop() {
+  tone({ type: 'sawtooth', f0: 160, f1: 45, dur: 0.22, gain: 0.22, filter: 'lowpass', fc: 600 });
+  noise({ fc: 800, fc1: 100, dur: 0.18, gain: 0.26, q: 1.2 });
+}
+
+function palletBreak() {
+  noise({ fc: 2200, fc1: 150, dur: 0.35, gain: 0.32, q: 0.9 });
+  tone({ type: 'sawtooth', f0: 140, f1: 30, dur: 0.3, gain: 0.28, filter: 'lowpass', fc: 400 });
+}
+
+function palletStun() {
+  palletDrop();
+  tone({ type: 'sine', f0: 880, f1: 440, dur: 0.45, gain: 0.25, delay: 0.05 });
+  noise({ fc: 3200, fc1: 200, dur: 0.4, gain: 0.28, q: 1.1 });
+}
+
+function chestOpen() {
+  noise({ fc: 3400, fc1: 800, dur: 0.4, gain: 0.18, q: 1.8 });
+  [659, 880, 1046].forEach(function (f, i) {
+    tone({ type: 'triangle', f0: f, dur: 0.22, gain: 0.12, delay: 0.12 + i * 0.06 });
+  });
+}
+
+function flashBang() {
+  tone({ type: 'sine', f0: 3800, f1: 3800, dur: 1.4, gain: 0.35 });
+  noise({ fc: 4800, fc1: 120, dur: 0.6, gain: 0.42, q: 0.8 });
+}
+
+function chronoRewind() {
+  tone({ type: 'sine', f0: 220, f1: 1240, dur: 0.42, gain: 0.28 });
+  noise({ fc: 1800, fc1: 4200, dur: 0.35, gain: 0.24, q: 2.2 });
+  [784, 659, 523, 440].forEach(function (f, i) {
+    tone({ type: 'triangle', f0: f, dur: 0.18, gain: 0.15, delay: i * 0.05 });
+  });
+}
+
+function riposte() {
+  tone({ type: 'square', f0: 1480, f1: 1200, dur: 0.18, gain: 0.28 });
+  noise({ fc: 4400, fc1: 800, dur: 0.24, gain: 0.32, q: 2.5 });
+  tone({ type: 'sine', f0: 120, f1: 60, dur: 0.3, gain: 0.3 });
+}
+
+function awakening() {
+  tone({ type: 'sawtooth', f0: 180, f1: 35, dur: 1.8, gain: 0.38, filter: 'lowpass', fc: 800 });
+  tone({ type: 'sine', f0: 55, f1: 28, dur: 2.2, gain: 0.45 });
+  noise({ fc: 2400, fc1: 100, dur: 1.4, gain: 0.35, q: 1.5 });
+}
+
+function serum() {
+  tone({ type: 'sine', f0: 320, f1: 640, dur: 0.25, gain: 0.18 });
+  tone({ type: 'triangle', f0: 523, f1: 784, dur: 0.3, gain: 0.15, delay: 0.1 });
+}
+
+function overclockShock() {
+  noise({ fc: 3800, fc1: 400, dur: 0.4, gain: 0.3, q: 2.0 });
+  tone({ type: 'sawtooth', f0: 440, f1: 110, dur: 0.35, gain: 0.22 });
 }
 
 /* Map a sim event to a sound. The engine calls this for every event the sim
@@ -245,8 +343,16 @@ function playEvent(e) {
     case 'swing': swing(e.heavy); break;
     case 'whiff': whiff(); break;
     case 'hit': hit(e.amount >= 40); break;
+    case 'slash': hit(false); break;
+    case 'parry': parry(); break;
+    case 'vault': vault(); break;
+    case 'trapPlace': trapPlace(); break;
+    case 'trapTrigger': trapTrigger(); break;
+    case 'ping': ping(); break;
     case 'dash': dash(); break;
     case 'ult': ult(e.role); break;
+    case 'ultSurv': ult('survivor'); break;
+    case 'ultSlayer': ult('slayer'); break;
     case 'nova': nova(); break;
     case 'down': down(); break;
     case 'hook': hook(); break;
@@ -258,18 +364,32 @@ function playEvent(e) {
     case 'fail': fail(); break;
     case 'anchorDone': anchorDone(); break;
     case 'gateOpen': gateOpen(); break;
+    case 'gateDone': gateOpen(); break;
     case 'powered': gateOpen(); break;
+    case 'gatesPowered': gateOpen(); break;
     case 'escape': escape(); break;
     case 'eliminate': eliminate(); break;
     case 'matchStart': matchStart(); break;
     case 'core': nova(); eliminate(); break;
     case 'anchorHit': hit(true); break;
+    case 'palletDrop': palletDrop(); break;
+    case 'palletBreak': palletBreak(); break;
+    case 'palletStun': palletStun(); break;
+    case 'chestOpened': chestOpen(); break;
+    case 'flashBang': flashBang(); break;
+    case 'flashBlind': flashBang(); break;
+    case 'chronoRewind': chronoRewind(); break;
+    case 'riposte': riposte(); break;
+    case 'awakening': awakening(); break;
+    case 'serumUsed': serum(); break;
+    case 'overclockShock': overclockShock(); break;
     default: break;
   }
 }
 
 root.EOTAudio = {
   available: available, init: init, resume: resume, setMuted: setMuted,
+  setMasterVolume: setMasterVolume, setSfxVolume: setSfxVolume, setMusicVolume: setMusicVolume,
   playEvent: playEvent, setTension: setTension,
   heartbeat: heartbeat, heartbeatInterval: heartbeatInterval,
   ui: ui, uiBack: uiBack, matchEnd: matchEnd,

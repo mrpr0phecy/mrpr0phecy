@@ -151,6 +151,95 @@ console.log('smoke-sim: determinism + full-match run');
   ok('rules: downed survivor starts bleeding out', surv.bleed > 0 && surv.bleed <= S.K.BLEEDOUT);
 }
 
+/* ---- 6b. parry / clash mechanics ---- */
+{
+  const w = buildMatch('parry', { human: true });
+  const surv = w.players[0], slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  surv.invuln = 0; surv.iframes = 0;
+  surv.hp = 100; surv.classId = S.SURV_CLASSES.DUELIST;
+  slayer.x = 1000; slayer.y = 1000;
+  surv.x = 1024; surv.y = 1000;
+  surv.aim = Math.PI; surv.facing = Math.PI;
+  surv.atkPhase = 'windup'; surv.atkT = 0.08;
+  slayer.aim = 0; slayer.facing = 0;
+  slayer.atkPhase = 'active'; slayer.atkT = 0.01; slayer.atkHitDone = false;
+  const inp1 = S.makeInput(); inp1.aim = Math.PI;
+  const inp9 = S.makeInput(); inp9.aim = 0;
+  const evs = S.step(w, { [surv.id]: inp1, [slayer.id]: inp9 });
+  ok('parry: clash prevents lethal damage and stuns slayer', surv.hp === 100 && slayer.stun > 0,
+    'survHp=' + surv.hp + ' slayerStun=' + slayer.stun.toFixed(2));
+  ok('parry: emits parry event', evs.some(e => e.t === 'parry'));
+}
+
+/* ---- 6c. stasis traps ---- */
+{
+  const w = buildMatch('trap', { human: true });
+  const surv = w.players[0];
+  surv.hp = 100; surv.invuln = 0; surv.iframes = 0;
+  w.traps.push({ id: 0, x: surv.x + 5, y: surv.y, arm: 1.0, by: 9 });
+  const evs = S.step(w, {});
+  ok('trap: stepping on armed trap damages and slows survivor', surv.slow > 0 && surv.hp < 100,
+    'slow=' + surv.slow + ' hp=' + surv.hp);
+  ok('trap: emits trapTrigger event', evs.some(e => e.t === 'trapTrigger'));
+}
+
+/* ---- 6d. temporal pallets & pallet stun ---- */
+{
+  const w = buildMatch('pallet', { human: true });
+  const surv = w.players[0], slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  surv.invuln = 0; surv.iframes = 0;
+  slayer.invuln = 0; slayer.iframes = 0;
+  const pal = w.pallets[0];
+  pal.palletState = 'up';
+  surv.x = pal.x + 10; surv.y = pal.y;
+  slayer.x = pal.x + 20; slayer.y = pal.y;
+  const inpSurv = S.makeInput(); inpSurv.interact = true;
+  const evs = S.step(w, { [surv.id]: inpSurv });
+  ok('pallet: survivor drops pallet and stuns nearby slayer', pal.palletState === 'down' && slayer.stun > 0,
+    'palletState=' + pal.palletState + ' slayerStun=' + slayer.stun.toFixed(2));
+  ok('pallet: emits palletStun event', evs.some(e => e.t === 'palletStun'));
+}
+
+/* ---- 6e. chrono-rewind / temporal recall ---- */
+{
+  const w = buildMatch('rewind', { human: true });
+  const surv = w.players[0];
+  surv.x = 800; surv.y = 800;
+  if (!w.history) w.history = new Map();
+  w.history.set(surv.id, [{ x: 500, y: 500, facing: 0 }]);
+  surv.x = 800; surv.y = 800; surv.rewindCd = 0;
+  const inp = S.makeInput(); inp.rewind = true;
+  const evs = S.step(w, { [surv.id]: inp });
+  ok('chrono-rewind: teleports back to past position with iframes', surv.x === 500 && surv.y === 500 && surv.iframes > 0,
+    'x=' + surv.x + ' y=' + surv.y + ' iframes=' + surv.iframes.toFixed(2));
+  ok('chrono-rewind: emits chronoRewind event', evs.some(e => e.t === 'chronoRewind'));
+}
+
+/* ---- 6f. tactical items: flash flare blindness ---- */
+{
+  const w = buildMatch('items', { human: true });
+  const surv = w.players[0], slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  surv.item = 'flare'; surv.itemUses = 1;
+  slayer.x = surv.x + 50; slayer.y = surv.y;
+  const inp = S.makeInput(); inp.item = true;
+  const evs = S.step(w, { [surv.id]: inp });
+  ok('items: using flash flare blinds the nearby slayer', slayer.blindT > 0 && surv.item === null,
+    'blindT=' + slayer.blindT.toFixed(2));
+  ok('items: emits flashBlind event', evs.some(e => e.t === 'flashBlind'));
+}
+
+/* ---- 6g. slayer awakening / rage transformation ---- */
+{
+  const w = buildMatch('awakening', { human: true });
+  const slayer = w.players.find(p => p.role === S.ROLES.SLAYER);
+  slayer.ult = S.K.ULT_CHARGE_MAX;
+  const inp = S.makeInput(); inp.ult = true;
+  const evs = S.step(w, { [slayer.id]: inp });
+  ok('awakening: activating ultimate triggers slayer rage berserk', slayer.rageT > 0,
+    'rageT=' + slayer.rageT.toFixed(2));
+  ok('awakening: emits awakening event', evs.some(e => e.t === 'awakening'));
+}
+
 /* ---- 7. win conditions ---- */
 {
   /* REGICIDE: zeroing the slayer core ends it for the survivors */

@@ -40,6 +40,7 @@ var PAL = {
   neonMagenta: [255, 78, 190],
   neonGold: [255, 208, 84],
   neonViolet: [168, 110, 255],
+  neonGreen: [110, 255, 160],
   blood: [255, 62, 78],
   anchorIdle: [92, 120, 190],
   anchorWork: [110, 220, 255],
@@ -52,14 +53,14 @@ var PAL = {
 /* Survivors get distinct silhouettes and colours so a team is readable at a
  * glance in a dark arena — readability beats variety here. */
 var SURV_SKINS = [
-  { name: 'RIN',   hair: [255, 214, 120], coat: [64, 150, 235],  accent: [120, 240, 255] },
-  { name: 'KAITO', hair: [120, 200, 255], coat: [52, 60, 120],   accent: [168, 110, 255] },
-  { name: 'YUKI',  hair: [255, 255, 255], coat: [190, 70, 120],  accent: [255, 150, 200] },
-  { name: 'SORA',  hair: [150, 255, 190], coat: [40, 110, 96],   accent: [140, 255, 200] },
-  { name: 'AKIRA', hair: [255, 120, 90],  coat: [120, 44, 60],   accent: [255, 208, 84] },
-  { name: 'MIO',   hair: [200, 160, 255], coat: [70, 50, 130],   accent: [190, 150, 255] }
+  { name: 'RIN',   hair: [255, 214, 120], coat: [64, 150, 235],  accent: [120, 240, 255], weapon: 'katana',   classId: 'duelist' },
+  { name: 'KAITO', hair: [120, 200, 255], coat: [52, 60, 120],   accent: [110, 255, 160], weapon: 'medblade', classId: 'medic' },
+  { name: 'YUKI',  hair: [255, 255, 255], coat: [190, 70, 120],  accent: [255, 208, 84],  weapon: 'wrench',   classId: 'engineer' },
+  { name: 'SORA',  hair: [150, 255, 190], coat: [40, 110, 96],   accent: [140, 255, 200], weapon: 'daggers',  classId: 'scout' },
+  { name: 'AKIRA', hair: [255, 120, 90],  coat: [120, 44, 60],   accent: [255, 208, 84],  weapon: 'katana',   classId: 'duelist' },
+  { name: 'MIO',   hair: [200, 160, 255], coat: [70, 50, 130],   accent: [190, 150, 255], weapon: 'medblade', classId: 'medic' }
 ];
-var SLAYER_SKIN = { hair: [230, 40, 70], coat: [46, 16, 40], accent: [255, 62, 78] };
+var SLAYER_SKIN = { hair: [230, 40, 70], coat: [46, 16, 40], accent: [255, 62, 78], weapon: 'scythe' };
 
 function cel(col, band) {
   /* band 0 = lit, 1 = mid, 2 = deep shadow. Shadows shift hue, they do not
@@ -81,6 +82,7 @@ function Renderer(canvas) {
   this.rings = [];
   this.beams = [];
   this.speedLines = [];
+  this.ghosts = [];
   this.flash = 0; this.flashCol = [255, 255, 255];
   this.chroma = 0;
   this.impact = 0;
@@ -88,6 +90,7 @@ function Renderer(canvas) {
   this.halftone = null;
   this.quality = 'high';
   this.showEchoes = true;
+  this.showCompass = true;
   this.resize();
 }
 
@@ -110,7 +113,6 @@ Renderer.prototype.burst = function (x, y, n, col, opt) {
   if (this.quality === 'low') n = Math.ceil(n * 0.4);
   var base = opt.ang !== undefined ? opt.ang : Math.random() * TAU;
   for (var i = 0; i < n; i++) {
-    /* even spread + jitter: pure random angles clump and leave gaps */
     var a = base + (i / n) * TAU + (Math.random() - 0.5) * 0.5;
     var sp = (opt.speed || 220) * (0.5 + Math.random() * 0.9);
     this.parts.push({
@@ -132,12 +134,12 @@ Renderer.prototype.trail = function (x, y, col, r) {
 };
 
 Renderer.prototype.text = function (x, y, str, col, size) {
-  this.texts.push({ x: x, y: y, s: String(str), col: col || [255, 255, 255], size: size || 20, t: 0, life: 0.9, vy: -70 });
+  this.texts.push({ x: x, y: y, s: String(str), col: col || [255, 255, 255], size: size || 20, t: 0, life: 0.95, vy: -65 });
   if (this.texts.length > 40) this.texts.shift();
 };
 
 Renderer.prototype.slash = function (x, y, ang, range, arc, col, heavy) {
-  this.slashes.push({ x: x, y: y, ang: ang, range: range, arc: arc, col: col, t: 0, life: heavy ? 0.3 : 0.2, heavy: !!heavy });
+  this.slashes.push({ x: x, y: y, ang: ang, range: range, arc: arc, col: col, t: 0, life: heavy ? 0.32 : 0.22, heavy: !!heavy });
   if (this.slashes.length > 24) this.slashes.shift();
 };
 
@@ -149,6 +151,12 @@ Renderer.prototype.ring = function (x, y, r0, r1, col, life, width) {
 Renderer.prototype.beam = function (x0, y0, x1, y1, col, life, width) {
   this.beams.push({ x0: x0, y0: y0, x1: x1, y1: y1, col: col, t: 0, life: life || 0.2, w: width || 5 });
   if (this.beams.length > 40) this.beams.shift();
+};
+
+Renderer.prototype.addGhost = function (x, y, facing, skin, slayer) {
+  if (this.quality === 'low') return;
+  this.ghosts.push({ x: x, y: y, facing: facing, skin: skin, slayer: !!slayer, t: 0, life: 0.28 });
+  if (this.ghosts.length > 20) this.ghosts.shift();
 };
 
 Renderer.prototype.shake = function (amount) {
@@ -190,6 +198,33 @@ Renderer.prototype.onEvent = function (e, local) {
       if (isLocal) this.doFlash([255, 90, 90], 0.3);
       else this.doFlash([255, 255, 255], 0.13);
       this.text(e.x, e.y - 24, Math.round(e.amount), e.amount >= 40 ? PAL.blood : PAL.neonGold, e.amount >= 40 ? 30 : 20);
+      break;
+    case 'parry':
+      this.burst(e.x, e.y, 38, PAL.neonGold, { speed: 480, size: 5, spark: true, life: 0.5 });
+      this.ring(e.x, e.y, 10, 130, PAL.neonGold, 0.35, 8);
+      this.ring(e.x, e.y, 6, 75, [255, 255, 255], 0.2, 5);
+      this.shake(12);
+      this.doChroma(0.8);
+      this.doImpact(1);
+      this.doFlash([255, 240, 180], 0.35);
+      this.text(e.x, e.y - 42, 'CLASH! PARRY', PAL.neonGold, 28);
+      break;
+    case 'vault':
+      this.burst(e.x, e.y, 12, PAL.neonCyan, { speed: 180, size: 3, life: 0.3 });
+      this.text(e.x, e.y - 24, 'VAULT', PAL.neonCyan, 18);
+      break;
+    case 'trapPlace':
+      this.ring(e.x, e.y, 4, 38, PAL.neonViolet, 0.35, 4);
+      break;
+    case 'trapTrigger':
+      this.ring(e.x, e.y, 8, 86, PAL.neonViolet, 0.45, 8);
+      this.burst(e.x, e.y, 24, PAL.neonViolet, { speed: 320, size: 4, life: 0.5 });
+      this.shake(7);
+      this.text(e.x, e.y - 34, 'STASIS TRAP', PAL.neonViolet, 22);
+      break;
+    case 'ping':
+      this.ring(e.x, e.y, 6, 120, PAL.neonCyan, 0.6, 5);
+      this.text(e.x, e.y - 30, 'PING', PAL.neonCyan, 20);
       break;
     case 'dash':
       this.burst(e.x, e.y, 12, PAL.neonCyan, { speed: 160, size: 3, grav: -40, life: 0.35 });
@@ -272,6 +307,60 @@ Renderer.prototype.onEvent = function (e, local) {
     case 'chaseStart':
       if (isLocal) this.doFlash([255, 40, 70], 0.16);
       break;
+    case 'palletDrop':
+      this.shake(4);
+      this.burst(e.x, e.y, 14, PAL.outline, { speed: 180, size: 4, life: 0.4 });
+      this.text(e.x, e.y - 30, 'PALLET DOWN', PAL.neonGold, 20);
+      break;
+    case 'palletStun':
+      this.shake(12); this.doFlash([255, 220, 60], 0.3);
+      this.burst(e.x, e.y, 28, PAL.neonGold, { speed: 380, size: 5, life: 0.6 });
+      this.text(e.x, e.y - 45, 'PALLET STUN!', PAL.neonGold, 28);
+      break;
+    case 'palletBreak':
+      this.shake(6);
+      this.burst(e.x, e.y, 22, [180, 140, 100], { speed: 280, size: 4, life: 0.5 });
+      this.text(e.x, e.y - 30, 'SHATTERED', [200, 160, 120], 18);
+      break;
+    case 'chestOpened':
+      this.burst(e.x, e.y, 24, PAL.neonCyan, { speed: 240, size: 4, life: 0.6, grav: -80 });
+      this.text(e.x, e.y - 38, 'SUPPLY: ' + (e.item ? e.item.toUpperCase() : 'ITEM'), PAL.neonCyan, 22);
+      break;
+    case 'flashBang':
+      this.doFlash([255, 255, 255], 0.75); this.shake(10);
+      this.ring(e.x, e.y, 10, 260, [255, 255, 255], 0.6, 12);
+      this.burst(e.x, e.y, 40, [255, 255, 255], { speed: 500, size: 6, life: 0.7 });
+      break;
+    case 'flashBlind':
+      this.doFlash([255, 255, 255], 0.9); this.shake(12);
+      this.text(e.x, e.y - 48, 'FLASH BLINDED!', [255, 255, 255], 26);
+      break;
+    case 'chronoRewind':
+      this.doFlash([200, 120, 255], 0.35); this.shake(7);
+      this.ring(e.fromX, e.fromY, 8, 140, PAL.neonViolet, 0.5, 8);
+      this.burst(e.fromX, e.fromY, 30, PAL.neonViolet, { speed: 320, size: 4, life: 0.6 });
+      this.text(e.toX, e.toY - 42, 'CHRONO REWIND', PAL.neonViolet, 24);
+      break;
+    case 'riposte':
+      this.doFlash([255, 240, 140], 0.4); this.shake(10);
+      this.burst(e.x, e.y, 35, PAL.neonGold, { speed: 450, size: 5, life: 0.6 });
+      this.text(e.x, e.y - 45, 'RIPOSTE CRITICAL!', PAL.neonGold, 28);
+      break;
+    case 'awakening':
+      this.doFlash([255, 40, 60], 0.6); this.shake(16);
+      this.ring(e.x, e.y, 12, 320, PAL.blood, 0.8, 16);
+      this.burst(e.x, e.y, 60, PAL.blood, { speed: 600, size: 7, life: 0.9 });
+      this.text(e.x, e.y - 55, 'RIFT AWAKENING!', PAL.blood, 32);
+      break;
+    case 'serumUsed':
+      this.burst(e.x, e.y, 18, PAL.neonCyan, { speed: 200, size: 3.5, life: 0.5, grav: -100 });
+      this.text(e.x, e.y - 36, 'ADRENALINE SURGE', PAL.neonCyan, 20);
+      break;
+    case 'overclockShock':
+      this.doFlash([255, 180, 80], 0.35); this.shake(8);
+      this.burst(e.x, e.y, 25, [255, 180, 80], { speed: 360, size: 4, life: 0.5 });
+      this.text(e.x, e.y - 40, 'OVERCLOCK OVERLOAD', [255, 120, 60], 22);
+      break;
     case 'matchStart':
       this.doFlash([120, 200, 255], 0.35);
       break;
@@ -284,7 +373,7 @@ Renderer.prototype.update = function (dt, localPlayer) {
   this.time += dt;
   var i;
 
-  /* camera follow with lookahead toward where you are facing */
+  /* camera follow with lookahead */
   if (localPlayer) {
     var lead = 90;
     this.cam.tx = localPlayer.x + Math.cos(localPlayer.aim || 0) * lead;
@@ -295,7 +384,7 @@ Renderer.prototype.update = function (dt, localPlayer) {
   this.cam.y += (this.cam.ty - this.cam.y) * zk;
   this.cam.zoom += (this.cam.tzoom - this.cam.zoom) * zk;
 
-  /* trauma-style shake: decays, and its square gives a fast attack */
+  /* trauma-style shake */
   this.cam.shake = Math.max(0, this.cam.shake - dt * 42);
   var s = this.cam.shake / 28;
   var amp = s * s * 22;
@@ -321,6 +410,11 @@ Renderer.prototype.update = function (dt, localPlayer) {
     tx.t += dt;
     if (tx.t >= tx.life) { this.texts.splice(i, 1); continue; }
     tx.y += tx.vy * dt; tx.vy *= Math.exp(-2.4 * dt);
+  }
+  for (i = this.ghosts.length - 1; i >= 0; i--) {
+    var gh = this.ghosts[i];
+    gh.t += dt;
+    if (gh.t >= gh.life) { this.ghosts.splice(i, 1); }
   }
   for (i = this.slashes.length - 1; i >= 0; i--) { this.slashes[i].t += dt; if (this.slashes[i].t >= this.slashes[i].life) this.slashes.splice(i, 1); }
   for (i = this.rings.length - 1; i >= 0; i--) { this.rings[i].t += dt; if (this.rings[i].t >= this.rings[i].life) this.rings.splice(i, 1); }
@@ -365,13 +459,18 @@ Renderer.prototype.render = function (world, opts) {
   this.applyCam();
   this.drawFloor(world, vb);
   this.drawProps(world, vb);
+  this.drawPallets(world, vb);
+  this.drawChests(world, vb);
+  this.drawLockers(world, vb);
+  this.drawTraps(world, vb);
   this.drawEchoes(world, vb, localRole);
   this.drawAnchors(world, vb);
   this.drawGates(world, vb);
   this.drawHooks(world, vb);
+  this.drawGhosts(ctx);
   this.drawParticles(ctx, vb, false);
 
-  /* entities sorted back-to-front by y so nearer ones overlap correctly */
+  /* entities sorted back-to-front by y */
   var ps = world.players.slice().sort(function (a, b) { return a.y - b.y; });
   for (var i = 0; i < ps.length; i++) {
     var p = ps[i];
@@ -390,6 +489,8 @@ Renderer.prototype.render = function (world, opts) {
   ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   this.drawSpeedLines();
   this.drawVignette(opts);
+  if (this.showCompass && localId) this.drawRadarCompass(world, localId, localRole);
+
   if (this.flash > 0.001) {
     ctx.globalAlpha = Math.min(0.85, this.flash);
     ctx.fillStyle = C.css(this.flashCol);
@@ -431,37 +532,188 @@ Renderer.prototype.drawProps = function (world, vb) {
   for (var i = 0; i < world.props.length; i++) {
     var p = world.props[i];
     if (p.x > vb.x1 || p.x + p.w < vb.x0 || p.y > vb.y1 || p.y + p.h < vb.y0) continue;
-    var base = p.type === 'vault' ? [80, 130, 170] : (p.type === 'pillar' ? [86, 74, 130] : [70, 62, 112]);
-    var hgt = p.type === 'pillar' ? 30 : 18;
-    /* cast shadow: offset toward the light opposite */
+
+    /* Base props styling by type */
+    var base = [70, 62, 112];
+    var hgt = 18;
+    if (p.type === 'vault') { base = [80, 130, 170]; hgt = 14; }
+    else if (p.type === 'pillar') { base = [86, 74, 130]; hgt = 32; }
+    else if (p.type === 'lamp') { base = [60, 80, 120]; hgt = 28; }
+    else if (p.type === 'console') { base = [50, 90, 110]; hgt = 20; }
+    else if (p.type === 'crystal') { base = [110, 50, 140]; hgt = 26; }
+    else if (p.type === 'car') { base = [80, 55, 90]; hgt = 16; }
+
+    /* cast shadow */
     ctx.fillStyle = 'rgba(6,5,18,0.45)';
     ctx.fillRect(p.x + 8, p.y + 10, p.w, p.h);
-    /* body — two cel bands, no gradient */
+
+    /* body */
     ctx.fillStyle = cel(base, 1);
     ctx.fillRect(p.x, p.y, p.w, p.h);
     ctx.fillStyle = cel(base, 0);
     ctx.fillRect(p.x, p.y, p.w, Math.min(p.h, 10 + hgt * 0.3));
+
     /* outline */
     ctx.strokeStyle = C.css(PAL.outline);
     ctx.lineWidth = 3;
     ctx.strokeRect(p.x, p.y, p.w, p.h);
-    /* rim light on the top edge */
+
+    /* rim light */
     ctx.strokeStyle = C.rgba(PAL.rim, 0.28);
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.w, p.y); ctx.stroke();
+
+    /* prop details */
     if (p.type === 'vault') {
-      ctx.strokeStyle = C.rgba(PAL.neonCyan, 0.5);
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = C.rgba(PAL.neonCyan, 0.7);
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(p.x + 6, p.y + p.h / 2); ctx.lineTo(p.x + p.w - 6, p.y + p.h / 2);
       ctx.stroke();
+      /* chevron crossing marks */
+      ctx.fillStyle = C.rgba(PAL.neonCyan, 0.6);
+      for (var vx = p.x + 14; vx < p.x + p.w - 14; vx += 24) {
+        ctx.beginPath(); ctx.moveTo(vx, p.y + 4); ctx.lineTo(vx + 6, p.y + p.h / 2); ctx.lineTo(vx, p.y + p.h - 4); ctx.stroke();
+      }
+    } else if (p.type === 'lamp') {
+      ctx.fillStyle = C.rgba(PAL.neonGold, 0.2);
+      ctx.beginPath(); ctx.arc(p.x + p.w / 2, p.y + p.h / 2, 48, 0, TAU); ctx.fill();
+      ctx.fillStyle = C.css(PAL.neonGold);
+      ctx.fillRect(p.x + p.w / 2 - 4, p.y + 4, 8, 8);
+    } else if (p.type === 'console') {
+      ctx.fillStyle = C.rgba(PAL.neonCyan, 0.75);
+      ctx.fillRect(p.x + 6, p.y + 6, p.w - 12, 6);
+    } else if (p.type === 'crystal') {
+      ctx.fillStyle = C.rgba(PAL.neonViolet, 0.4);
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.w / 2, p.y + 2);
+      ctx.lineTo(p.x + p.w - 4, p.y + p.h - 4);
+      ctx.lineTo(p.x + 4, p.y + p.h - 4);
+      ctx.closePath();
+      ctx.fill();
     }
   }
 };
 
+Renderer.prototype.drawPallets = function (world, vb) {
+  var pallets = world.pallets || [];
+  var ctx = this.ctx;
+  for (var i = 0; i < pallets.length; i++) {
+    var pl = pallets[i];
+    if (pl.x < vb.x0 - 60 || pl.x > vb.x1 + 60 || pl.y < vb.y0 - 60 || pl.y > vb.y1 + 60) continue;
+
+    ctx.save();
+    ctx.translate(pl.x, pl.y);
+    ctx.rotate(pl.ang || 0);
+
+    if (pl.palletState === 'up') {
+      ctx.fillStyle = C.rgba([180, 150, 100], 0.9);
+      ctx.fillRect(-pl.w * 0.5, -pl.h * 0.5, pl.w, pl.h);
+      ctx.strokeStyle = C.css(PAL.outline);
+      ctx.lineWidth = 3;
+      ctx.strokeRect(-pl.w * 0.5, -pl.h * 0.5, pl.w, pl.h);
+      ctx.fillStyle = C.rgba(PAL.neonGold, 0.7);
+      for (var hx = -pl.w * 0.45; hx < pl.w * 0.45; hx += 14) {
+        ctx.fillRect(hx, -pl.h * 0.4, 6, pl.h * 0.8);
+      }
+    } else if (pl.palletState === 'down') {
+      ctx.fillStyle = C.rgba([130, 110, 80], 0.95);
+      ctx.fillRect(-pl.w * 0.5, -pl.h * 0.5, pl.w, pl.h);
+      ctx.strokeStyle = C.rgba(PAL.neonCyan, 0.8);
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(-pl.w * 0.5, -pl.h * 0.5, pl.w, pl.h);
+      ctx.strokeStyle = C.css(PAL.neonCyan);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-10, -4); ctx.lineTo(0, 4); ctx.lineTo(10, -4);
+      ctx.stroke();
+    } else if (pl.palletState === 'broken') {
+      ctx.fillStyle = C.rgba([110, 90, 70], 0.4);
+      ctx.fillRect(-pl.w * 0.3, -4, pl.w * 0.25, 8);
+      ctx.fillRect(pl.w * 0.1, -5, pl.w * 0.2, 7);
+    }
+    ctx.restore();
+  }
+};
+
+Renderer.prototype.drawChests = function (world, vb) {
+  var chests = world.chests || [];
+  var ctx = this.ctx;
+  for (var i = 0; i < chests.length; i++) {
+    var ch = chests[i];
+    if (ch.x < vb.x0 - 40 || ch.x > vb.x1 + 40 || ch.y < vb.y0 - 40 || ch.y > vb.y1 + 40) continue;
+
+    ctx.save();
+    ctx.translate(ch.x, ch.y);
+    var col = ch.searched ? [120, 130, 150] : PAL.neonCyan;
+    ctx.fillStyle = C.rgba([30, 24, 48], 0.9);
+    ctx.fillRect(-16, -12, 32, 24);
+    ctx.strokeStyle = C.css(col);
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(-16, -12, 32, 24);
+
+    if (!ch.searched) {
+      var bounce = Math.sin(this.time * 4 + i) * 4;
+      ctx.fillStyle = C.rgba(PAL.neonCyan, 0.35);
+      ctx.fillRect(-6, -26 + bounce, 12, 12);
+      ctx.strokeStyle = C.css(PAL.neonCyan);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-6, -26 + bounce, 12, 12);
+    }
+    ctx.restore();
+  }
+};
+
+Renderer.prototype.drawLockers = function (world, vb) {
+  var lockers = world.lockers || [];
+  var ctx = this.ctx;
+  for (var i = 0; i < lockers.length; i++) {
+    var lk = lockers[i];
+    if (lk.x < vb.x0 - 40 || lk.x > vb.x1 + 40 || lk.y < vb.y0 - 40 || lk.y > vb.y1 + 40) continue;
+
+    ctx.save();
+    ctx.translate(lk.x, lk.y);
+    ctx.fillStyle = C.rgba([20, 16, 36], 0.95);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16, 22, 0, 0, TAU);
+    ctx.fill();
+
+    var ledCol = lk.occupant >= 0 ? PAL.neonGold : PAL.neonCyan;
+    ctx.strokeStyle = C.css(ledCol);
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.fillStyle = C.rgba(ledCol, 0.4);
+    ctx.fillRect(-8, -4, 16, 8);
+    ctx.restore();
+  }
+};
+
+Renderer.prototype.drawTraps = function (world, vb) {
+  var traps = world.traps || [];
+  var ctx = this.ctx;
+  for (var i = 0; i < traps.length; i++) {
+    var tr = traps[i];
+    if (tr.x < vb.x0 - 40 || tr.x > vb.x1 + 40 || tr.y < vb.y0 - 40 || tr.y > vb.y1 + 40) continue;
+    var armFrac = clamp(tr.arm || 0, 0, 1);
+    var col = armFrac >= 1 ? PAL.neonViolet : PAL.neonGold;
+
+    ctx.save();
+    ctx.translate(tr.x, tr.y);
+    ctx.rotate(this.time * 1.5);
+    ctx.strokeStyle = C.rgba(col, 0.65 * armFrac);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0, 0, 24 * armFrac, 0, TAU); ctx.stroke();
+    /* rune diamond */
+    ctx.beginPath();
+    ctx.moveTo(0, -16 * armFrac); ctx.lineTo(16 * armFrac, 0); ctx.lineTo(0, 16 * armFrac); ctx.lineTo(-16 * armFrac, 0);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
 Renderer.prototype.drawEchoes = function (world, vb, localRole) {
-  /* The slayer sees the survivors' echo trail; survivors see their own faintly.
-   * This is the tracking mechanic, drawn. */
   if (!this.showEchoes) return;
   var ctx = this.ctx;
   var strong = localRole === S.ROLES.SLAYER;
@@ -517,12 +769,7 @@ Renderer.prototype.drawAnchors = function (world, vb) {
     if (a.done) {
       ctx.strokeStyle = C.rgba(PAL.anchorDone, 0.7);
       ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(a.x, a.y, a.r + 4 + pulse * 4, 0, TAU); ctx.stroke();
-    }
-    if (a.marked > 0) {
-      ctx.strokeStyle = C.rgba(PAL.blood, clamp(a.marked / 5, 0, 1) * 0.9);
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(a.x, a.y, a.r + 16, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, TAU); ctx.stroke();
     }
   }
 };
@@ -531,22 +778,18 @@ Renderer.prototype.drawGates = function (world, vb) {
   var ctx = this.ctx;
   for (var i = 0; i < world.gates.length; i++) {
     var g = world.gates[i];
-    if (g.x < vb.x0 - 120 || g.x > vb.x1 + 120 || g.y < vb.y0 - 120 || g.y > vb.y1 + 120) continue;
-    var col = g.open ? PAL.gateOpen : (g.powered ? PAL.gate : [90, 90, 130]);
-    var pulse = 0.5 + 0.5 * Math.sin(this.time * 2.4 + i);
+    if (g.x < vb.x0 - 90 || g.x > vb.x1 + 90 || g.y < vb.y0 - 90 || g.y > vb.y1 + 90) continue;
+    var col = g.open ? PAL.gateOpen : (g.powered ? PAL.gate : PAL.anchorIdle);
 
-    /* rift tear */
     ctx.save();
     ctx.translate(g.x, g.y);
-    var h = 150, w = g.open ? 62 + pulse * 10 : 34;
-    var grad = ctx.createLinearGradient(-w, 0, w, 0);
-    grad.addColorStop(0, C.rgba(col, 0));
-    grad.addColorStop(0.5, C.rgba(col, g.open ? 0.85 : 0.4));
-    grad.addColorStop(1, C.rgba(col, 0));
-    ctx.fillStyle = grad;
+    var w = 18, h = 90;
+
+    /* portal field */
+    ctx.fillStyle = C.rgba(col, g.open ? 0.42 : (g.powered ? 0.22 : 0.08));
     ctx.beginPath();
     ctx.moveTo(-w, -h / 2);
-    ctx.quadraticCurveTo(w * 0.9, 0, -w, h / 2);
+    ctx.quadraticCurveTo(w * 0.4, 0, -w, h / 2);
     ctx.quadraticCurveTo(w * 0.4, 0, -w, -h / 2);
     ctx.fill();
 
@@ -588,15 +831,33 @@ Renderer.prototype.drawHooks = function (world, vb) {
   }
 };
 
-/* --- the character. Drawn from geometry so there are no assets to ship,
- * but built as a silhouette: coat, hair spike, rim light, outline. --- */
+Renderer.prototype.drawGhosts = function (ctx) {
+  for (var i = 0; i < this.ghosts.length; i++) {
+    var gh = this.ghosts[i];
+    var a = (1 - gh.t / gh.life) * 0.35;
+    ctx.save();
+    ctx.translate(gh.x, gh.y);
+    ctx.rotate(gh.facing);
+    ctx.fillStyle = C.rgba(gh.slayer ? PAL.blood : PAL.neonCyan, a);
+    ctx.beginPath();
+    ctx.arc(0, 0, 16, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+};
+
+/* Character rendering with anime aesthetics */
 Renderer.prototype.drawCharacter = function (p, isLocal, world) {
   var ctx = this.ctx;
   var slayer = p.role === S.ROLES.SLAYER;
   var skin = slayer ? SLAYER_SKIN : SURV_SKINS[(p.id - 1) % SURV_SKINS.length];
   var downed = p.state === S.STATE.DOWNED;
-  var dead = p.state === S.STATE.DEAD || p.state === S.STATE.ESCAPED;
+  var dead = p.state === S.STATE.DEAD || p.state === S.STATE.ESCAPED || (p.inLocker >= 0);
   if (dead) return;
+
+  if (p.dashT > 0 || (p.sprintingNow && Math.random() < 0.3) || (slayer && p.rageT > 0)) {
+    this.addGhost(p.x, p.y, p.facing, skin, slayer);
+  }
 
   var r = S.K.PLAYER_R * (slayer ? 1.5 : 1) * (downed ? 0.75 : 1);
   var bob = downed ? 0 : Math.sin(this.time * 9 + p.id) * 1.6;
@@ -610,19 +871,23 @@ Renderer.prototype.drawCharacter = function (p, isLocal, world) {
   ctx.translate(x, y);
   if (downed) ctx.rotate(0.5);
 
-  /* aura for the slayer and for a charged ultimate */
-  if (slayer || p.ult >= S.K.ULT_CHARGE_MAX) {
-    var ac = slayer ? PAL.blood : PAL.neonCyan;
-    var pu = 0.5 + 0.5 * Math.sin(this.time * (slayer ? 4 : 8));
-    ctx.fillStyle = C.rgba(ac, 0.13 + pu * 0.12);
-    ctx.beginPath(); ctx.arc(0, 0, r * 2.1, 0, TAU); ctx.fill();
+  /* aura for the slayer and for charged ultimate / awakening */
+  if (slayer || p.ult >= S.K.ULT_CHARGE_MAX || (p.rageT > 0)) {
+    var ac = (slayer || p.rageT > 0) ? PAL.blood : PAL.neonCyan;
+    var pu = 0.5 + 0.5 * Math.sin(this.time * (p.rageT > 0 ? 12 : (slayer ? 4 : 8)));
+    ctx.fillStyle = C.rgba(ac, (p.rageT > 0 ? 0.35 : 0.13) + pu * 0.15);
+    ctx.beginPath(); ctx.arc(0, 0, r * (p.rageT > 0 ? 2.8 : 2.1), 0, TAU); ctx.fill();
+  }
+  if (p.riposteT > 0) {
+    ctx.fillStyle = C.rgba(PAL.neonGold, 0.4 + 0.3 * Math.sin(this.time * 16));
+    ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, TAU); ctx.fill();
   }
   if (p.ultT > 0) {
     ctx.fillStyle = C.rgba(slayer ? PAL.blood : PAL.neonViolet, 0.3);
     ctx.beginPath(); ctx.arc(0, 0, r * 3, 0, TAU); ctx.fill();
   }
 
-  /* coat / body — two cel bands */
+  /* coat / body */
   var bodyH = r * (downed ? 1.1 : 2.1);
   ctx.beginPath();
   ctx.moveTo(-r * 0.95, r * 0.6);
@@ -636,7 +901,7 @@ Renderer.prototype.drawCharacter = function (p, isLocal, world) {
   ctx.save(); ctx.clip();
   ctx.fillStyle = cel(skin.coat, 0);
   ctx.fillRect(-r, -bodyH * 0.6, r * 2, bodyH * 0.5);
-  /* halftone in the shadow region — the manga texture */
+  /* halftone in shadow region */
   if (this.quality !== 'low') {
     ctx.fillStyle = C.rgba(PAL.shadowTint, 0.5);
     for (var hx = -r; hx < r; hx += 5) {
@@ -656,7 +921,8 @@ Renderer.prototype.drawCharacter = function (p, isLocal, world) {
   ctx.beginPath(); ctx.arc(0, hy, r * 0.62, 0, TAU);
   ctx.fillStyle = cel([248, 226, 208], 0); ctx.fill();
   ctx.lineWidth = 3; ctx.strokeStyle = C.css(PAL.outline); ctx.stroke();
-  /* hair with a spike — the single strongest anime read at this scale */
+
+  /* hair spike */
   ctx.beginPath();
   ctx.moveTo(-r * 0.66, hy - r * 0.05);
   ctx.lineTo(-r * 0.2, hy - r * 1.15);
@@ -667,136 +933,47 @@ Renderer.prototype.drawCharacter = function (p, isLocal, world) {
   ctx.fillStyle = cel(skin.hair, 0); ctx.fill();
   ctx.lineWidth = 2.5; ctx.strokeStyle = C.css(PAL.outline); ctx.stroke();
 
-  /* eyes — the slayer gets a glowing slit */
-  ctx.fillStyle = slayer ? C.css(PAL.blood) : C.css(PAL.outline);
-  var fx = Math.cos(p.facing) * r * 0.2, fy = Math.sin(p.facing) * r * 0.12;
+  /* weapon model / blade */
+  ctx.save();
+  ctx.rotate(p.facing || 0);
   if (slayer) {
-    ctx.shadowColor = C.css(PAL.blood); ctx.shadowBlur = 12;
-  }
-  ctx.fillRect(fx - r * 0.3, hy - r * 0.12, r * 0.22, r * (slayer ? 0.12 : 0.16));
-  ctx.fillRect(fx + r * 0.08, hy - r * 0.12, r * 0.22, r * (slayer ? 0.12 : 0.16));
-  ctx.shadowBlur = 0;
-
-  /* rim light: the anime backlight that separates figure from ground */
-  ctx.strokeStyle = C.rgba(PAL.rim, 0.5);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(0, hy, r * 0.62, Math.PI * 1.05, Math.PI * 1.6);
-  ctx.stroke();
-
-  /* weapon — a katana-ish blade that leads the swing */
-  if (!downed) {
-    var wa = p.facing;
-    var swingOff = 0;
-    if (p.atkPhase === 'windup') swingOff = -0.7;
-    else if (p.atkPhase === 'active') swingOff = 0.9;
-    else if (p.atkPhase === 'recover') swingOff = 0.4;
-    ctx.save();
-    ctx.rotate(wa + swingOff);
-    var bl = r * (slayer ? 2.5 : 1.9);
-    ctx.strokeStyle = C.css(PAL.outline); ctx.lineWidth = 7;
-    ctx.beginPath(); ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 0.5 + bl, 0); ctx.stroke();
-    ctx.strokeStyle = p.atkPhase === 'active' ? C.css(skin.accent) : C.rgba([225, 235, 255], 0.95);
-    ctx.lineWidth = 3.5;
-    ctx.beginPath(); ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 0.5 + bl, 0); ctx.stroke();
-    if (p.atkPhase === 'active') {
-      ctx.shadowColor = C.css(skin.accent); ctx.shadowBlur = 16;
-      ctx.strokeStyle = C.rgba(skin.accent, 0.8); ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 0.5 + bl, 0); ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-    ctx.restore();
-  }
-
-  /* hit flash: flat white for two frames, the cheapest weight there is */
-  if (p.hitFlash > 0) {
-    ctx.globalAlpha = clamp(p.hitFlash / 0.16, 0, 1) * 0.85;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(0, -bodyH * 0.3, r * 1.5, 0, TAU); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  if (p.iframes > 0) {
-    ctx.strokeStyle = C.rgba(PAL.neonCyan, 0.7); ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(0, -bodyH * 0.3, r * 1.6, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = C.css(PAL.outline); ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(r * 0.4, 0); ctx.lineTo(r * 1.9, 0); ctx.stroke();
+    ctx.strokeStyle = C.css(PAL.blood); ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(r * 0.4, 0); ctx.lineTo(r * 1.9, 0); ctx.stroke();
+  } else {
+    var wepCol = p.classId === 'medic' ? PAL.neonGreen : (p.classId === 'engineer' ? PAL.neonGold : PAL.neonCyan);
+    ctx.strokeStyle = C.css(PAL.outline); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(r * 0.3, 0); ctx.lineTo(r * 1.5, 0); ctx.stroke();
+    ctx.strokeStyle = C.css(wepCol); ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(r * 0.3, 0); ctx.lineTo(r * 1.5, 0); ctx.stroke();
   }
   ctx.restore();
 
-  /* name + state plate above the head */
-  var plateY = y - r * 2.5;
-  ctx.font = '600 12px "Trebuchet MS", system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(6,5,18,0.85)';
-  ctx.strokeText(p.name, x, plateY);
-  ctx.fillStyle = isLocal ? C.css(PAL.neonGold) : (slayer ? C.css(PAL.blood) : 'rgba(225,235,255,0.85)');
-  ctx.fillText(p.name, x, plateY);
-
-  /* health bar for teammates and the slayer */
-  if (!isLocal && !downed) {
-    var bw = 46, frac = clamp(p.hp / p.maxHp, 0, 1);
-    ctx.fillStyle = 'rgba(6,5,18,0.8)';
-    ctx.fillRect(x - bw / 2 - 1, plateY + 5, bw + 2, 6);
-    ctx.fillStyle = slayer ? C.css(PAL.blood) : (frac > 0.5 ? C.css(PAL.anchorDone) : C.css(PAL.neonGold));
-    ctx.fillRect(x - bw / 2, plateY + 6, bw * frac, 4);
-  }
-  if (downed) {
-    ctx.font = '700 13px "Trebuchet MS", system-ui, sans-serif';
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(6,5,18,0.9)';
-    ctx.strokeText('DOWN ' + Math.ceil(p.bleed) + 's', x, plateY);
-    ctx.fillStyle = C.css(PAL.blood);
-    ctx.fillText('DOWN ' + Math.ceil(p.bleed) + 's', x, plateY);
+  /* overhead nametag + class badge */
+  if (isLocal || this.quality !== 'low') {
+    ctx.font = '800 11px "Trebuchet MS", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    var tag = (p.bot ? '' : '★ ') + p.name + (p.classId ? ' [' + p.classId.toUpperCase() + ']' : '');
+    ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(6,5,18,0.85)';
+    ctx.strokeText(tag, 0, hy - r * 1.4);
+    ctx.fillStyle = isLocal ? C.css(PAL.neonGold) : (slayer ? C.css(PAL.blood) : '#fff');
+    ctx.fillText(tag, 0, hy - r * 1.4);
   }
 
-  /* local player marker */
-  if (isLocal) {
-    ctx.strokeStyle = C.rgba(PAL.neonGold, 0.55);
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(x, p.y + r * 0.55, r * 1.5, 0, TAU); ctx.stroke();
-  }
-
-  /* interaction / skill-check ring */
-  if (p.interactKind && p.interactT > 0 && p.interactKind !== 'repair') {
-    this.arcProgress(ctx, x, y - r * 3.4, 16, p.interactT, PAL.neonCyan);
-  }
-};
-
-Renderer.prototype.arcProgress = function (ctx, x, y, r, frac, col) {
-  ctx.strokeStyle = 'rgba(6,5,18,0.8)'; ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.stroke();
-  ctx.strokeStyle = C.css(col); ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, frac * TAU - Math.PI / 2); ctx.stroke();
-};
-
-Renderer.prototype.drawParticles = function (ctx, vb, sparks) {
-  for (var i = 0; i < this.parts.length; i++) {
-    var p = this.parts[i];
-    if (p.spark !== sparks) continue;
-    if (p.x < vb.x0 || p.x > vb.x1 || p.y < vb.y0 || p.y > vb.y1) continue;
-    var a = 1 - p.t / p.life;
-    if (p.spark) {
-      ctx.strokeStyle = C.rgba(p.col, a);
-      ctx.lineWidth = Math.max(1, p.r * 0.5 * a);
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(p.x - p.vx * 0.022, p.y - p.vy * 0.022);
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = C.rgba(p.col, a * 0.9);
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * a, 0, TAU); ctx.fill();
-    }
-  }
+  ctx.restore();
 };
 
 Renderer.prototype.drawSlashes = function (ctx) {
+  ctx.globalCompositeOperation = 'lighter';
   for (var i = 0; i < this.slashes.length; i++) {
     var s = this.slashes[i];
     var f = s.t / s.life;
-    var a = (1 - f) * (1 - f);
-    var spread = s.arc * (0.45 + f * 0.55);
+    var a = (1 - f);
     ctx.save();
     ctx.translate(s.x, s.y);
     ctx.rotate(s.ang);
-    ctx.globalCompositeOperation = 'lighter';
-    /* three nested arcs read as a blade trail, not a pie slice */
+    var spread = s.arc * (0.85 + f * 0.3);
     for (var k = 0; k < 3; k++) {
       var rr = s.range * (0.55 + k * 0.22) * (0.8 + f * 0.4);
       ctx.strokeStyle = C.rgba(k === 0 ? [255, 255, 255] : s.col, a * (0.9 - k * 0.25));
@@ -835,13 +1012,28 @@ Renderer.prototype.drawBeams = function (ctx) {
   ctx.globalCompositeOperation = 'source-over';
 };
 
+Renderer.prototype.drawParticles = function (ctx, vb, overlay) {
+  for (var i = 0; i < this.parts.length; i++) {
+    var p = this.parts[i];
+    if (p.x < vb.x0 || p.x > vb.x1 || p.y < vb.y0 || p.y > vb.y1) continue;
+    var a = 1 - p.t / p.life;
+    if (p.spark) {
+      ctx.fillStyle = C.rgba(p.col, a);
+      ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+    } else {
+      ctx.fillStyle = C.rgba(p.col, a * 0.8);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.6 + a * 0.4), 0, TAU); ctx.fill();
+    }
+  }
+};
+
 Renderer.prototype.drawTexts = function (ctx) {
   ctx.textAlign = 'center';
   for (var i = 0; i < this.texts.length; i++) {
     var t = this.texts[i];
     var a = 1 - t.t / t.life;
     var sc = 1 + (1 - a) * 0.35;
-    ctx.font = '800 ' + Math.round(t.size * sc) + 'px "Trebuchet MS", system-ui, sans-serif';
+    ctx.font = '900 ' + Math.round(t.size * sc) + 'px "Trebuchet MS", system-ui, sans-serif';
     ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(6,5,18,' + (a * 0.9) + ')';
     ctx.strokeText(t.s, t.x, t.y);
     ctx.fillStyle = C.rgba(t.col, a);
@@ -849,19 +1041,6 @@ Renderer.prototype.drawTexts = function (ctx) {
   }
 };
 
-/* Horror lighting: a dark wash with holes punched for light sources. The
- * local player always has a light, so you are never blind — the fear comes
- * from what is at the edge of the light, not from not being able to see.
- *
- * IMPORTANT: the holes are punched on a SEPARATE transparent canvas and that
- * layer is then composited over the scene with a plain source-over draw.
- * Doing destination-out on the main canvas would erase the scene itself
- * (the main canvas is opaque), leaving a blank hole instead of a lit pool. */
-/* Offscreen darkness layer. Three construction routes:
- *   1. a host page can provide EOTRender.makeCanvas (our real-pixel test does)
- *   2. the browser's document.createElement('canvas')
- *   3. a no-op stub, so the renderer still constructs in bare headless envs
- * The layer is recreated when the main canvas is resized. */
 Renderer.prototype._darkCanvas = function () {
   if (this._dark && this._dark.width === this.cv.width && this._dark.height === this.cv.height) return this._dark;
   var el = null;
@@ -893,7 +1072,6 @@ Renderer.prototype.drawDarkness = function (world, opts, vb) {
   if (this.quality === 'low') return;
   var dark = this._darkCanvas();
   var dctx = dark.getContext('2d');
-  /* reset the layer for this frame: clear everything, then draw fresh */
   dctx.setTransform(1, 0, 0, 1, 0, 0);
   dctx.clearRect(0, 0, dark.width, dark.height);
   dctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -917,26 +1095,18 @@ Renderer.prototype.drawDarkness = function (world, opts, vb) {
     if (world.gates[g].open) lights.push({ x: world.gates[g].x, y: world.gates[g].y, r: 220 });
   }
   for (var l = 0; l < lights.length; l++) {
-    var L = lights[l];
-    var grd = dctx.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
+    var li = lights[l];
+    var grd = dctx.createRadialGradient(li.x, li.y, 10, li.x, li.y, li.r);
     grd.addColorStop(0, 'rgba(0,0,0,1)');
-    grd.addColorStop(0.55, 'rgba(0,0,0,0.72)');
+    grd.addColorStop(0.7, 'rgba(0,0,0,0.85)');
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     dctx.fillStyle = grd;
-    dctx.beginPath(); dctx.arc(L.x, L.y, L.r, 0, TAU); dctx.fill();
+    dctx.beginPath(); dctx.arc(li.x, li.y, li.r, 0, TAU); dctx.fill();
   }
-  dctx.globalCompositeOperation = 'source-over';
 
-  /* composite the finished darkness layer over the scene */
-  var ctx = this.ctx;
-  ctx.save();
-  ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(dark, 0, 0, this.w, this.h);
-  ctx.restore();
+  this.ctx.drawImage(dark, 0, 0, this.w, this.h);
 };
 
-/* Same camera transform as applyCam but onto a supplied context. */
 Renderer.prototype.applyCamInto = function (ctx) {
   ctx.translate(this.w / 2 + this.cam.shakeX, this.h / 2 + this.cam.shakeY);
   ctx.rotate(this.cam.rot);
@@ -972,7 +1142,7 @@ Renderer.prototype.drawVignette = function (opts) {
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, this.w, this.h);
 
-  /* the terror vignette: a red pulse that IS the proximity alarm */
+  /* terror vignette */
   if (terror > 0.02) {
     var pulse = 0.5 + 0.5 * Math.sin(this.time * (2 + terror * 9));
     var g2 = ctx.createRadialGradient(this.w / 2, this.h / 2, Math.min(this.w, this.h) * 0.2,
@@ -983,7 +1153,7 @@ Renderer.prototype.drawVignette = function (opts) {
     ctx.fillRect(0, 0, this.w, this.h);
   }
 
-  /* chromatic split on big impacts — used sparingly so it still lands */
+  /* chromatic split */
   if (this.chroma > 0.02) {
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = this.chroma * 0.16;
@@ -993,12 +1163,72 @@ Renderer.prototype.drawVignette = function (opts) {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  /* scanline-ish cel edge on very large screens, cheap anime texture */
+  /* scanline texture */
   if (this.quality === 'high') {
     ctx.globalAlpha = 0.035;
     ctx.fillStyle = '#000';
     for (var y = 0; y < this.h; y += 3) ctx.fillRect(0, y, this.w, 1);
     ctx.globalAlpha = 1;
+  }
+};
+
+/* Top Tactical Radar Compass */
+Renderer.prototype.drawRadarCompass = function (world, localId, localRole) {
+  var me = null;
+  for (var i = 0; i < world.players.length; i++) if (world.players[i].id === localId) me = world.players[i];
+  if (!me) return;
+
+  var ctx = this.ctx;
+  var cx = this.w / 2, cy = 24, w = Math.min(360, this.w - 40), h = 18;
+
+  /* background bar */
+  ctx.fillStyle = 'rgba(8, 5, 24, 0.78)';
+  ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+  ctx.strokeStyle = 'rgba(120, 90, 220, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+
+  /* center mark */
+  ctx.strokeStyle = '#ffd254';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, cy - h / 2); ctx.lineTo(cx, cy + h / 2); ctx.stroke();
+
+  var fwd = me.aim || me.facing || 0;
+
+  function renderBlip(x, y, col, size) {
+    var ang = Math.atan2(y - me.y, x - me.x);
+    var diff = C.angDiff(fwd, ang);
+    if (Math.abs(diff) > Math.PI * 0.45) return;
+    var bx = cx + (diff / (Math.PI * 0.45)) * (w / 2 - 10);
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(bx, cy, size || 3, 0, TAU); ctx.fill();
+  }
+
+  /* anchors */
+  for (var a = 0; a < world.anchors.length; a++) {
+    var an = world.anchors[a];
+    var ac = an.done ? '#78ffb0' : (an.progress > 0 ? '#48e8ff' : '#6b7280');
+    renderBlip(an.x, an.y, ac, 3.5);
+  }
+
+  /* gates */
+  for (var g = 0; g < world.gates.length; g++) {
+    var gt = world.gates[g];
+    if (gt.powered) renderBlip(gt.x, gt.y, gt.open ? '#48e8ff' : '#ffd254', 4.5);
+  }
+
+  /* teammates */
+  for (var p = 0; p < world.players.length; p++) {
+    var q = world.players[p];
+    if (q === me || !S.alive(q)) continue;
+    if (q.role === S.ROLES.SLAYER) {
+      if (localRole !== S.ROLES.SLAYER && S.distanceToSlayer(world, me) < S.K.TERROR_R) {
+        renderBlip(q.x, q.y, '#ff2f6d', 4.5);
+      }
+    } else {
+      var tc = q.state === S.STATE.DOWNED ? '#ff2f6d' : (q.hp < 100 ? '#ffd254' : '#78ffb0');
+      renderBlip(q.x, q.y, tc, 3.5);
+    }
   }
 };
 
