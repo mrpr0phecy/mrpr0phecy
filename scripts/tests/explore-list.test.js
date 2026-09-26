@@ -53,10 +53,10 @@ const sandbox = {
 };
 sandbox.window = sandbox;
 vm.createContext(sandbox);
-const code = [extract('esc'), extract('norm'), extract('sortTitle'), extract('byTitle'),
+const code = [extract('esc'), extract('norm'), extract('highlight'), extract('sortTitle'), extract('byTitle'),
   extract('matches'), extract('sorted'), extract('visible')].join('\n');
-vm.runInContext(code + '\nthis.api = { esc, norm, matches, sorted, visible };', sandbox, { filename: 'explore-filters.js' });
-const { esc, norm, matches, sorted, visible } = sandbox.api;
+vm.runInContext(code + '\nthis.api = { esc, norm, highlight, matches, sorted, visible };', sandbox, { filename: 'explore-filters.js' });
+const { esc, norm, highlight, matches, sorted, visible } = sandbox.api;
 
 /* ---------------------------------------------------------------- fixtures -- */
 const rows = [
@@ -130,6 +130,10 @@ state.rows = rows;
   assert.strictEqual(esc('<img src=x onerror="alert(1)">'),
     '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;', 'row text is escaped');
   assert.strictEqual(norm(null), '', 'a null description does not throw');
+  assert.ok(highlight('BMI Calculator', ['bmi']).includes('class="xp-hit"'),
+    'a matching word is marked in the title');
+  assert.ok(!highlight('<img>', ['img']).includes('<img'),
+    'highlight still escapes markup');
 }
 
 /* ---------------------------------------------------- 4. PINNED: contracts */
@@ -150,8 +154,12 @@ state.rows = rows;
     assert(SOURCE.includes(`e.key === ${key}`), `the keyboard map must keep ${key} (${why})`);
   }
 
-  // One results surface: while a filter is on, the browse sections step aside.
-  assert(/data-xp-browse/.test(SOURCE), 'the browse sections must be hidden during a search');
+  // The home shelves (featured, trending, categories) stay on the page during
+  // a search — they are how a visitor discovers tools they did not type.
+  assert(!/section\.style\.display = value \? 'none'/.test(SOURCE),
+    'a search must not hide the featured / category lists');
+  assert(/featured list, trending list and category grid stay/.test(SOURCE),
+    'the list engine documents that the browse shelves stay put');
   assert(/function logSearch/.test(SOURCE) && /__mp_zero_searches/.test(SOURCE),
     'a search that returns nothing is still logged — it is the best "what to build next" signal there is');
 
@@ -177,6 +185,15 @@ state.rows = rows;
     'the catalogue fetch must time out instead of hanging the list');
   assert(/data-xp-retry/.test(SOURCE),
     'a failed catalogue load must offer a retry next to the directory link');
+
+  // iOS/Safari: the filter field must not auto-capitalise or zoom, and the
+  // keyboard Search key must flush the list (it fires `search`, not Enter).
+  assert(SOURCE.includes('autocapitalize="none"') && SOURCE.includes('inputmode="search"'),
+    'the filter field is a search box on a phone, not a sentence');
+  assert(SOURCE.includes("addEventListener('search'"),
+    'Safari keyboard Search must flush the pending filter');
+  assert(SOURCE.includes('data-xp-suggest'),
+    'a zero-result search offers one-tap suggestions');
 }
 
 console.log('explore-list: filtering, sorting, escaping and the list contracts all hold');

@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 26;
+  const APP_VERSION = 29;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -373,6 +373,34 @@
     });
   }
 
+  /* Continue: the last few tools this visitor actually opened. Empty until
+     they have used something — then it is the shortest path back. Built with
+     DOM APIs so a stored title cannot inject markup. */
+  function setupRecents() {
+    var host = document.getElementById('recent-chips');
+    if (!host) return;
+    var rec = [];
+    try { rec = JSON.parse(localStorage.getItem('__mp_recent') || '[]'); } catch (e) { rec = []; }
+    if (!Array.isArray(rec)) rec = [];
+    rec = rec.filter(function (x) {
+      return x && typeof x.slug === 'string' && /^[a-z0-9][a-z0-9-]{0,80}$/.test(x.slug);
+    }).slice(0, 6);
+    if (!rec.length) return;
+    host.textContent = '';
+    var label = document.createElement('span');
+    label.className = 'popular-label';
+    label.textContent = 'Continue:';
+    host.appendChild(label);
+    rec.forEach(function (x) {
+      var a = document.createElement('a');
+      a.className = 'popular-chip recent-chip';
+      a.href = 'tool.html?card=' + encodeURIComponent(x.slug);
+      a.textContent = String(x.title || x.slug).slice(0, 32);
+      host.appendChild(a);
+    });
+    host.hidden = false;
+  }
+
   /* --------------------------------------------------- surprise / random tool */
   var VIRAL_TOOLS = [
     'acoustic-levitation-standing-wave', 'reaction-time', 'cellular-automata-lab',
@@ -389,8 +417,18 @@
     'qrtool', 'jwt-decoder', 'markdown-live-editor'
   ];
 
+  function lastRecentSlug() {
+    try {
+      var rec = JSON.parse(localStorage.getItem('__mp_recent') || '[]');
+      if (Array.isArray(rec) && rec[0] && rec[0].slug) return rec[0].slug;
+    } catch (e) {}
+    return '';
+  }
+
   function pickRandomTool() {
     var pool = VIRAL_TOOLS;
+    var last = lastRecentSlug();
+    if (last && pool.length > 1) pool = pool.filter(function (s) { return s !== last; });
     var slug = pool[Math.floor(Math.random() * pool.length)];
     if (typeof window.gtag === 'function') {
       window.gtag('event', 'surprise_me_click', { tool: slug });
@@ -610,6 +648,7 @@
     safely('sticky bar', setupStickyBar);
     safely('search', setupSearch);
     safely('popular chips', setupPopularChips);
+    safely('recents', setupRecents);
     safely('surprise', setupSurpriseButtons);
     safely('panels', setupPanels);
     safely('popover a11y', syncPopoverA11y);

@@ -44,6 +44,10 @@ assert(/embedCode = `<iframe src="\$\{window\.location\.origin\}\/tool\.html\?ca
 // The CSS side of the contract must exist.
 assert(/body\.embed-mode \.top-nav[\s\S]*display: none !important/.test(html),
   'embed-mode CSS does not hide the page chrome');
+assert(/viewport-fit=cover/.test(html) && /100dvh/.test(html) && /safe-area-inset-top/.test(html),
+  'the tool shell must clear the iPhone notch and use dynamic viewport height');
+assert(/__mp_recent/.test(html),
+  'opening a tool remembers it so the home page can offer Continue');
 // The loader watchdog: every fetch in init() is bounded by fetchWithTimeout,
 // but a response BODY can stall after its headers arrive (await res.text()
 // has no natural timeout) — the reported "card hangs on the loader forever".
