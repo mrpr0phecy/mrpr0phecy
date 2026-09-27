@@ -1,0 +1,444 @@
+<h2 id="cff-title" style="margin-top:0;color:var(--accent);">✈️ Cheap Flight Fare Finder</h2>
+
+<form aria-describedby="cff-desc" onsubmit="event.preventDefault();">
+  <p id="cff-desc" class="small" style="color:var(--text-secondary);margin-bottom:14px;font-size:0.85rem;">
+    Work out what a <strong>genuinely cheap</strong> fare looks like on your route, then jump straight into the right searches.
+    Pick your airports, say when you want to travel and type the best price you have found: the tool scores it against a
+    distance-based fare benchmark, tells you whether to book or wait, lists nearby airports worth checking and builds
+    ready-made search links for the big comparison sites. Everything is calculated in your browser — no prices are fetched
+    and nothing you type leaves the device, so treat the benchmark as a sanity check, not a live quote.
+  </p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
+    <div>
+      <label for="cff-from" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">From (airport)</label>
+      <input id="cff-from" list="cff-airports" value="LTN" autocomplete="off" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cff-to" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">To (airport)</label>
+      <input id="cff-to" list="cff-airports" value="BCN" autocomplete="off" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cff-trip" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Trip type</label>
+      <select id="cff-trip" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="round" selected>Return</option>
+        <option value="one">One way</option>
+      </select>
+    </div>
+    <div>
+      <label for="cff-cabin" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Cabin</label>
+      <select id="cff-cabin" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="1" selected>Economy</option>
+        <option value="1.6">Premium economy</option>
+        <option value="3.2">Business</option>
+        <option value="5.5">First</option>
+      </select>
+    </div>
+  </div>
+
+  <datalist id="cff-airports"></datalist>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px;">
+    <div>
+      <label for="cff-out" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Outbound date</label>
+      <input id="cff-out" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cff-back" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Return date</label>
+      <input id="cff-back" type="date" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cff-pax" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Passengers</label>
+      <input id="cff-pax" type="number" min="1" max="9" step="1" value="1" inputmode="numeric" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cff-price" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Best price found (per person)</label>
+      <input id="cff-price" type="number" min="0" step="any" value="120" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
+    <div>
+      <label for="cff-cur" style="display:block;font-size:.78rem;color:var(--text-secondary);margin-bottom:5px;">Currency</label>
+      <select id="cff-cur" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+        <option value="GBP" selected>GBP £</option>
+        <option value="EUR">EUR €</option>
+        <option value="USD">USD $</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:.8rem;color:var(--text-secondary);">
+    <label style="display:flex;align-items:center;gap:6px;"><input id="cff-flex" type="checkbox" checked> Dates are flexible (±3 days)</label>
+    <label style="display:flex;align-items:center;gap:6px;"><input id="cff-bags" type="checkbox"> I need a checked bag</label>
+    <label style="display:flex;align-items:center;gap:6px;"><input id="cff-direct" type="checkbox"> Direct flights only</label>
+  </div>
+</form>
+
+<div id="cff-out-panel" style="margin-top:16px;" aria-live="polite"></div>
+
+<script>
+(function () {
+  var host = document.currentScript.parentNode;
+  function $(id) { return host.querySelector('#' + id); }
+
+  // code, city, country, lat, lon
+  var AP = [
+    ['LHR','London Heathrow','UK',51.47,-0.4543],['LGW','London Gatwick','UK',51.148,-0.1903],
+    ['LTN','London Luton','UK',51.874,-0.3683],['STN','London Stansted','UK',51.885,0.235],
+    ['LCY','London City','UK',51.505,0.0553],['SEN','London Southend','UK',51.571,0.6956],
+    ['MAN','Manchester','UK',53.365,-2.2725],['BHX','Birmingham','UK',52.454,-1.748],
+    ['BRS','Bristol','UK',51.383,-2.719],['EDI','Edinburgh','UK',55.95,-3.3725],
+    ['GLA','Glasgow','UK',55.872,-4.4331],['NCL','Newcastle','UK',55.038,-1.6917],
+    ['LPL','Liverpool','UK',53.334,-2.8497],['LBA','Leeds Bradford','UK',53.866,-1.6606],
+    ['BFS','Belfast Intl','UK',54.658,-6.2158],['CWL','Cardiff','UK',51.397,-3.3433],
+    ['DUB','Dublin','Ireland',53.421,-6.27],['ORK','Cork','Ireland',51.841,-8.4911],
+    ['CDG','Paris CDG','France',49.0097,2.5479],['ORY','Paris Orly','France',48.7233,2.3794],
+    ['BVA','Paris Beauvais','France',49.4544,2.1128],['NCE','Nice','France',43.6584,7.2159],
+    ['LYS','Lyon','France',45.7256,5.0811],['MRS','Marseille','France',43.4393,5.2214],
+    ['AMS','Amsterdam','Netherlands',52.3105,4.7683],['EIN','Eindhoven','Netherlands',51.45,5.3747],
+    ['BRU','Brussels','Belgium',50.9014,4.4844],['CRL','Brussels Charleroi','Belgium',50.4592,4.4538],
+    ['FRA','Frankfurt','Germany',50.0379,8.5622],['HHN','Frankfurt Hahn','Germany',49.9487,7.2639],
+    ['MUC','Munich','Germany',48.3538,11.7861],['BER','Berlin','Germany',52.3667,13.5033],
+    ['DUS','Dusseldorf','Germany',51.2895,6.7668],['HAM','Hamburg','Germany',53.6304,9.9882],
+    ['CGN','Cologne','Germany',50.8659,7.1427],['ZRH','Zurich','Switzerland',47.4647,8.5492],
+    ['GVA','Geneva','Switzerland',46.2381,6.1089],['BSL','Basel','Switzerland',47.59,7.5292],
+    ['VIE','Vienna','Austria',48.1103,16.5697],['PRG','Prague','Czechia',50.1008,14.26],
+    ['BUD','Budapest','Hungary',47.4369,19.2556],['WAW','Warsaw Chopin','Poland',52.1657,20.9671],
+    ['WMI','Warsaw Modlin','Poland',52.451,20.6518],['KRK','Krakow','Poland',50.0777,19.7848],
+    ['CPH','Copenhagen','Denmark',55.618,12.656],['ARN','Stockholm Arlanda','Sweden',59.6519,17.9186],
+    ['NYO','Stockholm Skavsta','Sweden',58.7886,16.9122],['OSL','Oslo Gardermoen','Norway',60.1939,11.1004],
+    ['TRF','Oslo Torp','Norway',59.1867,10.2586],['HEL','Helsinki','Finland',60.3172,24.9633],
+    ['MAD','Madrid','Spain',40.4719,-3.5626],['BCN','Barcelona','Spain',41.2974,2.0833],
+    ['GRO','Girona','Spain',41.901,2.7606],['AGP','Malaga','Spain',36.6749,-4.4991],
+    ['ALC','Alicante','Spain',38.2822,-0.5582],['VLC','Valencia','Spain',39.4893,-0.4816],
+    ['PMI','Palma Mallorca','Spain',39.5517,2.7388],['IBZ','Ibiza','Spain',38.8729,1.3731],
+    ['TFS','Tenerife South','Spain',28.0445,-16.5725],['LPA','Gran Canaria','Spain',27.9319,-15.3866],
+    ['LIS','Lisbon','Portugal',38.7813,-9.1359],['OPO','Porto','Portugal',41.2481,-8.6814],
+    ['FAO','Faro','Portugal',37.0144,-7.9659],['FCO','Rome Fiumicino','Italy',41.8003,12.2389],
+    ['CIA','Rome Ciampino','Italy',41.7994,12.5949],['MXP','Milan Malpensa','Italy',45.63,8.7231],
+    ['BGY','Milan Bergamo','Italy',45.6739,9.7042],['LIN','Milan Linate','Italy',45.4451,9.2767],
+    ['VCE','Venice','Italy',45.5053,12.3519],['NAP','Naples','Italy',40.886,14.2908],
+    ['CTA','Catania','Italy',37.4668,15.0664],['ATH','Athens','Greece',37.9364,23.9445],
+    ['SKG','Thessaloniki','Greece',40.5197,22.9709],['HER','Heraklion','Greece',35.3397,25.1803],
+    ['IST','Istanbul','Turkey',41.2753,28.7519],['SAW','Istanbul Sabiha','Turkey',40.8986,29.3092],
+    ['AYT','Antalya','Turkey',36.8987,30.8005],['KEF','Reykjavik Keflavik','Iceland',63.985,-22.6056],
+    ['JFK','New York JFK','USA',40.6413,-73.7781],['EWR','Newark','USA',40.6895,-74.1745],
+    ['LGA','New York LaGuardia','USA',40.7769,-73.874],['BOS','Boston','USA',42.3656,-71.0096],
+    ['ORD','Chicago O\u2019Hare','USA',41.9742,-87.9073],['MDW','Chicago Midway','USA',41.786,-87.7524],
+    ['LAX','Los Angeles','USA',33.9416,-118.4085],['SFO','San Francisco','USA',37.6213,-122.379],
+    ['OAK','Oakland','USA',37.7126,-122.2197],['SJC','San Jose CA','USA',37.3639,-121.9289],
+    ['MIA','Miami','USA',25.7959,-80.287],['FLL','Fort Lauderdale','USA',26.0742,-80.1506],
+    ['MCO','Orlando','USA',28.4312,-81.3081],['ATL','Atlanta','USA',33.6407,-84.4277],
+    ['DFW','Dallas Fort Worth','USA',32.8998,-97.0403],['IAH','Houston','USA',29.9902,-95.3368],
+    ['DEN','Denver','USA',39.8561,-104.6737],['SEA','Seattle','USA',47.4502,-122.3088],
+    ['LAS','Las Vegas','USA',36.084,-115.1537],['PHX','Phoenix','USA',33.4342,-112.0116],
+    ['YYZ','Toronto Pearson','Canada',43.6777,-79.6248],['YUL','Montreal','Canada',45.4706,-73.7408],
+    ['YVR','Vancouver','Canada',49.1967,-123.1815],['MEX','Mexico City','Mexico',19.4361,-99.0719],
+    ['CUN','Cancun','Mexico',21.0365,-86.877],['GRU','Sao Paulo','Brazil',-23.4356,-46.4731],
+    ['GIG','Rio de Janeiro','Brazil',-22.8099,-43.2506],['EZE','Buenos Aires','Argentina',-34.8222,-58.5358],
+    ['BOG','Bogota','Colombia',4.7016,-74.1469],['LIM','Lima','Peru',-12.0219,-77.1143],
+    ['SCL','Santiago','Chile',-33.393,-70.7858],['DXB','Dubai','UAE',25.2532,55.3657],
+    ['AUH','Abu Dhabi','UAE',24.433,54.6511],['DOH','Doha','Qatar',25.2731,51.6081],
+    ['TLV','Tel Aviv','Israel',32.0114,34.8867],['CAI','Cairo','Egypt',30.1219,31.4056],
+    ['HRG','Hurghada','Egypt',27.1783,33.7994],['RAK','Marrakesh','Morocco',31.6069,-8.0363],
+    ['CMN','Casablanca','Morocco',33.3675,-7.5899],['JNB','Johannesburg','South Africa',-26.1392,28.246],
+    ['CPT','Cape Town','South Africa',-33.9649,18.6017],['NBO','Nairobi','Kenya',-1.3192,36.9278],
+    ['LOS','Lagos','Nigeria',6.5774,3.3212],['DEL','Delhi','India',28.5562,77.1,],
+    ['BOM','Mumbai','India',19.0896,72.8656],['BLR','Bengaluru','India',13.1986,77.7066],
+    ['MAA','Chennai','India',12.99,80.1693],['CCU','Kolkata','India',22.6547,88.4467],
+    ['DAC','Dhaka','Bangladesh',23.8433,90.3978],['KHI','Karachi','Pakistan',24.9065,67.1608],
+    ['ISB','Islamabad','Pakistan',33.5607,72.8517],['CMB','Colombo','Sri Lanka',7.1808,79.8841],
+    ['BKK','Bangkok Suvarnabhumi','Thailand',13.69,100.7501],['DMK','Bangkok Don Mueang','Thailand',13.9126,100.607],
+    ['HKT','Phuket','Thailand',8.1132,98.3169],['SIN','Singapore','Singapore',1.3644,103.9915],
+    ['KUL','Kuala Lumpur','Malaysia',2.7456,101.7099],['CGK','Jakarta','Indonesia',-6.1256,106.6559],
+    ['DPS','Bali Denpasar','Indonesia',-8.7482,115.1675],['MNL','Manila','Philippines',14.5086,121.0198],
+    ['HAN','Hanoi','Vietnam',21.2212,105.8072],['SGN','Ho Chi Minh City','Vietnam',10.8188,106.6519],
+    ['HKG','Hong Kong','Hong Kong',22.308,113.9185],['PVG','Shanghai Pudong','China',31.1443,121.8083],
+    ['PEK','Beijing Capital','China',40.0799,116.6031],['CAN','Guangzhou','China',23.3924,113.2988],
+    ['ICN','Seoul Incheon','South Korea',37.4602,126.4407],['NRT','Tokyo Narita','Japan',35.772,140.3929],
+    ['HND','Tokyo Haneda','Japan',35.5494,139.7798],['KIX','Osaka Kansai','Japan',34.4342,135.2324],
+    ['SYD','Sydney','Australia',-33.9399,151.1753],['MEL','Melbourne','Australia',-37.669,144.8410],
+    ['BNE','Brisbane','Australia',-27.3842,153.1175],['PER','Perth','Australia',-31.9385,115.9672],
+    ['AKL','Auckland','New Zealand',-37.0082,174.7850]
+  ];
+
+  var SYM = { GBP: '\u00a3', EUR: '\u20ac', USD: '$' };
+  // Rough purchasing-power factor so the benchmark is not GBP-only.
+  var FX = { GBP: 1, EUR: 1.17, USD: 1.27 };
+
+  var byCode = {};
+  AP.forEach(function (a) { byCode[a[0]] = a; });
+
+  var dl = $('cff-airports');
+  AP.forEach(function (a) {
+    var o = document.createElement('option');
+    o.value = a[0];
+    o.textContent = a[0] + ' \u2014 ' + a[1] + ', ' + a[2];
+    dl.appendChild(o);
+  });
+
+  function parseAirport(raw) {
+    var s = String(raw || '').trim().toUpperCase();
+    if (byCode[s]) return byCode[s];
+    var m = s.match(/\b([A-Z]{3})\b/);
+    if (m && byCode[m[1]]) return byCode[m[1]];
+    var lower = String(raw || '').trim().toLowerCase();
+    if (lower.length >= 3) {
+      for (var i = 0; i < AP.length; i++) {
+        if (AP[i][1].toLowerCase().indexOf(lower) === 0) return AP[i];
+      }
+    }
+    return null;
+  }
+
+  function dist(a, b) {
+    var R = 6371, t = Math.PI / 180;
+    var dLat = (b[3] - a[3]) * t, dLon = (b[4] - a[4]) * t;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(a[3] * t) * Math.cos(b[3] * t) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  // Benchmark one-way economy fare in GBP for a given great-circle distance.
+  // Fixed cost per sector (taxes, handling, crew) plus a per-km element that
+  // falls with distance, which is how real published fares behave.
+  function baseFare(km) {
+    var fixed = km < 1500 ? 24 : (km < 4000 ? 45 : 80);
+    var perKm = km < 1500 ? 0.036 : (km < 4000 ? 0.030 : 0.024);
+    return fixed + km * perKm;
+  }
+
+  function seasonFactor(dateStr, ap) {
+    if (!dateStr) return { f: 1, label: 'no date set' };
+    var d = new Date(dateStr + 'T12:00:00');
+    if (isNaN(d)) return { f: 1, label: 'no date set' };
+    var m = d.getMonth() + 1, day = d.getDate();
+    var south = ap && ap[3] < 0;
+    var peak = south ? [12, 1, 2] : [7, 8];
+    var shoulder = south ? [3, 11] : [4, 6, 9, 10];
+    if (m === 12 && day >= 18) return { f: 1.45, label: 'Christmas peak' };
+    if (peak.indexOf(m) >= 0) return { f: 1.3, label: 'school-holiday peak' };
+    if (shoulder.indexOf(m) >= 0) return { f: 1.05, label: 'shoulder season' };
+    return { f: 0.85, label: 'low season' };
+  }
+
+  function daysUntil(dateStr) {
+    if (!dateStr) return null;
+    var d = new Date(dateStr + 'T12:00:00');
+    if (isNaN(d)) return null;
+    var now = new Date();
+    return Math.round((d - now) / 86400000);
+  }
+
+  function windowAdvice(km, days) {
+    var band = km < 1500 ? [21, 90] : (km < 4000 ? [35, 140] : [60, 200]);
+    if (days === null) return { tone: 'neutral', text: 'Set an outbound date to get booking-window advice. Sweet spot for this distance is roughly ' + band[0] + '\u2013' + band[1] + ' days ahead.' };
+    if (days < 0) return { tone: 'bad', text: 'That date is in the past.' };
+    if (days < 14) return { tone: 'bad', text: 'Only ' + days + ' days to go \u2014 this is the expensive window. Prices usually climb from here, so if the fare is acceptable, book it. Flying midweek or very early/late can still save a lot.' };
+    if (days < band[0]) return { tone: 'warn', text: days + ' days ahead: slightly late for the cheapest bucket (' + band[0] + '\u2013' + band[1] + ' days). Fares tend to drift up now \u2014 book once you see anything at or below the target.' };
+    if (days <= band[1]) return { tone: 'good', text: days + ' days ahead sits inside the ' + band[0] + '\u2013' + band[1] + ' day sweet spot for this distance. This is where the cheapest seats usually sell, so a fare at or under target is worth taking.' };
+    return { tone: 'warn', text: days + ' days ahead is very early. Airlines often open with placeholder fares; set a price alert and check again around ' + band[1] + ' days out unless what you see is already a bargain.' };
+  }
+
+  function near(ap, other, limitKm) {
+    return AP.filter(function (x) {
+      return x[0] !== ap[0] && x[0] !== other[0] && dist(ap, x) <= limitKm;
+    }).sort(function (a, b) { return dist(ap, a) - dist(ap, b); }).slice(0, 4);
+  }
+
+  function esc(s) { return String(s); }
+
+  function box(title, bodyNodes, colour) {
+    var d = document.createElement('div');
+    d.style.cssText = 'padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid ' + (colour || 'rgba(255,255,255,.14)') + ';margin-top:10px;';
+    var h = document.createElement('div');
+    h.style.cssText = 'font-weight:800;margin-bottom:6px;font-size:.9rem;';
+    h.textContent = title;
+    d.appendChild(h);
+    bodyNodes.forEach(function (n) { d.appendChild(n); });
+    return d;
+  }
+
+  function p(text, small) {
+    var el = document.createElement('p');
+    el.style.cssText = 'margin:4px 0;font-size:' + (small ? '.78rem' : '.85rem') + ';color:var(--text-secondary);line-height:1.5;';
+    el.textContent = text;
+    return el;
+  }
+
+  function link(label, url, note) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin:6px 0;';
+    var a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer nofollow';
+    a.textContent = label;
+    a.style.cssText = 'color:var(--accent);font-weight:700;font-size:.85rem;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.2);';
+    wrap.appendChild(a);
+    if (note) {
+      var s = document.createElement('span');
+      s.style.cssText = 'display:block;font-size:.74rem;color:var(--text-secondary);margin-top:2px;';
+      s.textContent = note;
+      wrap.appendChild(s);
+    }
+    return wrap;
+  }
+
+  function fmt(n, cur) {
+    return SYM[cur] + (n >= 500 ? Math.round(n).toLocaleString() : (Math.round(n * 10) / 10).toFixed(0));
+  }
+
+  function run() {
+    var panel = $('cff-out-panel');
+    panel.textContent = '';
+
+    var from = parseAirport($('cff-from').value);
+    var to = parseAirport($('cff-to').value);
+    if (!from || !to || from[0] === to[0]) {
+      panel.appendChild(p('Type two different airports \u2014 a three-letter code such as LTN, or the start of a city name. The list suggests ' + AP.length + ' major airports.'));
+      return;
+    }
+
+    var cur = $('cff-cur').value;
+    var pax = Math.max(1, Math.min(9, Math.round(Number($('cff-pax').value) || 1)));
+    var cabin = Number($('cff-cabin').value) || 1;
+    var roundTrip = $('cff-trip').value === 'round';
+    var outDate = $('cff-out').value;
+    var backDate = $('cff-back').value;
+    var price = Number($('cff-price').value);
+    var km = dist(from, to);
+    var miles = km * 0.621371;
+
+    var season = seasonFactor(outDate, from);
+    var legs = roundTrip ? 2 : 1;
+    var bagAdd = $('cff-bags').checked ? (km < 1500 ? 30 : 55) * legs : 0;
+    var directAdd = $('cff-direct').checked && km > 2500 ? 1.12 : 1;
+
+    var gbpTypical = baseFare(km) * legs * cabin * season.f * directAdd + bagAdd;
+    var typical = gbpTypical * FX[cur];
+    var target = typical * 0.72;   // "this is a deal" line
+    var steal = typical * 0.5;     // error-fare / flash-sale territory
+
+    var head = document.createElement('div');
+    head.style.cssText = 'font-size:.85rem;color:var(--text-secondary);';
+    head.textContent = from[0] + ' ' + from[1] + ' \u2192 ' + to[0] + ' ' + to[1] + ' \u00b7 ' +
+      Math.round(km).toLocaleString() + ' km / ' + Math.round(miles).toLocaleString() + ' miles each way \u00b7 ' +
+      (roundTrip ? 'return' : 'one way') + ' \u00b7 ' + season.label;
+    panel.appendChild(head);
+
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;';
+    [['Typical fare', fmt(typical, cur), 'what this route normally costs per person'],
+     ['Good deal at or below', fmt(target, cur), 'book without overthinking it'],
+     ['Bargain below', fmt(steal, cur), 'sale or mistake-fare territory'],
+     ['Party total at your price', price > 0 ? fmt(price * pax, cur) : '\u2014', pax + ' passenger' + (pax > 1 ? 's' : '')]
+    ].forEach(function (row) {
+      var c = document.createElement('div');
+      c.style.cssText = 'padding:10px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);';
+      var t = document.createElement('div');
+      t.style.cssText = 'font-size:.72rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;';
+      t.textContent = row[0];
+      var v = document.createElement('div');
+      v.style.cssText = 'font-size:1.25rem;font-weight:800;color:var(--accent);margin:2px 0;';
+      v.textContent = row[1];
+      var n = document.createElement('div');
+      n.style.cssText = 'font-size:.72rem;color:var(--text-secondary);';
+      n.textContent = row[2];
+      c.appendChild(t); c.appendChild(v); c.appendChild(n);
+      grid.appendChild(c);
+    });
+    panel.appendChild(grid);
+
+    if (price > 0) {
+      var ratio = price / typical;
+      var verdict, colour, note;
+      if (ratio <= 0.5) { verdict = '\u2b50 Outstanding \u2014 book now'; colour = 'rgba(57,255,20,.45)'; note = 'That is about ' + Math.round((1 - ratio) * 100) + '% under the typical fare. Fares this low rarely last a day. Check the fare rules, then book.'; }
+      else if (ratio <= 0.72) { verdict = '\u2705 Cheap \u2014 good time to book'; colour = 'rgba(57,255,20,.35)'; note = Math.round((1 - ratio) * 100) + '% under typical. Waiting for better usually costs more than it saves.'; }
+      else if (ratio <= 1.05) { verdict = '\u2696\ufe0f Normal \u2014 keep looking a bit'; colour = 'rgba(255,209,102,.4)'; note = 'Roughly the usual price. Try shifting dates by a few days, a nearby airport, or a price alert before committing.'; }
+      else if (ratio <= 1.25) { verdict = '\u{1f50e} A bit high \u2014 worth one more look'; colour = 'rgba(255,209,102,.45)'; note = 'About ' + Math.round((ratio - 1) * 100) + '% over typical. Check \u00b13 days and the nearby airports below; if nothing better appears in a week, this is fine to take.'; }
+      else { verdict = '\u26a0\ufe0f Expensive \u2014 don\u2019t book yet'; colour = 'rgba(255,77,77,.4)'; note = 'About ' + Math.round((ratio - 1) * 100) + '% over typical. Flexible dates, nearby airports or splitting the journey into two tickets usually beat this.'; }
+      var vb = box(verdict, [p(note), p('Your price ' + fmt(price, cur) + ' vs typical ' + fmt(typical, cur) + ' \u00b7 ' + (price / Math.max(1, (roundTrip ? 2 : 1) * miles)).toFixed(3) + ' ' + cur + ' per mile flown.', true)], colour);
+      panel.appendChild(vb);
+    }
+
+    var wa = windowAdvice(km, daysUntil(outDate));
+    panel.appendChild(box('\u23f3 Booking window', [p(wa.text)],
+      wa.tone === 'good' ? 'rgba(57,255,20,.3)' : (wa.tone === 'bad' ? 'rgba(255,77,77,.35)' : 'rgba(255,209,102,.3)')));
+
+    // Search links
+    var gfPax = pax > 1 ? (' ' + pax + ' passengers') : '';
+    var gfQuery = 'Flights from ' + from[0] + ' to ' + to[0] +
+      (outDate ? ' on ' + outDate : '') +
+      (roundTrip && backDate ? ' through ' + backDate : (roundTrip ? '' : ' one way')) + gfPax;
+    var links = [];
+    links.push(link('Google Flights \u2014 calendar and price graph',
+      'https://www.google.com/travel/flights?q=' + encodeURIComponent(gfQuery),
+      'Best free tool for whole-month price grids and "track prices" alerts.'));
+    var syDates = outDate ? outDate.slice(2).replace(/-/g, '') : '';
+    var syBack = backDate ? backDate.slice(2).replace(/-/g, '') : '';
+    links.push(link('Skyscanner \u2014 cheapest month / everywhere search',
+      'https://www.skyscanner.net/transport/flights/' + from[0].toLowerCase() + '/' + to[0].toLowerCase() + '/' +
+        (syDates || '') + (roundTrip && syBack ? '/' + syBack : '') + '/?adults=' + pax +
+        '&cabinclass=economy&preferdirects=' + ($('cff-direct').checked ? 'true' : 'false'),
+      'Swap the destination for "Everywhere" to let the price pick your holiday.'));
+    links.push(link('Kayak \u2014 flexible dates and price forecast',
+      'https://www.kayak.co.uk/flights/' + from[0] + '-' + to[0] +
+        (outDate ? '/' + outDate : '') + (roundTrip && backDate ? '/' + backDate : '') +
+        '/' + pax + 'adults' + ($('cff-direct').checked ? '?fs=stops=0' : ''),
+      'Shows whether its model expects the fare to rise or fall.'));
+    links.push(link('Momondo \u2014 often surfaces smaller agents',
+      'https://www.momondo.co.uk/flight-search/' + from[0] + '-' + to[0] +
+        (outDate ? '/' + outDate : '') + (roundTrip && backDate ? '/' + backDate : '') + '/' + pax + 'adults',
+      'Compare the final price after bags before trusting an unknown agency.'));
+    links.push(link('Kiwi.com \u2014 self-connect and split tickets',
+      'https://www.kiwi.com/en/search/results/' + from[0].toLowerCase() + '-airport/' + to[0].toLowerCase() + '-airport' +
+        (outDate ? '/' + outDate : '') + (roundTrip && backDate ? '/' + backDate : ''),
+      'Cheapest option on long routes, but a missed self-connection is your problem unless their guarantee is included.'));
+    panel.appendChild(box('\u{1f50d} Ready-made searches (open in a new tab)', links, 'rgba(255,255,255,.14)'));
+
+    // Nearby airports
+    var fnear = near(from, to, km < 1500 ? 160 : 260);
+    var tnear = near(to, from, km < 1500 ? 160 : 260);
+    if (fnear.length || tnear.length) {
+      var nn = [];
+      if (fnear.length) nn.push(p('Instead of ' + from[0] + ': ' + fnear.map(function (x) { return x[0] + ' ' + x[1] + ' (' + Math.round(dist(from, x)) + ' km away)'; }).join(' \u00b7 ')));
+      if (tnear.length) nn.push(p('Instead of ' + to[0] + ': ' + tnear.map(function (x) { return x[0] + ' ' + x[1] + ' (' + Math.round(dist(to, x)) + ' km away)'; }).join(' \u00b7 ')));
+      nn.push(p('Low-cost carriers often use the secondary airport at a fraction of the price. Subtract the transfer cost and time before you celebrate.', true));
+      panel.appendChild(box('\u{1f6eb} Nearby airports worth pricing', nn, 'rgba(255,255,255,.14)'));
+    }
+
+    // Tactics
+    var tips = [];
+    if ($('cff-flex').checked) tips.push('Flexible dates: Tuesday, Wednesday and Saturday departures are usually the cheapest, and the first flight of the day or the last one at night is often the cheapest of the day. Moving by one day frequently beats any discount code.');
+    else tips.push('Fixed dates cost money. Tick "dates are flexible" and check the \u00b13 day grid on Google Flights \u2014 on this route a one-day shift is commonly worth 15\u201330%.');
+    if (roundTrip) tips.push('Price two one-way tickets on different airlines as well as the return. On low-cost routes the split is often cheaper; on long-haul the return is usually better.');
+    if (km > 4000) tips.push('Long-haul: check a nearby hub as an origin (a cheap short hop plus a hub-to-hub fare can undercut the through ticket), and look at airlines from the destination country \u2014 they frequently price the route lowest.');
+    if ($('cff-bags').checked) tips.push('You need a checked bag, so compare total prices, not headline fares. A \u201ccheap\u201d low-cost ticket plus 20 kg is regularly dearer than a full-service fare that includes a bag, seat and meal.');
+    else tips.push('Cabin-bag only keeps you in the cheapest fare bucket \u2014 check the size limits before booking, because gate fees are the most expensive way to carry a bag.');
+    tips.push('Set alerts rather than refreshing: Google Flights tracking emails you when the fare moves, and most drops happen quietly rather than on sale days.');
+    tips.push('Book directly with the airline when the price matches the agent. If a flight is cancelled, the airline can rebook you in minutes; a cheap third-party agent may take weeks to refund.');
+    tips.push('Incognito browsing does not lower fares \u2014 that is a myth. Price differences come from currency, country of sale and cache, not from cookies watching you.');
+    panel.appendChild(box('\u{1f4a1} Tactics for this trip', tips.map(function (t) { return p(t); }), 'rgba(255,255,255,.14)'));
+
+    panel.appendChild(p('How the benchmark works: a fixed per-sector cost plus a per-kilometre rate that tapers with distance, adjusted for cabin, season, bags and direct-only. It reflects normal published economy pricing, not a live quote \u2014 always confirm the real fare on the airline or comparison site.', true));
+  }
+
+  var ids = ['cff-from', 'cff-to', 'cff-trip', 'cff-cabin', 'cff-out', 'cff-back', 'cff-pax', 'cff-price', 'cff-cur', 'cff-flex', 'cff-bags', 'cff-direct'];
+  ids.forEach(function (id) {
+    var el = $(id);
+    if (!el) return;
+    el.addEventListener('input', run);
+    el.addEventListener('change', run);
+  });
+
+  // Sensible default dates: about eight weeks out, one week long.
+  (function () {
+    var d = new Date(Date.now() + 56 * 86400000);
+    var b = new Date(Date.now() + 63 * 86400000);
+    function iso(x) { return x.toISOString().slice(0, 10); }
+    $('cff-out').value = iso(d);
+    $('cff-back').value = iso(b);
+  })();
+
+  run();
+})();
+</script>

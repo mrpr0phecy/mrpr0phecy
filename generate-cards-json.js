@@ -953,6 +953,7 @@ const importedSalvageMap = {
   'calorie-deficit-weight-loss-timeline': 'Health & Fitness',
   'car-ownership-cost-calculator': 'Finance & Money',
   'celsius-fahrenheit-kelvin-converter': 'Science & Engineering',
+  'cheap-flight-fare-finder': 'Productivity & Lifestyle',
   'character-limit-platform-counter': 'Writing & Language',
   'climbing-anchor-force-calculator': 'Science & Engineering',
   'clock-angle-calculator': 'Mathematics',
