@@ -1,0 +1,43 @@
+<section id="scale-drawing-converter" aria-labelledby="scale-drawing-converter-title">
+<style>
+#scale-drawing-converter{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#scale-drawing-converter *{box-sizing:border-box}#scale-drawing-converter h2{color:var(--accent,#22d3ee);margin-top:0}
+#scale-drawing-converter .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#scale-drawing-converter label{display:block;font-size:.88rem}#scale-drawing-converter input,#scale-drawing-converter textarea,#scale-drawing-converter select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#scale-drawing-converter button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#scale-drawing-converter :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#scale-drawing-converter .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#scale-drawing-converter pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#scale-drawing-converter .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="scale-drawing-converter-title">Scale Drawing Converter</h2><p id="scale-drawing-converter-desc" class="small">Convert plan measurements to real dimensions or real dimensions to a drawing, with explicit units and a photocopy enlargement or reduction factor.</p>
+<form><div class="fields"><label for="scale-drawing-converter-direction">Conversion direction<select id="scale-drawing-converter-direction"><option value="real">Drawing → real size</option><option value="drawing">Real size → drawing</option></select></label><label for="scale-drawing-converter-value">Measured length<input id="scale-drawing-converter-value" type="number" value="5" min="0.000001" max="1000000000" step="any"></label><label for="scale-drawing-converter-unit">Input unit<select id="scale-drawing-converter-unit"><option value="cm">Centimetres</option><option value="mm">Millimetres</option><option value="m">Metres</option><option value="in">Inches</option><option value="ft">Feet</option></select></label><label for="scale-drawing-converter-scale">Drawing scale — 1 :<input id="scale-drawing-converter-scale" type="number" value="50" min="0.000001" max="1000000000" step="any"></label><label for="scale-drawing-converter-target">Rescale drawing to — 1 :<input id="scale-drawing-converter-target" type="number" value="100" min="0.000001" max="1000000000" step="any"></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Assumes a true-to-scale drawing with no distortion. Verify a known dimension after printing; “fit to page” can change the scale. Resize factor applies to the drawing, not the real object.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('scale-drawing-converter');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#scale-drawing-converter-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const value=num('value'),scale=num('scale'),target=num('target');
+ if([value,scale,target].some(v=>v<0.000001||v>1e9))throw new Error('Use positive values between 0.000001 and 1,000,000,000.');
+ const factors={mm:.001,cm:.01,m:1,in:.0254,ft:.3048},input=value*factors[get('unit').value],output=get('direction').value==='real'?input*scale:input/scale;
+ const fmt=n=>n===0?'0':Number(n.toPrecision(8)).toString();
+ result.textContent=(get('direction').value==='real'?'Real-world length':'Length on the drawing')+' at 1:'+scale+'\n\n'+fmt(output*1000)+' mm\n'+fmt(output*100)+' cm\n'+fmt(output)+' m\n'+fmt(output/.0254)+' inches\n'+fmt(output/.3048)+' feet\n\nResize a 1:'+scale+' drawing to 1:'+target+': '+fmt(scale/target*100)+'% of its original printed size.';}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>

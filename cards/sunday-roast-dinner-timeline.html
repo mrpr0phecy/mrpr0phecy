@@ -1,0 +1,97 @@
+<!--
+  🍖 Sunday Roast Dinner Timeline — backwards-timed battle plan.
+  Pick your meat, its weight and when you want to eat; get an exact
+  countdown schedule: when to prep, roast, rest, do the potatoes,
+  Yorkshire puddings, veg and gravy. Resting time and carve included.
+  Works offline, nothing leaves your browser.
+-->
+<style>
+  .srdt-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .srdt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+  .srdt-field label{display:block;font-size:.72rem;color:var(--muted,#8fa3bf);text-transform:uppercase;margin-bottom:4px}
+  .srdt-field input,.srdt-field select{width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,.2);
+    background:rgba(0,0,0,.3);color:var(--text,#eef2f8);font-size:14px;box-sizing:border-box}
+  .srdt-plan{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:6px 0}
+  .srdt-row{display:flex;gap:12px;padding:9px 16px;border-bottom:1px solid rgba(255,255,255,.05);font-size:.88rem;align-items:baseline}
+  .srdt-row:last-child{border-bottom:none}
+  .srdt-time{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:700;color:#7de3ff;min-width:64px;flex-shrink:0}
+  .srdt-row.srdt-key{background:rgba(45,212,255,.07)}
+  .srdt-note{font-size:.78rem;color:var(--muted,#8fa3bf);margin-top:10px;line-height:1.5}
+  .srdt-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:8px;
+    border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.1);color:#c9ecff;
+    font-size:13px;font-weight:600;cursor:pointer;margin-top:10px}
+</style>
+
+<div class="srdt-wrap">
+  <h2 id="srdt-title" style="margin-top:0;color:var(--accent,#22d3ee)">🍖 Sunday Roast Dinner Timeline</h2>
+  <p id="srdt-desc" class="small" style="color:var(--muted,#8fa3bf);font-size:.85rem;margin-bottom:14px">
+    Choose your joint, its weight and your serving time — get a backwards-planned schedule covering the roast, resting, roasties, Yorkshire puddings, veg and gravy, so everything lands hot at the same moment.
+  </p>
+
+  <div class="srdt-grid">
+    <div class="srdt-field"><label for="srdt-meat">Main</label>
+      <select id="srdt-meat">
+        <option value="chicken">Whole chicken (20 min/500g + 20)</option>
+        <option value="beef">Beef joint, medium (20 min/500g + 25)</option>
+        <option value="lamb">Leg of lamb (25 min/500g + 25)</option>
+        <option value="pork">Pork loin &amp; crackling (30 min/500g + 25)</option>
+        <option value="nut">Nut roast (fixed 55 min)</option>
+      </select></div>
+    <div class="srdt-field"><label for="srdt-weight">Weight (kg)</label>
+      <input id="srdt-weight" type="number" min="0.4" max="8" step="0.1" value="1.8" inputmode="decimal"></div>
+    <div class="srdt-field"><label for="srdt-serve">Serve at</label>
+      <input id="srdt-serve" type="time" value="14:00"></div>
+  </div>
+
+  <div class="srdt-plan" id="srdt-plan" aria-live="polite"></div>
+  <p class="srdt-note">Times assume a preheated oven and are a guide, not a guarantee — always check
+    poultry is piping hot with clear juices (75&nbsp;°C in the thickest part). Resting under foil is counted in the plan.</p>
+  <button type="button" class="srdt-btn" id="srdt-copy">📋 Copy plan</button>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var REST={chicken:15,beef:25,lamb:20,pork:20,nut:10};
+  var TEMP={chicken:'200°C/180°C fan',beef:'220°C then 190°C',lamb:'190°C/170°C fan',pork:'240°C for 25 min then 190°C',nut:'190°C/170°C fan'};
+  function cookMin(kind,kg){
+    if(kind==='nut')return 55;
+    var per={chicken:20,beef:20,lamb:25,pork:30}[kind],plus={chicken:20,beef:25,lamb:25,pork:25}[kind];
+    return Math.round(per*kg*2+plus);
+  }
+  function fmt(mins){
+    var h=Math.floor(mins/60)%24,m=mins%60;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  }
+  function plan(){
+    var kind=$('srdt-meat').value,kg=parseFloat($('srdt-weight').value)||1.8,sv=$('srdt-serve').value||'14:00';
+    var sp=sv.split(':'),serve=(+sp[0])*60+(+sp[1]);
+    var cook=cookMin(kind,kg),rest=REST[kind];
+    var steps=[],t=serve;
+    function add(off,text,key){steps.push({t:t-off,text:text,key:!!key});}
+    add(0,'🍽️ SERVE — plates hot, gravy in the jug, carve the rested joint',true);
+    add(10,'Gravy: deglaze the roasting tin with stock, simmer &amp; thicken');
+    add(20,'Steam/boil the veg (carrots, greens, broccoli)');
+    add(rest+0,'Meat OUT of the oven → foil tent, rest '+rest+' min. Oven up to 220°C for Yorkshires',true);
+    add(rest+5,'Yorkshire pudding batter into smoking-hot oil, 20–25 min');
+    add(rest+15,'Roast potatoes go in (parboiled &amp; shaken), 45–55 min at 220°C');
+    add(rest+cook,'🔥 '+kind.charAt(0).toUpperCase()+kind.slice(1)+' ('+kg+' kg) INTO the oven — '+cook+' min at '+TEMP[kind],true);
+    add(rest+cook+15,'Oven on to preheat · meat out of the fridge to take the chill off');
+    add(rest+cook+35,'Peel &amp; parboil potatoes (10 min), prep veg, make Yorkshire batter and chill it');
+    steps.sort(function(a,b){return a.t-b.t;});
+    $('srdt-plan').innerHTML=steps.map(function(s){
+      return '<div class="srdt-row'+(s.key?' srdt-key':'')+'"><span class="srdt-time">'+fmt(s.t)+'</span><span>'+s.text+'</span></div>';
+    }).join('');
+  }
+  $('srdt-meat').addEventListener('change',plan);
+  $('srdt-weight').addEventListener('input',plan);
+  $('srdt-serve').addEventListener('input',plan);
+  $('srdt-copy').addEventListener('click',function(){
+    var rows=document.querySelectorAll('#srdt-plan .srdt-row'),out=[];
+    rows.forEach(function(r){out.push(r.textContent.replace(/\s+/g,' ').trim());});
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(out.join('\n')).catch(function(){});}
+    this.textContent='✅ Copied';var b=this;setTimeout(function(){b.textContent='📋 Copy plan';},1500);
+  });
+  plan();
+})();
+</script>

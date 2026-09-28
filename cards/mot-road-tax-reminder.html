@@ -1,0 +1,92 @@
+<!--
+  🚗 MOT & Road Tax Reminder — never miss a UK vehicle deadline again.
+  Enter your MOT expiry, VED (road tax) due date and insurance renewal:
+  get days remaining, urgency traffic-lights, the earliest MOT test window
+  (one month minus a day), and a copyable checklist. Everything stays in
+  your browser — zero network, zero tracking.
+-->
+<style>
+  .motr-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .motr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:12px}
+  .motr-field label{display:block;font-size:.72rem;color:var(--muted,#8fa3bf);text-transform:uppercase;margin-bottom:4px}
+  .motr-field input{width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,.2);
+    background:rgba(0,0,0,.3);color:var(--text,#eef2f8);font-size:14px;box-sizing:border-box}
+  .motr-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:12px}
+  .motr-card{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px}
+  .motr-card .motr-st{font-size:.7rem;text-transform:uppercase;color:var(--muted,#8fa3bf)}
+  .motr-card .motr-days{font-size:1.7rem;font-weight:800;line-height:1.15;margin:2px 0}
+  .motr-card .motr-note{font-size:.78rem;color:var(--muted,#8fa3bf)}
+  .motr-ok{color:#4ade80}.motr-soon{color:#fbbf24}.motr-urgent{color:#f87171}
+  .motr-list{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;
+    padding:12px 14px;font-size:.85rem;line-height:1.7;white-space:pre-wrap}
+  .motr-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:8px;
+    border:1px solid rgba(45,212,255,.4);background:rgba(45,212,255,.1);color:#c9ecff;
+    font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:10px}
+  .motr-btn:hover{background:rgba(45,212,255,.22)}
+</style>
+
+<div class="motr-wrap">
+  <h2 id="motr-title" style="margin-top:0;color:var(--accent,#22d3ee)">🚗 MOT, Road Tax &amp; Insurance Deadline Reminder</h2>
+  <p id="motr-desc" class="small" style="color:var(--muted,#8fa3bf);font-size:.85rem;margin-bottom:14px">
+    Pop in your UK vehicle dates and see exactly how many days you have left, the earliest date you can take the MOT without losing time on your certificate, and a plain-English checklist to copy into your phone's reminders.
+  </p>
+
+  <div class="motr-grid">
+    <div class="motr-field"><label for="motr-mot">MOT expiry date</label>
+      <input id="motr-mot" type="date"></div>
+    <div class="motr-field"><label for="motr-ved">Road tax (VED) due</label>
+      <input id="motr-ved" type="date"></div>
+    <div class="motr-field"><label for="motr-ins">Insurance renewal</label>
+      <input id="motr-ins" type="date"></div>
+  </div>
+
+  <div class="motr-cards" id="motr-cards" aria-live="polite"></div>
+
+  <div class="motr-list" id="motr-list">Add at least one date above and your checklist will appear here.</div>
+  <button type="button" class="motr-btn" id="motr-copy">📋 Copy checklist</button>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var fields=[['motr-mot','MOT'],['motr-ved','Road tax (VED)'],['motr-ins','Insurance']];
+  function today(){var d=new Date();d.setHours(0,0,0,0);return d;}
+  function parse(s){var m=s&&s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?new Date(+m[1],+m[2]-1,+m[3]):null;}
+  function fmt(d){return d.toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});}
+  function daysLeft(d){return Math.round((d-today())/86400000);}
+  function cls(n){return n<0?'motr-urgent':n<=14?'motr-urgent':n<=30?'motr-soon':'motr-ok';}
+  function word(n){return n<0?Math.abs(n)+' day'+(n===-1?'':'s')+' OVERDUE':n===0?'Due TODAY':n+' day'+(n===1?'':'s')+' left';}
+  function motWindow(exp){
+    var w=new Date(exp);w.setMonth(w.getMonth()-1);w.setDate(w.getDate()+1);
+    return w;
+  }
+  function render(){
+    var html='',lines=[],i,d,n,label;
+    for(i=0;i<fields.length;i++){
+      label=fields[i][1];d=parse($(fields[i][0]).value);if(!d)continue;
+      n=daysLeft(d);
+      html+='<div class="motr-card"><div class="motr-st">'+label+'</div>'+
+        '<div class="motr-days '+cls(n)+'">'+word(n)+'</div>'+
+        '<div class="motr-note">'+fmt(d)+'</div></div>';
+      lines.push('• '+label+': '+fmt(d)+' ('+word(n)+')');
+      if(label==='MOT'){
+        var w=motWindow(d);
+        lines.push('  Earliest MOT test that keeps your expiry date: '+fmt(w));
+      }
+    }
+    $('motr-cards').innerHTML=html;
+    if(!lines.length){$('motr-list').textContent='Add at least one date above and your checklist will appear here.';return;}
+    lines.push('');
+    lines.push('Tips: book the MOT up to a month (minus a day) early to keep the same renewal date. '+
+      'You can tax a vehicle from the 5th of the month. Driving without MOT or insurance can mean fines, points and a seized car.');
+    $('motr-list').textContent=lines.join('\n');
+  }
+  for(var i=0;i<fields.length;i++){$(fields[i][0]).addEventListener('input',render);}
+  $('motr-copy').addEventListener('click',function(){
+    var t=$('motr-list').textContent;
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).catch(function(){});}
+    this.textContent='✅ Copied';var b=this;setTimeout(function(){b.textContent='📋 Copy checklist';},1500);
+  });
+  render();
+})();
+</script>

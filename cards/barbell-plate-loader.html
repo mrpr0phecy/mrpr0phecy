@@ -1,0 +1,83 @@
+<!--
+  🏋️ Barbell Plate Loader — what plates go on each side of the bar.
+  Enter your target weight and bar weight, pick kg or lb and the plates you
+  own, and get the exact per-side loading order plus a warm-up ramp to the
+  working weight. Pure maths, offline, no tracking.
+-->
+<style>
+  .bpl-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .bpl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  .bpl-field label{display:block;font-size:.72rem;color:var(--muted,#8fa3bf);text-transform:uppercase;margin-bottom:4px}
+  .bpl-field input,.bpl-field select{width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,.2);
+    background:rgba(0,0,0,.3);color:var(--text,#eef2f8);font-size:14px;box-sizing:border-box}
+  .bpl-visual{display:flex;align-items:center;gap:3px;justify-content:center;margin:12px 0;
+    background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px 8px;min-height:96px;flex-wrap:wrap}
+  .bpl-plate{display:flex;align-items:center;justify-content:center;border-radius:4px;color:#fff;
+    font-weight:700;font-size:11px;writing-mode:vertical-rl;text-orientation:mixed;margin:0 1px}
+  .bpl-sleeve{width:44px;height:12px;background:#94a3b8;border-radius:3px}
+  .bpl-bar{flex:1;min-width:60px;height:8px;background:#64748b;border-radius:3px}
+  .bpl-collar{width:8px;height:26px;background:#475569;border-radius:2px}
+  .bpl-out{font-size:.95rem;text-align:center;color:var(--text,#eef2f8);margin-bottom:8px;font-weight:600}
+  .bpl-warm{background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;font-size:.85rem;line-height:1.7;white-space:pre-wrap}
+</style>
+
+<div class="bpl-wrap">
+  <h2 id="bpl-title" style="margin-top:0;color:var(--accent,#22d3ee)">🏋️ Barbell Plate Loader &amp; Warm-up Ramp</h2>
+  <p id="bpl-desc" class="small" style="color:var(--muted,#8fa3bf);font-size:.85rem;margin-bottom:14px">
+    Stop doing bar maths in your head between sets. Enter the target weight, choose your bar and available plates, and see exactly which plates go on each side — drawn to scale — plus a sensible warm-up ramp to get there.
+  </p>
+
+  <div class="bpl-grid">
+    <div class="bpl-field"><label for="bpl-target">Target weight</label>
+      <input id="bpl-target" type="number" min="0" step="0.5" value="100" inputmode="decimal"></div>
+    <div class="bpl-field"><label for="bpl-unit">Units</label>
+      <select id="bpl-unit"><option value="kg">kg</option><option value="lb">lb</option></select></div>
+    <div class="bpl-field"><label for="bpl-bar">Bar</label>
+      <select id="bpl-bar"></select></div>
+  </div>
+
+  <div class="bpl-out" id="bpl-out" aria-live="polite"></div>
+  <div class="bpl-visual" id="bpl-visual" aria-hidden="true"></div>
+  <div class="bpl-warm" id="bpl-warm"></div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var PLATES={kg:[25,20,15,10,5,2.5,1.25],lb:[45,35,25,10,5,2.5]};
+  var BARS={kg:[['Olympic bar',20],['Women\u2019s Olympic bar',15],['Ez-curl bar',10],['Technique bar',5],['None (plates only)',0]],
+            lb:[['Olympic bar',45],['Women\u2019s Olympic bar',35],['Ez-curl bar',25],['Technique bar',15],['None (plates only)',0]]};
+  var COLORS={25:'#dc2626',20:'#2563eb',15:'#eab308',10:'#16a34a',5:'#f8fafc',2.5:'#7f1d1d',1.25:'#1e293b',
+              45:'#2563eb',35:'#eab308'};
+  function hgt(p){return Math.round(34+Math.sqrt(p)*13);}
+  function fillBars(){
+    var u=$('bpl-unit').value,sel=$('bpl-bar'),cur=sel.value;
+    sel.innerHTML=BARS[u].map(function(b,i){return '<option value="'+i+'">'+b[0]+' ('+b[1]+' '+u+')</option>';}).join('');
+    if(cur&&BARS[u][+cur])sel.value=cur;
+    $('bpl-target').value=u==='kg'?100:225;
+  }
+  function load(){
+    var u=$('bpl-unit').value,t=parseFloat($('bpl-target').value)||0,bar=BARS[u][+$('bpl-bar').value||0][1];
+    var per=(t-bar)/2,out=$('bpl-out'),vis=$('bpl-visual'),warm=$('bpl-warm');
+    if(t<=bar){out.textContent=t<=0?'Enter a target weight.':'Target must be heavier than the bar ('+bar+' '+u+').';vis.innerHTML='';warm.textContent='';return;}
+    var need=per,picks=[],i;
+    for(i=0;i<PLATES[u].length;i++){while(need>=PLATES[u][i]-1e-9){picks.push(PLATES[u][i]);need=+(need-PLATES[u][i]).toFixed(3);}}
+    if(need>1e-9){out.textContent='⚠️ Can\u2019t make '+t+' '+u+' exactly with these plates — closest is '+(bar+2*(per-need))+' '+u+' (add small change plates for the rest).';}
+    else{out.textContent='Each side: '+(picks.length?picks.join(' + '):'(no plates — bar only)')+'  ·  loaded on a '+bar+' '+u+' bar';}
+    var ph=picks.map(function(p){
+      var c=COLORS[p]||'#475569',tc=(p===5&&u==='kg')?'#111827':'#fff';
+      return '<span class="bpl-plate" style="height:'+hgt(p)+'px;width:'+(10+p*0.35)+'px;background:'+c+';color:'+tc+'">'+p+'</span>';
+    }).join('');
+    vis.innerHTML='<span class="bpl-collar"></span>'+ph+'<span class="bpl-sleeve"></span><span class="bpl-bar"></span><span class="bpl-sleeve"></span>'+ph+'<span class="bpl-collar"></span>';
+    var ramp=[0.4,0.6,0.8].map(function(f){return Math.round((t*f)/2.5)*2.5;}).filter(function(w,idx,arr){return w>bar&&arr.indexOf(w)===idx&&w<t;});
+    warm.textContent='Warm-up ramp to '+t+' '+u+':\n'+
+      '1. Empty bar × 10\n'+
+      ramp.map(function(w,j){return (j+2)+'. '+w+' '+u+' × 5';}).join('\n')+
+      '\n'+(ramp.length+2)+'. '+t+' '+u+' — working weight 🎯';
+  }
+  fillBars();load();
+  $('bpl-unit').addEventListener('change',function(){fillBars();load();});
+  $('bpl-bar').addEventListener('change',load);
+  $('bpl-target').addEventListener('input',load);
+})();
+</script>

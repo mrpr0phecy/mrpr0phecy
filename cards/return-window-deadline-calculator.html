@@ -1,0 +1,46 @@
+<section id="return-window-deadline-calculator" aria-labelledby="return-window-deadline-calculator-title">
+<style>
+#return-window-deadline-calculator{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#return-window-deadline-calculator *{box-sizing:border-box}#return-window-deadline-calculator h2{color:var(--accent,#22d3ee);margin-top:0}
+#return-window-deadline-calculator .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#return-window-deadline-calculator label{display:block;font-size:.88rem}#return-window-deadline-calculator input,#return-window-deadline-calculator textarea,#return-window-deadline-calculator select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#return-window-deadline-calculator button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#return-window-deadline-calculator :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#return-window-deadline-calculator .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#return-window-deadline-calculator pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#return-window-deadline-calculator .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="return-window-deadline-calculator-title">Return Window Deadline Calculator</h2><p id="return-window-deadline-calculator-desc" class="small">Calculate a calendar-day deadline from a purchase or delivery date and the retailer’s stated return period, with an optional posting buffer.</p>
+<form><div class="fields"><label for="return-window-deadline-calculator-start">Purchase or delivery date<input id="return-window-deadline-calculator-start" type="date" value="" ></label><label for="return-window-deadline-calculator-days">Return window (calendar days)<input id="return-window-deadline-calculator-days" type="number" value="30" min="1" max="3650" step="1"></label><label for="return-window-deadline-calculator-count">How the policy counts days<select id="return-window-deadline-calculator-count"><option value="after">Day 1 is the next day</option><option value="inclusive">Purchase / delivery date is day 1</option></select></label><label for="return-window-deadline-calculator-buffer">Days to allow before deadline<input id="return-window-deadline-calculator-buffer" type="number" value="3" min="0" max="3650" step="1"></label><label for="return-window-deadline-calculator-asof">Check status as of<input id="return-window-deadline-calculator-asof" type="date" value="" ></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Date arithmetic only, not a statement of legal rights. Check whether the policy requires notification, dispatch or receipt by the deadline. Weekends and holidays count; posting buffers are your estimate, not a delivery guarantee.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('return-window-deadline-calculator');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#return-window-deadline-calculator-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const today=new Date(),local=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+ if(!root.dataset.datesSet){get('start').value=local;get('asof').value=local;root.dataset.datesSet='true';}
+ const parse=k=>{const s=get(k).value;if(!/^\d{4}-\d{2}-\d{2}$/.test(s))throw new Error('Choose valid dates.');const d=new Date(s+'T00:00:00Z');if(!Number.isFinite(+d)||d.toISOString().slice(0,10)!==s)throw new Error('Choose valid dates.');return +d;};
+ const start=parse('start'),asof=parse('asof'),days=num('days'),buffer=num('buffer');
+ if(!Number.isInteger(days)||days<1||days>3650||!Number.isInteger(buffer)||buffer<0||buffer>3650)throw new Error('Use 1–3650 whole window days and a 0–3650 day buffer.');
+ const day=86400000,offset=days-(get('count').value==='inclusive'?1:0),deadline=start+offset*day,send=deadline-buffer*day,left=Math.round((deadline-asof)/day),fmt=n=>new Date(n).toISOString().slice(0,10);
+ if(new Date(deadline).getUTCFullYear()>9999)throw new Error('Calculated deadline is outside the supported date range.');
+ result.textContent='Calculated deadline: '+fmt(deadline)+'\nAim to act by: '+fmt(send)+'\n\n'+(left<0?'Deadline passed '+(-left)+' day'+(left===-1?'':'s')+' ago.':left===0?'Deadline is today.':left+' calendar days until the deadline.')+(send<start?'\nWarning: your buffer starts before the purchase / delivery date.':'');}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>

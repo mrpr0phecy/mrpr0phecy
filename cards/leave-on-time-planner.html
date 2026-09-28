@@ -1,0 +1,44 @@
+<section id="leave-on-time-planner" aria-labelledby="leave-on-time-planner-title">
+<style>
+#leave-on-time-planner{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#leave-on-time-planner *{box-sizing:border-box}#leave-on-time-planner h2{color:var(--accent,#22d3ee);margin-top:0}
+#leave-on-time-planner .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#leave-on-time-planner label{display:block;font-size:.88rem}#leave-on-time-planner input,#leave-on-time-planner textarea,#leave-on-time-planner select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#leave-on-time-planner button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#leave-on-time-planner :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#leave-on-time-planner .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#leave-on-time-planner pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#leave-on-time-planner .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="leave-on-time-planner-title">Leave-on-Time Planner</h2><p id="leave-on-time-planner-desc" class="small">Work backwards from your arrival time to find when to start getting ready and when to leave, including travel and a safety buffer.</p>
+<form><div class="fields"><label for="leave-on-time-planner-arrival">Must arrive by<input id="leave-on-time-planner-arrival" type="time" value="09:00" ></label><label for="leave-on-time-planner-travel">Travel time (minutes)<input id="leave-on-time-planner-travel" type="number" value="45" min="0" max="10080" step="1"></label><label for="leave-on-time-planner-buffer">Arrive early by (minutes)<input id="leave-on-time-planner-buffer" type="number" value="15" min="0" max="1440" step="1"></label><label for="leave-on-time-planner-prep">Getting ready (minutes)<input id="leave-on-time-planner-prep" type="number" value="30" min="0" max="1440" step="1"></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Uses your own travel estimate, not live traffic or timetables. All times refer to the same local timezone; daylight-saving changes are not modelled.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('leave-on-time-planner');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#leave-on-time-planner-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{if(!get('arrival').value)throw new Error('Choose an arrival time.');
+ const travel=num('travel'),buffer=num('buffer'),prep=num('prep');
+ if([travel,buffer,prep].some(v=>!Number.isInteger(v)||v<0)||travel>10080||buffer>1440||prep>1440)throw new Error('Use whole minutes: travel 0–10080, buffer and preparation 0–1440.');
+ const [h,m]=get('arrival').value.split(':').map(Number),arrival=h*60+m;
+ const clock=n=>{const days=Math.floor(n/1440),v=((n%1440)+1440)%1440;return String(Math.floor(v/60)).padStart(2,'0')+':'+String(v%60).padStart(2,'0')+(days<0?' ('+Math.abs(days)+' day'+(days===-1?'':'s')+' before arrival)':'');};
+ result.textContent='Start getting ready: '+clock(arrival-buffer-travel-prep)+'\nLeave: '+clock(arrival-buffer-travel)+'\nPlanned arrival: '+clock(arrival-buffer)+'\nMust arrive by: '+clock(arrival)+'\n\nTotal time to allow: '+(travel+buffer+prep)+' minutes.';}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>

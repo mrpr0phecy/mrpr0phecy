@@ -1,0 +1,52 @@
+<section id="compare-two-lists" aria-labelledby="compare-two-lists-title">
+<style>
+#compare-two-lists{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#compare-two-lists *{box-sizing:border-box}#compare-two-lists h2{color:var(--accent,#22d3ee);margin-top:0}
+#compare-two-lists .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#compare-two-lists label{display:block;font-size:.88rem}#compare-two-lists input,#compare-two-lists textarea,#compare-two-lists select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#compare-two-lists button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#compare-two-lists :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#compare-two-lists .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#compare-two-lists pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#compare-two-lists .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="compare-two-lists-title">Compare Two Lists</h2><p id="compare-two-lists-desc" class="small">Find missing items, overlaps and duplicates between two lists. Compare locally without uploading customer names, stock lists or other text.</p>
+<form><div class="fields"><label for="compare-two-lists-a">List A — one item per line<textarea id="compare-two-lists-a" rows="6" maxlength="50000">Apples
+Pears
+Bananas
+Apples</textarea></label><label for="compare-two-lists-b">List B — one item per line<textarea id="compare-two-lists-b" rows="6" maxlength="50000">pears
+Oranges
+Bananas</textarea></label><label for="compare-two-lists-case">Case matching<select id="compare-two-lists-case"><option value="ignore">Ignore uppercase / lowercase</option><option value="exact">Match case exactly</option></select></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Blank lines and surrounding whitespace are ignored. Internal spaces and punctuation remain significant. Results preserve first-seen order and spelling; this is a line comparison, not a CSV parser.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('compare-two-lists');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#compare-two-lists-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const a=lines('a'),b=lines('b');if(a.length+b.length>10000)throw new Error('Use no more than 10,000 lines in total.');
+ if(!a.length&&!b.length)throw new Error('Enter items in at least one list.');
+ const key=s=>get('case').value==='ignore'?s.toLowerCase():s;
+ const collect=items=>{const m=new Map();items.forEach(s=>{const k=key(s);if(m.has(k))m.get(k).count++;else m.set(k,{text:s,count:1});});return m;};
+ const A=collect(a),B=collect(b),onlyA=[],onlyB=[],both=[];
+ A.forEach((v,k)=>(B.has(k)?both:onlyA).push(v.text));B.forEach((v,k)=>{if(!A.has(k))onlyB.push(v.text);});
+ const dup=m=>Array.from(m.values()).filter(v=>v.count>1).map(v=>v.text+' × '+v.count);
+ const section=(label,items)=>label+' ('+items.length+')\n'+(items.length?items.join('\n'):'None');
+ result.textContent=[section('Only in A',onlyA),section('Only in B',onlyB),section('In both',both),section('Duplicates in A',dup(A)),section('Duplicates in B',dup(B))].join('\n\n');}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>
