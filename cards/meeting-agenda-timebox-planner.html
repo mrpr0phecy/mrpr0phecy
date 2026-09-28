@@ -1,0 +1,50 @@
+<section id="meeting-agenda-timebox-planner" aria-labelledby="meeting-agenda-timebox-planner-title">
+<style>
+#meeting-agenda-timebox-planner{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#meeting-agenda-timebox-planner *{box-sizing:border-box}#meeting-agenda-timebox-planner h2{color:var(--accent,#22d3ee);margin-top:0}
+#meeting-agenda-timebox-planner .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#meeting-agenda-timebox-planner label{display:block;font-size:.88rem}#meeting-agenda-timebox-planner input,#meeting-agenda-timebox-planner textarea,#meeting-agenda-timebox-planner select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#meeting-agenda-timebox-planner button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#meeting-agenda-timebox-planner :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#meeting-agenda-timebox-planner .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#meeting-agenda-timebox-planner pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#meeting-agenda-timebox-planner .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="meeting-agenda-timebox-planner-title">Meeting Agenda Timebox Planner</h2><p id="meeting-agenda-timebox-planner-desc" class="small">Turn topics and durations into an exact running order, including a break and a clear finish time.</p>
+<form><div class="fields"><label for="meeting-agenda-timebox-planner-topics">Topics — one per line: title | minutes<textarea id="meeting-agenda-timebox-planner-topics" rows="6" maxlength="50000">Check-in | 5
+Project updates | 15
+Decisions | 20
+Next steps | 5</textarea></label><label for="meeting-agenda-timebox-planner-start">Start time<input id="meeting-agenda-timebox-planner-start" type="time" value="09:00" ></label><label for="meeting-agenda-timebox-planner-break">Break after each topic (minutes)<input id="meeting-agenda-timebox-planner-break" type="number" value="0" min="0" max="60"></label><label for="meeting-agenda-timebox-planner-budget">Meeting time budget (minutes)<input id="meeting-agenda-timebox-planner-budget" type="number" value="60" min="1" max="1440"></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Times are local wall-clock times, rounded to the nearest minute. This is a planning tool, not a live timer; no calendar invites are sent.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('meeting-agenda-timebox-planner');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#meeting-agenda-timebox-planner-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const rows=lines('topics'),pause=num('break'),budget=num('budget');
+ if(!rows.length||rows.length>100)throw new Error('Enter 1–100 topics.');
+ if(pause<0||pause>60||budget<=0||budget>1440)throw new Error('Use a 0–60 minute break and a 1–1440 minute budget.');
+ const topics=rows.map((r,i)=>{const split=r.lastIndexOf('|'),name=r.slice(0,split).trim(),v=r.slice(split+1).trim(),mins=Number(v);if(split<0||!name||!v||!Number.isFinite(mins)||mins<=0||mins>1440)throw new Error('Line '+(i+1)+': use Topic | positive minutes (up to 1440).');return {name,mins};});
+ if(!get('start').value)throw new Error('Choose a start time.');
+ const [h,m]=get('start').value.split(':').map(Number);let t=h*60+m,elapsed=0;
+ const fmt=n=>{n=Math.round(n);const days=Math.floor(n/1440),day=n%1440;return String(Math.floor(day/60)).padStart(2,'0')+':'+String(day%60).padStart(2,'0')+(days?' (+'+days+' day'+(days===1?'':'s')+')':'');};
+ let out=[];topics.forEach((x,i)=>{out.push(fmt(t)+'–'+fmt(t+x.mins)+'  '+x.name);t+=x.mins;elapsed+=x.mins;if(i<topics.length-1&&pause){out.push(fmt(t)+'–'+fmt(t+pause)+'  Break');t+=pause;elapsed+=pause;}});
+ result.textContent=out.join('\n')+'\n\nTotal: '+elapsed+' min · Finish: '+fmt(t)+'\n'+(elapsed>budget?'Over budget by '+(elapsed-budget)+' min.':'Spare time: '+(budget-elapsed)+' min.');}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>

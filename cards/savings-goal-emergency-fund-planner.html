@@ -1,0 +1,96 @@
+<!--
+  🎯 Savings Goal & Emergency Fund Planner — turn a vague "save more"
+  into a number and a date. Set your goal, deadline and starting pot for a
+  monthly target; or set what you can afford monthly for an ETA. Includes a
+  3–6 month emergency-fund check. Educational only, not financial advice.
+-->
+<style>
+  .sgef-wrap{font-family:var(--sans,system-ui,sans-serif);color:var(--text,#eef2f8)}
+  .sgef-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:12px}
+  .sgef-field label{display:block;font-size:.72rem;color:var(--muted,#8fa3bf);text-transform:uppercase;margin-bottom:4px}
+  .sgef-field input{width:100%;padding:9px;border-radius:8px;border:1px solid rgba(45,212,255,.2);
+    background:rgba(0,0,0,.3);color:var(--text,#eef2f8);font-size:14px;box-sizing:border-box}
+  .sgef-hero{background:rgba(0,0,0,.3);border:1px solid rgba(45,212,255,.25);border-radius:12px;
+    padding:16px;text-align:center;margin-bottom:12px}
+  .sgef-big{font-size:1.9rem;font-weight:800;color:var(--accent,#22d3ee)}
+  .sgef-sub{font-size:.85rem;color:var(--muted,#8fa3bf);margin-top:4px}
+  .sgef-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+  .sgef-card{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:10px;text-align:center}
+  .sgef-card .k{font-size:.68rem;color:var(--muted,#8fa3bf);text-transform:uppercase}
+  .sgef-card .v{font-size:1.05rem;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .sgef-bar{height:14px;border-radius:7px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:6px}
+  .sgef-fill{height:100%;background:linear-gradient(90deg,#22d3ee,#818cf8);border-radius:7px;transition:width .3s}
+  .sgef-note{font-size:.78rem;color:var(--muted,#8fa3bf);line-height:1.5}
+</style>
+
+<div class="sgef-wrap">
+  <h2 id="sgef-title" style="margin-top:0;color:var(--accent,#22d3ee)">🎯 Savings Goal &amp; Emergency Fund Planner</h2>
+  <p id="sgef-desc" class="small" style="color:var(--muted,#8fa3bf);font-size:.85rem;margin-bottom:14px">
+    Goal + deadline + starting pot → the exact monthly amount. Or tell it what you can afford each month → your finish date. Includes a 3–6 month essential-expenses emergency-fund check and a progress bar you can update as the pot grows.
+  </p>
+
+  <div class="sgef-grid">
+    <div class="sgef-field"><label for="sgef-goal">Goal amount (£)</label>
+      <input id="sgef-goal" type="number" min="0" step="50" value="5000" inputmode="decimal"></div>
+    <div class="sgef-field"><label for="sgef-saved">Already saved (£)</label>
+      <input id="sgef-saved" type="number" min="0" step="10" value="500" inputmode="decimal"></div>
+    <div class="sgef-field"><label for="sgef-months">Deadline (months)</label>
+      <input id="sgef-months" type="number" min="1" max="600" step="1" value="18" inputmode="numeric"></div>
+    <div class="sgef-field"><label for="sgef-afford">…or monthly budget (£)</label>
+      <input id="sgef-afford" type="number" min="0" step="10" value="" placeholder="optional" inputmode="decimal"></div>
+    <div class="sgef-field"><label for="sgef-exp">Essential monthly spend (£)</label>
+      <input id="sgef-exp" type="number" min="0" step="50" value="1400" inputmode="decimal"></div>
+  </div>
+
+  <div class="sgef-hero">
+    <div id="sgef-big" class="sgef-big" aria-live="polite">—</div>
+    <div id="sgef-sub" class="sgef-sub"></div>
+  </div>
+
+  <div class="sgef-bar" role="progressbar" aria-label="Progress towards goal"><div class="sgef-fill" id="sgef-fill" style="width:0%"></div></div>
+  <div class="sgef-cards" id="sgef-cards"></div>
+
+  <p class="sgef-note">Educational planning arithmetic only — not financial advice. Interest isn't included,
+    so real results depend on where you save; a competitive easy-access account helps the emergency fund keep up with prices.</p>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var money=function(n){return '£'+Math.round(n).toLocaleString();};
+  function calc(){
+    var goal=parseFloat($('sgef-goal').value)||0,
+        saved=Math.min(parseFloat($('sgef-saved').value)||0,goal),
+        months=Math.max(1,parseInt($('sgef-months').value,10)||1),
+        afford=parseFloat($('sgef-afford').value)||0,
+        exp=parseFloat($('sgef-exp').value)||0,
+        rem=Math.max(0,goal-saved),big=$('sgef-big'),sub=$('sgef-sub');
+    if(goal<=0){big.textContent='Enter a goal amount';sub.textContent='';$('sgef-fill').style.width='0%';$('sgef-cards').innerHTML='';return;}
+    var pct=Math.min(100,saved/goal*100);
+    $('sgef-fill').style.width=pct+'%';
+    if(afford>0){
+      var m=Math.ceil(rem/afford),d=new Date();d.setMonth(d.getMonth()+m);
+      big.textContent=money(afford)+' / month → done in '+m+' month'+(m===1?'':'s');
+      sub.textContent='You\u2019d hit '+money(goal)+' around '+d.toLocaleDateString(undefined,{month:'long',year:'numeric'})+'. (By your '+months+'-month deadline you\u2019d need '+money(rem/months)+'/month.)';
+    }else{
+      big.textContent=money(rem/months)+' / month';
+      sub.textContent='to reach '+money(goal)+' in '+months+' month'+(months===1?'':'s')+' — '+money(rem)+' to go. Add a monthly budget to see your ETA instead.';
+    }
+    var ef3=exp*3,ef6=exp*6;
+    var cards=[
+      ['Remaining',money(rem)],
+      ['Per week',money(rem/(months*4.345))],
+      ['Progress',pct.toFixed(1)+'%'],
+      ['3-month fund',money(ef3)+(saved>=ef3?' ✅':'')],
+      ['6-month fund',money(ef6)+(saved>=ef6?' ✅':'')]
+    ];
+    $('sgef-cards').innerHTML=cards.map(function(c){
+      return '<div class="sgef-card"><div class="k">'+c[0]+'</div><div class="v">'+c[1]+'</div></div>';
+    }).join('');
+  }
+  ['sgef-goal','sgef-saved','sgef-months','sgef-afford','sgef-exp'].forEach(function(id){
+    $(id).addEventListener('input',calc);
+  });
+  calc();
+})();
+</script>

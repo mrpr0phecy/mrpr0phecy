@@ -1,0 +1,52 @@
+<section id="bulk-filename-preview" aria-labelledby="bulk-filename-preview-title">
+<style>
+#bulk-filename-preview{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#bulk-filename-preview *{box-sizing:border-box}#bulk-filename-preview h2{color:var(--accent,#22d3ee);margin-top:0}
+#bulk-filename-preview .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#bulk-filename-preview label{display:block;font-size:.88rem}#bulk-filename-preview input,#bulk-filename-preview textarea,#bulk-filename-preview select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#bulk-filename-preview button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#bulk-filename-preview :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#bulk-filename-preview .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#bulk-filename-preview pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#bulk-filename-preview .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="bulk-filename-preview-title">Bulk Filename Previewer</h2><p id="bulk-filename-preview-desc" class="small">Plan numbered filenames while preserving extensions, spot duplicate names, and copy an old-to-new mapping before renaming files yourself.</p>
+<form><div class="fields"><label for="bulk-filename-preview-names">Current filenames — one per line<textarea id="bulk-filename-preview-names" rows="6" maxlength="50000">holiday beach.jpg
+holiday cafe.jpg
+holiday sunset.png</textarea></label><label for="bulk-filename-preview-prefix">New filename prefix<input id="bulk-filename-preview-prefix" type="text" value="holiday-" ></label><label for="bulk-filename-preview-start">Starting number<input id="bulk-filename-preview-start" type="number" value="1" min="0" max="999999999" step="1"></label><label for="bulk-filename-preview-padding">Minimum number of digits<input id="bulk-filename-preview-padding" type="number" value="3" min="1" max="9" step="1"></label><label for="bulk-filename-preview-extension">Extension case<select id="bulk-filename-preview-extension"><option value="keep">Keep original</option><option value="lower">Lowercase</option></select></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Preview only: no files are uploaded or renamed. The final suffix is treated as the extension (.tar.gz retains .gz); dotfiles have no extension. Back up files and check your operating system’s naming limits.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('bulk-filename-preview');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#bulk-filename-preview-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const names=lines('names'),prefix=get('prefix').value,start=num('start'),padding=num('padding');
+ if(!names.length||names.length>1000)throw new Error('Enter 1–1000 filenames.');
+ const invalid=/[<>:"/\\|?*\x00-\x1f]/;
+ if(!prefix.trim()||invalid.test(prefix)||prefix.length>100||/[. ]$/.test(prefix))throw new Error('Use a prefix up to 100 characters without path separators, reserved characters, or a trailing dot or space.');
+ if(!Number.isInteger(start)||start<0||start+names.length-1>999999999||!Number.isInteger(padding)||padding<1||padding>9)throw new Error('Use a nonnegative whole starting number (up to 999999999) and 1–9 digits.');
+ const old=new Set(),generated=new Set(),warnings=[],out=[];
+ names.forEach((name,i)=>{if(invalid.test(name)||/[. ]$/.test(name)||name.length>255)throw new Error('Line '+(i+1)+': use a filename, not a path, without reserved characters.');
+ const dot=name.lastIndexOf('.');let ext=dot>0?name.slice(dot):'';if(get('extension').value==='lower')ext=ext.toLowerCase();
+ const next=prefix+String(start+i).padStart(padding,'0')+ext;if(next.length>255)throw new Error('Generated name exceeds 255 characters at line '+(i+1)+'.');
+ if(old.has(name.toLowerCase()))warnings.push('Repeated original: '+name);old.add(name.toLowerCase());generated.add(next.toLowerCase());out.push(name+' → '+next);});
+ const overlaps=[...generated].filter(n=>old.has(n));if(overlaps.length)warnings.push('Some destination names already appear in your input. Use a temporary-name pass to avoid overwriting files.');
+ result.textContent=out.join('\n')+'\n\n'+(warnings.length?'Check before renaming:\n'+warnings.join('\n'):'No duplicate originals or destination/input overlaps detected (case-insensitive).');}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>

@@ -1,0 +1,45 @@
+<section id="presentation-word-budget-planner" aria-labelledby="presentation-word-budget-planner-title">
+<style>
+#presentation-word-budget-planner{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#presentation-word-budget-planner *{box-sizing:border-box}#presentation-word-budget-planner h2{color:var(--accent,#22d3ee);margin-top:0}
+#presentation-word-budget-planner .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#presentation-word-budget-planner label{display:block;font-size:.88rem}#presentation-word-budget-planner input,#presentation-word-budget-planner textarea,#presentation-word-budget-planner select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#presentation-word-budget-planner button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#presentation-word-budget-planner :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#presentation-word-budget-planner .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#presentation-word-budget-planner pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#presentation-word-budget-planner .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="presentation-word-budget-planner-title">Presentation Word Budget Planner</h2><p id="presentation-word-budget-planner-desc" class="small">Fit your talk to its slot: reserve time for questions and pauses, calculate a speaking word budget, then check your draft against it.</p>
+<form><div class="fields"><label for="presentation-word-budget-planner-slot">Total slot (minutes)<input id="presentation-word-budget-planner-slot" type="number" value="10" min="0.1" max="1440" step="any"></label><label for="presentation-word-budget-planner-questions">Questions and pauses (minutes)<input id="presentation-word-budget-planner-questions" type="number" value="2" min="0" max="1440" step="any"></label><label for="presentation-word-budget-planner-pace">Speaking pace (words per minute)<input id="presentation-word-budget-planner-pace" type="number" value="130" min="40" max="300"></label><label for="presentation-word-budget-planner-draft">Draft (optional)<textarea id="presentation-word-budget-planner-draft" rows="6" maxlength="50000"></textarea></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Words are counted as whitespace-separated tokens, so estimates suit space-separated languages. Speaking rates vary: rehearse aloud and allow extra time for slides, demonstrations and audience reactions.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('presentation-word-budget-planner');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#presentation-word-budget-planner-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const slot=num('slot'),questions=num('questions'),pace=num('pace');
+ if(slot<=0||slot>1440||questions<0||questions>=slot||pace<40||pace>300)throw new Error('Use a positive slot (up to 1440 minutes), reserve less than the slot, and choose 40–300 words/minute.');
+ const available=slot-questions,budget=Math.floor(available*pace),text=get('draft').value.trim(),words=text?text.split(/\s+/u).length:0;
+ const intro=Math.floor(budget*.1),end=Math.floor(budget*.1),body=budget-intro-end;
+ let out='Speaking time available: '+available.toFixed(1)+' min\nWord budget: '+budget+' words\n\nSuggested structure (10 / 80 / 10):\nOpening: '+intro+' words\nMain points: '+body+' words\nConclusion: '+end+' words';
+ if(words){const duration=words/pace+questions;out+='\n\nDraft: '+words+' words\nEstimated slot used: '+duration.toFixed(1)+' min (including reserved time)\n'+(words>budget?'Cut about '+(words-budget)+' words to fit.':'Within budget, with room for '+(budget-words)+' more words.');}
+ result.textContent=out;}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>

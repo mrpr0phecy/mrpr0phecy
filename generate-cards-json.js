@@ -183,6 +183,25 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'leave-on-time-planner': 'Productivity & Lifestyle',
+  'curtain-width-drop-calculator': 'Home & DIY',
+  'scale-drawing-converter': 'Home & DIY',
+  'bulk-filename-preview': 'Algorithms & Computer Science',
+  'return-window-deadline-calculator': 'Productivity & Lifestyle',
+  'household-chore-rota': 'Productivity & Lifestyle',
+  'meeting-agenda-timebox-planner': 'Productivity & Lifestyle',
+  'parcel-volumetric-weight-checker': 'Productivity & Lifestyle',
+  'compare-two-lists': 'Productivity & Lifestyle',
+  'presentation-word-budget-planner': 'Writing & Language',
+  // 2026-09-28 — five everyday gap fills chosen by keyword audit against all
+  // 1,289 existing cards: no MOT/VED reminder, no barbell plate loader, no
+  // roast-dinner timeline planner, no savings-goal/emergency-fund planner and
+  // no interview STAR-answer builder existed.
+  'mot-road-tax-reminder': 'Productivity & Lifestyle',
+  'barbell-plate-loader': 'Sports',
+  'sunday-roast-dinner-timeline': 'Culinary & Food Science',
+  'savings-goal-emergency-fund-planner': 'Finance & Money',
+  'interview-star-answer-builder': 'Writing & Language',
   'coordinate-converter-3d': 'Mathematics',
   'lines-planes-3d-calculator': 'Mathematics',
   'shape-volume-surface-area-3d': 'Mathematics',

@@ -1,0 +1,42 @@
+<section id="parcel-volumetric-weight-checker" aria-labelledby="parcel-volumetric-weight-checker-title">
+<style>
+#parcel-volumetric-weight-checker{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#parcel-volumetric-weight-checker *{box-sizing:border-box}#parcel-volumetric-weight-checker h2{color:var(--accent,#22d3ee);margin-top:0}
+#parcel-volumetric-weight-checker .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+#parcel-volumetric-weight-checker label{display:block;font-size:.88rem}#parcel-volumetric-weight-checker input,#parcel-volumetric-weight-checker textarea,#parcel-volumetric-weight-checker select{display:block;width:100%;margin-top:5px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#parcel-volumetric-weight-checker button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#parcel-volumetric-weight-checker :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#parcel-volumetric-weight-checker .actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+#parcel-volumetric-weight-checker pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#parcel-volumetric-weight-checker .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="parcel-volumetric-weight-checker-title">Parcel Volumetric Weight Checker</h2><p id="parcel-volumetric-weight-checker-desc" class="small">Compare actual and volumetric parcel weight, calculate length plus girth, and check against the limits on your chosen courier service.</p>
+<form><div class="fields"><label for="parcel-volumetric-weight-checker-length">Length (cm)<input id="parcel-volumetric-weight-checker-length" type="number" value="40" min="0.01" max="100000" step="any"></label><label for="parcel-volumetric-weight-checker-width">Width (cm)<input id="parcel-volumetric-weight-checker-width" type="number" value="30" min="0.01" max="100000" step="any"></label><label for="parcel-volumetric-weight-checker-height">Height (cm)<input id="parcel-volumetric-weight-checker-height" type="number" value="20" min="0.01" max="100000" step="any"></label><label for="parcel-volumetric-weight-checker-weight">Actual weight (kg)<input id="parcel-volumetric-weight-checker-weight" type="number" value="2" min="0.01" max="100000" step="any"></label><label for="parcel-volumetric-weight-checker-divisor">Courier divisor (cm³/kg)<input id="parcel-volumetric-weight-checker-divisor" type="number" value="5000" min="0.01" max="100000" step="any"></label><label for="parcel-volumetric-weight-checker-limit">Maximum length + girth (cm)<input id="parcel-volumetric-weight-checker-limit" type="number" value="300" min="0.01" max="100000" step="any"></label></div><div class="actions"><button type="submit">Generate result</button><button type="button" data-copy>Copy result</button></div></form>
+<pre data-result aria-live="polite"></pre><p data-status role="status" class="small"></p><p class="small">Measure the fully packed box at its widest points. Divisors, rounding, maximum side lengths and weight limits vary by courier and service. Defaults are examples, not a shipping eligibility guarantee.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+ const root=document.getElementById('parcel-volumetric-weight-checker');if(!root||root.dataset.ready)return;root.dataset.ready='true';
+ const get=k=>root.querySelector('#parcel-volumetric-weight-checker-'+k),result=root.querySelector('[data-result]'),status=root.querySelector('[data-status]');
+ const num=k=>{const v=get(k).value.trim();if(!v||!Number.isFinite(Number(v)))throw new Error('Enter a valid number for '+get(k).parentElement.firstChild.textContent+'.');return Number(v);};
+ const lines=k=>get(k).value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+ function calculate(){status.textContent='';try{const a=num('length'),b=num('width'),c=num('height'),weight=num('weight'),divisor=num('divisor'),limit=num('limit');
+ if([a,b,c,weight,divisor,limit].some(v=>v<=0||v>100000))throw new Error('All values must be above zero and at most 100,000.');
+ const dims=[a,b,c].sort((x,y)=>y-x),volume=a*b*c,vol=volume/divisor,girth=2*(dims[1]+dims[2]),size=dims[0]+girth;
+ result.textContent='Volumetric weight: '+vol.toFixed(2)+' kg\nActual weight: '+weight.toFixed(2)+' kg\nUnrounded chargeable weight: '+Math.max(vol,weight).toFixed(2)+' kg\n\nVolume: '+(volume/1000).toFixed(2)+' litres\nLongest side: '+dims[0]+' cm\nGirth: '+girth+' cm\nLength + girth: '+size+' cm\n'+(size<=limit?'Within':'Exceeds')+' your '+limit+' cm length + girth limit.';}catch(e){result.textContent='';status.textContent=e.message;}}
+ root.querySelector('form').addEventListener('submit',e=>{e.preventDefault();calculate();});
+ root.querySelector('[data-copy]').addEventListener('click',async()=>{
+  if(!result.textContent){status.textContent='Generate a result first.';return;}
+  try{await navigator.clipboard.writeText(result.textContent);if(document.contains(root))status.textContent='Copied.';}
+  catch(e){if(document.contains(root))status.textContent='Clipboard unavailable. Select the result text and copy it manually.';}
+ });
+ calculate();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+ init();
+}
+})();
+</script></section>
