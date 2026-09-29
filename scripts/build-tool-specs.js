@@ -206,7 +206,24 @@ function inferSpec(tool, cardEntry, standalonePaths) {
     'compoundinterest': 'A = P·(1 + r/n)^(n·t) — compound interest.',
     'percentages': 'part = whole × percent ÷ 100.',
     'bodyfat': 'US Navy: %fat from neck/waist/hip circumferences and height (log₁₀).',
+    'mt4-mt5-genetic-copy-trade-lab': 'Fitness = net training points − 0.65 × maximum drawdown − 2 × longest losing streak; filters are evolved by seeded selection, crossover and mutation, then scored on a holdout the search never saw.',
   };
+  // Curated input lists for the tools whose controls are not all <input> tags:
+  // the sniff only reads <label for> + <input>, so a card built around <select>
+  // dropdowns publishes a spec that silently omits half of its controls.
+  const CURATED_INPUTS = {
+    'mt4-mt5-genetic-copy-trade-lab': [
+      { name: 'mt4-mt5-genetic-copy-trade-lab-csv', type: 'text', label: 'Trade CSV (time, symbol, side, pnl_points, signal_score, spread, delay, MFE, MAE)', unit: '' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-symbol', type: 'select', label: 'Instrument to analyse', unit: '' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-split', type: 'select', label: 'Train / holdout split', unit: '' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-point-size', type: 'number', label: 'Broker point size (price units)', unit: '' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-point-value', type: 'number', label: 'Cash value of one point, per 1.00 lot', unit: '' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-population', type: 'number', label: 'Population', unit: 'genomes' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-generations', type: 'number', label: 'Generations', unit: 'generations' },
+      { name: 'mt4-mt5-genetic-copy-trade-lab-seed', type: 'number', label: 'Repeatable random seed', unit: '' },
+    ],
+  };
+  if (CURATED_INPUTS[slug]) inputs = CURATED_INPUTS[slug];
   if (CURATED_FORMULA[slug]) formula = CURATED_FORMULA[slug];
   // Regex fallback captured JS assignments — discard and fall back.
   if (formula && /^\s*(let|var|const)\s/.test(formula)) formula = null;

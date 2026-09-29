@@ -121,23 +121,30 @@ The tool sends nothing and saves nothing automatically. **Last reviewed:
 This is an offline genetic-search worksheet, not a predictor or copier. It reads
 a visitor-provided chronological CSV of signed net trade points (or derives
 signed points from side, entry, close and an explicitly supplied point size).
-Optional signal score (0–100), non-negative spread and copy-delay values, and
-direction fields are candidate filters; each optional feature must be complete
-and varied within the training rows to be enabled. Use values recorded at the
-copy decision, not information learned after the trade. Include parseable
-timestamps for the chronological sort; otherwise original CSV order is treated
-as chronology. Run one symbol / point scale at a time, or normalize all points
-consistently. The first 70% of rows is the training set; thresholds are evolved
+Optional signal score (0–100), non-negative spread and copy-delay values,
+direction fields and a session-hour window derived from the timestamp are
+candidate filters; each optional feature must be complete and varied within the
+training rows to be enabled. Use values recorded at the copy decision, not
+information learned after the trade. Include parseable timestamps for the
+chronological sort; otherwise original CSV order is treated as chronology. The
+instrument selector filters the file to one symbol — points on different
+instruments are not comparable, so a mixed file must be split or normalized. The
+train/holdout split is visitor-selectable (default 70/30); thresholds are evolved
 through seeded population selection, crossover and mutation. Feature activation
-and candidate ranges are also derived only from training rows. The final 30% is
-held out and reported without being used for selection. If an enabled feature is
-missing or invalid in the holdout, the run stops rather than treating those
-rows as passing or fitting from them. A candidate must keep at least 15% of
-training trades (minimum four).
+and candidate ranges are also derived only from training rows. The holdout is
+reported without being used for selection. If an enabled feature is missing or
+invalid in the holdout, the run stops rather than treating those rows as passing
+or fitting from them. A candidate must keep at least 15% of training trades
+(minimum four).
+
 Fitness is net training points − 0.65 × maximum cumulative drawdown − 2 × the
 longest losing streak. The lab reports net points, win rate, average winning
 and losing points, profit factor, drawdown and losing streak for the all-trades
-baseline and the evolved filter.
+baseline and the evolved filter, plus cumulative-points charts for the training
+and holdout segments. Because a single genetic run is one draw from a noisy
+search, the same search is repeated with five consecutive seeds and the spread of
+thresholds and holdout results is reported: a filter whose holdout result swings
+between seeds is described as noise rather than an edge.
 
 If every trade includes maximum favourable excursion (MFE) and maximum
 adverse excursion (MAE), the search can explore hypothetical take-profit and
@@ -150,12 +157,24 @@ are historical and can be overfit; a positive holdout does not guarantee future
 performance. No account balance, leverage, lot sizing or risk of ruin is
 calculated.
 
+The card carries a market primer — how a pair is quoted, where a broker's point
+size comes from, the UTC session table, what moves gold (XAU/USD) and EUR/USD,
+and how each of those becomes a CSV column. It is educational prose with no
+prices, forecasts or recommendations, and it states that spot gold, gold ETFs and
+gold-mining shares are different instruments. Two "load illustrative example"
+buttons insert deterministic, invented rows (48 gold, 52 EUR/USD) so a visitor
+can watch the search work; the UI and the status line label them as synthetic and
+not market history.
+
 CSV files are read in the browser and are not uploaded or saved automatically.
-The generated MQL4 / MQL5 snippets are signal gates only: they contain no broker
+The optional results CSV is built from what the visitor already sees and is
+downloaded as a Blob; it contains their own trade data and the card says so. The
+generated MQL4 / MQL5 snippets are signal gates only: they contain no broker
 connection, credentials, order-sending function or exit management, and must be
 adapted to an existing EA's own inputs in the MetaTrader Strategy Tester or a
-demo account first. This is not trading or financial advice. **Last reviewed:
-2026-09-29.**
+demo account first. The session gate uses the terminal's own `Hour()`, and the
+card tells the visitor to match the terminal clock to the clock in their CSV.
+This is not trading or financial advice. **Last reviewed: 2026-09-29.**
 
 ## Site-level trust signals (pointer #6)
 
