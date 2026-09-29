@@ -1,0 +1,210 @@
+<section id="email-header-inspector-root" aria-labelledby="email-header-inspector-title">
+<style>
+#email-header-inspector-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#email-header-inspector-root *{box-sizing:border-box}
+#email-header-inspector-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#email-header-inspector-root .email-header-inspector-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#email-header-inspector-root label{display:block;margin:10px 0 5px;font-size:.83rem;font-weight:650}
+#email-header-inspector-root textarea{width:100%;min-height:120px;padding:10px;border:1px solid rgba(148,180,199,.35);border-radius:8px;background:var(--surface,#101c25);color:inherit;font:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem;resize:vertical}
+#email-header-inspector-root textarea:focus-visible,#email-header-inspector-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#email-header-inspector-root .email-header-inspector-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+#email-header-inspector-root button{min-height:42px;padding:9px 14px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.83rem;font-weight:700;cursor:pointer}
+#email-header-inspector-root button.email-header-inspector-secondary{border-color:rgba(148,180,199,.3);background:rgba(255,255,255,.04);color:inherit}
+#email-header-inspector-root .email-header-inspector-status{min-height:1.5em;color:var(--text-secondary,rgba(230,250,255,.68));font-size:.83rem}
+#email-header-inspector-root .email-header-inspector-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:9px;margin:10px 0}
+#email-header-inspector-root .email-header-inspector-panel{min-width:0;padding:11px 12px;border:1px solid rgba(148,180,199,.22);border-radius:9px;background:rgba(0,0,0,.18)}
+#email-header-inspector-root .email-header-inspector-panel[data-tone="warning"]{border-color:rgba(255,190,80,.48);background:rgba(255,190,80,.08)}
+#email-header-inspector-root .email-header-inspector-panel[data-tone="good"]{border-color:rgba(57,255,160,.3)}
+#email-header-inspector-root .email-header-inspector-panel strong{display:block;margin-bottom:3px;color:var(--accent,#2dd4ff);font-size:.79rem}
+#email-header-inspector-root .email-header-inspector-panel[data-tone="warning"] strong{color:#ffd27a}
+#email-header-inspector-root .email-header-inspector-panel span{display:block;overflow-wrap:anywhere;font-size:.85rem}
+#email-header-inspector-root .email-header-inspector-panel small{display:block;margin-top:4px;color:var(--text-secondary,rgba(230,250,255,.68));font-size:.75rem;overflow-wrap:anywhere}
+#email-header-inspector-root .email-header-inspector-note{padding:10px 12px;border-left:3px solid #e8a33d;border-radius:4px;background:rgba(232,163,61,.08);font-size:.81rem}
+#email-header-inspector-root details{margin:10px 0;color:var(--text-secondary,rgba(230,250,255,.68));font-size:.82rem}
+#email-header-inspector-root summary{cursor:pointer;color:var(--accent,#2dd4ff)}
+</style>
+<h2 id="email-header-inspector-title">🛡️ Email Header Inspector</h2>
+<p id="email-header-inspector-desc" class="email-header-inspector-muted">Paste an email’s raw headers to inspect the visible From, Reply-To and Return-Path domains, reported SPF/DKIM/DMARC results, and the number of Received hops. Everything is checked in this page; no links are opened and no message is sent anywhere.</p>
+<p class="email-header-inspector-note"><strong>A signal check, not a verdict.</strong> A “pass” is only a claim found in the pasted headers, not an independent verification or proof that a message is safe. Headers can be incomplete, altered or copied from the wrong place. Don’t open unexpected links or attachments based on this report.</p>
+<label for="email-header-inspector-input">Raw message headers</label>
+<textarea id="email-header-inspector-input" rows="10" maxlength="100000" spellcheck="false" autocomplete="off" placeholder="From: Example Team &lt;team@example.org&gt;&#10;Reply-To: team@example.org&#10;Authentication-Results: mx.example.org; spf=pass; dkim=pass; dmarc=pass&#10;Received: from sender.example.org by mx.example.org"></textarea>
+<div class="email-header-inspector-actions">
+  <button type="button" id="email-header-inspector-analyze">Inspect headers</button>
+  <button type="button" id="email-header-inspector-copy" class="email-header-inspector-secondary">Copy report</button>
+  <button type="button" id="email-header-inspector-clear" class="email-header-inspector-secondary">Clear</button>
+</div>
+<p id="email-header-inspector-status" class="email-header-inspector-status" role="status" aria-live="polite">Paste headers, then choose Inspect headers.</p>
+<div id="email-header-inspector-results" class="email-header-inspector-results" aria-label="Header inspection results">
+  <div class="email-header-inspector-panel"><strong>Waiting for headers</strong><span>Your summary will appear here.</span></div>
+</div>
+<label for="email-header-inspector-report">Plain-text report</label>
+<textarea id="email-header-inspector-report" rows="7" readonly placeholder="Run an inspection to build a copyable summary."></textarea>
+<details>
+  <summary>Where to find raw headers</summary>
+  <p>Most mail apps offer a message menu such as “Show original”, “View source” or “View message details”. Copy the header section only if possible. Headers can contain email addresses, server names and IP addresses, so remove anything you do not want to paste into this page or share in a report.</p>
+</details>
+
+<script>
+(function () {
+  'use strict';
+  var rootId = 'email-header-inspector-root';
+  function init() {
+    var root = document.getElementById(rootId);
+    if (!root || root.getAttribute('data-email-header-inspector-ready') === 'true') return;
+    root.setAttribute('data-email-header-inspector-ready', 'true');
+    var $ = function (name) { return root.querySelector('#email-header-inspector-' + name); };
+    var input = $('input');
+    var results = $('results');
+    var report = $('report');
+    var status = $('status');
+    function live() { return document.getElementById(rootId) === root; }
+    function clearResults() { while (results.firstChild) results.removeChild(results.firstChild); }
+    function addPanel(title, value, detail, tone) {
+      var panel = document.createElement('div');
+      panel.className = 'email-header-inspector-panel';
+      panel.setAttribute('data-tone', tone || 'neutral');
+      var heading = document.createElement('strong');
+      heading.textContent = title;
+      var main = document.createElement('span');
+      main.textContent = value;
+      panel.appendChild(heading);
+      panel.appendChild(main);
+      if (detail) {
+        var note = document.createElement('small');
+        note.textContent = detail;
+        panel.appendChild(note);
+      }
+      results.appendChild(panel);
+    }
+    function parseHeaderBlock(text) {
+      var lines = text.replace(/\r/g, '').split('\n');
+      var unfolded = [];
+      var malformed = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (!line.trim()) break;
+        if (/^[ \t]/.test(line) && unfolded.length) {
+          unfolded[unfolded.length - 1] += ' ' + line.trim();
+        } else {
+          unfolded.push(line);
+        }
+      }
+      var headers = Object.create(null);
+      unfolded.forEach(function (line) {
+        var match = /^([!#$%&'*+.^_`|~0-9A-Za-z-]+):[ \t]*(.*)$/.exec(line);
+        if (!match) { malformed++; return; }
+        var name = match[1].toLowerCase();
+        if (!headers[name]) headers[name] = [];
+        headers[name].push(match[2]);
+      });
+      return { headers: headers, malformed: malformed, lineCount: unfolded.length };
+    }
+    function values(headers, name) { return headers[name] || []; }
+    function domains(value) {
+      var found = [];
+      var regex = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@([A-Z0-9](?:[A-Z0-9.-]*[A-Z0-9])?)/ig;
+      var match;
+      while ((match = regex.exec(String(value || '')))) {
+        var domain = match[1].replace(/\.+$/, '').toLowerCase();
+        if (domain && found.indexOf(domain) === -1) found.push(domain);
+      }
+      return found;
+    }
+    function formatHeader(headerValues) {
+      return headerValues.length ? headerValues.join(' · ') : 'Not present';
+    }
+    function authStates(headers) {
+      var authResults = values(headers, 'authentication-results');
+      var all = authResults.concat(values(headers, 'received-spf'));
+      var states = { spf: [], dkim: [], dmarc: [] };
+      all.forEach(function (value, index) {
+        if (index >= authResults.length && /^\s*(pass|fail|softfail|neutral|none|temperror|permerror)\b/i.test(value)) {
+          states.spf.push(value.match(/^\s*(pass|fail|softfail|neutral|none|temperror|permerror)\b/i)[1].toLowerCase());
+        }
+        var pattern = /\b(spf|dkim|dmarc)\s*=\s*(pass|fail|softfail|neutral|none|temperror|permerror)\b/ig;
+        var match;
+        while ((match = pattern.exec(value))) states[match[1].toLowerCase()].push(match[2].toLowerCase());
+      });
+      Object.keys(states).forEach(function (key) {
+        states[key] = states[key].filter(function (state, index, list) { return list.indexOf(state) === index; });
+      });
+      return states;
+    }
+    function stateLabel(list) {
+      if (!list.length) return 'No result found';
+      if (list.length === 1) return list[0] + ' reported';
+      return 'Mixed reports: ' + list.join(', ');
+    }
+    function analyze() {
+      var raw = input.value;
+      if (!raw.trim()) { status.textContent = 'Paste an email header block first.'; return; }
+      if (raw.length > 100000) { status.textContent = 'Please keep the pasted header block under 100,000 characters.'; return; }
+      var parsed = parseHeaderBlock(raw);
+      var headers = parsed.headers;
+      if (!Object.keys(headers).length) { status.textContent = 'No readable header fields found. Use the raw header view, not the message body.'; return; }
+      var fromValues = values(headers, 'from');
+      var replyValues = values(headers, 'reply-to');
+      var returnValues = values(headers, 'return-path');
+      var fromDomains = domains(fromValues.join(' '));
+      var replyDomains = domains(replyValues.join(' '));
+      var returnDomains = domains(returnValues.join(' '));
+      var auth = authStates(headers);
+      var receivedCount = values(headers, 'received').length;
+      var mismatches = [];
+      var replyMismatch = fromDomains.length && replyDomains.length && replyDomains.some(function (domain) { return fromDomains.indexOf(domain) === -1; });
+      var returnMismatch = fromDomains.length && returnDomains.length && returnDomains.some(function (domain) { return fromDomains.indexOf(domain) === -1; });
+      if (replyMismatch) mismatches.push('Reply-To uses a different domain from From');
+      if (returnMismatch) mismatches.push('Return-Path uses a different domain from From');
+      clearResults();
+      addPanel('From', formatHeader(fromValues), fromDomains.length ? 'Domain: ' + fromDomains.join(', ') : 'No address domain could be read.', fromValues.length ? 'neutral' : 'warning');
+      addPanel('Reply-To', formatHeader(replyValues), replyDomains.length ? 'Domain: ' + replyDomains.join(', ') : 'A different reply address is not inherently malicious.', replyMismatch ? 'warning' : 'neutral');
+      addPanel('Return-Path', formatHeader(returnValues), returnDomains.length ? 'Domain: ' + returnDomains.join(', ') : 'Automated mail may use a different return path.', returnMismatch ? 'warning' : 'neutral');
+      addPanel('SPF', stateLabel(auth.spf), 'As reported in the pasted headers; not verified here.', auth.spf.indexOf('fail') !== -1 || auth.spf.indexOf('softfail') !== -1 ? 'warning' : 'neutral');
+      addPanel('DKIM', stateLabel(auth.dkim), 'As reported in the pasted headers; not verified here.', auth.dkim.indexOf('fail') !== -1 ? 'warning' : 'neutral');
+      addPanel('DMARC', stateLabel(auth.dmarc), 'As reported in the pasted headers; not verified here.', auth.dmarc.indexOf('fail') !== -1 ? 'warning' : 'neutral');
+      addPanel('Received hops', String(receivedCount), receivedCount ? 'A count only; this does not authenticate the route.' : 'No Received fields found.', receivedCount ? 'neutral' : 'warning');
+      var lines = [
+        'Email header inspection (local parsing only)',
+        'From: ' + formatHeader(fromValues),
+        'From domain(s): ' + (fromDomains.join(', ') || 'not detected'),
+        'Reply-To: ' + formatHeader(replyValues),
+        'Reply-To domain(s): ' + (replyDomains.join(', ') || 'not detected'),
+        'Return-Path: ' + formatHeader(returnValues),
+        'Return-Path domain(s): ' + (returnDomains.join(', ') || 'not detected'),
+        'SPF reported: ' + stateLabel(auth.spf),
+        'DKIM reported: ' + stateLabel(auth.dkim),
+        'DMARC reported: ' + stateLabel(auth.dmarc),
+        'Received fields: ' + receivedCount,
+        'Review notes: ' + (mismatches.length ? mismatches.join('; ') : 'No From / reply-path domain mismatch detected from these fields.'),
+        'Limit: pasted headers can be incomplete or altered. Results are not independent verification or a safety verdict.'
+      ];
+      report.value = lines.join('\n');
+      status.textContent = 'Inspected ' + parsed.lineCount + ' header line' + (parsed.lineCount === 1 ? '' : 's') + (parsed.malformed ? ' · ' + parsed.malformed + ' unrecognized line' + (parsed.malformed === 1 ? '' : 's') + ' ignored' : '') + '. No network checks were made.';
+    }
+    $('analyze').addEventListener('click', analyze);
+    $('clear').addEventListener('click', function () {
+      input.value = '';
+      report.value = '';
+      clearResults();
+      addPanel('Waiting for headers', 'Your summary will appear here.', '', 'neutral');
+      status.textContent = 'Paste headers, then choose Inspect headers.';
+      input.focus();
+    });
+    $('copy').addEventListener('click', async function () {
+      if (!report.value) { status.textContent = 'Inspect headers before copying a report.'; return; }
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard unavailable');
+        await navigator.clipboard.writeText(report.value);
+        if (live()) status.textContent = 'Header summary copied. Review it before sharing.';
+      } catch (error) {
+        if (!live()) return;
+        report.focus();
+        report.select();
+        status.textContent = 'Clipboard unavailable; the summary is selected for manual copying.';
+      }
+    });
+  }
+  init();
+})();
+</script>
+</section>

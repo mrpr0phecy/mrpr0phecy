@@ -183,6 +183,26 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-09-28 — five privacy-first life-admin tools: batch link cleaning,
+  // sensitive-text redaction, cross-platform filename checks, a home inventory,
+  // and a date-aware bills/paydays forecast. These fill distinct jobs rather
+  // than extending existing single-URL, filename-numbering, or budget tools.
+  'batch-link-cleaner': 'Algorithms & Computer Science',
+  'sensitive-data-redactor': 'Productivity & Lifestyle',
+  'filename-safety-checker': 'Algorithms & Computer Science',
+  'home-inventory-worksheet': 'Home & DIY',
+  'bills-cashflow-forecast': 'Finance & Money',
+  // 2026-09-29 — five more distinct workflows found absent in the catalogue: raw
+  // email-header triage, job-offer comparison, home-project quote comparison,
+  // rental check-in condition logging, and a privacy-first care handover sheet.
+  'email-header-inspector': 'Algorithms & Computer Science',
+  'job-offer-comparator': 'Finance & Money',
+  'home-project-quote-comparator': 'Home & DIY',
+  'rental-move-in-condition-report': 'Home & DIY',
+  'care-handover-sheet': 'Wellbeing & Community',
+  // Offline MT4 / MT5 genetic filter research with a chronological holdout;
+  // this is not a live copier, order sender, or profit predictor.
+  'mt4-mt5-genetic-copy-trade-lab': 'Finance & Money',
   'leave-on-time-planner': 'Productivity & Lifestyle',
   'curtain-width-drop-calculator': 'Home & DIY',
   'scale-drawing-converter': 'Home & DIY',
