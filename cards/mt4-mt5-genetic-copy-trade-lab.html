@@ -72,7 +72,8 @@
         <li>Five-digit EUR/USD → point = <code>0.00001</code>. Three-digit USD/JPY → point = <code>0.001</code>. Gold is usually two-digit → point = <code>0.01</code>, but some brokers quote three digits (<code>0.001</code>).</li>
         <li>The classic <strong>pip</strong> is the fourth decimal on EUR/USD (<code>0.0001</code>) — ten five-digit points. Gold traders usually just count dollars.</li>
         <li>Money per point = point size × contract size × lots. A typical EUR/USD contract is 100,000 base units, so one 0.00001 point on 1.00 lot is about $1. A typical gold contract is 100 oz, so one 0.01 point on 1.00 lot is also about $1. Both vary by broker — read the Specification, never assume.</li>
-        <li>You only need the “broker point size” box below when your CSV has prices instead of points.</li>
+        <li>You only need the “broker point size” box below when your CSV has prices instead of points. Leave it empty and the lab guesses from the symbol (XAU/USD → 0.01, EUR/USD → 0.00001, USD/JPY → 0.001) and tells you it did — check it, because digits are a broker setting.</li>
+        <li>The “cash value of one point, per 1.00 lot” box is the money number above: point size × contract size × 1.00 lot, in your account currency. Fill it in and every result gains an account-currency row (then multiply by your own lot size). Leave it blank and everything stays in points, which is the honest default.</li>
       </ul>
       <details><summary>Worked examples: turning a price move into points</summary>
         <div class="mt4-mt5-genetic-copy-trade-lab-table-wrap"><table>
@@ -173,6 +174,7 @@
     <div><label for="mt4-mt5-genetic-copy-trade-lab-symbol">Instrument to analyse</label><select id="mt4-mt5-genetic-copy-trade-lab-symbol"><option value="">All symbols in the file</option></select></div>
     <div><label for="mt4-mt5-genetic-copy-trade-lab-split">Train / holdout split</label><select id="mt4-mt5-genetic-copy-trade-lab-split"><option value="0.7">70 / 30 (default)</option><option value="0.6">60 / 40</option><option value="0.5">50 / 50</option><option value="0.8">80 / 20</option></select></div>
     <div><label for="mt4-mt5-genetic-copy-trade-lab-point-size">Broker point size (price units)</label><input id="mt4-mt5-genetic-copy-trade-lab-point-size" type="number" min="0.000000001" max="1000000" step="any" inputmode="decimal" placeholder="Only needed to derive points"></div>
+    <div><label for="mt4-mt5-genetic-copy-trade-lab-point-value">Cash value of one point, per 1.00 lot</label><input id="mt4-mt5-genetic-copy-trade-lab-point-value" type="number" min="0" max="100000" step="any" inputmode="decimal" placeholder="Leave blank to keep points only"><div class="mt4-mt5-genetic-copy-trade-lab-actions"><button type="button" id="mt4-mt5-genetic-copy-trade-lab-guess-point-value" class="mt4-mt5-genetic-copy-trade-lab-secondary" disabled>Guess from symbol</button></div><p class="mt4-mt5-genetic-copy-trade-lab-muted">Optional. Fills in the typical value for the detected symbol (about 1.00 per point per lot on EUR/USD and on XAU/USD), then the results gain an account-currency row. Anything else needs your broker's Specification: contract size × point size, in the quote currency.</p></div>
     <div><label for="mt4-mt5-genetic-copy-trade-lab-population">Population</label><input id="mt4-mt5-genetic-copy-trade-lab-population" type="number" min="12" max="80" step="4" value="36" inputmode="numeric"></div>
     <div><label for="mt4-mt5-genetic-copy-trade-lab-generations">Generations</label><input id="mt4-mt5-genetic-copy-trade-lab-generations" type="number" min="5" max="80" step="1" value="32" inputmode="numeric"></div>
     <div><label for="mt4-mt5-genetic-copy-trade-lab-seed">Repeatable random seed</label><input id="mt4-mt5-genetic-copy-trade-lab-seed" type="number" min="0" max="2147483647" step="1" value="42" inputmode="numeric"></div>
@@ -202,6 +204,41 @@
   var rootId = 'mt4-mt5-genetic-copy-trade-lab-root';
   var SVG_NS = 'http://www.w3.org/2000/svg';
   var EXAMPLE_HEADER = 'time,symbol,side,pnl_points,signal_score,spread_points,copy_delay_seconds,mfe_points,mae_points';
+  // Typical digits / contract sizes for the instruments this lab is usually
+  // pointed at. They are a starting point and never a specification: digits,
+  // point size and contract size are broker settings, so the box stays
+  // editable and every guess is announced in the status line and the warnings.
+  var POINT_SIZE_BY_SYMBOL = [
+    [/^(XAU|GOLD)/, 0.01],
+    [/^(XAG|SILVER)/, 0.001],
+    [/JPY/, 0.001],
+    [/^(BTC|ETH|XBT)/, 0.01],
+    [/^[A-Z]{6}$/, 0.00001]
+  ];
+  // Cash value of ONE point on 1.00 lot, only where the arithmetic is the same
+  // at every broker: a 100,000-unit contract on an xxx/USD pair
+  // (0.00001 x 100,000 = 1.00) and a 100 oz gold contract (0.01 x 100 = 1.00).
+  // Silver (5,000 oz x 0.001) is 5.00. Everything else is left to the user
+  // rather than guessed, because USD/JPY and the indices differ per broker.
+  var POINT_VALUE_BY_SYMBOL = [
+    [/^(XAU|GOLD)/, 1],
+    [/^(XAG|SILVER)/, 5],
+    [/^(EUR|GBP|AUD|NZD)USD$/, 1]
+  ];
+  function normalizeSymbol(symbol) {
+    return String(symbol || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+  function lookupSymbol(table, symbol) {
+    var key = normalizeSymbol(symbol);
+    if (!key) return null;
+    for (var i = 0; i < table.length; i++) {
+      if (table[i][0].test(key)) return table[i][1];
+    }
+    return null;
+  }
+  function formatCash(value) {
+    return Number.isFinite(value) ? Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  }
   // Two illustrative datasets. They are invented, deterministic and shaped so a
   // session/spread filter helps: they are teaching material for the search, not
   // market history, and they are never sent anywhere.
@@ -209,6 +246,7 @@ var EXAMPLES = {
     gold: {
       label: 'XAU/USD (gold)',
       pointSize: '0.01',
+      pointValue: '1',
       rows: [
         '2026-01-05T12:03:00Z,XAUUSD,buy,277,83,25,0.7,282,8',
         '2026-01-05T15:24:00Z,XAUUSD,sell,-127,76,17,1.8,30,155',
@@ -263,6 +301,7 @@ var EXAMPLES = {
     fx: {
       label: 'EUR/USD',
       pointSize: '0.00001',
+      pointValue: '1',
       rows: [
         '2026-01-12T12:20:00Z,EURUSD,buy,34,86,12,0.4,39,2',
         '2026-01-13T03:34:00Z,EURUSD,buy,8,57,12,3,14,3',
@@ -334,8 +373,12 @@ var EXAMPLES = {
     var copyMt4 = $('copy-mt4');
     var copyMt5 = $('copy-mt5');
     var exportButton = $('export');
+    var guessPointValue = $('guess-point-value');
     var lastCsv = '';
     var lastResults = null;
+    // Set when the point-value guess button fills the box, so the caveat that
+    // the figure is a typical contract survives the re-run that follows.
+    var guessNote = '';
     function live() { return document.getElementById(rootId) === root; }
     function clearNode(node) { while (node.firstChild) node.removeChild(node.firstChild); }
     function addText(parent, tag, value, className) {
@@ -463,8 +506,27 @@ var EXAMPLES = {
       if (derivePoints && (entryIndex === -1 || exitIndex === -1 || sideIndex === -1)) {
         throw new Error('Need a signed pnl_points column, or side + entry_price + close_price columns.');
       }
+      // Which symbol dominates the file? Used for the point-size and the
+      // point-value guesses, both of which are announced rather than silent.
+      var dominantSymbol = '';
+      if (symbolIndex !== -1) {
+        var symbolCounts = Object.create(null);
+        for (var s = 1; s < rows.length; s++) {
+          var symbolName = cell(rows[s], symbolIndex).toUpperCase();
+          if (symbolName) symbolCounts[symbolName] = (symbolCounts[symbolName] || 0) + 1;
+        }
+        Object.keys(symbolCounts).forEach(function (key) {
+          if (!dominantSymbol || symbolCounts[key] > symbolCounts[dominantSymbol]) dominantSymbol = key;
+        });
+      }
+      var assumedPointSize = null;
       if (derivePoints && (!Number.isFinite(pointSize) || pointSize <= 0)) {
-        throw new Error('Enter a positive broker point size to derive signed points from entry and close prices.');
+        var guess = lookupSymbol(POINT_SIZE_BY_SYMBOL, dominantSymbol);
+        if (guess === null) {
+          throw new Error('Enter a positive broker point size to derive signed points from entry and close prices — the symbol in this file is not one this lab can guess.');
+        }
+        pointSize = guess;
+        assumedPointSize = guess;
       }
       var trades = [];
       var skipped = 0;
@@ -546,6 +608,7 @@ var EXAMPLES = {
       if (features.hours && !holdout.every(function (trade) { return Number.isFinite(trade.hour); })) throw new Error('The holdout needs a readable time on every row because the session filter was learned on training rows.');
       if (features.excursions && !holdout.every(function (trade) { return Number.isFinite(trade.mfe) && Number.isFinite(trade.mae) && trade.mfe >= 0 && trade.mae >= 0; })) throw new Error('The holdout needs complete non-negative MFE and MAE because exit thresholds were learned on training rows.');
       var warnings = [];
+      if (assumedPointSize !== null) warnings.push('point size ' + assumedPointSize + ' was assumed from the symbol ' + dominantSymbol + ' because the box was empty — check it against your broker specification before trusting any derived point total');
       if (!symbolFilter && symbolList.length > 1) warnings.push('multiple symbols found: points are compared as entered, so pick one instrument above or normalize every row to a common basis');
       if (scoreIndex !== -1 && !features.score) warnings.push('signal-score filter disabled: training values must be complete, varied and within 0–100');
       if (spreadIndex !== -1 && !features.spread) warnings.push('spread filter disabled: training values must be complete, varied and non-negative');
@@ -553,7 +616,7 @@ var EXAMPLES = {
       if (sideIndex !== -1 && !features.side) warnings.push('side filter disabled: include valid buy and sell directions in training rows to evolve this gene');
       if (timeIndex !== -1 && !features.hours) warnings.push('session-hour filter disabled: every row needs a readable time, and the training hours must vary');
       if ((mfeIndex !== -1 || maeIndex !== -1) && !features.excursions) warnings.push('take-profit / stop-loss search disabled: both MFE and MAE must be complete and non-negative in training rows, with an excursion above zero');
-      return { trades: trades, training: training, holdout: holdout, skipped: skipped, chronological: chronological, features: features, ranges: ranges, warnings: warnings, symbols: symbolList, symbolFilter: symbolFilter, split: readSplit() };
+      return { trades: trades, training: training, holdout: holdout, skipped: skipped, chronological: chronological, features: features, ranges: ranges, warnings: warnings, symbols: symbolList, symbolFilter: symbolFilter, split: readSplit(), assumedPointSize: assumedPointSize, dominantSymbol: dominantSymbol };
     }
     function randomFromSeed(seed) {
       var state = seed >>> 0;
@@ -788,7 +851,7 @@ var EXAMPLES = {
       card.appendChild(legend);
       container.appendChild(card);
     }
-    function drawResults(dataset, genome, generations, populationSize, seed) {
+    function drawResults(dataset, genome, generations, populationSize, seed, pointValue) {
       var baseGenome = { minScore: 0, maxSpread: Infinity, maxDelay: Infinity, sideMode: 0, minHour: 0, maxHour: 23, takeProfit: 0, stopLoss: 0 };
       var noFeatures = { score: false, spread: false, delay: false, side: false, hours: false, excursions: false };
       var baselineTrain = summarize(dataset.training, baseGenome, noFeatures);
@@ -818,6 +881,11 @@ var EXAMPLES = {
         ['Maximum drawdown (points)', function (m) { return formatNumber(m.maxDrawdown); }],
         ['Longest losing streak', function (m) { return String(m.maxLossStreak); }]
       ];
+      // The money row is only offered when the visitor has given (or guessed) a
+      // cash value per point: with nothing to multiply by, points stay points.
+      if (Number.isFinite(pointValue) && pointValue > 0) {
+        rows.push(['Net points in account currency (per 1.00 lot)', function (m) { return formatCash(m.net * pointValue); }]);
+      }
       rows.forEach(function (item) {
         var row = document.createElement('tr');
         var label = document.createElement('td'); label.textContent = item[0]; row.appendChild(label);
@@ -839,6 +907,9 @@ var EXAMPLES = {
       ]);
       resultsBox.appendChild(charts);
       addText(resultsBox, 'p', 'Fitness = net training points − 0.65 × maximum training drawdown − 2 × longest training losing streak. Search settings: ' + populationSize + ' genomes × ' + generations + ' generations · seed ' + seed + '. The holdout was not used to evolve the thresholds.', 'mt4-mt5-genetic-copy-trade-lab-muted');
+      if (Number.isFinite(pointValue) && pointValue > 0) {
+        addText(resultsBox, 'p', 'Money conversion: net points × ' + plainNumber(pointValue) + ' per point on 1.00 lot, so scale it by your own lot size (0.10 lot is a tenth of the figure). It is arithmetic on your own history, not a forecast, and it stands or falls on the point value your broker actually quotes.', 'mt4-mt5-genetic-copy-trade-lab-muted');
+      }
       if (dataset.warnings.length) addText(resultsBox, 'p', dataset.warnings.join(' · '), 'mt4-mt5-genetic-copy-trade-lab-warning');
       if (evolvedHoldout.selected < 3) addText(resultsBox, 'p', 'Too few holdout trades passed this filter for a useful comparison. Do not treat the training score as evidence of an edge.', 'mt4-mt5-genetic-copy-trade-lab-warning');
       if (evolvedHoldout.selected >= 3 && evolvedHoldout.net <= 0) addText(resultsBox, 'p', 'The evolved filter was not profitable in points on this holdout sample. This is a reason to reject it, not to tune against the holdout.', 'mt4-mt5-genetic-copy-trade-lab-warning');
@@ -937,6 +1008,7 @@ var EXAMPLES = {
       row('run', 'seed', last.seed);
       row('run', 'split', Math.round(dataset.split * 100) + '/' + Math.round((1 - dataset.split) * 100));
       row('run', 'symbol', dataset.symbolFilter || 'all');
+      row('run', 'point_value_per_lot', last.pointValue ? plainNumber(last.pointValue) : 'not set');
       row('dataset', 'valid_trades', dataset.trades.length);
       row('dataset', 'training_rows', dataset.training.length);
       row('dataset', 'holdout_rows', dataset.holdout.length);
@@ -952,6 +1024,7 @@ var EXAMPLES = {
         ['selected', 'rows', 'wins', 'losses', 'flat', 'net', 'winRate', 'average', 'averageWin', 'averageLoss', 'profitFactor', 'maxDrawdown', 'maxLossStreak'].forEach(function (key) {
           row(block[0], key, plainNumber(metrics[key]));
         });
+        if (last.pointValue) row(block[0], 'net_account_currency_per_lot', plainNumber(metrics.net * last.pointValue));
       });
       var genome = last.genome;
       row('evolved_thresholds', 'min_signal_score', dataset.features.score ? plainNumber(genome.minScore) : 'not learned');
@@ -1005,6 +1078,8 @@ var EXAMPLES = {
       if (!example) return;
       input.value = EXAMPLE_HEADER + '\n' + example.rows.join('\n') + '\n';
       $('point-size').value = example.pointSize;
+      $('point-value').value = example.pointValue;
+      if (guessPointValue) guessPointValue.disabled = false;
       lastCsv = '';
       resetResults();
       status.textContent = 'Illustrative ' + example.label + ' example loaded: ' + example.rows.length + ' invented rows, not real market data. Press “Evolve and test filters”.';
@@ -1016,6 +1091,11 @@ var EXAMPLES = {
       try {
         var data = parseTrades(csvText);
         refreshSymbols(data.symbols, data.symbolFilter);
+        if (data.assumedPointSize !== null) {
+          $('point-size').value = String(data.assumedPointSize);
+          status.textContent = 'Assumed a point size of ' + data.assumedPointSize + ' for ' + data.dominantSymbol + '. Check it against your broker specification.';
+        }
+        if (guessPointValue) guessPointValue.disabled = !(data.symbolFilter || data.symbols.length);
         var population = Number($('population').value);
         var generations = Number($('generations').value);
         var seed = Number($('seed').value);
@@ -1024,7 +1104,9 @@ var EXAMPLES = {
         if (!Number.isInteger(seed) || seed < 0 || seed > 2147483647) throw new Error('Seed must be a whole number from 0 to 2,147,483,647.');
         status.textContent = 'Evolving candidate filters on ' + data.training.length + ' training rows…';
         var search = evolve(data, population, generations, seed);
-        var scores = drawResults(data, search.genome, generations, population, seed);
+        var pointValueRaw = Number($('point-value').value);
+        var pointValue = Number.isFinite(pointValueRaw) && pointValueRaw > 0 ? pointValueRaw : null;
+        var scores = drawResults(data, search.genome, generations, population, seed, pointValue);
         var stability = null;
         if ($('stability').checked) {
           status.textContent = 'Repeating the search with five seeds…';
@@ -1032,10 +1114,10 @@ var EXAMPLES = {
           drawStability(stability, data);
         }
         exportButton.disabled = false;
-        lastResults = { data: data, genome: search.genome, population: population, generations: generations, seed: seed, stability: stability, baselineTrain: scores.baselineTrain, evolvedTrain: scores.evolvedTrain, baselineHoldout: scores.baselineHoldout, evolvedHoldout: scores.evolvedHoldout };
+        lastResults = { data: data, genome: search.genome, population: population, generations: generations, seed: seed, pointValue: pointValue, stability: stability, baselineTrain: scores.baselineTrain, evolvedTrain: scores.evolvedTrain, baselineHoldout: scores.baselineHoldout, evolvedHoldout: scores.evolvedHoldout };
         lastCsv = csvText;
         var changed = scores.evolvedHoldout.selected !== scores.baselineHoldout.selected || Math.abs(scores.evolvedHoldout.net - scores.baselineHoldout.net) > 1e-9;
-        status.textContent = 'Search finished. The holdout is historical unseen data, not a forecast; ' + (changed ? 'review both holdout metrics and the assumptions before testing in a terminal.' : 'the filter made no material difference on this holdout.');
+        status.textContent = 'Search finished. The holdout is historical unseen data, not a forecast; ' + (changed ? 'review both holdout metrics and the assumptions before testing in a terminal.' : 'the filter made no material difference on this holdout.') + (guessNote ? ' ' + guessNote : '');
       } catch (error) {
         status.textContent = error.message;
       }
@@ -1097,12 +1179,31 @@ var EXAMPLES = {
     });
     $('copy-mt4').addEventListener('click', function () { copyOutput(mt4Output, 'MT4'); });
     $('copy-mt5').addEventListener('click', function () { copyOutput(mt5Output, 'MT5'); });
+    $('guess-point-value').addEventListener('click', function () {
+      var symbol = String($('symbol').value || '').toUpperCase();
+      if (!symbol) {
+        var options = $('symbol').options;
+        for (var i = 0; i < options.length; i++) {
+          if (options[i].value) { symbol = options[i].value.toUpperCase(); break; }
+        }
+      }
+      var value = lookupSymbol(POINT_VALUE_BY_SYMBOL, symbol);
+      if (value === null) {
+        status.textContent = 'No typical value for ' + (symbol || 'this symbol') + '. Read your broker Specification: contract size × point size, converted into your account currency.';
+        return;
+      }
+      $('point-value').value = String(value);
+      guessNote = 'The point value of ' + value + ' per 1.00 lot was guessed for ' + symbol + ' — a typical contract, not your broker specification.';
+      status.textContent = guessNote + ' Running the search again with the money row.';
+      if (lastCsv) runSearch();
+    });
     $('clear').addEventListener('click', function () {
       input.value = '';
       fileInput.value = '';
       lastCsv = '';
       refreshSymbols([], '');
       resetResults();
+      guessNote = '';
       status.textContent = 'Data and results cleared from this page.';
     });
   }
