@@ -206,6 +206,7 @@ function inferSpec(tool, cardEntry, standalonePaths) {
     'compoundinterest': 'A = P·(1 + r/n)^(n·t) — compound interest.',
     'percentages': 'part = whole × percent ÷ 100.',
     'bodyfat': 'US Navy: %fat from neck/waist/hip circumferences and height (log₁₀).',
+    'mt4-mt5-genetic-copy-trade-lab': 'Fitness = net training points − 0.65 × maximum drawdown − 2 × longest losing streak; filters are evolved by seeded selection, crossover and mutation, then scored on a holdout the search never saw.',
   };
   if (CURATED_FORMULA[slug]) formula = CURATED_FORMULA[slug];
   // Regex fallback captured JS assignments — discard and fall back.
