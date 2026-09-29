@@ -7,6 +7,7 @@
 #mt4-mt5-genetic-copy-trade-lab-root h4{margin:10px 0 5px;font-size:.84rem}
 #mt4-mt5-genetic-copy-trade-lab-root .mt4-mt5-genetic-copy-trade-lab-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.83rem}
 #mt4-mt5-genetic-copy-trade-lab-root .mt4-mt5-genetic-copy-trade-lab-warning{margin:10px 0;padding:11px 13px;border-left:3px solid #e8a33d;border-radius:5px;background:rgba(232,163,61,.09);font-size:.81rem}
+#mt4-mt5-genetic-copy-trade-lab-root .mt4-mt5-genetic-copy-trade-lab-readout{margin:10px 0;padding:12px 14px;border-left:3px solid var(--accent,#2dd4ff);border-radius:5px;background:rgba(45,212,255,.08);font-size:.85rem}
 #mt4-mt5-genetic-copy-trade-lab-root .mt4-mt5-genetic-copy-trade-lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:11px;margin:12px 0}
 #mt4-mt5-genetic-copy-trade-lab-root .mt4-mt5-genetic-copy-trade-lab-panel{min-width:0;padding:12px;border:1px solid rgba(148,180,199,.24);border-radius:9px;background:rgba(0,0,0,.15)}
 #mt4-mt5-genetic-copy-trade-lab-root label{display:block;margin:7px 0 4px;font-size:.8rem;font-weight:650}
@@ -458,6 +459,12 @@ var EXAMPLES = {
       var value = Number(raw);
       return Number.isFinite(value) ? value : null;
     }
+    function decimalsOf(text) {
+      var value = String(text == null ? '' : text).trim();
+      if (!/^[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$/.test(value)) return 0;
+      var match = /\.(\d+)/.exec(value);
+      return match ? match[1].length : 0;
+    }
     function parseSide(value) {
       var side = String(value || '').trim().toLowerCase();
       if (/^(buy|long|b|1|1\.0)$/.test(side)) return 1;
@@ -490,6 +497,7 @@ var EXAMPLES = {
       if (rows.length < 2) throw new Error('Add a CSV header and at least one trade row.');
       if (rows.length - 1 > 2500) throw new Error('This offline search is limited to 2,500 trade rows at a time.');
       var headers = rows[0].map(normalizeHeader);
+      var rawHeaders = rows[0].map(function (value) { return String(value == null ? '' : value).trim(); });
       var pnlIndex = findColumn(headers, ['pnl_points', 'net_points', 'profit_points', 'trade_points', 'points']);
       var entryIndex = findColumn(headers, ['entry_price', 'entry', 'open_price', 'open']);
       var exitIndex = findColumn(headers, ['close_price', 'exit_price', 'close', 'exit']);
@@ -528,8 +536,35 @@ var EXAMPLES = {
         pointSize = guess;
         assumedPointSize = guess;
       }
+      // A plain-language record of what was read, so a history file that used
+      // different column names can be checked at a glance instead of guessed at.
+      var mapping = [];
+      function mappedColumn(field, index) {
+        if (index >= 0) mapping.push(field + ' → ' + (rawHeaders[index] || headers[index]));
+      }
+      mappedColumn('signed points', pnlIndex);
+      mappedColumn('entry price', entryIndex);
+      mappedColumn('close price', exitIndex);
+      mappedColumn('side', sideIndex);
+      mappedColumn('time', timeIndex);
+      mappedColumn('symbol', symbolIndex);
+      mappedColumn('signal score', scoreIndex);
+      mappedColumn('spread', spreadIndex);
+      mappedColumn('copy delay', delayIndex);
+      mappedColumn('MFE', mfeIndex);
+      mappedColumn('MAE', maeIndex);
+      var unmapped = [];
+      if (pnlIndex === -1) unmapped.push('signed points (derived from entry/close prices)');
+      if (scoreIndex === -1) unmapped.push('signal_score');
+      if (spreadIndex === -1) unmapped.push('spread_points');
+      if (delayIndex === -1) unmapped.push('copy_delay_seconds');
+      if (sideIndex === -1) unmapped.push('side');
+      if (timeIndex === -1) unmapped.push('time');
+      if (mfeIndex === -1 || maeIndex === -1) unmapped.push('mfe_points / mae_points');
+      if (symbolIndex === -1) unmapped.push('symbol (treated as one instrument)');
       var trades = [];
       var skipped = 0;
+      var priceDecimals = -1;
       for (var r = 1; r < rows.length; r++) {
         var row = rows[r];
         var pnl = numberCell(row, pnlIndex, rows.delimiter);
@@ -537,7 +572,11 @@ var EXAMPLES = {
         if (pnl === null && derivePoints) {
           var entry = numberCell(row, entryIndex, rows.delimiter);
           var close = numberCell(row, exitIndex, rows.delimiter);
-          if (entry !== null && close !== null && side !== 0) pnl = (close - entry) * side / pointSize;
+          if (entry !== null && close !== null && side !== 0) {
+            pnl = (close - entry) * side / pointSize;
+            var written = Math.max(decimalsOf(cell(row, entryIndex)), decimalsOf(cell(row, exitIndex)));
+            if (written > priceDecimals) priceDecimals = written;
+          }
         }
         if (pnl === null) { skipped++; continue; }
         var timeText = cell(row, timeIndex);
@@ -559,6 +598,14 @@ var EXAMPLES = {
       var symbols = Object.create(null);
       trades.forEach(function (trade) { if (trade.symbol) symbols[trade.symbol] = true; });
       var symbolList = Object.keys(symbols);
+      var seenRows = Object.create(null);
+      var duplicates = 0;
+      trades.forEach(function (trade) {
+        var key = [trade.time, trade.symbol, trade.side, trade.points].join('|');
+        if (seenRows[key]) duplicates++;
+        else seenRows[key] = true;
+      });
+      var allTrades = trades;
       var symbolFilter = String($('symbol').value || '').toUpperCase();
       // A one-instrument file has nothing to choose: always analyse that symbol,
       // even if the selector still holds a stale pick from the previous file.
@@ -610,13 +657,17 @@ var EXAMPLES = {
       var warnings = [];
       if (assumedPointSize !== null) warnings.push('point size ' + assumedPointSize + ' was assumed from the symbol ' + dominantSymbol + ' because the box was empty — check it against your broker specification before trusting any derived point total');
       if (!symbolFilter && symbolList.length > 1) warnings.push('multiple symbols found: points are compared as entered, so pick one instrument above or normalize every row to a common basis');
+      if (derivePoints && symbolList.length > 1) warnings.push('one point size was applied to several symbols because points were derived from prices: run one instrument at a time, or paste signed pnl_points');
+      if (derivePoints && priceDecimals >= 0 && decimalsOf(String(pointSize)) > priceDecimals + 1) warnings.push('the point size has far more decimals than the prices in your file, so the derived points will be inflated: check the digits in Market Watch \u2192 Specification');
+      if (derivePoints && trades.some(function (trade) { return Math.abs(trade.points) > 100000; })) warnings.push('some derived results are implausibly large, which usually means the point size or the price columns are wrong');
+      if (duplicates) warnings.push(duplicates + ' row' + (duplicates === 1 ? ' looks' : 's look') + ' identical (same time, symbol, side and points): MT4 / MT5 reports can list the same position twice, which would count it twice');
       if (scoreIndex !== -1 && !features.score) warnings.push('signal-score filter disabled: training values must be complete, varied and within 0–100');
       if (spreadIndex !== -1 && !features.spread) warnings.push('spread filter disabled: training values must be complete, varied and non-negative');
       if (delayIndex !== -1 && !features.delay) warnings.push('copy-delay filter disabled: training values must be complete, varied and non-negative');
       if (sideIndex !== -1 && !features.side) warnings.push('side filter disabled: include valid buy and sell directions in training rows to evolve this gene');
       if (timeIndex !== -1 && !features.hours) warnings.push('session-hour filter disabled: every row needs a readable time, and the training hours must vary');
       if ((mfeIndex !== -1 || maeIndex !== -1) && !features.excursions) warnings.push('take-profit / stop-loss search disabled: both MFE and MAE must be complete and non-negative in training rows, with an excursion above zero');
-      return { trades: trades, training: training, holdout: holdout, skipped: skipped, chronological: chronological, features: features, ranges: ranges, warnings: warnings, symbols: symbolList, symbolFilter: symbolFilter, split: readSplit(), assumedPointSize: assumedPointSize, dominantSymbol: dominantSymbol };
+      return { trades: trades, allTrades: allTrades, training: training, holdout: holdout, skipped: skipped, duplicates: duplicates, chronological: chronological, features: features, ranges: ranges, warnings: warnings, symbols: symbolList, symbolFilter: symbolFilter, split: readSplit(), assumedPointSize: assumedPointSize, dominantSymbol: dominantSymbol, mapping: mapping, unmapped: unmapped, derivedPoints: derivePoints };
     }
     function randomFromSeed(seed) {
       var state = seed >>> 0;
@@ -781,6 +832,7 @@ var EXAMPLES = {
       if (!Number.isFinite(value)) return value > 0 ? '∞' : '—';
       return Number(value).toLocaleString(undefined, { minimumFractionDigits: digits == null ? 1 : digits, maximumFractionDigits: digits == null ? 1 : digits });
     }
+    function signed(value) { return (value >= 0 ? '+' : '\u2212') + plainNumber(Math.abs(value)); }
     function plainNumber(value) {
       return Number.isFinite(value) ? String(Math.round(value * 1000) / 1000) : (value > 0 ? 'Infinity' : 'n/a');
     }
@@ -820,7 +872,8 @@ var EXAMPLES = {
         zero.setAttribute('x2', String(width - padX));
         zero.setAttribute('y1', y(0).toFixed(1));
         zero.setAttribute('y2', y(0).toFixed(1));
-        zero.setAttribute('stroke', 'rgba(148,180,199,.45)');
+        zero.setAttribute('stroke', 'rgba(232,163,61,.8)');
+        zero.setAttribute('stroke-dasharray', '4 4');
         zero.setAttribute('stroke-width', '1');
         zero.setAttribute('vector-effect', 'non-scaling-stroke');
         svg.appendChild(zero);
@@ -848,8 +901,28 @@ var EXAMPLES = {
         entry.appendChild(document.createTextNode(item.label));
         legend.appendChild(entry);
       });
+      if (min < 0 && max > 0) {
+        var zeroEntry = document.createElement('span');
+        var zeroSwatch = document.createElement('span');
+        zeroSwatch.className = 'mt4-mt5-genetic-copy-trade-lab-swatch';
+        zeroSwatch.style.background = 'rgba(232,163,61,.8)';
+        zeroEntry.appendChild(zeroSwatch);
+        zeroEntry.appendChild(document.createTextNode('Zero'));
+        legend.appendChild(zeroEntry);
+      }
       card.appendChild(legend);
       container.appendChild(card);
+    }
+    function readout(baseline, evolved) {
+      var lines = [];
+      if (evolved.selected < 3) {
+        lines.push('The evolved filter kept only ' + evolved.selected + ' of ' + evolved.rows + ' holdout trades, which is too few to compare. Read the training column as a description of the past, not as an edge.');
+      } else {
+        var delta = evolved.net - baseline.net;
+        lines.push('On the holdout the filter kept ' + evolved.selected + ' of ' + evolved.rows + ' trades and netted ' + signed(evolved.net) + ' points; taking every trade would have netted ' + signed(baseline.net) + '. That is a difference of ' + signed(delta) + ' points, with the win rate moving from ' + formatNumber(baseline.winRate) + '% to ' + formatNumber(evolved.winRate) + '%.');
+      }
+      lines.push('These are the trades you already have. They say what the filter would have done on that period; they do not say what it will do next.');
+      return lines.join(' ');
     }
     function drawResults(dataset, genome, generations, populationSize, seed, pointValue) {
       var baseGenome = { minScore: 0, maxSpread: Infinity, maxDelay: Infinity, sideMode: 0, minHour: 0, maxHour: 23, takeProfit: 0, stopLoss: 0 };
@@ -861,6 +934,39 @@ var EXAMPLES = {
       clearNode(resultsBox);
       addText(resultsBox, 'h3', 'Evolution results');
       addText(resultsBox, 'p', dataset.trades.length + ' valid trades' + (dataset.symbolFilter ? ' (' + dataset.symbolFilter + ')' : '') + ' · ' + dataset.training.length + ' chronological training rows · ' + dataset.holdout.length + ' untouched holdout rows · ' + Math.round(dataset.split * 100) + '/' + Math.round((1 - dataset.split) * 100) + ' split · ' + (dataset.chronological ? 'sorted by timestamp' : 'CSV order used as chronology') + (dataset.skipped ? ' · ' + dataset.skipped + ' invalid row(s) skipped' : ''), 'mt4-mt5-genetic-copy-trade-lab-muted');
+      addText(resultsBox, 'p', 'Columns read: ' + (dataset.mapping.length ? dataset.mapping.join(' · ') : 'nothing recognisable') + (dataset.unmapped.length ? ' · not found: ' + dataset.unmapped.join(', ') : '') + '.', 'mt4-mt5-genetic-copy-trade-lab-muted');
+      // Several instruments in one file: show what each one did on its own
+      // before asking the search to compare them.
+      if (dataset.symbols.length > 1) {
+        addText(resultsBox, 'h4', 'Each symbol in this file, unfiltered');
+        var symbolWrap = document.createElement('div');
+        symbolWrap.className = 'mt4-mt5-genetic-copy-trade-lab-table-wrap';
+        var symbolTable = document.createElement('table');
+        var symbolHead = document.createElement('thead');
+        var symbolHeadRow = document.createElement('tr');
+        ['Symbol', 'Trades', 'Win rate', 'Net points', 'Profit factor'].forEach(function (label) {
+          var th = document.createElement('th');
+          th.textContent = label;
+          symbolHeadRow.appendChild(th);
+        });
+        symbolHead.appendChild(symbolHeadRow);
+        symbolTable.appendChild(symbolHead);
+        var symbolBody = document.createElement('tbody');
+        dataset.symbols.forEach(function (symbol) {
+          var metrics = summarize(dataset.allTrades.filter(function (trade) { return trade.symbol === symbol; }), baseGenome, noFeatures);
+          var tr = document.createElement('tr');
+          [symbol, String(metrics.rows), formatNumber(metrics.winRate) + '%', signed(metrics.net), formatNumber(metrics.profitFactor)].forEach(function (value) {
+            var td = document.createElement('td');
+            td.textContent = value;
+            tr.appendChild(td);
+          });
+          symbolBody.appendChild(tr);
+        });
+        symbolTable.appendChild(symbolBody);
+        symbolWrap.appendChild(symbolTable);
+        resultsBox.appendChild(symbolWrap);
+        addText(resultsBox, 'p', 'Points from different symbols are only comparable if every row used the same point size. Run one instrument at a time when the digits differ.', 'mt4-mt5-genetic-copy-trade-lab-muted');
+      }
       var wrap = document.createElement('div');
       wrap.className = 'mt4-mt5-genetic-copy-trade-lab-table-wrap';
       var table = document.createElement('table');
@@ -895,6 +1001,7 @@ var EXAMPLES = {
       table.appendChild(body);
       wrap.appendChild(table);
       resultsBox.appendChild(wrap);
+      addText(resultsBox, 'p', readout(baselineHoldout, evolvedHoldout), 'mt4-mt5-genetic-copy-trade-lab-readout');
       var charts = document.createElement('div');
       charts.className = 'mt4-mt5-genetic-copy-trade-lab-charts';
       drawChart(charts, 'Cumulative points — training segment', [
@@ -1002,6 +1109,8 @@ var EXAMPLES = {
         lines.push('"' + String(section).replace(/"/g, '""') + '","' + String(metric).replace(/"/g, '""') + '","' + String(value).replace(/"/g, '""') + '"');
       }
       var dataset = last.data;
+      dataset.mapping.forEach(function (entry, index) { row('column_map', 'used_' + (index + 1), entry); });
+      dataset.unmapped.forEach(function (entry, index) { row('column_map', 'missing_' + (index + 1), entry); });
       row('run', 'tool', 'MT4 / MT5 Genetic Copy-Trade Lab');
       row('run', 'population', last.population);
       row('run', 'generations', last.generations);
