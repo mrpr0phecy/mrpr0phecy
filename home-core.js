@@ -437,6 +437,34 @@
       updateChipStates('');
       boxes[0].focus();
     });
+
+    // The slash hint is useful only if it works everywhere on the landing
+    // page, not just while the list has focus. Keep the shortcut out of form
+    // controls so it never interrupts someone typing into a tool or panel.
+    document.addEventListener('keydown', function (e) {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return;
+      var target = e.target;
+      var typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' || target.isContentEditable);
+      if (e.key === '/' && !typing) {
+        e.preventDefault();
+        var visible = document.getElementById('stickyCommandBar');
+        var sticky = document.getElementById('stickySearchInput');
+        var hero = document.getElementById('tool-search');
+        var box = visible && visible.classList.contains('visible') && sticky ? sticky : hero;
+        if (box) box.focus();
+        return;
+      }
+      // Escape is a fast way out of a search dead-end. Do not clear a field
+      // owned by another component, and leave an empty search alone so Escape
+      // can continue to close a native popover.
+      if (e.key === 'Escape' && boxes.some(function (b) { return b.value; })) {
+        var activeSearch = boxes.some(function (b) { return b === document.activeElement; });
+        if (!activeSearch) return;
+        e.preventDefault();
+        if (clearBtn) clearBtn.click();
+      }
+    });
   }
 
   /* ------------------------------------------------------ popular chips */
