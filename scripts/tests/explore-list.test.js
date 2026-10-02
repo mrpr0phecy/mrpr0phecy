@@ -24,6 +24,7 @@ const assert = require('assert');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const SOURCE = fs.readFileSync(path.join(ROOT, 'explore.js'), 'utf8');
+const STYLES = fs.readFileSync(path.join(ROOT, 'explore.css'), 'utf8');
 
 /* ------------------------------------------------ pull real functions out --- */
 function extract(name) {
@@ -145,6 +146,8 @@ state.rows = rows;
     'the engine writes .xp-row elements with data-slug');
   assert(/data-toolbox-add/.test(SOURCE), 'rows carry the toolbox hook');
   assert(/data-xp-details/.test(SOURCE), 'rows carry a details toggle');
+  assert(/\.xp-row\[hidden\][\s\S]*?\.cat-block\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(STYLES),
+    'filtered rows and empty category groups must honor their hidden state despite list layout styles');
 
   // The keyboard map is part of the interface now: it is documented in the
   // toolbar hint and in the home page's hero tip.
