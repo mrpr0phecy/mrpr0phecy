@@ -1,55 +1,22 @@
 #!/usr/bin/env bash
 # verify.sh — would this change break the site?
 #
-#   bash scripts/verify.sh          # the gate: 7 checks, all of them, ~5 s
-#   bash scripts/verify.sh --deep   # + 4 slow audits, ~75 s with jsdom in
-#                                   #   /tmp/tenv (as CI has it)
-#   bash scripts/verify.sh --live   # + ask the deployed site what it serves
+#   bash scripts/verify.sh          # the gate: 7 checks, ~5 s
+#   bash scripts/verify.sh --deep   # gate + the slow audits, ~75 s with jsdom
+#   bash scripts/verify.sh --live   # gate + ask the deployed site what it serves
 #
-# Local validation is task-based: see AGENTS.md §1. Batch edits before
-# running this gate; docs-only changes do not need it. No checks are disabled.
+# Local validation is task-based (AGENTS.md §1): batch edits before running
+# this, and a docs-only change needs no gate.
 #
-# The site brain (a 4.5 MB generated retrieval index, its 857-line builder, its
-# evaluator, and the rule that any edit to a public doc forced a
-# rebuild-and-commit) was deleted on 2026-09-20: nothing on the site read it,
-# and agents.html now points outside agents at llms.txt, cards.json and
-# related.json instead.
+# The gate: hygiene (secrets, placeholders, rel=noopener), catalogue
+# consistency, card JavaScript, internal links, published counts, top-level
+# SEO, Lantern contracts. --deep adds egress, accessibility, cross-card
+# collisions, CSS leaks, generated-surface drift, the full card-JS sweep, the
+# product tests and the measured quality floors. CI runs the gate on PRs, and
+# the full gate on main (the deploy) and nightly.
 #
-# It used to be 22 sections and ~3 minutes, which grew a scoping engine
-# (~400 lines: a path→section map, widening rules, a plan printer, a
-# regression test for the map) whose only job was to decide which sections an
-# edit could reach. That engine was deleted on 2026-09-20 along with the
-# sections that made it necessary. What is left here is what a visitor, a
-# search engine or an attacker would actually notice:
-#
-#   1. hygiene    no token, no placeholder ID, no unsafe target=_blank
-#   2. catalogue  cards/ and cards.json agree about what exists
-#   3. card JS    the JavaScript in every changed card parses, every inline
-#                 handler it ships resolves in window scope and compiles, no
-#                 card indexes parallel arrays of different lengths, no button
-#                 submits the form the visitor is working in, no card can
-#                 only initialise while the document is still loading (which
-#                 tool.html never is: the listener is never registered and the
-#                 card never starts), and nothing a card appends to the document
-#                 outlives it (tool.html clears the card, not the body)
-#   4. links      every internal href/src resolves to a shipped file
-#   5. counts     every published tool count is re-derived, never hand-edited
-#   6. SEO        no top-level page is missing a <title>
-#   7. Lantern    the on-site AI engine's structural contracts hold
-#
-# --deep adds the audits for shared infrastructure changes and CI: egress
-# classification, accessibility, cross-card name collisions, CSS leaks, every
-# generated surface's drift check, the full card JS sweep (syntax, inline
-# handlers, parallel arrays), the product test suite and the measured quality
-# floors. They were cut from the gate because
-# they cost ~20 s and change nothing about an edit in progress — not because
-# they are wrong. CI runs the fast gate on pull requests and pushes, and the
-# full --deep gate on pushes to main (the deploy) and nightly, so a small PR
-# gets feedback in about a minute and the catalogue is swept on a schedule
-# (see .github/workflows/agent-guardrails.yml).
-#
-# Nothing here writes to the repository except the count re-derivation in
-# check 5, which fixes drift in place and tells you to commit the result.
+# Nothing here writes to the repository except check 5 (counts), which fixes
+# drift in place and tells you to commit the result.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
@@ -58,7 +25,9 @@ for arg in "$@"; do
   case "$arg" in
     --deep) DEEP=1 ;;
     --live) LIVE=1 ;;
-    -h|--help) sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    # Print the header comment block (everything between the shebang and the
+    # first line of code), without the leading '#'. Length-proof on purpose.
+    -h|--help) sed -n '2,/^[^#]/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) printf 'verify.sh: unknown option "%s" (use --deep, --live)\n' "$arg" >&2; exit 2 ;;
   esac
 done

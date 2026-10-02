@@ -11,16 +11,11 @@ Zero framework, zero build step in production, zero runtime dependencies. `main`
 
 ---
 
-## 👉 New here?
-
-**AI agents and contributors: start with [AGENTS.md](AGENTS.md)** — one page
-with the commands, the hard lines and the common tasks, linking everything
-else. **[ARCHITECTURE.md](ARCHITECTURE.md)** is the full reference: repository
-layout, how the catalogue works, the verified MrProphecy YouTube data, both
-design systems, SEO conventions and the traps that have already cost people
-time.
-
 ## Working on the site
+
+**AI agents and contributors: start with [AGENTS.md](AGENTS.md)** — the whole
+contract on one page, linking everything else. [ARCHITECTURE.md](ARCHITECTURE.md)
+is the full reference.
 
 ```bash
 npm run build          # regenerate every derived file
@@ -30,8 +25,8 @@ npm test               # the product test suite
 node scripts/screenshot.mjs index.html   # look at a page at 360 and 1440 px
 ```
 
-AGENTS.md §1–§2 has task-based validation and optional scratch setup (outside the
-repository — nothing is ever installed into it).
+Task-based validation and scratch setup (outside the repository — nothing is
+ever installed into it) are in AGENTS.md §1–§2.
 
 ## Lantern — the standalone AI
 
@@ -87,7 +82,7 @@ money-related.
 | **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
 | **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
 | **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
-| **Quality gate** | Task-based local validation (AGENTS.md §1) · CI: fast gate on every commit, `--deep` on merge + nightly, production monitor on the live site |
+| **Quality gate** | Task-based local validation (AGENTS.md §1) · CI: fast gate on PRs, `--deep` on `main` + nightly, production monitor on the live site |
 | **Operations** | **[docs/OPERATIONS.md](docs/OPERATIONS.md)** — triage / rollback / fix-forward. `node scripts/check-production.js` probes the *live* site after every deploy and every 6 h (self-closing alert issue) |
 | **Add a tool** | `bash scripts/add-tool.sh <slug> "<Category>" "<msg>"` or by hand per `AGENTS.md` §4, then build, smoke-test and verify per §1 |
 

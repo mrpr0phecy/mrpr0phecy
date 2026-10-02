@@ -1,16 +1,17 @@
 # ARCHITECTURE.md — mrpr0phecy/mrpr0phecy
 
-**Read this first.** It is the single onboarding document for this repository,
-written so that a human or an AI agent handed a GitHub token can be productive
-within about ten minutes and without breaking anything.
+The full reference: repository layout, how the catalogue works, the verified
+MrProphecy data, both design systems, SEO conventions and the traps that have
+already cost time. Open the section you need — §2 is the map, §3 the catalogue,
+§4 the music product, §7 traps, §9 protected files.
 
-**For AI agents:** start with **[AGENTS.md](AGENTS.md)** — the one entry
-point: the commands, the hard lines, the card rules and the common tasks. This
-file is the reference it links into. If you need GitHub access in a fresh
+**Start at [AGENTS.md](AGENTS.md), not here:** it is the single entry point
+(the commands, the seven protections, the card rules, the common tasks), and
+this file is the reference it links into. If you need GitHub access in a fresh
 session, run `bash scripts/agent-auth.sh` (self-service device flow,
 sparse-clone recipe inside) instead of asking the owner to paste a token.
 
-Last substantive update: 2026-09-21.
+Last substantive update: 2026-10-02.
 
 For anything money-related — what earns, what the real numbers are, and what
 was deliberately not built — see **[INCOME.md](INCOME.md)**.
@@ -958,162 +959,115 @@ moving parts:
 
 ## 7. Traps and gotchas
 
-Each of these has already cost someone real time.
+Each of these has already cost someone real time. The card-lifecycle traps —
+those that come from `tool.html` sharing one document — are in
+`CONSTRAINTS.md`; this section is everything else.
 
-**`sw.js` registration traps** (resolved — `home-core.js` registers it from
-the end of its init, during idle; these constraints still govern edits to it): it uses
-**network-first for HTML** deliberately. Cache-first on
-HTML is what makes a static site serve stale pages for days after a deploy. It
-also adds precache entries individually rather than via `cache.addAll()`,
-because `addAll()` is atomic — a single 404 aborts the whole install and the
-worker never activates. The previous version had four 404s in its precache list
-and could never have installed. Bump `CACHE_VERSION` on any change, and bump it
-**together with** the `?v=` on `index.html`'s stylesheet and script references —
-`scripts/check-critical-css.py` compares the two, because a page from one deploy
-must never be served against another deploy's `home.css` or `explore.js`.
+**`sw.js` is live, and its constraints govern edits.** It is network-first for
+HTML deliberately (cache-first serves stale pages for days after a deploy), and
+precaches entries individually rather than via `cache.addAll()`, which is
+atomic — one 404 aborts the whole install and the worker never activates. Bump
+`CACHE_VERSION` **together with** the `?v=` on `index.html`'s stylesheet and
+script references; `scripts/check-critical-css.py` compares the two, because a
+page from one deploy must never be served against another deploy's `home.css`
+or `explore.js`.
 
-**The catalogue may never come from a stale cache.** The catalogue decides
-which tools exist, so a cached copy that predates the deploy renders a grid
-with tools missing — the visitor has no way to tell that from a bug. `sw.js`
-therefore routes the catalogue tiers, the card fragments and first-party
-code through `freshFast()`: the cached copy answers instantly only while it is
-inside GitHub Pages' own 10-minute freshness window, after which the network
-decides, with the cache as the fallback if the origin is slower than
-`NETWORK_PATIENCE_MS` (2.5s) or unreachable. This replaced
-stale-while-revalidate, which always handed over the previous deploy's copy and
-only refreshed the cache for the *next* visit — so every newly added tool was
-missing until the visitor happened to load the page twice.
-`scripts/tests/service-worker.test.js` drives the shipped handler and fails if
-a stale catalogue beats the deployed one.
+**The catalogue may never come from a stale cache.** A cached copy that
+predates the deploy renders a grid with tools missing, and the visitor cannot
+tell that from a bug. `sw.js` routes the catalogue tiers, card fragments and
+first-party code through `freshFast()`: the cache answers only inside GitHub
+Pages' own 10-minute freshness window, then the network decides, with the cache
+as fallback if the origin is slower than `NETWORK_PATIENCE_MS` (2.5 s) or
+unreachable. `scripts/tests/service-worker.test.js` drives the shipped handler
+and fails if a stale catalogue beats the deployed one.
 
-**Nothing in `sw.js` may wait on the network forever.** v19 bounded the
-navigations that already had a cached copy; v21 (2026-09-23) closed the rest
-after the report came back — browse back and forth between the index and a few
-tools and the tab hangs. Every first visit to a URL (each new `tool.html?card=*`
-leg of exactly that browse) awaited the network with no bound, so one stalled
-socket was a white screen forever. Past `UNCACHED_PATIENCE_MS` (8 s) an
-uncached navigation now falls back to the cached index — the same fallback an
-offline visit gets — and an uncached catalogue, fragment, script, font or
-fallback fetch fails fast (503) so the page renders its error UI instead of
-hanging; a navigation preload that never settles no longer stops the fetch
-from starting, either. The pages match that contract from their side: the home
-list's catalogue fetch carries its own 12 s abort window over headers *and*
-body, a failed load re-arms instead of caching the rejection, and the empty
-state offers a retry next to the directory link (`explore.js`); the toolbox's
-lookup fetch has the same window and the same re-arm (`toolbox.js`).
-`service-worker.test.js` drives the worker's bounds with a network that never
-settles, and `explore-list.test.js` pins the list's timeout and retry.
+**Nothing in `sw.js` may wait on the network forever.** Past
+`UNCACHED_PATIENCE_MS` (8 s) an uncached navigation falls back to the cached
+index; an uncached catalogue, fragment, script, font or fallback fetch fails
+fast (503) so the page renders its error UI instead of hanging. The pages match
+that contract: the home list's catalogue fetch carries its own 12 s abort window
+over headers *and* body and re-arms on failure rather than caching the rejection
+(`explore.js`); the toolbox lookup does the same (`toolbox.js`).
+`service-worker.test.js` and `explore-list.test.js` pin these bounds.
 
 **The precache list must only contain what the fetch handler reads from that
-cache.** Entries are fetched with `cache: 'reload'` (bypassing the HTTP cache)
-on install, so a URL that the handler serves out of `RUNTIME_CACHE` or
-`CARDS_CACHE` is downloaded a second time per install — while the visitor is
-still waiting for the first screen. The service-worker test asserts the list.
+cache.** Entries are fetched with `cache: 'reload'` at install, so a URL the
+handler serves out of `RUNTIME_CACHE` or `CARDS_CACHE` is downloaded a second
+time while the visitor waits for the first screen. The service-worker test
+asserts the list.
 
 **The page's own code needs a second, differently-fetched precache list.**
 `home.css`, `home-deferred.css`, `risk-notices.js`, `explore.css`, `explore.js`,
-`toolbox.js` and `home-core.js` are fetched by a first visit *before* the worker controls
-anything, so the worker's caches never saw them; the next visit offline then
-served the cached `index.html` and 503'd its own stylesheet and script — an
-unstyled page with no cards. Those seven URLs are therefore precached into
-`STATIC_CACHE`, and the fetch handler serves them from there (`PAGE_ASSET_PATHS`
-maps the versioned URL back to the bare pathname), so the precache is the copy
-that gets read rather than a second download nobody looks at.
-
-They are precached **without** `cache: 'reload'`, which is safe and free
-because their URLs carry `?v=${PAGE_VERSION}`, derived from `CACHE_VERSION`:
-a new deploy is a new URL, so no entry under them can be stale — and because
-the URL is new, the HTTP cache cannot hold a wrong copy either, so the
-precache reuses the response the page just downloaded instead of fetching
-~200 KB a second time. Bump `CACHE_VERSION` (and, with it, the `?v=` that
-`scripts/check-critical-css.py` compares) or a deploy quietly precaches the
-previous version's code.
+`toolbox.js` and `home-core.js` are fetched on a first visit *before* the worker
+controls anything, so its caches never saw them; they are precached into
+`STATIC_CACHE` and served from there (`PAGE_ASSET_PATHS` maps a versioned URL
+back to the bare path). They are precached **without** `cache: 'reload'`:
+their URLs carry `?v=${PAGE_VERSION}`, derived from `CACHE_VERSION`, so a new
+deploy is a new URL and nothing under them can be stale.
 
 **`generate-cards-json.js` overwrites categories.** See §3.
 
 **`index.html`'s link blocks are generated; never hand-edit inside the
 markers.** `HOME-FEATURED`, `HOME-TRENDING` and `HOME-CATEGORIES` are written by
-`scripts/build-home-prerender.py` and `bash scripts/verify.sh` fails until they
-match the catalogue. The catalogue list itself is built at runtime from
-`tools-index.json` and is not in the document at all — `sync-counts.py` owns
-the two numbers on the page (`#heroToolCount`, `#exploreCount`).
+`scripts/build-home-prerender.py`, and `verify.sh` fails until they match. The
+catalogue list itself is built at runtime from `tools-index.json`;
+`sync-counts.py` owns the page's two numbers (`#heroToolCount`,
+`#exploreCount`).
 
 **There is one search box per page and one place it goes.** Every search input
-(the hero box, the sticky bar's, the list's own filter) is a view onto
-`mpExplore.filter()`. `home-core.js` owns the bridge; it resolves boxes by id
-(`#tool-search`, `#stickySearchInput`) and mirrors what it is typed into the
-list. Two rules, both learned the hard way:
+(hero, sticky bar, the list's own filter) is a view onto
+`mpExplore.filter()`; `home-core.js` owns the bridge, resolving boxes by id
+(`#tool-search`, `#stickySearchInput`). A new box is an entry in the bridge,
+never a fresh `getElementById` sweeping the page: the old page looked for
+`#mainSearchInput` on a page that shipped `#tool-search`, so the hero box never
+filtered, never synced with the command bar, and `/` threw on every press. The
+list is the only result surface.
 
-- **A new search box is an entry in the bridge, never a fresh
-  `getElementById` sweeping the page.** The old page looked for `#mainSearchInput`
-  on a page that shipped `#tool-search`, so on the real homepage every lookup
-  returned null: the hero box never filtered anything, never synced with the
-  command bar, and `/` threw on every press.
-- **The list is the result surface.** There is no second results panel to keep
-  in agreement with the list; a query filters the list and the browse sections
-  (featured/trending/categories) step aside while it is on.
+**`tools-index.json` is about 900 KB and it is every list's data.** The home
+page fetches it when the visitor reaches the list (not at parse time);
+`tools.html` / `tools-index.html` / the category pages contain its output and
+never fetch it. It duplicates the title/description/category the full catalogue
+tier carries; de-duplicating needs a new signals file plus a drift gate — a
+deliberate project, never half-way.
 
-**`tools-index.json` is about 900 KB and it is every list's data.** The home page
-fetches it when the visitor reaches the list (not at parse time), and
-`tools.html` / `tools-index.html` / the category pages *contain* its output
-already, so they never fetch it at all. It duplicates the
-title/description/category the full catalogue tier carries (about 194 KB gzip
-against the catalogue tier's 149 KB); de-duplicating it means a new signals file plus a drift
-gate — worth doing deliberately or not at all, never half-way.
+**The layout numbers live in one place.** The only size the engine assumes is
+`PAGE_SIZE = 60`; the park, the warm-ahead trickle, the per-frame budget and
+the density machines were removed with the grid — if those names come back, so
+has the architecture §3 documents the removal of.
 
-**The layout numbers live in one place now.** The geometry contract between JS
-and CSS (`DENSITY` in `home-app.js` vs the mosaic block in `home.css`) died with
-the grid: a list's row height is decided by the row's own content, and the only
-size the engine assumes is `PAGE_SIZE = 60`. The park container, the warm-ahead
-trickle and the per-frame load budget went with it — if any of those names come
-back, so has the architecture this file's §3 documents the removal of.
+**A container a running tool measures from must never be `display: none`** — a
+tool sizing a canvas from `clientWidth` reads zero and keeps it. No list page
+runs a tool, so this now applies to `tool.html` alone.
 
+**Skipped boxes report what they were last shown.** Every row above the
+viewport is a `content-visibility: auto` box whose layout height is either
+`contain-intrinsic-size` or the size it last rendered at. `adjustCardHeight()`'s
+inline `min-height` is therefore a contract: a rendered row carries its true
+height while skipped, so un-skipping it changes nothing and cannot shove the
+reader. A tool's height is the exception, which is why the park stores
+`data-parked-min-height` instead of re-measuring, and why every host-side height
+change (`parkCard`, `resumeParked`, both mount mutations, `showCardError`) is a
+snapshot before the mutation and a `noteRowHeight` after. `retryLoadCard()` is
+the one intentional unpaired flip: its error block is still the content, so
+there is no material delta.
 
-**The grid's mechanisms are gone, and their traps with them.** Section 3 records
-what was removed (the park, warm-ahead, the per-frame budget, the four density
-machines). One habit outlives them: a container that a *running tool* measures
-from must never be hidden with `display: none`, because a tool that sizes a
-canvas from `clientWidth` reads zero and keeps it. Nothing on a list page runs
-a tool, so the rule now applies to `tool.html` alone.
-**Skipped boxes report what they were last shown.** With the UA's anchoring off,
-this page has no second opinion about above-the-fold height changes — and every row
-above the viewport is a `content-visibility: auto` box whose layout height is either
-`contain-intrinsic-size` or the size it last rendered at, because the `auto` keyword
-remembers. That is why `adjustCardHeight()`'s inline `min-height` is a contract and
-not an optimisation: a row that has been rendered once carries its true height in the
-document *while skipped*, so un-skipping it on the way back into view changes nothing
-and cannot shove the reader. The one height a skipped row does not carry is a tool's,
-which is why the park stores `data-parked-min-height` instead of re-measuring a
-face, and why every host-side height change — `parkCard`, `resumeParked`, both mount
-mutations, and `showCardError` — is a snapshot taken immediately before the mutation
-and a `noteRowHeight` immediately after. `retryLoadCard()` is the one class flip with
-no pair, on purpose: it re-tiles a card whose error block is still the content, so
-there is no material delta, and the mount that follows is paired already.
-
-**Top-level name collisions across cards.** Cards are fragments written for a
-shared document: `tool.html` injects one at a time into its own page, so a
-card's inline `<script>` declares into a global scope that outlives the card.
-A global `let`/`const`/`class` cannot be undeclared, so a name two cards share
-kills whichever loads second with `SyntaxError: Identifier 'X' has already been
-declared` — the card renders and does nothing. `scripts/check-card-collisions.py`
-is the guard, and it is exact (see its docstring). Ids are no longer a live
-hazard now that only one card is mounted at a time, but prefix them anyway:
-`scripts/check-cards.py` enforces it and it costs nothing.
+**Top-level name collisions across cards.** A global `let`/`const`/`class`
+cannot be undeclared, so a name two cards share kills whichever loads second
+with a `SyntaxError`. `scripts/check-card-collisions.py` is the guard. Prefix
+ids too: `scripts/check-cards.py` enforces it.
 
 **Sparse checkout gives false "broken image" results.** `images/` is ~50 MB and
-usually excluded. Local tooling will report those images as 404. Always confirm
-against the live site with `curl` before "fixing" a missing image — several
-files reported broken locally are present and serving 200 in production.
+usually excluded, so local tooling reports its files as 404. Confirm against the
+live site with `curl` before "fixing" one.
 
-**Filenames contain spaces and en-dashes.** e.g. `images/SOSMrWolfs 21.jpg`,
-`images/carling academy, bristol.jpg`. Quote paths; URL-encode in HTML and XML.
+**Filenames contain spaces and en-dashes** (e.g. `images/SOSMrWolfs 21.jpg`):
+quote paths, URL-encode in HTML and XML.
 
 **A literal `%` in a filename is served doubly-encoded.** A file whose name
-stores a branch slash as `%2F` gets the published URL
-`…/arena%252F01a0…json` — requesting it with a single `%2F` decodes to a
-slash before routing and 404s on a file that exists (issue #91). Any tooling
-that turns repo paths into URLs must encode each path segment; see
-`encodeRelUrl()` in `scripts/check-production.js`.
+stores a branch slash as `%2F` gets the published URL `…/arena%252F01a0…json`;
+requesting it with a single `%2F` decodes to a slash before routing and 404s on
+a file that exists (issue #91). Tooling that turns repo paths into URLs must
+encode each segment — see `encodeRelUrl()` in `scripts/check-production.js`.
 
 ---
 
@@ -1129,19 +1083,15 @@ chmod 700 ~/.ssh && chmod 600 ~/.ssh/id_ed25519   # if using SSH
 git clone --depth 1 --filter=blob:none --sparse \
     git@github.com:mrpr0phecy/mrpr0phecy.git r
 cd r
-
-# Music work (skip images and the 1312 cards):
-git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'
-
-# Tool work (skip images only):
-git sparse-checkout set --no-cone '/*' '!/images/'
+git sparse-checkout set --no-cone '/*' '!/images/'              # tool work
+git sparse-checkout set --no-cone '/*' '!/images/' '!/cards/'   # music only
 
 git config user.name  mrpr0phecy
 git config user.email mrpr0phecy@users.noreply.github.com
 ```
 
-Cone mode does not work here: `git sparse-checkout set cards index.html` fails
-with *"'index.html' is not a directory"*. Use `--no-cone` with leading-slash
+Cone mode does not work here (`git sparse-checkout set cards index.html` fails
+with *"'index.html' is not a directory"*): use `--no-cone` with leading-slash
 patterns.
 
 ### Test locally
@@ -1150,63 +1100,28 @@ patterns.
 python3 -m http.server 8891     # then open http://127.0.0.1:8891/listen.html
 ```
 
-Serve over HTTP rather than opening files directly — `file://` breaks `fetch()`
-of `cards.json` and gives misleading CORS errors.
+Serve over HTTP rather than opening files directly — `file://` breaks the
+`fetch()` of `cards.json` and gives misleading CORS errors.
 
-Worthwhile automated checks before pushing — **the easy way is
-`bash scripts/verify.sh`**, which runs the catalogue audit, placeholder, link,
-sitemap, SEO and secret scans below (safe on sparse checkouts; `--live` adds
-production curls). The individual manual checks:
+`bash scripts/verify.sh` is the easy pre-push check: the gate, `--deep` for
+shared infrastructure, `--live` for production curls. The individual card
+checks it runs on changed cards, and over all of `cards/` with `--deep`:
 
 ```bash
-# JS syntax inside a page (extract each <script> and run node --check)
-node --check extracted.js
+python3 scripts/check-card-js.py --all        # syntax and the static traps
+node scripts/handler-check.js --all           # inline on*= handlers resolve and compile
+node scripts/check-parallel-arrays.js --all   # arrays indexed together agree
+node scripts/check-form-buttons.js --all      # no button submits its own form
+node scripts/check-card-init.js --all         # every card can start in a loaded document
+node scripts/check-card-leftovers.js --all    # nothing a card appends outlives it
+```
 
-# Card JavaScript, six questions. Does it parse at all; does every inline
-# `on*=` handler resolve in the window scope it will run in AND compile as
-# JavaScript (a full sweep found 37 attributes like `onclick="fn(), this)"`,
-# which name a function that exists and are not code: the control is dead);
-# does any card index two arrays of different lengths with the same index;
-# does any button submit the form it sits in (fifteen cards, 109 buttons, whose
-# clicks computed and then navigated to the tool's own URL, wiping the answer);
-# and can the card start at all — a `document.readyState === 'loading'` guard
-# with no `else` never runs in a document that finished loading before the
-# fragment was injected, which is what tool.html does (forty-three cards, dead
-# on arrival: tic-tac-toe rendered no board at all); and does anything the card
-# adds to the document outlive it — a modal, a share dialog or a toast parked in
-# document.body stays over the next tool, because tool.html clears the card's
-# container and never the body (six toasts and ten audio wrappers shipped that).
-# Each of the last four is there because a real card shipped the defect while
-# every other check passed — creative-writing's 12/8/8 plot arrays, fitnesscore's
-# "Calculate BMI" reloading the tool, and the sweep of 2026-09-23 that named the
-# 43 dead cards.
-# verify.sh runs all six on changed cards in the gate and over cards/ on
-# --deep.
-python3 scripts/check-card-js.py --all
-node scripts/handler-check.js --all
-node scripts/check-parallel-arrays.js --all
-node scripts/check-form-buttons.js --all
-node scripts/check-card-init.js --all
-node scripts/check-card-leftovers.js --all
+The hand-maintained surfaces no generator owns:
 
-# Placeholders that must never ship
-grep -rlE 'dQw4w9WgXcQ|VIDEO_ID|PLAYLIST_ID|your_video_id|YOUR_' --include=*.html .
-
-# target=_blank missing rel=noopener
-grep -oE '<a [^>]*target="_blank"[^>]*>' page.html | grep -v noopener
-
-# Validate the sitemap parses
-python3 -c "import xml.etree.ElementTree as E;print(len(list(E.parse('sitemap.xml').getroot())))"
-
-# The hand-maintained surfaces no generator owns. `sync-counts.py` owns every
-# category *number*; these own the *lists* — agents.html's JSON samples (the
-# contract an outside agent parses) and the category enumerations in
-# index.html's JSON-LD and the table above — and the *sizes* quoted in prose,
-# which are checked rather than derived: a bare figure has to be right, a
-# hedged one ("about 89 MB") may be 15% out.
-python3 scripts/check-agents-docs.py
-python3 scripts/build-category-lists.py --check
-python3 scripts/check-size-claims.py
+```bash
+python3 scripts/check-agents-docs.py               # agents.html's JSON samples match the files
+python3 scripts/build-category-lists.py --check    # category lists and enumerations
+python3 scripts/check-size-claims.py               # prose sizes: bare exact, "about" may be 15% out
 ```
 
 Headless browser checks (Playwright) are worth it for anything interactive:
@@ -1215,25 +1130,15 @@ expected elements exist.
 
 ### Verify after pushing
 
-Pages takes 30–60s. Do not trust a green push. The **production monitor**
-(`scripts/check-production.js`) does this loop properly: it compares the
-deployed bytes with this repository, parses the live catalogue and sitemap,
-checks the custom 404 and the https upgrade, and raises one alert issue when
-anything stops matching.
-
-```bash
-node scripts/check-production.js            # full contract against the live site
-node scripts/check-production.js --sample 12 --json /tmp/report.json
-```
-
-It runs by itself on every push to `main` — waiting 45 s for Pages and then
-retrying mismatches for about a minute, so propagation is not an alarm — and
-every six hours (`.github/workflows/production-monitor.yml`), and its failure
-modes are pinned
-offline by `scripts/tests/production-monitor.test.js` (section 20 of
-`verify.sh`). What to do when it fails is in
-[docs/OPERATIONS.md](docs/OPERATIONS.md) — triage table, rollback, fix-forward.
-Keep the manual probes for the case where the monitor itself cannot run:
+Pages takes 30–60 s. The **production monitor** (`scripts/check-production.js`)
+compares the deployed bytes with this repository, parses the live catalogue and
+sitemap, checks the custom 404 and the https upgrade, and raises one alert issue
+when anything stops matching. It runs on every push to `main` — waiting 45 s for
+Pages, then retrying mismatches for about a minute — and every six hours
+(`.github/workflows/production-monitor.yml`); its failure modes are pinned by
+`scripts/tests/production-monitor.test.js`. Triage, rollback and fix-forward are
+in [docs/OPERATIONS.md](docs/OPERATIONS.md). Manual probe when the monitor
+cannot run:
 
 ```bash
 sleep 50
@@ -1248,8 +1153,8 @@ curl -s https://www.themostusefulsiteintheworld.com/cards/cards.json \
 
 1312 tools in `cards/` across 29 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. The gate is `npm run verify`, with
-`npm run verify:deep` for shared infrastructure changes. CI runs the deep gate
-on pushes to `main` and PRs; local validation follows AGENTS.md §1.
+`npm run verify:deep` for shared infrastructure changes; CI runs the deep gate
+on pushes to `main` and nightly, and local validation follows AGENTS.md §1.
 
 **Do not delete or rename:** `CNAME` (the custom domain), `sw.js` (the live
 service worker — `home-core.js` registers it on every list page), the CV files,
@@ -1258,17 +1163,13 @@ retiring is an owner decision.
 
 Deleted on 2026-09-20 with the owner's approval, after confirming that no page,
 no sitemap entry and no robots rule referenced them: `indexbeta.html`,
-`hokidea.html`, `guide.txt` (69 KB of notes this document superseded),
-`substitutions/`, `system/` and `digitaldetoxcardshtml/`. They are in git
-history if anybody ever wants them back.
+`hokidea.html`, `guide.txt`, `substitutions/`, `system/` and
+`digitaldetoxcardshtml/`. They are in git history if anybody wants them back.
 
-This section used to be a 725-line dated changelog — "Added 2026-09-02, ten new
-Home & DIY tools…", "Changed 2026-09-18, the main page is a live window…" — and
-it was removed on 2026-09-20. `git log` is the changelog. The narrative copy
-went stale in place: it cited deleted files, repeated the same rework four
-times, and had to be *frozen* against `scripts/sync-counts.py` so its
-past-tense counts (562, 622, 1128) would not be "corrected" into lies. History
-belongs in git; this file describes the site as it is.
+This section used to be a 725-line dated changelog, frozen against
+`scripts/sync-counts.py` so its past-tense counts would not be "corrected" into
+lies; it was removed on 2026-09-20. `git log` is the changelog, and this file
+describes the site as it is.
 
 ---
 
