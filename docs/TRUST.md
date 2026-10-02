@@ -1,6 +1,6 @@
 # Trust — pointers #5 + #6 (YMYL, site-level signals)
 
-Pointer #5 is YMYL. About 119 of 1312 tools touch money or the body. If those
+Pointer #5 is YMYL. About 119 of 1318 tools touch money or the body. If those
 pages feel like a bash-mash of thin fragments with no accountable author,
 Google's quality raters (and users) are right to distrust the whole site.
 This doc is the checklist we hold every deep page and every card to.
@@ -104,6 +104,61 @@ Check all information before acting. No details are saved automatically; a
 copied/downloaded sheet may contain sensitive personal or health information
 and should be protected. In an emergency, contact local emergency services.
 **Last reviewed: 2026-09-29.**
+
+## AI Job Exposure Simulator (`cards/ai-job-exposure-simulator.html`)
+
+The calculator is a transparent what-if worksheet. For each task, a visitor
+enters weekly hours, an assumed AI-capability percentage, and a human-essential
+percentage. AI-assisted hours are hours × capability; potentially automatable
+hours are hours × capability × (1 − human-essential share). The two higher
+capability views multiply only the visitor's rating by 1.25 or 1.50 (capped at
+100%); they are sensitivity checks, not timelines or forecasts. The optional
+role example is invented for arithmetic demonstration, not occupational
+research. The tool uses no employer, labour-market, salary or model data and
+does not estimate job-loss probability, advise on retraining, or predict whether
+a role will disappear. Results stay in page memory; the optional backup contains
+the visitor's task labels and should be treated as private. The copied share
+text excludes task labels and omits the role title by default. **Last reviewed:
+2026-10-02.**
+
+## Voice-Clone Scam Drill (`cards/voice-clone-scam-drill.html`)
+
+The five scenarios are fictional education exercises, not a deepfake detector,
+identity check, risk score or guarantee against fraud. The score counts the
+safer choices in this particular quiz only. The practical advice is to stop an
+urgent interaction and verify through an independently initiated route already
+known to the visitor; neither a familiar voice, caller ID nor a challenge phrase
+alone authenticates a caller. The drill processes no audio, requests no names,
+contacts or phrase, and saves neither answers nor checklist state. It cannot
+investigate a scam or recover money; after a transfer, contact the financial
+provider using an official route promptly. **Last reviewed: 2026-10-02.**
+
+## Drone Sighting Safety Guide (`cards/drone-sighting-safety-guide.html`)
+
+This is a civilian safety and reporting checklist, not a live alert, drone
+identifier, threat assessment or legal determination. A sighting alone does not
+establish hostile intent or unlawful flight. The card does not request location
+or identity, track or analyse aircraft, or describe ways to interfere with one;
+its guidance is to keep distance, follow official instructions and report
+observable facts. UK reporting notes link to current Civil Aviation Authority
+guidance (including police 101 for dangerous or illegal flying and 999 for
+immediate danger to life or threat of violence); reporting rules elsewhere vary.
+The form makes no network requests; external guidance opens only if the visitor
+chooses a link. **Last reviewed: 2026-10-02.**
+
+## Essential Services Disruption Map (`cards/service-disruption-readiness-map.html`)
+
+This creates a generic, user-selected rehearsal list for interruptions to
+power, communications, water, payments, transport and services. It does not
+predict an outage, infer an attack, read live utility status or score a
+household's safety. The medical/assistive-equipment and temperature-sensitive
+medicine prompts direct visitors to their own care team and suppliers; the tool
+does not estimate safe device runtimes, medicine temperatures, food safety,
+water quantities or engineering requirements. Its selected categories and
+checkboxes remain in page memory; copying the checklist may reveal which
+services or support needs someone is planning for, so review it before sharing.
+The linked UK Prepare material is England-focused; local guidance differs.
+**Last reviewed: 2026-10-02.**
 
 ## Email Header Inspector (`cards/email-header-inspector.html`)
 

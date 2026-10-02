@@ -152,6 +152,11 @@ def render_main(categories) -> str:
     lines.append('<div class="explore-head">')
     lines.append('  <p class="explore-lede">Filter it, sort it, or press <kbd>/</kbd> to jump to the box. '
                  'Every row opens a tool on its own page, and the ＋ keeps it in your toolbox for next time.</p>')
+    lines.append('</div>')
+    lines.append('<div id="explore" data-explore="static">')
+    # explore.js inserts its sticky filter immediately before this container.
+    # Keep the sponsorship note as the first content child, so the primary
+    # control is reached first while the note still appears before tools without JS.
     lines.append('  <div class="xp-sponsor" role="note">')
     lines.append('    <span><b>Sponsorship · one slot on this page</b> Sponsors are always labelled, '
                  'and a sponsor&rsquo;s own placement carries no tracking scripts, never takes more than '
@@ -159,8 +164,6 @@ def render_main(categories) -> str:
                  'before you buy.</span>')
     lines.append('    <a href="sponsor.html">Sponsor this index →</a>')
     lines.append('  </div>')
-    lines.append('</div>')
-    lines.append('<div id="explore" data-explore="static">')
     for cat in categories:
         lines.append(f'<section class="cat-block" data-xp-group="{esc(cat.name)}" aria-labelledby="cat-{cat.slug}">')
         lines.append(
