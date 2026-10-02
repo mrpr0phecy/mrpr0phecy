@@ -183,6 +183,15 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-02 — two practical household workflows plus two AI-era tools:
+  // transparent task-exposure what-if modelling and a voice-clone scam safety drill.
+  'pantry-freezer-stock-tracker': 'Culinary & Food Science',
+  'home-maintenance-planner': 'Home & DIY',
+  'ai-job-exposure-simulator': 'AI & Autonomous Agents',
+  'voice-clone-scam-drill': 'AI & Autonomous Agents',
+  // 2026-10-02 — civilian-first drone safety and everyday service disruption planning.
+  'drone-sighting-safety-guide': 'Survival & Emergency Readiness',
+  'service-disruption-readiness-map': 'Survival & Emergency Readiness',
   // 2026-09-28 — five privacy-first life-admin tools: batch link cleaning,
   // sensitive-text redaction, cross-platform filename checks, a home inventory,
   // and a date-aware bills/paydays forecast. These fill distinct jobs rather
