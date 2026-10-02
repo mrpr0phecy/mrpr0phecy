@@ -84,6 +84,11 @@ test('the builder and the page agree about which cards can run themselves', () =
   // exists to avoid. Compare them on the same shapes.
   const cases = [
     ['<form onsubmit="event.preventDefault(); calc()"><input id="x" type="number"></form>', true],
+    // The site's navigation guard, on its own, is not a trigger: dispatching a
+    // submit for it does nothing, and stopping there skipped the real button
+    // (the mortgage card shipped its totals as "–" for exactly that reason).
+    ['<form onsubmit="event.preventDefault();"><input id="x" type="number"></form>', false],
+    ['<form onsubmit="event.preventDefault();"><button type="button" onclick="go()">\u{1F9EE} Calculate Mortgage Details</button></form>', true],
     ['<button type="button" onclick="go()">\u{1F525} Calculate</button>', true],
     ['<button type="button" onclick="dl()">Download PDF</button>', false],
     ['<button type="button" onclick="r()">\u{1F504} Reset</button>', false],

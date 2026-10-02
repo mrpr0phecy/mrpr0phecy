@@ -61,11 +61,33 @@ const SKIP_TYPES = new Set(['hidden', 'submit', 'button', 'reset', 'file', 'imag
 // scripts/tests/jobs.test.js — the engine in tool.html.
 const RUN_VERB_RE = /^[^a-zA-Z]*(calculate|compute|work out|convert|update|solve|run|go|recalculate)\b/i;
 const RUN_BLOCK_RE = /download|print|save|export|reset|clear|delete|remove|share|copy|email|pdf|csv|upload|record|stop|cancel/i;
-const FORM_GUARD_RE = /<form\b[^>]*onsubmit\s*=\s*["'][^"']*preventdefault/i;
+const FORM_RE = /<form\b[^>]*onsubmit\s*=\s*["']([^"']*)["']/gi;
 const BUTTON_RE = /<button\b[^>]*>([\s\S]*?)<\/button>/gi;
 
+// Does a form's own `onsubmit` actually do anything? Every card carries
+// `onsubmit="event.preventDefault();"` as a navigation guard (733 of them), and
+// treating that guard as "the card handles its own submit" made the engine
+// dispatch a submit that provably does nothing — then stop, never reaching the
+// real Calculate button underneath. The mortgage card's totals stayed at "–"
+// because of exactly that. A form counts only when its handler does something
+// beyond cancelling the event.
+function formHandlesSubmit(html) {
+  FORM_RE.lastIndex = 0;
+  let m;
+  while ((m = FORM_RE.exec(html))) {
+    const body = m[1];
+    if (!/preventdefault/i.test(body)) continue;
+    const rest = body
+      .replace(/[^;]*preventdefault\(\)\s*;?/gi, '')
+      .replace(/return\s+(false|!1)\s*;?/gi, '')
+      .replace(/^[\s;]+|[\s;]+$/g, '');
+    if (rest) return true;
+  }
+  return false;
+}
+
 function hasRunTrigger(html) {
-  if (FORM_GUARD_RE.test(html)) return true;
+  if (formHandlesSubmit(html)) return true;
   let m;
   BUTTON_RE.lastIndex = 0;
   while ((m = BUTTON_RE.exec(html))) {
@@ -265,7 +287,7 @@ function readCards(dir) {
     .map(f => readCard(path.join(cardDir, f)));
 }
 
-module.exports = { readCard, readCards, hasRunTrigger, FILLABLE_TYPES, OUTPUT_ID_RE, RUN_VERB_RE, RUN_BLOCK_RE };
+module.exports = { readCard, readCards, hasRunTrigger, formHandlesSubmit, FILLABLE_TYPES, OUTPUT_ID_RE, RUN_VERB_RE, RUN_BLOCK_RE };
 
 if (require.main === module) {
   const args = process.argv.slice(2);

@@ -1126,9 +1126,25 @@
             return { url: toolAbsoluteUrl('tool.html?' + params.toString()), carried: carried, dropped: dropped };
         }
 
-        const TOOL_RUN_FORM_RE = /preventdefault/i;
         const TOOL_RUN_BUTTON_RE = /^[^a-zA-Z]*(calculate|compute|work out|convert|update|solve|run|go|recalculate)\b/i;
         const TOOL_RUN_BLOCK_RE = /download|print|save|export|reset|clear|delete|remove|share|copy|email|pdf|csv|upload|record|stop|cancel/i;
+
+        // Does this form's own onsubmit do anything? Every card carries
+        // `onsubmit="event.preventDefault();"` as a navigation guard — 733 of
+        // them — and treating that guard as "the card handles its own submit"
+        // made the trigger press a form that provably does nothing and then
+        // stop, never reaching the Calculate button underneath. The mortgage
+        // card's totals stayed at "–" for exactly that reason. A form only
+        // counts when its handler does more than cancel the event.
+        function toolFormHandlesSubmit(form) {
+            const body = String((form && form.getAttribute && form.getAttribute('onsubmit')) || '');
+            if (!/preventdefault/i.test(body)) return false;
+            const rest = body
+                .replace(/[^;]*preventDefault\(\)\s*;?/gi, '')
+                .replace(/return\s+(false|!1)\s*;?/gi, '')
+                .replace(/^[\s;]+|[\s;]+$/g, '');
+            return rest.length > 0;
+        }
 
         function toolRunButtons(root) {
             const out = [];
@@ -1149,7 +1165,7 @@
             if (!root || !root.querySelectorAll) return false;
             const forms = root.querySelectorAll('form');
             for (let i = 0; i < forms.length; i++) {
-                if (TOOL_RUN_FORM_RE.test(forms[i].getAttribute('onsubmit') || '')) return true;
+                if (toolFormHandlesSubmit(forms[i])) return true;
             }
             return toolRunButtons(root).length > 0;
         }
@@ -1161,7 +1177,7 @@
             const forms = root.querySelectorAll('form');
             for (let i = 0; i < forms.length; i++) {
                 const form = forms[i];
-                if (!TOOL_RUN_FORM_RE.test(form.getAttribute('onsubmit') || '')) continue;
+                if (!toolFormHandlesSubmit(form)) continue;
                 // A dispatched submit event runs the card's own handler and
                 // never navigates. requestSubmit() would also run constraint
                 // validation and, if a card ever forgot to prevent its default,
