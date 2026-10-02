@@ -181,6 +181,8 @@ function main() {
   browser — nothing about them is ever sent to a server)
 - Multi-step jobs for a whole task (each step is a filled-link tool, with the
   answer carried into the next one): ${SITE}/jobs.json — human page: ${SITE}/jobs.html
+- Plain-language routes the site's own solve box understands (pattern, fields
+  filled, worked link): ${SITE}/intents.json
 - Deep tool pages (SEO-grade, 300+ words, methodology, worked example, disclaimer) for the most-searched
   tools — an explicit list, because the path is not always \`tools/<card-slug>.html\`:
 ${deepPagesLines}

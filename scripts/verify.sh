@@ -287,6 +287,12 @@ deep_generated() {
   expect "jobs.json / jobs.html match the cards their steps use" \
          "jobs stale or referencing a control no card has — run: node scripts/build-jobs.js" \
          node scripts/build-jobs.js --check
+  # The solve box is the same promise as a job, in one step: a pattern that
+  # says "fill pct-a and press Calculate". A card that renames the control
+  # turns the home page's answer into a link that opens an empty tool.
+  expect "intents.json matches the cards it routes to" \
+         "solve-box routes stale or referencing a control no card has — run: node scripts/build-intents.js" \
+         node scripts/build-intents.js --check
   expect "no dead ends and no orphans: every tool link lands, every tool is linked" \
          "tool graph broken — a click from a static page would land nowhere" \
          python3 scripts/check-tool-graph.py
