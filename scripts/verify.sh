@@ -280,6 +280,13 @@ deep_generated() {
   expect "per-tool machine specs (api/tools*.json) match the catalogue" \
          "per-tool specs stale — run: node scripts/build-tool-specs.js" \
          node scripts/build-tool-specs.js --check
+  # A job is a promise about ids: "read the number out of #gma-dep and put it
+  # into #mortgage-down". The builder re-reads every card and fails if either
+  # end of a carry is gone, so a renamed field can never ship as a link that
+  # opens the next tool empty.
+  expect "jobs.json / jobs.html match the cards their steps use" \
+         "jobs stale or referencing a control no card has — run: node scripts/build-jobs.js" \
+         node scripts/build-jobs.js --check
   expect "no dead ends and no orphans: every tool link lands, every tool is linked" \
          "tool graph broken — a click from a static page would land nowhere" \
          python3 scripts/check-tool-graph.py

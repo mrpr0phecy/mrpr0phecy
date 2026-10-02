@@ -523,6 +523,45 @@
         .share-grid a:hover,.share-grid button:hover{background:rgba(45,212,255,.18)}
         @media(prefers-reduced-motion:reduce){.share-panel{transition:none}}
 
+        /* ===== JOBS (?job=<id>&step=<n>) — the rail above the card that says
+           where in a multi-step job the visitor is, and carries the answer
+           they just got into the next tool. Rendered only when a job link is
+           opened; hidden in embed mode like the rest of the chrome. ===== */
+        #jobRail{display:none;margin:0 0 12px;padding:12px 14px;border-radius:12px;background:linear-gradient(145deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(45,212,255,.22)}
+        #jobRail.show{display:block}
+        #jobRail .job-line{margin:0;font-size:.86rem;color:rgba(230,250,255,.85);line-height:1.45}
+        #jobRail .job-line strong{color:var(--accent,#2dd4ff)}
+        #jobRail .job-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+        #jobRail .job-dots{display:inline-flex;gap:6px}
+        #jobRail .job-dot{width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;text-decoration:none;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.25);color:rgba(230,250,255,.8)}
+        #jobRail .job-dot:hover{background:rgba(45,212,255,.2)}
+        #jobRail .job-dot.current{background:rgba(45,212,255,.28);border-color:var(--accent,#2dd4ff);color:#e6faff}
+        #jobRail .job-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+        #jobRail .job-btn{min-height:40px;padding:9px 14px;border-radius:9px;font-family:inherit;font-size:.84rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.28);color:#e6faff}
+        #jobRail .job-btn:hover{background:rgba(45,212,255,.18)}
+        #jobRail .job-btn.primary{background:rgba(45,212,255,.18);border-color:rgba(45,212,255,.5);color:var(--accent,#2dd4ff)}
+        #jobRail .job-btn[disabled]{opacity:.55;cursor:default}
+        #jobRail .job-hint{margin:8px 0 0;font-size:.78rem;color:rgba(230,250,255,.6);line-height:1.45}
+        body.embed-mode #jobRail{display:none !important}
+
+        /* ===== FILLED LINKS — a tool link that carries the visitor's values
+           (?card=bmi&bmi-height=180&bmi-weight=75). The note above the card
+           says what arrived from the link; the share panel's extra button
+           offers the same link back, built from what is on screen now.
+           Nothing here is shown without JavaScript — the note is hidden in the
+           markup and the panel button is added by script — so a scripts-off
+           page never shows a control that cannot work, and embed mode stays
+           chrome-free (?embed=1 is a documented contract). ===== */
+        #prefillNote{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border-radius:10px;background:rgba(45,212,255,.08);border:1px solid rgba(45,212,255,.25);color:#e6faff;font-size:.82rem;line-height:1.45}
+        #prefillNote.show{display:flex}
+        #prefillNote .prefill-text{min-width:0;flex:1 1 240px}
+        #prefillNote .prefill-text strong{color:var(--accent,#2dd4ff)}
+        #prefillNote button{min-height:40px;padding:8px 12px;border-radius:9px;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.35);color:#e6faff}
+        #prefillNote button:hover{background:rgba(45,212,255,.22)}
+        #prefillNote .prefill-dismiss{background:none;border-color:transparent;color:rgba(230,250,255,.6);padding:8px 10px}
+        body.embed-mode #prefillNote{display:none !important}
+        .share-values-hint{margin:8px 0 0;font-size:.72rem;line-height:1.4;color:rgba(230,250,255,.55)}
+
         /* ---- Accent + motion, layered on the rules above ----
            The defaults above stay as the fallback for a browser without
            color-mix; in a modern browser the whole accent family is derived
@@ -602,6 +641,20 @@
             <span style="font-size: 13px; color: rgba(230, 250, 255, 0.5);">Free & Private · No Sign-Up</span>
         </div>
 
+        <!-- Filled links: what arrived from the URL, said plainly, with the
+             link back. Hidden in the markup (see the CSS block) and shown only
+             by a script that actually applied a value — never a dead control. -->
+        <div id="prefillNote" role="status" aria-live="polite">
+            <span class="prefill-text" id="prefillNoteText"></span>
+            <button type="button" id="prefillCopy">⧉ Copy this link</button>
+            <button type="button" class="prefill-dismiss" id="prefillDismiss" aria-label="Dismiss">✕</button>
+        </div>
+
+        <!-- Jobs: where you are in a multi-step job, and what the next step
+             will receive. Rendered by script from jobs.json, and only when the
+             URL asks for a job (see the JOBS block in the script). -->
+        <div id="jobRail" aria-label="Job progress"></div>
+
         <div class="tool-card-box" id="toolContainer">
             <div class="cool-loader" role="status" aria-live="polite">
                 <div class="cool-loader-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -646,7 +699,13 @@
                 <a id="shareWa" href="#" target="_blank" rel="noopener noreferrer">✆ WhatsApp</a>
                 <a id="shareEm" href="#">✉ Email</a>
                 <button type="button" id="shareCopy">⧉ Copy link</button>
+                <!-- Added by script, and only when there is something to carry:
+                     a button that copies the link *with the visitor's values*.
+                     A shared link then reopens with the same numbers in it, and
+                     re-runs, so the recipient sees the same answer. -->
+                <button type="button" id="shareValues" hidden>⧉ Copy link with my values</button>
             </div>
+            <p class="share-values-hint" id="shareValuesHint" hidden></p>
             <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.08);padding-top:12px;">
                 <button type="button" id="sharePostFmt" style="width:100%;padding:9px;background:rgba(45,212,255,0.08);border:1px solid rgba(45,212,255,0.22);color:#e6faff;border-radius:8px;font-weight:600;font-size:0.82rem;cursor:pointer;">📋 Copy Formatted Post (Discord/Forum)</button>
             </div>
@@ -823,6 +882,583 @@
             block.textContent = JSON.stringify([app, crumbs]);
         }
 
+        /* ===== FILLED LINKS =================================================
+           A tool URL may carry the visitor's values, and the page can carry
+           them back out again:
+
+             tool.html?card=bmi&bmi-height=180&bmi-weight=75&run=1
+
+           Why: a tool that only opens empty is a dead end. A filled link makes
+           an answer something you can send to someone ("here's the mortgage at
+           your numbers"), lets an embed of a calculator arrive set up, lets a
+           job (jobs.html) hand its result to the next tool, and lets an AI
+           assistant open the exact sum it just described. Nothing is stored
+           and nothing is sent: the values live in the URL the visitor has.
+
+           The rules that keep it safe and honest:
+             - values reach only element.value / .checked / option selection,
+               never innerHTML (CONSTRAINTS.md §4);
+             - only controls INSIDE the mounted card are addressable, matched
+               by exact id through a Map — no selector is ever built from URL
+               text, and the host page's own controls are unreachable;
+             - the shell's parameters (card, embed, run, job, step, utm_* …)
+               are never treated as field values;
+             - a value the card does not have is *reported*, not silently
+               dropped — "2 of 3 values loaded" is the honest sentence;
+             - nothing is calculated behind the visitor's back: prefill only
+               fills, and the card runs when the link asks (`run=1`) or when
+               the visitor presses its own button. `run=1` may submit a form
+               that prevents its own default, or click a button whose whole
+               label is an action verb — never Download / Print / Reset.
+           ================================================================= */
+        const TOOL_PREFILL_RESERVED = ['card', 't', 'tool', 'embed', 'run', 'job', 'step',
+            'surprise', 'q', 'cat', 'src', 'ref', 'text', 'title', 'url', 'action', 'toolbox'];
+        const TOOL_PREFILL_MAX_PAIRS = 40;
+        const TOOL_PREFILL_MAX_VALUE = 512;
+        const TOOL_PREFILL_MAX_URL = 1800;
+
+        function toolPrefillIsReserved(key) {
+            const k = String(key).toLowerCase();
+            if (TOOL_PREFILL_RESERVED.indexOf(k) !== -1) return true;
+            return /^(utm_|__|mp_|fbclid|gclid|msclkid|mc_)/.test(k);
+        }
+
+        // Field parameters, in the order the URL gives them. The key shape is
+        // pinned to what a control id can be: anything else is not a candidate
+        // and costs nothing.
+        function toolPrefillPairs(params) {
+            const pairs = [];
+            if (!params || typeof params.forEach !== 'function') return pairs;
+            params.forEach(function (value, key) {
+                if (pairs.length >= TOOL_PREFILL_MAX_PAIRS) return;
+                if (toolPrefillIsReserved(key)) return;
+                if (!/^[A-Za-z][A-Za-z0-9_-]{1,63}$/.test(key)) return;
+                const v = String(value == null ? '' : value).slice(0, TOOL_PREFILL_MAX_VALUE);
+                if (v === '') return;
+                pairs.push({ id: key, value: v });
+            });
+            return pairs;
+        }
+
+        // The controls a filled link may address — the card's, and only those.
+        function toolFillableMap(root) {
+            const map = new Map();
+            if (!root || !root.querySelectorAll) return map;
+            const els = root.querySelectorAll('input[id], select[id], textarea[id]');
+            for (let i = 0; i < els.length; i++) {
+                const el = els[i];
+                const type = String(el.type || el.tagName).toLowerCase();
+                if (['hidden', 'submit', 'button', 'reset', 'file', 'image', 'password'].indexOf(type) !== -1) continue;
+                if (el.disabled) continue;
+                map.set(el.id, el);
+            }
+            return map;
+        }
+
+        // A card reacts to a programmatic change only if it is told; both
+        // events are fired because half the catalogue listens for one and half
+        // for the other (a select usually wants 'change', a range 'input').
+        function toolFireControlEvents(el) {
+            try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) { /* older engines */ }
+            try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e2) { /* older engines */ }
+        }
+
+        function toolTruthyValue(raw) { return /^(1|on|true|yes|y|checked)$/i.test(String(raw).trim()); }
+        function toolFalsyValue(raw) { return /^(0|off|false|no|n|unchecked)$/i.test(String(raw).trim()); }
+
+        // True when the value reached the control. Returning false is what
+        // makes "not recognised" honest: a select with no such option and a
+        // date the browser rejects both report rather than pretend.
+        function toolSetControlValue(el, raw) {
+            const type = String(el.type || '').toLowerCase();
+            const tag = String(el.tagName || '').toLowerCase();
+            const value = String(raw);
+
+            if (type === 'checkbox' || type === 'radio') {
+                let checked;
+                if (toolTruthyValue(value)) checked = true;
+                else if (toolFalsyValue(value)) checked = false;
+                else checked = String(el.value) === value ||
+                    String(el.value).toLowerCase() === value.toLowerCase();
+                if (type === 'radio' && !checked) return false;
+                el.checked = checked;
+                toolFireControlEvents(el);
+                return true;
+            }
+
+            if (tag === 'select') {
+                const opts = Array.prototype.slice.call(el.options || []);
+                const pick = function (candidate) {
+                    return opts.find(function (o) {
+                        return !o.disabled && (o.value === candidate || String(o.textContent || '').trim() === candidate);
+                    }) || null;
+                };
+                if (el.multiple) {
+                    const wanted = value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+                    const whole = pick(value);
+                    if (whole) { wanted.length = 0; wanted.push(value); }
+                    let any = false;
+                    opts.forEach(function (o) { o.selected = false; });
+                    wanted.forEach(function (w) {
+                        const o = pick(w);
+                        if (o) { o.selected = true; any = true; }
+                    });
+                    if (!any) return false;
+                    toolFireControlEvents(el);
+                    return true;
+                }
+                const chosen = pick(value) || opts.find(function (o) {
+                    return String(o.value).toLowerCase() === value.toLowerCase();
+                }) || null;
+                if (!chosen) return false;
+                el.value = chosen.value;
+                toolFireControlEvents(el);
+                return true;
+            }
+
+            if (type === 'number' || type === 'range') {
+                const num = Number(value);
+                if (!isFinite(num)) return false;
+                el.value = String(num);
+            } else {
+                el.value = value;
+                // The browser silently refuses an invalid date/time, leaving
+                // the control empty: that is a miss, and it is reported.
+                if ((type === 'date' || type === 'time' || type === 'datetime-local' ||
+                     type === 'month' || type === 'week') && el.value === '') return false;
+            }
+            toolFireControlEvents(el);
+            return true;
+        }
+
+        // Fill everything the URL asks for. `preferred` keeps the order the
+        // card cares about: the last control written wins when a card mirrors
+        // one value into two controls.
+        function toolApplyPrefill(root, params) {
+            const pairs = toolPrefillPairs(params);
+            const map = toolFillableMap(root);
+            const report = { applied: [], missed: [], requested: pairs.length };
+            pairs.forEach(function (pair) {
+                const el = map.get(pair.id);
+                if (!el || !toolSetControlValue(el, pair.value)) { report.missed.push(pair.id); return; }
+                report.applied.push(pair.id);
+            });
+            try {
+                const first = report.applied.length ? map.get(report.applied[0]) : null;
+                if (first && typeof first.focus === 'function') first.blur();
+            } catch (e) { /* focus is a nicety */ }
+            return report;
+        }
+
+        function toolPrefillSummary(report) {
+            if (!report || !report.applied.length && !report.missed.length) return '';
+            const applied = report.applied.length;
+            const bits = [applied ? applied + (applied === 1 ? ' value' : ' values') + ' loaded from this link'
+                                 : 'No value in this link matches a field here'];
+            if (report.applied.length && report.missed.length) {
+                bits.push(report.missed.length + (report.missed.length === 1 ? ' value' : ' values') + ' not recognised');
+            }
+            return bits.join(' · ');
+        }
+
+        // One comparable string per control, used to tell "the visitor changed
+        // this" from "this is how the card ships".
+        function toolControlState(el) {
+            const type = String(el.type || '').toLowerCase();
+            const tag = String(el.tagName || '').toLowerCase();
+            if (type === 'checkbox' || type === 'radio') return el.checked ? '1' : '0';
+            if (tag === 'select') {
+                return Array.prototype.slice.call(el.options || [])
+                    .filter(function (o) { return o.selected; })
+                    .map(function (o) { return o.value; }).join(',');
+            }
+            return String(el.value == null ? '' : el.value);
+        }
+
+        function toolSnapshot(root) {
+            const snap = new Map();
+            toolFillableMap(root).forEach(function (el, id) { snap.set(id, toolControlState(el)); });
+            return snap;
+        }
+
+        function toolChangedValues(root, snapshot) {
+            const out = [];
+            toolFillableMap(root).forEach(function (el, id) {
+                const state = toolControlState(el);
+                const before = snapshot && snapshot.has(id) ? snapshot.get(id) : null;
+                if (before === state) return;
+                const type = String(el.type || '').toLowerCase();
+                if (state === '' && type !== 'checkbox' && type !== 'radio') return;
+                out.push({ id: id, value: state });
+            });
+            return out;
+        }
+
+        function toolAbsoluteUrl(rel) {
+            try {
+                if (location.protocol === 'http:' || location.protocol === 'https:') {
+                    return new URL(rel, location.href).href;
+                }
+            } catch (e) { /* fall through to the relative form */ }
+            return rel;
+        }
+
+        // The link back: the tool, with what is on screen now in it. Capped, so
+        // a 40-field card produces a link someone can still send.
+        function toolFilledUrl(cardName, root, snapshot) {
+            const pairs = toolChangedValues(root, snapshot);
+            const params = new URLSearchParams();
+            params.set('card', cardName);
+            let used = 0;
+            let dropped = 0;
+            let carried = 0;
+            pairs.forEach(function (pair) {
+                const cost = pair.id.length + encodeURIComponent(pair.value).length + 2;
+                if (used + cost > TOOL_PREFILL_MAX_URL) { dropped++; return; }
+                used += cost;
+                carried++;
+                params.append(pair.id, pair.value);
+            });
+            // A link that reproduces the answer is worth more than one that
+            // reproduces the question, so the result link asks the card to run
+            // wherever there is something on the page that can run it.
+            if (carried && toolHasRunTrigger(root)) params.set('run', '1');
+            return { url: toolAbsoluteUrl('tool.html?' + params.toString()), carried: carried, dropped: dropped };
+        }
+
+        const TOOL_RUN_FORM_RE = /preventdefault/i;
+        const TOOL_RUN_BUTTON_RE = /^[^a-zA-Z]*(calculate|compute|work out|convert|update|solve|run|go|recalculate)\b/i;
+        const TOOL_RUN_BLOCK_RE = /download|print|save|export|reset|clear|delete|remove|share|copy|email|pdf|csv|upload|record|stop|cancel/i;
+
+        function toolRunButtons(root) {
+            const out = [];
+            if (!root || !root.querySelectorAll) return out;
+            const buttons = root.querySelectorAll('button, input[type="submit"], [role="button"]');
+            for (let i = 0; i < buttons.length; i++) {
+                const btn = buttons[i];
+                if (btn.disabled || btn.hidden) continue;
+                const label = String(btn.getAttribute('aria-label') || btn.textContent || btn.value || '').trim();
+                if (!label || label.length > 40) continue;
+                if (TOOL_RUN_BLOCK_RE.test(label) || !TOOL_RUN_BUTTON_RE.test(label)) continue;
+                out.push(btn);
+            }
+            return out;
+        }
+
+        function toolHasRunTrigger(root) {
+            if (!root || !root.querySelectorAll) return false;
+            const forms = root.querySelectorAll('form');
+            for (let i = 0; i < forms.length; i++) {
+                if (TOOL_RUN_FORM_RE.test(forms[i].getAttribute('onsubmit') || '')) return true;
+            }
+            return toolRunButtons(root).length > 0;
+        }
+
+        // Run the card the way its own visitor would: submit the form that
+        // guards itself, or press the button that says what it does.
+        function toolTriggerCard(root) {
+            if (!root || !root.querySelectorAll) return 'none';
+            const forms = root.querySelectorAll('form');
+            for (let i = 0; i < forms.length; i++) {
+                const form = forms[i];
+                if (!TOOL_RUN_FORM_RE.test(form.getAttribute('onsubmit') || '')) continue;
+                // A dispatched submit event runs the card's own handler and
+                // never navigates. requestSubmit() would also run constraint
+                // validation and, if a card ever forgot to prevent its default,
+                // would replace the page and lose the visitor's working: the
+                // click path is deliberately the gentler one.
+                try {
+                    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    return 'form';
+                } catch (e) { /* fall through to the button pass */ }
+            }
+            const buttons = toolRunButtons(root);
+            if (buttons.length) {
+                try { buttons[0].click(); return 'button'; } catch (e2) { return 'none'; }
+            }
+            return 'none';
+        }
+
+        // An element's answer, as text, read from the card only. The lookup
+        // walks the card rather than asking the document, so a host element
+        // that happens to share the id can never be read as the card's answer.
+        function toolReadOutput(root, id) {
+            if (!id) return '';
+            let el = null;
+            if (root && root.querySelectorAll) {
+                const candidates = root.querySelectorAll('[id]');
+                for (let i = 0; i < candidates.length; i++) {
+                    if (candidates[i].id === id) { el = candidates[i]; break; }
+                }
+            }
+            if (!el) el = document.getElementById(id);
+            if (!el || (root && root.contains && !root.contains(el))) return '';
+            const tag = String(el.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'select' || tag === 'textarea') return String(el.value == null ? '' : el.value);
+            return String(el.textContent == null ? '' : el.textContent).trim();
+        }
+
+        function toolReadNumber(root, id) {
+            const text = toolReadOutput(root, id).replace(/,/g, '');
+            const m = text.match(/-?\d+(?:\.\d+)?/);
+            return m ? Number(m[0]) : NaN;
+        }
+
+        // Tell the visitor what the link carried, and give them the link back.
+        // `needsPress` is the honest half: a card that only recalculates when
+        // its own button is pressed has the right numbers in it but the old
+        // answer still on screen, and saying so beats letting them read it.
+        function toolShowPrefillNote(report, needsPress) {
+            const note = document.getElementById('prefillNote');
+            const text = document.getElementById('prefillNoteText');
+            if (!note || !text) return;
+            const summary = toolPrefillSummary(report);
+            if (!summary) return;
+            text.textContent = '🔗 ' + summary + ' — the tool is set up exactly as the link asked.'
+                + (needsPress ? ' Press its button to see the new answer.' : '');
+            note.classList.add('show');
+        }
+
+        // Keep the share panel's "with my values" button in step with the card.
+        // It appears the moment there is something worth carrying, and never
+        // before — a card with nothing filled in has nothing to share.
+        function toolRefreshFilledLink(live) {
+            const btn = document.getElementById('shareValues');
+            const hint = document.getElementById('shareValuesHint');
+            if (!btn || !live || !live.root) return;
+            const built = toolFilledUrl(live.card, live.root, live.snapshot);
+            if (!built.carried) {
+                btn.hidden = true;
+                if (hint) hint.hidden = true;
+                return;
+            }
+            btn.hidden = false;
+            btn.textContent = '⧉ Copy link with my values (' + built.carried + ')';
+            if (hint) {
+                hint.hidden = false;
+                hint.textContent = built.dropped
+                    ? 'Opens this tool with the first ' + built.carried + ' of your values — the rest would make the link too long to send.'
+                    : 'Opens this tool with your values already in it, so whoever you send it to sees the same answer.';
+            }
+        }
+
+        // A card's own typing has to update that button, or it offers a stale
+        // link. One listener on the card root (not one per control), coalesced
+        // to a frame so dragging a slider does not rebuild the URL per pixel.
+        function toolWatchFilledLink(live) {
+            if (!live || !live.root) return;
+            let queued = false;
+            live.root.addEventListener('input', function () {
+                if (queued) return;
+                queued = true;
+                const run = function () { queued = false; toolRefreshFilledLink(live); };
+                if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+                else setTimeout(run, 120);
+            }, { passive: true, capture: true });
+        }
+
+        /* ===== JOBS =========================================================
+           A job link (`?job=<id>&step=<n>`, built by jobs.html and by the
+           Next button below) opens with a rail above the card: which job,
+           which step, and a Next button that reads the answer the visitor
+           just got and opens the following tool with it already filled in.
+
+           Two properties worth keeping:
+             - jobs.json is fetched ONLY when a job link is opened. A visitor
+               who never opens a job downloads nothing for this feature.
+             - the rail is a view over the same URL contract as everything
+               else (tool.html?card=…&field=value&run=1): it has no side
+               channel, stores nothing, and a shared step link still works
+               with the rail gone.
+           ================================================================= */
+        const TOOL_JOB_FETCH_MS = 8000;
+
+        function toolJobUrl(job, index) {
+            const step = job.steps[index];
+            const q = new URLSearchParams();
+            q.set('card', step.card);
+            q.set('job', job.id);
+            q.set('step', String(step.n));
+            Object.keys(step.fills || {}).forEach(function (k) { q.append(k, step.fills[k]); });
+            if (index > 0 && step.runs) q.set('run', '1');
+            return 'tool.html?' + q.toString();
+        }
+
+        // What the next step would receive right now, and what is still
+        // missing. `missing` is what keeps the rail honest: it never claims to
+        // carry a value that is not on the page yet.
+        function toolJobCarryState(live, step) {
+            const values = [];
+            const missing = [];
+            (step.carry || []).forEach(function (pair) {
+                const num = live && live.root ? toolReadNumber(live.root, pair.from) : NaN;
+                if (isFinite(num)) values.push({ to: pair.to, value: String(num), label: pair.label || pair.from });
+                else missing.push(pair.label || pair.from);
+            });
+            return { values: values, missing: missing };
+        }
+
+        function toolJobRefreshNext(state, btn, hint) {
+            if (!btn) return;
+            if (state.missing.length) {
+                btn.disabled = true;
+                if (hint) {
+                    hint.textContent = 'Waiting for ' + state.missing.join(' and ') +
+                        ' on the card above — then this step can carry it forward.';
+                }
+                return;
+            }
+            btn.disabled = false;
+            if (hint) {
+                hint.textContent = state.values.length
+                    ? 'Carries ' + state.values.map(function (v) { return v.label; }).join(', ') +
+                      ' into the next step, already filled in.'
+                    : 'This step hands nothing on — the next tool starts with a clean sheet.';
+            }
+        }
+
+        // The next step's URL, built from what is on the card now. Empty when
+        // a carried value is not there yet, so the caller can never navigate
+        // into a step that silently lost the number.
+        function toolJobNextUrl(job, index, live) {
+            const current = job.steps[index];
+            const next = job.steps[index + 1];
+            if (!current || !next) return '';
+            const state = toolJobCarryState(live, current);
+            if (state.missing.length) return '';
+            const q = new URLSearchParams();
+            q.set('card', next.card);
+            q.set('job', job.id);
+            q.set('step', String(next.n));
+            Object.keys(next.fills || {}).forEach(function (k) { q.append(k, next.fills[k]); });
+            state.values.forEach(function (v) { q.append(v.to, v.value); });
+            if (state.values.length && next.runs) q.set('run', '1');
+            return 'tool.html?' + q.toString();
+        }
+
+        function toolRenderJobRail(job, index, live) {
+            const rail = document.getElementById('jobRail');
+            if (!rail || !job) return;
+            const current = job.steps[index];
+            if (!current) return;
+            rail.textContent = '';
+
+            const line = document.createElement('p');
+            line.className = 'job-line';
+            const name = document.createElement('strong');
+            name.textContent = job.title;
+            line.appendChild(document.createTextNode('📋 '));
+            line.appendChild(name);
+            line.appendChild(document.createTextNode(
+                ' · step ' + current.n + ' of ' + job.steps.length + ' — ' + current.title));
+            rail.appendChild(line);
+
+            const nav = document.createElement('div');
+            nav.className = 'job-nav';
+            if (index > 0) {
+                const prev = document.createElement('a');
+                prev.className = 'job-btn';
+                prev.href = toolJobUrl(job, index - 1);
+                prev.textContent = '← Step ' + job.steps[index - 1].n;
+                nav.appendChild(prev);
+            }
+            const dots = document.createElement('span');
+            dots.className = 'job-dots';
+            job.steps.forEach(function (step, i) {
+                const dot = document.createElement('a');
+                dot.className = 'job-dot' + (i === index ? ' current' : '');
+                dot.href = toolJobUrl(job, i);
+                dot.textContent = String(step.n);
+                dot.setAttribute('aria-label', 'Step ' + step.n + ': ' + step.title);
+                if (i === index) dot.setAttribute('aria-current', 'step');
+                dots.appendChild(dot);
+            });
+            nav.appendChild(dots);
+            rail.appendChild(nav);
+
+            const actions = document.createElement('div');
+            actions.className = 'job-actions';
+            const hint = document.createElement('p');
+            hint.className = 'job-hint';
+
+            if (index === job.steps.length - 1) {
+                const done = document.createElement('a');
+                done.className = 'job-btn primary';
+                done.href = 'jobs.html';
+                done.textContent = '🎉 That is the last step — see all jobs';
+                actions.appendChild(done);
+                hint.textContent = 'Nothing follows this step. The card above is yours to keep using.';
+            } else {
+                const next = job.steps[index + 1];
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'job-btn primary';
+                btn.textContent = (current.nextLabel || ('Next: ' + next.title)) + ' →';
+                btn.onclick = function () {
+                    const url = toolJobNextUrl(job, index, live);
+                    if (!url) { toolJobRefreshNext(toolJobCarryState(live, current), btn, hint); return; }
+                    location.href = url;
+                };
+                actions.appendChild(btn);
+                const state = toolJobCarryState(live, current);
+                toolJobRefreshNext(state, btn, hint);
+                // As the visitor fills the fields in — and as a card writes its
+                // result in on a timer, a debounce or an animation frame — the
+                // rail stops waiting. A MutationObserver catches the second
+                // case, which an input listener alone would miss: bmr computes
+                // in a setTimeout, so the figure is on screen before any
+                // further keystroke.
+                if (live && live.root) {
+                    let queued = false;
+                    const refresh = function () {
+                        if (queued) return;
+                        queued = true;
+                        const run = function () {
+                            queued = false;
+                            toolJobRefreshNext(toolJobCarryState(live, current), btn, hint);
+                        };
+                        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+                        else setTimeout(run, 120);
+                    };
+                    live.root.addEventListener('input', refresh, { passive: true, capture: true });
+                    if (typeof MutationObserver === 'function') {
+                        try {
+                            const observer = new MutationObserver(refresh);
+                            observer.observe(live.root, {
+                                subtree: true, childList: true, characterData: true, attributes: true
+                            });
+                            live.observers = (live.observers || []).concat(observer);
+                        } catch (e) { /* the input listener still covers the common case */ }
+                    }
+                }
+            }
+            rail.appendChild(actions);
+            rail.appendChild(hint);
+            rail.classList.add('show');
+        }
+
+        // Load jobs.json only when the URL names a job. A failure is silent by
+        // design: the tool itself still works, so a missing rail is better than
+        // an error box over a working calculator.
+        function toolStartJob(params, live) {
+            const id = String(params.get('job') || '');
+            if (!/^[a-z0-9][a-z0-9-]{1,60}$/.test(id)) return;
+            const wanted = Number(params.get('step') || 1);
+            const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = ctrl ? setTimeout(function () { ctrl.abort(); }, TOOL_JOB_FETCH_MS) : null;
+            fetch('jobs.json', ctrl ? { signal: ctrl.signal } : undefined)
+                .then(function (res) { return res && res.ok ? res.json() : null; })
+                .then(function (data) {
+                    if (!data || !Array.isArray(data.jobs)) return;
+                    const job = data.jobs.find(function (j) { return j.id === id; });
+                    if (!job || !Array.isArray(job.steps) || !job.steps.length) return;
+                    const index = Math.min(Math.max(0, (isFinite(wanted) ? wanted : 1) - 1), job.steps.length - 1);
+                    toolRenderJobRail(job, index, live);
+                })
+                .catch(function () { /* no rail: the tool is the point */ })
+                .then(function () { if (timer) clearTimeout(timer); });
+        }
+
         let toolHeightTimer = null;
         function toolScheduleHeightReport(cardName) {
             if (toolHeightTimer) clearTimeout(toolHeightTimer);
@@ -858,6 +1494,10 @@
 
             let allCards = [];
             let currentMeta = null;
+            // The mounted card, for the filled-link feature: its values, the
+            // state it shipped with (so "changed" means the visitor changed
+            // it), and the tools that read and write links from it.
+            const toolLive = { card: cardName, root: null, snapshot: null };
 
             // Fetch with timeout helper — prevents hanging forever
             async function fetchWithTimeout(url, ms = 10000) {
@@ -1001,6 +1641,25 @@
                 try {
                     document.dispatchEvent(new Event('DOMContentLoaded'));
                 } catch (e) {}
+
+                // ---- Filled links -------------------------------------------
+                // The card has run its own scripts by now, so this is the
+                // moment its controls mean what they will mean to the visitor:
+                // the snapshot is the state the card ships in, and anything
+                // that differs from it later is something the visitor (or the
+                // link) chose. Prefill then fills, and only `run=1` runs.
+                toolLive.root = contentDiv;
+                toolLive.snapshot = toolSnapshot(contentDiv);
+                const prefillReport = toolApplyPrefill(contentDiv, params);
+                const askedToRun = prefillReport.applied.length > 0 && params.get('run') === '1';
+                const ran = askedToRun ? toolTriggerCard(contentDiv) : 'none';
+                if (prefillReport.applied.length || prefillReport.missed.length) {
+                    toolShowPrefillNote(prefillReport, ran === 'none' && toolHasRunTrigger(contentDiv));
+                }
+                toolWatchFilledLink(toolLive);
+                // A job link gets the rail. embed=1 stays chrome-free, so an
+                // embedded calculator never shows a job it cannot finish.
+                if (!embedMode) toolStartJob(params, toolLive);
 
             } catch (err) {
                 clearTimeout(loaderWatchdog);
@@ -1235,6 +1894,45 @@
                 document.getElementById('sharePanel').classList.add('open');
             };
             document.getElementById('shareClose').onclick = () => document.getElementById('sharePanel').classList.remove('open');
+            // "Copy link with my values" — the same page, carrying whatever is
+            // on screen now, so the recipient opens the tool already set up
+            // (and, where the card can run itself, already answered). Built at
+            // click time, never cached: the visitor may have moved a slider
+            // since the panel was last open.
+            const shareValuesBtn = document.getElementById('shareValues');
+            if (shareValuesBtn) {
+                shareValuesBtn.onclick = () => {
+                    if (!toolLive.root) return;
+                    const built = toolFilledUrl(toolLive.card, toolLive.root, toolLive.snapshot);
+                    if (!built.carried) { showToast('Nothing to carry yet — set some values first'); return; }
+                    navigator.clipboard.writeText(built.url).then(() => {
+                        showToast('✓ Link copied — it opens with your values');
+                        document.getElementById('sharePanel').classList.remove('open');
+                    }).catch(() => showToast('Link: ' + built.url));
+                };
+            }
+            // The note above the card offers the same link while the visitor is
+            // looking at the tool, which is where they realise they want to
+            // send it.
+            const prefillCopy = document.getElementById('prefillCopy');
+            if (prefillCopy) {
+                prefillCopy.onclick = () => {
+                    if (!toolLive.root) return;
+                    const built = toolFilledUrl(toolLive.card, toolLive.root, toolLive.snapshot);
+                    if (!built.carried) { showToast('Nothing to carry yet — set some values first'); return; }
+                    navigator.clipboard.writeText(built.url).then(() => {
+                        showToast('✓ Link copied — it opens with these values');
+                    }).catch(() => showToast('Link: ' + built.url));
+                };
+            }
+            const prefillDismiss = document.getElementById('prefillDismiss');
+            if (prefillDismiss) {
+                prefillDismiss.onclick = () => {
+                    const note = document.getElementById('prefillNote');
+                    if (note) note.classList.remove('show');
+                };
+            }
+            toolRefreshFilledLink(toolLive);
             document.getElementById('shareCopy').onclick = () => {
                 navigator.clipboard.writeText(shareUrl()).then(() => {
                     showToast('Link copied to clipboard!');
