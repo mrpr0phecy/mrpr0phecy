@@ -104,7 +104,7 @@
 // failure cannot leave the page inert. All three are precached by version.
 // v30: the shared list stylesheet now honors [hidden] on filtered rows and
 // empty category groups, rather than letting its grid display override it.
-const CACHE_VERSION = 'v30-2026-10-02';
+const CACHE_VERSION = 'v31-2026-10-02';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

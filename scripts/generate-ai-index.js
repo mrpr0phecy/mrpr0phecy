@@ -160,7 +160,10 @@ function main() {
   ${SITE}/cards/cards.json — fields: name, title, description, category, file, path
 - Structured per-tool specs (inputs/outputs/formula/sources) — the cheapest way to call a tool like a function:
   ${SITE}/api/tools.json (manifest) and
-  ${SITE}/api/tools/<slug>.json (one file per tool, ${total} total; e.g. api/tools/bmi.json)
+  ${SITE}/api/tools/<slug>.json (one file per tool, ${total} total; e.g. api/tools/bmi.json).
+  Every \`inputs[].name\` is the exact URL parameter that fills that control;
+  \`prefill.runs\` says whether &run=1 presses the tool's own Calculate, and
+  \`prefill.example\` is a working filled link built from the card's own defaults.
 - MCP (Model Context Protocol) server descriptor for compliant clients:
   ${SITE}/.well-known/mcp.json
 - Sitemap (all tool URLs + category pages + guides, rebuilt on each deploy): ${SITE}/sitemap.xml
@@ -171,6 +174,15 @@ function main() {
   your own documents, memory that adapts to your ratings, real local tools, lessons, and an optional
   on-device model): ${SITE}/ai.html
 - Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
+- Any tool with values already filled in:
+  ${SITE}/tool.html?card=<tool-slug>&<control-id>=<value>&run=1
+  (ids are the spec's \`inputs[].name\`; add &run=1 only when \`prefill.runs\` is true.
+  A filled link is a plain shareable GET and the values are set in the visitor's
+  browser — nothing about them is ever sent to a server)
+- Multi-step jobs for a whole task (each step is a filled-link tool, with the
+  answer carried into the next one): ${SITE}/jobs.json — human page: ${SITE}/jobs.html
+- Plain-language routes the site's own solve box understands (pattern, fields
+  filled, worked link): ${SITE}/intents.json
 - Deep tool pages (SEO-grade, 300+ words, methodology, worked example, disclaimer) for the most-searched
   tools — an explicit list, because the path is not always \`tools/<card-slug>.html\`:
 ${deepPagesLines}
@@ -189,6 +201,10 @@ ${deepPagesLines}
 3. Give or open ${SITE}/tool.html?card=<name> — the tool is interactive and
    private (nothing leaves the browser). Tools that need no interaction from
    you can simply be linked; everything is a plain GET, no auth, CORS-open.
+   If you already know the numbers (the user told you their height and weight,
+   say), hand back a filled link instead: read the tool's api/tools/<slug>.json
+   and put each \`inputs[].name\` in the query string. The visitor lands on the
+   tool with their own figures in it — and can still change every one of them.
 
 ## Embedding
 

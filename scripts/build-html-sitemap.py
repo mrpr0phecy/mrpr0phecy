@@ -80,6 +80,8 @@ MACHINE_READABLE = [
     ("tools-index.json", "Catalogue with categories and tags, for directories."),
     ("api/tools.json", "The same index under the /api/ path agents are told to use."),
     ("related.json", "Computed related-tools map, one entry per tool."),
+    ("jobs.json", "Multi-step jobs: each step, its carried values and where they go."),
+    ("intents.json", "Plain-language routes the home page's solve box recognises, and the tool each opens."),
     ("manifest.json", "PWA manifest."),
     ("manifest.tools.json", "Tool shortcuts for the installed PWA."),
 ]

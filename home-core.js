@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 30;
+  const APP_VERSION = 31;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -250,6 +250,12 @@
       if (!status) return;
       if (!value) { status.textContent = ''; return; }
       if (!window.mpExplore) return;
+      // A query that parses ("20% of 340", "180cm 75kg") becomes a link to the
+      // tool with the visitor's numbers in it — see the SOLVE MATCHER block
+      // below. It wins the status line because it is strictly more useful than
+      // a match count: same catalogue, the values already in place.
+      var hit = solveFor(value);
+      if (hit) { solveShow(hit); return; }
       // The list never arrived (offline, blocked, timed out — report() runs
       // after the catalogue promise has settled, so not ready means failed):
       // "No matches" would be a lie. Say what Enter will actually do.
@@ -262,6 +268,101 @@
         ? (n === 1 ? '1 match — Enter to open it' : n + ' matches — Enter to see them')
         : 'No matches — try a shorter word';
     }
+    /* ===== SOLVE MATCHER ===== */
+    // Pure: a query and the generated intents (intents.json) in, a tool.html
+    // URL or null out. Deliberately free of DOM so scripts/tests/intents.test.js
+    // can slice this block out and drive it directly, the way tool-shell.test.js
+    // drives tool.html's functions. Every field id and every `run` in the data
+    // is validated against its card by scripts/build-intents.js at build time.
+    var solve = { intents: null, loading: false, failed: false };
+    var SOLVE_QUERY_MAX = 120;
+    var SOLVE_URL_MAX = 1800;
+
+    function solveFieldValue(raw, map, group) {
+      if (raw === undefined) return undefined;      // an optional part of the sentence
+      var value = String(raw);
+      if (map && map[group]) {
+        var mapped = map[group][value.toLowerCase()];
+        if (mapped === undefined) return null;      // a keyword this tool does not accept
+        return mapped;
+      }
+      return value;
+    }
+
+    function solveFor(query) {
+      if (!solve.intents || !solve.intents.length) return null;
+      var q = String(query == null ? '' : query).trim();
+      if (!q || q.length > SOLVE_QUERY_MAX) return null;
+      for (var i = 0; i < solve.intents.length; i += 1) {
+        var intent = solve.intents[i];
+        var m;
+        try { m = new RegExp(intent.pattern, 'i').exec(q); } catch (e) { continue; }
+        if (!m) continue;
+        var pairs = [];
+        var broken = false;
+        var fills = intent.fills || {};
+        for (var id in fills) {
+          if (!Object.prototype.hasOwnProperty.call(fills, id)) continue;
+          var spec = String(fills[id]);
+          var optional = spec.charAt(spec.length - 1) === '?';
+          if (optional) spec = spec.slice(0, -1);
+          var parts = spec.split(/\$(\d)/);          // literal, group, literal, …
+          var value = '';
+          var unresolved = false;
+          for (var p = 0; p < parts.length; p += 1) {
+            if (p % 2 === 0) { value += parts[p]; continue; }
+            var resolved = solveFieldValue(m[Number(parts[p])], intent.map, parts[p]);
+            if (resolved === undefined) { unresolved = true; break; }
+            if (resolved === null) { broken = true; break; }
+            value += resolved;
+          }
+          if (broken) break;
+          if (unresolved) { if (optional) continue; broken = true; break; }
+          pairs.push(encodeURIComponent(id) + '=' + encodeURIComponent(value));
+        }
+        if (broken || !pairs.length) continue;
+        var url = 'tool.html?card=' + encodeURIComponent(intent.card) + '&' + pairs.join('&');
+        if (intent.run) url += '&run=1';
+        if (url.length > SOLVE_URL_MAX || pairs.length > 40) return null;
+        return { url: url, title: intent.title || intent.card };
+      }
+      return null;
+    }
+    /* ===== /SOLVE MATCHER ===== */
+
+    function solveLoad() {
+      if (solve.intents || solve.loading || solve.failed || typeof fetch !== 'function') return;
+      solve.loading = true;
+      fetch('intents.json', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          // Array.isArray, not instanceof: a Response parsed by another realm (a
+          // service worker, a polyfill, a test harness) makes arrays that fail
+          // an instanceof check while being perfectly good arrays.
+          solve.intents = data && Array.isArray(data.intents) ? data.intents : [];
+        })
+        .catch(function () { solve.failed = true; })
+        .then(function () {
+          solve.loading = false;
+          // Typed while this was in flight? Say what the box says now.
+          if (status && boxes[0] && boxes[0].value.trim()) report(boxes[0].value);
+        });
+    }
+
+    function solveShow(hit) {
+      status.textContent = '';
+      var lead = document.createElement('span');
+      lead.textContent = 'Solved — open ';
+      var link = document.createElement('a');
+      link.href = hit.url;
+      link.textContent = hit.title;
+      var tail = document.createElement('span');
+      tail.textContent = ' with your numbers (Enter)';
+      status.appendChild(lead);
+      status.appendChild(link);
+      status.appendChild(tail);
+    }
+
     var apply = function (value, scroll) {
       if (window.mpExplore) {
         var pending = window.mpExplore.filter(value, { quiet: !scroll });
@@ -282,6 +383,7 @@
         boxes.forEach(function (other) { if (other !== box && other.value !== value) other.value = value; });
         if (clearBtn) clearBtn.style.display = value ? 'block' : 'none';
         updateChipStates(value.trim());
+        solveLoad();
         clearTimeout(box._mpTimer);
         // 80 ms, the list's own filter delay: filtering is a lookup into a
         // pre-sorted, memoised list now, so the wait only has to absorb a
@@ -297,6 +399,11 @@
         // the whole point of a launcher. Filter first: rows() reflects the
         // last debounced keystroke, not what was just typed.
         clearTimeout(box._mpTimer);
+        // A parsed query is a better answer than a filtered list: same tool,
+        // and the numbers are already in it. intents.json loads on the first
+        // keystroke, so this is set long before Enter on any typed query.
+        var solved = solveFor(value);
+        if (solved) { location.href = solved.url; return; }
         if (window.mpExplore) {
           var pending = window.mpExplore.filter(value);
           var openMatch = function () {
