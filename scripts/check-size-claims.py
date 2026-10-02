@@ -214,7 +214,14 @@ def main() -> int:
             real = set_size(name)
             unit_label = "MB" if unit == UNITS["MB"] else "KB"
             checked += 1
-            if HEDGE_BEFORE.search(text[:m.start()]):
+            # The hedge can sit after the name — "the repo is about 92 MB", the
+            # shape every launch file uses — as well as before the whole clause.
+            # Read it from this match's own words up to the number: a window
+            # around the match could adopt a hedge from the clause before it,
+            # and a hedge from anywhere else is not this sentence's.
+            hedged = HEDGE_BEFORE.search(text[:m.start()]) or \
+                HEDGE_BEFORE.search(m.group(0)[:size.start(2)] + " ")
+            if hedged:
                 if abs(real - claimed * unit) / real > HEDGE_TOLERANCE:
                     problems.append(
                         f"{rel}:{line_no}  \"{m.group(0).strip()}\" — the {name} is "

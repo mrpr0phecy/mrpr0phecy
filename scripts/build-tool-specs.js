@@ -19,7 +19,7 @@
  *  - `api/tools.json`            — manifest with counts + per-tool summary
  *  - `api/tools/<slug>.json`     — one JSON spec per tool
  *
- * Per-tool shape (minimum viable per pointer #4):
+ * Per-tool shape (read straight off the card by scripts/lib/card-fields.js):
  *  {
  *    "slug": "bmi",
  *    "title": "BMI Calculator",
@@ -29,18 +29,25 @@
  *    "url": "https://www.themostusefulsiteintheworld.com/tool.html?card=bmi",
  *    "embedUrl": "https://www.themostusefulsiteintheworld.com/tool.html?card=bmi&embed=1",
  *    "standaloneUrl": "https://www.themostusefulsiteintheworld.com/tools/bmi.html" | null,
- *    "inputs": [ {name, type, label, unit} ],   // best-effort inferred
- *    "outputs": [ {name, type} ],
+ *    "inputs": [ {name, type, label, unit, min?, max?, step?, options?, default?} ],
+ *    "outputs": [ {name, type: "output"|"live"} ],
+ *    "prefill": {
+ *      "urlTemplate": "…/tool.html?card=bmi&<id>=<value>",
+ *      "runs": true,                    // &run=1 presses the tool's own button
+ *      "example": "…/tool.html?card=bmi&bmi-height=175&bmi-weight=70&run=1"
+ *    },
  *    "formula": "BMI = kg / m² (WHO)",
  *    "sources": ["https://www.who.int/..."],
  *    "version": "2026-09-19"
  *  }
  *
- * Inputs/outputs are *inferred* from the fragment HTML where possible
- * (labels + input[type] + units in prose). Where inference is uncertain we
- * leave the arrays empty and describe the tool as `interactive` — still
- * callable as "open this URL", which is the honest fallback for a visual
- * tool that has no single formula.
+ * `inputs[].name` is not a guess: it is the exact id a filled link carries, so
+ * an agent can hand a visitor `tool.html?card=<slug>&<name>=<value>`. Values
+ * in `example` are the card's own defaults (never invented figures), and the
+ * `min`/`max`/`step`/`options` fields are the control's real constraints. The
+ * engine accepts 40 parameters, 512 characters per value and 1800 per URL.
+ * Where a card exposes nothing fillable the arrays are empty and the honest
+ * answer is "open this URL" — a visual tool with no single formula.
  *
  * Usage:
  *   node scripts/build-tool-specs.js
@@ -56,6 +63,8 @@ const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
 const TOOL_PAGES = path.join(ROOT, 'scripts', 'tool-pages.json');
 const OUT_DIR = path.join(ROOT, 'api', 'tools');
 const OUT_MANIFEST = path.join(ROOT, 'api', 'tools.json');
+
+const { readCard, hasRunTrigger } = require('./lib/card-fields.js');
 
 const BASE = 'https://www.themostusefulsiteintheworld.com';
 
@@ -100,9 +109,14 @@ function inferSpec(tool, cardEntry, standalonePaths) {
   // ReferenceError that blanked every formula and source on the cards whose
   // text contains an HTML entity — the specs were regenerated twice before
   // anyone noticed. A scan must never fail quietly.
-  // Best-effort input/output sniff from fragment HTML (if present).
+  // Inputs, outputs and the run trigger come from scripts/lib/card-fields.js —
+  // the same reader scripts/build-jobs.js validates its jobs against. Two
+  // readers would drift, and a spec that tells an agent to fill
+  // `bmi-height-input` after the card renamed it is worse than no spec: the
+  // agent builds a link that opens with an empty field and no error.
   let inputs = [];
   let outputs = [];
+  let runs = false;
   let formula = null;
   let sources = [];
   let scanError = null;
@@ -110,48 +124,21 @@ function inferSpec(tool, cardEntry, standalonePaths) {
     const fragPath = path.join(ROOT, cardEntry && cardEntry.path ? cardEntry.path : `cards/${slug}.html`);
     if (fs.existsSync(fragPath)) {
       const html = fs.readFileSync(fragPath, 'utf8');
-      // Input labels: <label for=...>Text</label>  +  <input ... id=...>
-      const labelRe = /<label[^>]*for=["']([^"']+)["'][^>]*>(.*?)<\/label>/gis;
-      const inputRe = /<input[^>]*>/gis;
-      const inputsById = new Map();
-      let m;
-      while ((m = inputRe.exec(html)) !== null) {
-        const tag = m[0];
-        const id = (tag.match(/\bid=["']([^"']+)["']/i) || [])[1] || '';
-        const type = (tag.match(/\btype=["']([^"']+)["']/i) || [])[1] || 'text';
-        const placeholder = (tag.match(/\bplaceholder=["']([^"']+)["']/i) || [])[1] || '';
-        if (id) inputsById.set(id, { id, type, placeholder });
-      }
-      while ((m = labelRe.exec(html)) !== null) {
-        const id = m[1];
-        const label = m[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
-        const inp = inputsById.get(id);
-        if (inp && label) {
-          // Skip hidden / submit buttons in inputs list:
-          if (['hidden','submit','button'].includes((inp.type||'').toLowerCase())) continue;
-          inputs.push({ name: id, type: inp.type || 'number', label, unit: '' });
-        }
-      }
-      // Fill the gaps: a card commonly labels one input and leaves the rest
-      // bare, and the old fallback only ran when NOTHING was labelled — so
-      // giving summary-generator's slider a `for=` (a real accessibility fix)
-      // silently dropped its four option checkboxes from the published spec.
-      // Labelled inputs keep their label; the rest are named by their id.
-      for (const [id, inp] of inputsById) {
-        if (inputs.length >= 8) break;
-        if (inputs.find(i => i.name === id)) continue;
-        if (['hidden','submit','button'].includes((inp.type||'').toLowerCase())) continue;
-        inputs.push({ name: id, type: inp.type || 'text', label: id.replace(/[-_]/g,' '), unit: '' });
-      }
-      // Outputs: look for id containing result/output/value
-      const outRe = /\bid=["']([^"']*(?:result|output|value|answer)[^"']*)["']/gi;
-      while ((m = outRe.exec(html)) !== null) {
-        const id = m[1];
-        if (!inputs.find(i => i.name === id)) {
-          outputs.push({ name: id, type: 'number' });
-        }
-      }
-      outputs = outputs.slice(0, 8);
+      const card = readCard(fragPath);
+      // The published list is the URL contract: `name` is the exact parameter
+      // tool.html's engine matches against a control id. Whole list, not a
+      // sample — an agent cannot fill a field it was not told about.
+      inputs = card.fields.map(f => {
+        const row = { name: f.id, type: f.type, label: f.label, unit: f.unit };
+        if (f.options && f.options.length) row.options = f.options.slice(0, 24);
+        if (f.min !== undefined) row.min = f.min;
+        if (f.max !== undefined) row.max = f.max;
+        if (f.step !== undefined) row.step = f.step;
+        if (f.default !== undefined && f.default !== '') row.default = String(f.default);
+        return row;
+      });
+      outputs = card.outputs.map(o => ({ name: o.id, type: o.kind }));
+      runs = hasRunTrigger(html);
       // Formula hint: first line containing "=" and a plausible operator —
       // read from the page a VISITOR can see. Scanning the raw file also
       // scanned the card's <script>, and `[A-Z]…=` matches JS assignments
@@ -177,9 +164,10 @@ function inferSpec(tool, cardEntry, standalonePaths) {
         .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
         .replace(/&frac(\d)(\d);/g, (_, a, b) => VULGAR_FRACTION[a + b] || a + '/' + b)
         .replace(/&([a-z]+);/gi, (whole, e) => ENTITIES[e] || ENTITIES[e.toLowerCase()] || whole);
-      const formulaM = visible.match(/[A-Z][^<]{0,60}=[^<]{0,80}(?:÷|×|\*|\/|\+|−)/);
+      const formulaM = visible.match(/[A-Z][^<]{0,60}=[^<]{0,80}(?:÷|×|\*|\/|\+|-)/);
       if (formulaM) formula = formulaM[0].replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0, 180);
       // Sources: href to who/nih/irs/nhs/fca/gov
+      let m;
       const hrefRe = /href=["'](https?:\/\/[^"']+)["']/gi;
       while ((m = hrefRe.exec(html)) !== null) {
         const u = m[1];
@@ -234,6 +222,23 @@ function inferSpec(tool, cardEntry, standalonePaths) {
     formula = 'Interactive — open the URL and enter your values; result is computed client-side.';
   }
 
+  // The filled-link contract, spelled out where an agent can act on it:
+  // `urlTemplate` shows the shape, `example` is a real URL built from the
+  // card's own default values (never invented figures), and `runs` says
+  // whether `&run=1` presses the tool's own action button. The engine caps a
+  // filled link at 40 parameters / 512 chars per value / 1800 chars total.
+  const prefill = {
+    urlTemplate: `${url}&<id>=<value>`,
+    runs: !!runs,
+  };
+  const defaults = inputs
+    .filter(i => i.default !== undefined && i.default !== '')
+    .slice(0, 6)
+    .map(i => `${encodeURIComponent(i.name)}=${encodeURIComponent(i.default)}`);
+  if (defaults.length) {
+    prefill.example = `${url}&${defaults.join('&')}${runs ? '&run=1' : ''}`;
+  }
+
   return {
     slug,
     title,
@@ -243,8 +248,9 @@ function inferSpec(tool, cardEntry, standalonePaths) {
     url,
     embedUrl,
     standaloneUrl,
-    inputs: inputs.slice(0, 8),
+    inputs,
     outputs: outputs.slice(0, 8),
+    prefill,
     formula: formula || 'Interactive browser tool — no single closed-form formula (see description).',
     sources,
     tags: tool.tags || [],
@@ -299,6 +305,7 @@ function manifestText(index, specs) {
       standaloneUrl: s.standaloneUrl,
       inputs: s.inputs,
       outputs: s.outputs,
+      prefill: s.prefill,
       formula: s.formula,
       sources: s.sources,
       tags: s.tags,

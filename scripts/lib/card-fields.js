@@ -235,18 +235,22 @@ function readCard(file) {
       { default: selectedValue });
   }
 
-  // ---- outputs: a hint list the job builder validates against
+  // ---- outputs: a hint list the job builder validates against.
+  // `kind` records *how* the element was found, because the two read
+  // differently: an `aria-live` region announces itself to assistive tech, so
+  // its text is the answer a visitor would hear.
   const outputs = [];
-  const idRe = /\bid\s*=\s*("([^"]*)"|'([^']*)')/gi;
+  const seenOutput = new Set();
+  const idRe = /\bid\s*=\s*("([^"]*)"|'([^']*)')(?=[^>]*aria-live)/gi;
   while ((m = idRe.exec(html))) {
     const id = m[2] !== undefined ? m[2] : m[3];
-    if (!id || seen.has(id)) continue;
-    if (OUTPUT_ID_RE.test(id)) outputs.push(id);
+    if (id && !seenOutput.has(id)) { seenOutput.add(id); outputs.push({ id, kind: 'live' }); }
   }
-  const liveRe = /\bid\s*=\s*("([^"]*)"|'([^']*)')(?=[^>]*aria-live)/gi;
-  while ((m = liveRe.exec(html))) {
+  const allIdRe = /\bid\s*=\s*("([^"]*)"|'([^']*)')/gi;
+  while ((m = allIdRe.exec(html))) {
     const id = m[2] !== undefined ? m[2] : m[3];
-    if (id && outputs.indexOf(id) === -1) outputs.push(id);
+    if (!id || seen.has(id) || seenOutput.has(id)) continue;
+    if (OUTPUT_ID_RE.test(id)) { seenOutput.add(id); outputs.push({ id, kind: 'output' }); }
   }
 
   return { slug, file: abs, fields, outputs };
