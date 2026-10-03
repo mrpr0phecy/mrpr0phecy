@@ -1,0 +1,257 @@
+<section id="magic-square-lab-root" aria-labelledby="magic-square-lab-title">
+<style>
+#magic-square-lab-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#magic-square-lab-root *{box-sizing:border-box}
+#magic-square-lab-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#magic-square-lab-root .msl-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#magic-square-lab-root .msl-row{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:12px 0}
+#magic-square-lab-root label{display:block;font-size:.76rem;font-weight:600;margin-bottom:4px}
+#magic-square-lab-root select,#magic-square-lab-root input{padding:8px;border:1px solid rgba(148,180,199,.35);border-radius:8px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.9rem}
+#magic-square-lab-root input:focus-visible,#magic-square-lab-root button:focus-visible,#magic-square-lab-root select:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#magic-square-lab-root button{min-height:40px;padding:8px 14px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
+#magic-square-lab-root button:hover{background:rgba(45,212,255,.2)}
+#magic-square-lab-root button.msl-ghost{border-color:rgba(148,180,199,.3);background:rgba(255,255,255,.04);color:inherit}
+#magic-square-lab-root .msl-status{min-height:1.4em;font-size:.85rem;margin:8px 0}
+#magic-square-lab-root .msl-tablewrap{display:inline-block;max-width:100%;overflow:auto}
+#magic-square-lab-root table.msl-grid{border-collapse:collapse;margin:6px 0}
+#magic-square-lab-root .msl-grid td,#magic-square-lab-root .msl-grid th{width:44px;height:40px;border:1px solid rgba(148,180,199,.22);text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92rem;padding:0}
+#magic-square-lab-root .msl-grid td.msl-cell{cursor:pointer}
+#magic-square-lab-root .msl-grid td.mhi{background:rgba(45,212,255,.16)}
+#magic-square-lab-root .msl-grid td.msl-cell:focus-visible{outline:2px solid var(--accent,#2dd4ff);outline-offset:-2px}
+#magic-square-lab-root .msl-grid td input{width:100%;height:100%;border:0;background:transparent;color:inherit;text-align:center;font:inherit;font-family:inherit;outline-offset:-2px;padding:0 4px}
+#magic-square-lab-root .msl-grid .msum{color:#9ff0c6;font-size:.8rem;background:rgba(96,226,160,.06)}
+#magic-square-lab-root .msl-grid .msum.mbad{color:#ffb4a9;background:rgba(240,113,110,.1)}
+#magic-square-lab-root .msl-grid th{background:transparent;font-weight:600}
+#magic-square-lab-root .msl-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+#magic-square-lab-root .msl-chip{font-size:.78rem;padding:4px 10px;border-radius:99px;border:1px solid rgba(148,180,199,.25);color:var(--text-secondary,rgba(230,250,255,.8))}
+#magic-square-lab-root .msl-chip.mgood{color:#9ff0c6;border-color:rgba(96,226,160,.45)}
+#magic-square-lab-root .msl-chip.mbad{color:#ffb4a9;border-color:rgba(240,113,110,.5)}
+#magic-square-lab-root .msl-note{background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;padding:10px 12px;font-size:.83rem;margin-top:10px}
+#magic-square-lab-root .msl-how{color:var(--text-secondary,rgba(230,250,255,.72));font-size:.83rem;margin-top:8px}
+</style>
+<h2 id="magic-square-lab-title">🔮 Magic Square Lab — Generate &amp; Verify</h2>
+<p id="magic-square-lab-desc" class="desc">Fill a grid so every row, column and both diagonals add to the same magic constant. Generate perfect squares of any order 3–14 with the real historical algorithms (Siamese ladder, 4×4 complement, Strachey's swap), hover to audit the sums, then try to build your own — the lab checks every line.</p>
+<div class="msl-row">
+<div>
+<label for="msl-order">Order n</label>
+<select id="msl-order">
+<option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option>14</option>
+</select>
+</div>
+<button type="button" id="msl-gen">✨ Generate magic square</button>
+<button type="button" id="msl-empty" class="msl-ghost">🧑‍🏫 Blank it — my turn</button>
+<button type="button" id="msl-check" class="msl-ghost">✔ Check my square</button>
+<button type="button" id="msl-fill" class="msl-ghost">Peek one line</button>
+</div>
+<div class="msl-status" id="msl-status" role="status"></div>
+<div class="msl-tablewrap"><table class="msl-grid" id="msl-table" aria-describedby="msl-status"></table></div>
+<div class="msl-chips" id="msl-chips"></div>
+<p class="msl-muted">Magic constant for order <span id="msl-n-echo">4</span>: <b id="msl-const">34</b> = n(n² + 1)/2. Hover or focus a cell to audit its row, column and diagonals.</p>
+<div class="msl-note" id="msl-how"></div>
+<script>
+(function () {
+  'use strict';
+  var root = document.getElementById('magic-square-lab-root');
+  if (!root) return;
+  function $(id) { return document.getElementById(id); }
+  var grid = [], n = 4, editable = false;
+  function siamese(m) {
+    var S = [], r, c;
+    for (r = 0; r < m; r++) { S.push([]); for (c = 0; c < m; c++) S[r].push(0); }
+    r = 0; c = m >> 1;
+    for (var v = 1; v <= m * m; v++) {
+      S[r][c] = v;
+      var nr = (r - 1 + m) % m, nc = (c + 1) % m;
+      if (S[nr][nc]) r = (r + 1) % m; else { r = nr; c = nc; }
+    }
+    return S;
+  }
+  function doublyEven(n) {
+    var G = [], r, c;
+    for (r = 0; r < n; r++) { G.push([]); for (c = 0; c < n; c++) G[r].push(r * n + c + 1); }
+    for (r = 0; r < n; r++) for (c = 0; c < n; c++) {
+      var x = c % 4, y = r % 4;
+      if (x === y || x + y === 3) G[r][c] = n * n + 1 - G[r][c];
+    }
+    return G;
+  }
+  function strachey(n) { // n = 4k + 2 — verified against the magic property for all such orders
+    var k = (n - 2) / 4, m = 2 * k + 1, Q = m * m;
+    var S = siamese(m), G = [], r, c;
+    for (r = 0; r < n; r++) { G.push([]); for (c = 0; c < n; c++) G[r].push(0); }
+    for (r = 0; r < m; r++) for (c = 0; c < m; c++) {
+      G[r][c] = S[r][c];            // A, top-left
+      G[r][c + m] = S[r][c] + 2 * Q; // C, top-right
+      G[r + m][c] = S[r][c] + 3 * Q; // D, bottom-left
+      G[r + m][c + m] = S[r][c] + Q; // B, bottom-right
+    }
+    function swap(r1, c1, r2, c2) { var t = G[r1][c1]; G[r1][c1] = G[r2][c2]; G[r2][c2] = t; }
+    for (r = 0; r < m; r++) for (c = 0; c < k; c++) swap(r, c, r + m, c);            // leftmost k columns A↔D
+    for (r = 0; r < m; r++) for (c = m - (k - 1); c < m; c++) swap(r, c + m, r + m, c + m); // rightmost k−1 columns C↔B
+    var j = m >> 1;
+    swap(j, 0, j + m, 0);   // middle cell of A's leftmost column ↔ D
+    swap(j, j, j + m, j);   // centre cell of A ↔ D
+    return G;
+  }
+  function generate() {
+    n = parseInt($('msl-order').value, 10);
+    if (n % 2 === 1) { grid = siamese(n); explain('odd'); }
+    else if (n % 4 === 0) { grid = doublyEven(n); explain('double'); }
+    else { grid = strachey(n); explain('single'); }
+    editable = false;
+    render();
+    var M = n * (n * n + 1) / 2;
+    $('msl-status').style.color = '';
+    $('msl-status').textContent = 'Magic constant ' + M + ' — every line adds to it. Hover a cell to audit.';
+  }
+  function explain(kind) {
+    var M = n * (n * n + 1) / 2;
+    var msg = {
+      odd: 'Order ' + n + ' is odd → the Siamese ladder (de la Loubère, 18th c., itself descended from a 12th-c. Indian method): start 1 at the middle of the top row, step up-and-right; when blocked, drop one cell down. Wrapping at the edges is what makes every line sum to ' + M + '.',
+      double: 'Order ' + n + ' is divisible by 4 → count 1…' + n * n + ' left-to-right, then reflect every cell that sits on the diagonals of a 4×4 block (n² + 1 − x). The pairs cancel line by line.',
+      single: 'Order ' + n + ' is 4k + 2 — the stubborn class. Strachey (1918): tile with four ' + (n / 2) + '×' + (n / 2) + ' Siamese squares in the offsets 0, m², 2m², 3m², then exchange columns (k left ones, k − 1 right ones) and two special cells. That fiddling is exactly why odd and doubly-even are easy but singly-even needs a recipe.'
+    }[kind];
+    $('msl-how').textContent = msg;
+  }
+  function render() {
+    var t = $('msl-table');
+    while (t.firstChild) t.removeChild(t.firstChild);
+    var M = n * (n * n + 1) / 2;
+    var i, j;
+    var topRow = document.createElement('tr');
+    var corner = document.createElement('th'); corner.textContent = ''; corner.scope = 'col'; topRow.appendChild(corner);
+    for (j = 0; j < n; j++) { var th = document.createElement('th'); th.textContent = String(j + 1); th.scope = 'col'; th.style.fontSize = '.7rem'; th.style.color = '#8ea3b5'; topRow.appendChild(th); }
+    var th2 = document.createElement('th'); th2.textContent = 'Σ'; th2.scope = 'col'; topRow.appendChild(th2);
+    t.appendChild(topRow);
+    for (i = 0; i < n; i++) {
+      var tr = document.createElement('tr');
+      var rh = document.createElement('th'); rh.textContent = String(i + 1); rh.scope = 'row'; rh.style.fontSize = '.7rem'; rh.style.color = '#8ea3b5'; tr.appendChild(rh);
+      for (j = 0; j < n; j++) {
+        var td = document.createElement('td');
+        td.className = 'msl-cell';
+        td.setAttribute('data-r', i); td.setAttribute('data-c', j);
+        if (editable) {
+          var inp = document.createElement('input');
+          inp.type = 'text'; inp.inputMode = 'numeric';
+          inp.value = grid[i][j] === 0 ? '' : String(grid[i][j]);
+          inp.setAttribute('aria-label', 'Row ' + (i + 1) + ', column ' + (j + 1));
+          inp.addEventListener('input', function () {
+            var el = this;
+            var rr = parseInt(el.parentNode.getAttribute('data-r'), 10), cc = parseInt(el.parentNode.getAttribute('data-c'), 10);
+            var v = parseInt(el.value.trim(), 10);
+            grid[rr][cc] = isFinite(v) && v > 0 ? v : 0;
+          });
+          td.appendChild(inp);
+        } else td.textContent = String(grid[i][j]);
+        tr.appendChild(td);
+      }
+      var sum = 0;
+      for (j = 0; j < n; j++) sum += grid[i][j];
+      var tdSum = document.createElement('td');
+      tdSum.className = 'msum' + (sum === M ? '' : ' mbad');
+      tdSum.textContent = String(sum);
+      tr.appendChild(tdSum);
+      t.appendChild(tr);
+    }
+    var foot = document.createElement('tr');
+    var fc = document.createElement('th'); fc.textContent = 'Σ'; fc.scope = 'row'; foot.appendChild(fc);
+    for (j = 0; j < n; j++) {
+      var s2 = 0;
+      for (i = 0; i < n; i++) s2 += grid[i][j];
+      var td3 = document.createElement('td');
+      td3.className = 'msum' + (s2 === M ? '' : ' mbad');
+      td3.textContent = String(s2);
+      foot.appendChild(td3);
+    }
+    var grand = document.createElement('td'); grand.textContent = ''; foot.appendChild(grand);
+    t.appendChild(foot);
+    var d1 = 0, d2 = 0;
+    for (i = 0; i < n; i++) { d1 += grid[i][i]; d2 += grid[i][n - 1 - i]; }
+    var chips = $('msl-chips');
+    while (chips.firstChild) chips.removeChild(chips.firstChild);
+    [[d1, 'main diagonal ↘'], [d2, 'anti-diagonal ↗']].forEach(function (pair) {
+      var sp = document.createElement('span');
+      sp.className = 'msl-chip ' + (pair[0] === M ? 'mgood' : 'mbad');
+      sp.textContent = pair[1] + ' = ' + pair[0];
+      chips.appendChild(sp);
+    });
+    var spc = document.createElement('span');
+    spc.className = 'msl-chip';
+    spc.textContent = 'target ' + M;
+    chips.appendChild(spc);
+    $('msl-n-echo').textContent = String(n);
+    $('msl-const').textContent = String(M);
+  }
+  function audit(i, j, on) {
+    var t = $('msl-table');
+    var cells = t.querySelectorAll('td.msl-cell');
+    var M = n * (n * n + 1) / 2;
+    for (var k = 0; k < cells.length; k++) {
+      var c = cells[k];
+      var ci = parseInt(c.getAttribute('data-r'), 10), cj = parseInt(c.getAttribute('data-c'), 10);
+      var hit = on && (ci === i || cj === j || (ci - j === cj - i) || (ci + j === i + j));
+      if (hit) c.classList.add('mhi'); else c.classList.remove('mhi');
+    }
+    if (!on) { $('msl-status').textContent = ''; return; }
+    var rows = 0, cols = 0, dg1 = 0, dg2 = 0, k2;
+    for (k2 = 0; k2 < n; k2++) { rows += grid[i][k2]; cols += grid[k2][j]; dg1 += grid[k2][k2]; if (i === j || i + j === n - 1) { dg2 += grid[k2][n - 1 - k2]; } }
+    var lines = ['row ' + (i + 1) + ' = ' + rows + (rows === M ? ' ✓' : ' ✗'), 'column ' + (j + 1) + ' = ' + cols + (cols === M ? ' ✓' : ' ✗')];
+    if (i === j) lines.push('diagonal ↘ = ' + dg1 + (dg1 === M ? ' ✓' : ' ✗'));
+    if (i + j === n - 1) lines.push('diagonal ↗ = ' + dg2 + (dg2 === M ? ' ✓' : ' ✗'));
+    $('msl-status').textContent = lines.join(' · ');
+  }
+  $('msl-table').addEventListener('mouseover', function (ev) {
+    var cell = ev.target.closest ? ev.target.closest('td.msl-cell') : null;
+    if (cell) audit(parseInt(cell.getAttribute('data-r'), 10), parseInt(cell.getAttribute('data-c'), 10), true);
+  });
+  $('msl-table').addEventListener('mouseout', function (ev) {
+    var cell = ev.target.closest ? ev.target.closest('td.msl-cell') : null;
+    if (cell) audit(0, 0, false);
+  });
+  $('msl-table').addEventListener('focusin', function (ev) {
+    var cell = ev.target.closest ? ev.target.closest('td.msl-cell') : null;
+    if (cell) audit(parseInt(cell.getAttribute('data-r'), 10), parseInt(cell.getAttribute('data-c'), 10), true);
+  });
+  function checkMine() {
+    var M = n * (n * n + 1) / 2, i, j;
+    var seen = new Set(), problems = [];
+    for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+      var v = grid[i][j];
+      if (!(v >= 1 && v <= n * n)) { problems.push('cell ' + (i + 1) + ',' + (j + 1) + ' is empty or out of range'); }
+      else if (seen.has(v)) problems.push('number ' + v + ' is used twice');
+      else seen.add(v);
+    }
+    var bad = [];
+    for (i = 0; i < n; i++) { var s = 0; for (j = 0; j < n; j++) s += grid[i][j]; if (s !== M) bad.push('row ' + (i + 1)); }
+    for (j = 0; j < n; j++) { var s2 = 0; for (i = 0; i < n; i++) s2 += grid[i][j]; if (s2 !== M) bad.push('column ' + (j + 1)); }
+    var d1 = 0, d2 = 0;
+    for (i = 0; i < n; i++) { d1 += grid[i][i]; d2 += grid[i][n - 1 - i]; }
+    if (d1 !== M) bad.push('diagonal ↘');
+    if (d2 !== M) bad.push('diagonal ↗');
+    render();
+    var st = $('msl-status');
+    if (problems.length) { st.style.color = '#ffb4a9'; st.textContent = problems.length + ' placement problem(s): ' + problems.slice(0, 4).join('; ') + (problems.length > 4 ? ' …' : ''); }
+    else if (bad.length) { st.style.color = '#ffe3a1'; st.textContent = 'Numbers are all correct — but ' + bad.slice(0, 5).join(', ') + (bad.length > 5 ? ' …' : '') + ' ' + (bad.length === 1 ? 'does' : 'do') + ' not sum to ' + M + '.'; }
+    else { st.style.color = '#9ff0c6'; st.textContent = 'MAGIC! All ' + (2 * n + 2) + ' lines sum to ' + M + '. For order ' + n + ' there are ' + (n % 2 ? 'no shortcuts — the ladder always works' : n % 4 === 0 ? 'reflect diagonals of each 4×4 block' : 'use Strachey: quadrant offsets + column swaps') + '.'; }
+  }
+  $('msl-gen').addEventListener('click', function () { $('msl-status').style.color = ''; generate(); });
+  $('msl-order').addEventListener('change', generate);
+  $('msl-empty').addEventListener('click', function () {
+    grid = [];
+    for (var i = 0; i < n; i++) { var row = []; for (var j = 0; j < n; j++) row.push(0); grid.push(row); }
+    editable = true;
+    render();
+    $('msl-status').style.color = '';
+    $('msl-status').textContent = 'Fill every cell with a different number from 1 to ' + (n * n) + '. Each row, column and diagonal must reach ' + (n * (n * n + 1) / 2) + '.';
+  });
+  $('msl-check').addEventListener('click', checkMine);
+  $('msl-fill').addEventListener('click', function () {
+    editable = true;
+    for (var j = 0; j < n; j++) grid[0][j] = grid[0][j] || (grid[n - 1][j] ? n * n + 1 - grid[n - 1][j] : 1);
+    render();
+    $('msl-status').textContent = 'First line handed to you — the rest is yours (that hint alone fixes more than it looks).';
+  });
+  generate();
+})();
+</script>
+</section>

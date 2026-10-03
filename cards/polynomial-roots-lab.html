@@ -1,0 +1,264 @@
+<section id="polynomial-roots-lab-root" aria-labelledby="polynomial-roots-lab-title">
+<style>
+#polynomial-roots-lab-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#polynomial-roots-lab-root *{box-sizing:border-box}
+#polynomial-roots-lab-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#polynomial-roots-lab-root h3{margin:14px 0 6px;font-size:.93rem;color:var(--accent,#2dd4ff)}
+#polynomial-roots-lab-root .prow-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#polynomial-roots-lab-root .prow-cols{display:grid;grid-template-columns:minmax(250px,1fr) minmax(300px,1.2fr);gap:14px}
+@media (max-width:760px){#polynomial-roots-lab-root .prow-cols{grid-template-columns:1fr}}
+#polynomial-roots-lab-root label{display:block;font-size:.72rem;font-weight:600;margin-bottom:3px}
+#polynomial-roots-lab-root input,#polynomial-roots-lab-root select{padding:6px;border:1px solid rgba(148,180,199,.35);border-radius:7px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.85rem;min-width:0;width:100%}
+#polynomial-roots-lab-root input:focus-visible,#polynomial-roots-lab-root select:focus-visible,#polynomial-roots-lab-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#polynomial-roots-lab-root button{min-height:34px;padding:6px 12px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+#polynomial-roots-lab-root button:hover{background:rgba(45,212,255,.2)}
+#polynomial-roots-lab-root .prow-coefs{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+#polynomial-roots-lab-root .prow-coefs .prow-slot{display:flex;flex-direction:column;gap:2px;width:56px}
+#polynomial-roots-lab-root .prow-coefs .prow-slot input{padding:5px;text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace}
+#polynomial-roots-lab-root .prow-coefs .prow-slot span{font-size:.66rem;text-align:center;color:var(--text-secondary,rgba(230,250,255,.6))}
+#polynomial-roots-lab-root .prow-status{min-height:1.35em;font-size:.82rem;color:#ffe3a1;margin:6px 0}
+#polynomial-roots-lab-root .prow-presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#polynomial-roots-lab-root .prow-presets button{font-size:.74rem;min-height:30px;padding:4px 9px}
+#polynomial-roots-lab-root table{border-collapse:collapse;width:100%;font-size:.79rem;margin:6px 0}
+#polynomial-roots-lab-root th,#polynomial-roots-lab-root td{padding:4px 7px;border-bottom:1px solid rgba(148,180,199,.14);text-align:right;font-family:ui-monospace,Menlo,Consolas,monospace}
+#polynomial-roots-lab-root th:first-child,#polynomial-roots-lab-root td:first-child{text-align:left}
+#polynomial-roots-lab-root th{color:var(--accent,#2dd4ff)}
+#polynomial-roots-lab-root .prow-factor{padding:8px 11px;border:1px solid rgba(96,226,160,.4);border-radius:10px;background:rgba(96,226,160,.07);color:#a9f0c0;font-size:.88rem;font-weight:600;margin:8px 0;overflow-wrap:anywhere}
+#polynomial-roots-lab-root svg{display:block;width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin:8px 0}
+#polynomial-roots-lab-root .prow-slider{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:6px 0}
+#polynomial-roots-lab-root .prow-slider input[type=range]{accent-color:var(--accent,#2dd4ff);padding:0}
+#polynomial-roots-lab-root .prow-slider .prow-slab{font-size:.76rem;color:var(--text-secondary,rgba(230,250,255,.7));text-align:right}
+</style>
+<h2 id="polynomial-roots-lab-title">🌀 Polynomial Roots Lab — Every Root, Real or Complex</h2>
+<p id="polynomial-roots-lab-desc" class="desc">Beyond quadratics, closed-form roots die at degree five — so solve numerically instead. Type any polynomial up to degree 8 and Durand–Kerner marches all of its complex roots into existence simultaneously, with a scrubber to watch the swarm converge, Vieta checks on sum and product, and the root-by-root factorisation rebuilt from the answers.</p>
+<div class="prow-cols">
+<div>
+<h3>Polynomial <span class="prow-muted">(leading first)</span></h3>
+<div class="prow-coefs" id="prow-coefs"></div>
+<div class="prow-status" id="prow-status" role="status" aria-live="polite">Ready.</div>
+<div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end">
+<div><label for="prow-deg">degree</label><select id="prow-deg"></select></div>
+<button type="button" id="prow-go">Find roots</button>
+</div>
+<div class="prow-presets" aria-label="notable polynomials">
+<button type="button" data-p="clean">x³−6x²+11x−6</button>
+<button type="button" data-p="quintic">x⁵−x−1</button>
+<button type="button" data-p="unity">z⁶−1</button>
+<button type="button" data-p="double">(x−1)²(x²+1)</button>
+<button type="button" data-p="runge">x⁸−1</button>
+</div>
+<div class="prow-slider">
+<input type="range" id="prow-scrub" min="0" max="0" step="1" value="0" aria-label="iteration scrubber">
+<span class="prow-slab" id="prow-scrublab">—</span>
+</div>
+<p class="prow-muted">Durand–Kerner (the “Weierstrass method”) updates all roots at once: zᵢ ← zᵢ − p(zᵢ)/∏ᵢ≠ⱼ(zᵢ−zⱼ). Started from a complex spiral it almost never lands in a degenerate symmetric trap; ten Newton polish steps tidy the tail. Multiple roots converge slowly — watch how long the double-root preset takes.</p>
+</div>
+<div>
+<table id="prow-table" aria-label="roots found">
+<thead><tr><th>root</th><th>real</th><th>imag</th><th>|p(z)| residual</th></tr></thead>
+<tbody id="prow-tb"></tbody>
+</table>
+<div class="prow-factor" id="prow-factor" hidden></div>
+<svg id="prow-argand" viewBox="0 0 320 320" role="img" aria-label="Argand diagram of the roots"></svg>
+<p class="prow-muted" id="prow-vieta"></p>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+var root=document.getElementById('polynomial-roots-lab-root');
+if(!root)return;
+function $(id){return root.querySelector('#'+id)}
+var NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+var SUP={'2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','1':'¹','0':'⁰'};
+function xPow(p){if(p===0)return '';if(p===1)return 'x';return 'x'+(SUP[p]||'^'+p)}
+var DEGS=[2,3,4,5,6,7,8];
+var DEF={
+ 2:[1,0,1],3:[1,-6,11,-6],4:[1,0,0,0,-1],5:[1,0,0,0,-1,-1],6:[1,0,0,0,0,0,-1],7:[1,0,0,0,0,0,-1,-1],8:[1,0,0,0,0,0,0,0,-1]
+};
+var PRESETS={
+ clean:{deg:3,c:[1,-6,11,-6]},
+ quintic:{deg:5,c:[1,0,0,0,-1,-1]},
+ unity:{deg:6,c:[1,0,0,0,0,0,-1]},
+ double:{deg:4,c:[1,-2,2,-2,1]},
+ runge:{deg:8,c:[1,0,0,0,0,0,0,0,-1]}
+};
+var degSel=$('prow-deg');
+DEGS.forEach(function(d){var o=document.createElement('option');o.value=String(d);o.textContent='degree '+d;degSel.appendChild(o)});
+degSel.value='3';
+var slots=[];
+function buildCoefs(){
+  var box=$('prow-coefs');box.replaceChildren();slots=[];
+  var d=parseInt(degSel.value,10);
+  var def=DEF[d];
+  for(var i=0;i<=d;i++){
+    var wrap=document.createElement('div');wrap.className='prow-slot';
+    var lab=document.createElement('span');lab.textContent=xPow(d-i)||'const';
+    var inp=document.createElement('input');inp.type='number';inp.step='any';inp.value=def[i]!==undefined?def[i]:0;
+    inp.setAttribute('aria-label','coefficient of '+lab.textContent);
+    inp.addEventListener('input',function(){});
+    wrap.appendChild(lab);wrap.appendChild(inp);box.appendChild(wrap);slots.push(inp);
+  }
+  $('prow-status').textContent='Degree '+d+' — press Find roots.';
+}
+degSel.addEventListener('change',buildCoefs);
+root.querySelectorAll('.prow-presets button').forEach(function(b){
+  b.addEventListener('click',function(){
+    var p=PRESETS[b.getAttribute('data-p')];if(!p)return;
+    degSel.value=String(p.deg);buildCoefs();
+    p.c.forEach(function(v,i){slots[i].value=v});
+    solve();
+  });
+});
+function readCoefs(){
+  var c=slots.map(function(inp){var v=parseFloat(inp.value);return isFinite(v)?v:NaN});
+  if(c.some(function(v){return !isFinite(v)}))throw new Error('every coefficient box needs a number');
+  var lead=0;while(lead<c.length-1&&Math.abs(c[lead])<1e-14)lead++;
+  if(lead>0)c=c.slice(lead);
+  if(Math.abs(c[0])<1e-14)throw new Error('the polynomial is identically zero — pick real coefficients');
+  return c;
+}
+function polyval(c,z){
+  var s={re:c[0],im:0};
+  for(var i=1;i<c.length;i++)s={re:s.re*z.re-s.im*z.im+c[i],im:s.re*z.im+s.im*z.re};
+  return s;
+}
+function abs2(z){return z.re*z.re+z.im*z.im}
+function solve(){
+  var status=$('prow-status');
+  var c;
+  try{c=readCoefs()}catch(e){status.textContent=e.message.charAt(0).toUpperCase()+e.message.slice(1);return}
+  var deg=c.length-1;
+  if(deg<1){status.textContent='Degree ≥ 1 needed.';return}
+  var cn=c.map(function(v){return v/c[0]});
+  var zs=[],q={re:0.4,im:0.9},w={re:1,im:0};
+  for(var k=0;k<deg;k++){zs.push({re:w.re,im:w.im});w={re:w.re*q.re-w.im*q.im,im:w.re*q.im+w.im*q.re}}
+  var snaps=[zs.map(function(z){return {re:z.re,im:z.im}})];
+  var iters=0,converged=false;
+  for(var it=0;it<800;it++){
+    var maxd=0,cur=zs.slice();
+    var nz=cur.map(function(zi,i){
+      var pz=polyval(cn,zi),den={re:1,im:0};
+      for(var j=0;j<deg;j++){
+        if(j===i)continue;
+        var dz={re:zi.re-cur[j].re,im:zi.im-cur[j].im};
+        den={re:den.re*dz.re-den.im*dz.im,im:den.re*dz.im+den.im*dz.re};
+      }
+      var dr=(den.re*den.re+den.im*den.im)||1e-300;
+      var d={re:(pz.re*den.re+pz.im*den.im)/dr,im:(pz.im*den.re-pz.re*den.im)/dr};
+      maxd=Math.max(maxd,Math.hypot(d.re,d.im));
+      return {re:zi.re-d.re,im:zi.im-d.im};
+    });
+    zs=nz;iters=it+1;
+    if(it<12||it%4===0)snaps.push(zs.map(function(z){return {re:z.re,im:z.im}}));
+    if(maxd<1e-13){converged=true;snaps.push(zs.map(function(z){return {re:z.re,im:z.im}}));break}
+  }
+  var dc=cn.slice(0,deg).map(function(v,i){return v*(deg-1-i)});
+  zs=zs.map(function(z){
+    var best={re:z.re,im:z.im},bv=Math.sqrt(abs2(polyval(cn,z)));
+    for(var k2=0;k2<12;k2++){
+      var p=polyval(cn,z),dp=polyval(dc,z);
+      var dr2=abs2(dp)||1e-300;
+      z={re:z.re-(p.re*dp.re+p.im*dp.im)/dr2,im:z.im-(p.im*dp.re-p.re*dp.im)/dr2};
+      var v=Math.sqrt(abs2(polyval(cn,z)));
+      if(v<bv){bv=v;best={re:z.re,im:z.im}}
+    }
+    return best;
+  });
+  zs=zs.map(function(z){return {re:Math.abs(z.re)<1e-8?0:z.re,im:Math.abs(z.im)<1e-8?0:z.im}});
+  zs.sort(function(a,b){return a.re-b.re||a.im-b.im});
+  var groups=[];
+  zs.forEach(function(z){
+    var g=null;
+    for(var i=0;i<groups.length;i++){if(Math.hypot(groups[i].rep.re-z.re,groups[i].rep.im-z.im)<1e-4){g=groups[i];break}}
+    if(g){g.n++;g.rep={re:(g.rep.re*(g.n-1)+z.re)/g.n,im:(g.rep.im*(g.n-1)+z.im)/g.n}}
+    else groups.push({rep:{re:z.re,im:z.im},n:1});
+  });
+  var tb=$('prow-tb');tb.replaceChildren();
+  var used=groups.map(function(g){return {z:g.rep,n:g.n}});
+  used.forEach(function(g){
+    var resid=Math.sqrt(abs2(polyval(cn,g.z)));
+    var tr=document.createElement('tr');
+    var c0=document.createElement('td');c0.textContent=g.n>1?'×'+g.n:'—';
+    var c1=document.createElement('td');c1.textContent=fmt6(g.z.re);
+    var c2=document.createElement('td');c2.textContent=(g.z.im<0?'−':'+')+' '+fmt6(Math.abs(g.z.im))+'i';
+    var c3=document.createElement('td');c3.textContent=resid<1e-12?'0':resid.toExponential(1);
+    tr.appendChild(c0);tr.appendChild(c1);tr.appendChild(c2);tr.appendChild(c3);tb.appendChild(tr);
+  });
+  var fbox=$('prow-factor');fbox.hidden=false;
+  fbox.textContent='p(x) = '+leadingStr(cn[0])+facBits(used);
+  var sum={re:0,im:0},prod={re:1,im:0};
+  zs.forEach(function(z){sum.re+=z.re;sum.im+=z.im;prod={re:prod.re*z.re-prod.im*z.im,im:prod.re*z.im+prod.im*z.re}});
+  var wantSum=-cn[1],wantProd=Math.pow(-1,deg)*cn[deg];
+  $('prow-vieta').textContent='Vieta check — Σ roots = '+fmt6(sum.re)+(Math.abs(sum.im)>1e-7?' '+fmtSigned(sum.im)+'i':'')+' vs −aₙ₋₁/aₙ = '+fmt6(wantSum)+';  Π roots = '+fmt6(prod.re)+(Math.abs(prod.im)>1e-7?' '+fmtSigned(prod.im)+'i':'')+' vs (−1)ⁿ·a₀/aₙ = '+fmt6(wantProd)+'.';
+  status.textContent=deg+' root'+(deg>1?'s':'')+' in '+iters+' iterations '+(converged?'(converged)':'(stopped at 800 — residuals still shown)');
+  var scrub=$('prow-scrub');
+  scrub.max=String(snaps.length-1);scrub.value=String(snaps.length-1);
+  $('prow-scrublab').textContent='iteration '+iters+' (of '+iters+')';
+  drawArgand(used,snaps,snaps.length-1);
+  scrub.oninput=function(){
+    var i=parseInt(scrub.value,10);
+    $('prow-scrublab').textContent=i===snaps.length-1?'iteration '+iters+' — final':'iteration ~'+snapIters(i);
+    drawArgand(used,snaps,i);
+  };
+  function snapIters(i){
+    if(i<13)return i;
+    return 13+(i-13)*4;
+  }
+}
+function leadingStr(c){return Math.abs(c-1)<1e-12?'':'('+fmt6g(c)+')·'}
+function fmt6g(v){var s=v.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');return s}
+function facBits(used){
+  var s='';var seen={};
+  used.forEach(function(g){
+    var key=g.z.re.toFixed(9)+'|'+g.z.im.toFixed(9);
+    if(seen[key])return;
+    if(Math.abs(g.z.im)<1e-7){
+      seen[key]=1;
+      var r=g.z.re;
+      if(Math.abs(r)<1e-9)s+='·x';
+      else s+='·(x '+(r<0?'+ ':'− ')+fmt6g(Math.abs(r))+')';
+      if(g.n>1)s+='²';
+      return;
+    }
+    var q=[-2*g.z.re,g.z.re*g.z.re+g.z.im*g.z.im];
+    seen[g.z.re.toFixed(9)+'|'+(-g.z.im).toFixed(9)]=1;
+    var qs='x²';
+    if(Math.abs(q[0])>1e-9)qs+=' '+(q[0]<0?'− ':'+ ')+fmt6g(Math.abs(q[0]))+'x';
+    if(Math.abs(q[1])>1e-9)qs+=' '+(q[1]<0?'− ':'+ ')+fmt6g(Math.abs(q[1]));
+    s+='·('+qs+')';
+    if(g.n>1)s+='²';
+  });
+  return s.replace(/^·/,'');
+}
+function drawArgand(used,snaps,idx){
+  var svg=$('prow-argand');while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var pts=snaps[Math.max(0,Math.min(idx,snaps.length-1))];
+  var maxA=1;
+  pts.forEach(function(z){maxA=Math.max(maxA,Math.abs(z.re),Math.abs(z.im))});
+  maxA*=1.25;
+  var C=160,R=138;
+  function X(re){return C+re/maxA*R}
+  function Y(im){return C-im/maxA*R}
+  el('line',{x1:C-R-10,y1:C,x2:C+R+10,y2:C,stroke:'rgba(148,180,199,.4)'},svg);
+  el('line',{x1:C,y1:C-R-10,x2:C,y2:C+R+10,stroke:'rgba(148,180,199,.4)'},svg);
+  el('circle',{cx:C,cy:C,r:R/maxA,fill:'none',stroke:'rgba(148,180,199,.3)','stroke-dasharray':'3 4'},svg);
+  el('rect',{x:C-R-14,y:C-R-14,width:2*(R+14),height:2*(R+14),fill:'none',stroke:'rgba(148,180,199,.18)'},svg);
+  pts.forEach(function(z){
+    var isReal=Math.abs(z.im)<1e-7;
+    el('line',{x1:C,y1:C,x2:X(z.re),y2:Y(z.im),stroke:isReal?'rgba(96,226,160,.5)':'rgba(255,143,163,.5)','stroke-width':1},svg);
+    el('circle',{cx:fmt1(X(z.re)),cy:fmt1(Y(z.im)),r:isReal?4.6:4,fill:isReal?'#60e2a0':'#ff8fa3'},svg);
+  });
+  function fmt1(v){return (Math.round(v*10)/10)}
+  var cap=el('text',{x:C,y:300,'text-anchor':'middle','font-size':10,fill:'rgba(230,250,255,.6)'},svg);
+  cap.textContent='dashed circle: |z| = 1 · green = real roots';
+}
+function fmt6(v){var s=v.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');return s==='-0'?'0':s}
+function fmtSigned(v){return (v<0?'− ':'+ ')+fmt6(Math.abs(v))}
+$('prow-go').addEventListener('click',solve);
+buildCoefs();
+solve();
+})();
+</script>
+</section>

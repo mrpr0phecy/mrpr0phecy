@@ -1,0 +1,246 @@
+<section id="interpolation-lab-root" aria-labelledby="interpolation-lab-title">
+<style>
+#interpolation-lab-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#interpolation-lab-root *{box-sizing:border-box}
+#interpolation-lab-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#interpolation-lab-root h3{margin:14px 0 6px;font-size:.93rem;color:var(--accent,#2dd4ff)}
+#interpolation-lab-root .itpl-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#interpolation-lab-root .itpl-cols{display:grid;grid-template-columns:minmax(240px,.95fr) minmax(280px,1.3fr);gap:14px}
+@media (max-width:760px){#interpolation-lab-root .itpl-cols{grid-template-columns:1fr}}
+#interpolation-lab-root label{display:block;font-size:.72rem;font-weight:600;margin-bottom:3px}
+#interpolation-lab-root input,#interpolation-lab-root select,#interpolation-lab-root textarea{padding:6px;border:1px solid rgba(148,180,199,.35);border-radius:7px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.85rem;min-width:0;width:100%}
+#interpolation-lab-root textarea{font-family:ui-monospace,Menlo,Consolas,monospace;min-height:120px;resize:vertical}
+#interpolation-lab-root input:focus-visible,#interpolation-lab-root select:focus-visible,#interpolation-lab-root textarea:focus-visible,#interpolation-lab-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#interpolation-lab-root button{min-height:36px;padding:6px 12px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+#interpolation-lab-root button:hover{background:rgba(45,212,255,.2)}
+#interpolation-lab-root .itpl-btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#interpolation-lab-root .itpl-btns button{font-size:.74rem;min-height:30px;padding:4px 9px}
+#interpolation-lab-root .itpl-status{min-height:1.4em;font-size:.83rem;color:#ffe3a1;margin:6px 0}
+#interpolation-lab-root .itpl-answer{padding:10px 12px;border:1px solid rgba(96,226,160,.45);border-radius:10px;background:rgba(96,226,160,.08);font-size:.9rem;font-weight:600;color:#a9f0c0;margin:10px 0;overflow-wrap:anywhere;white-space:pre-wrap}
+#interpolation-lab-root .itpl-answer.itpl-warn{border-color:rgba(255,214,102,.55);background:rgba(255,214,102,.07);color:#ffe3a1}
+#interpolation-lab-root .itpl-poly{padding:8px 12px;border:1px solid rgba(148,180,199,.22);border-radius:10px;background:rgba(16,28,37,.5);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.83rem;overflow-wrap:anywhere;margin:8px 0}
+#interpolation-lab-root svg{display:block;width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin-top:8px}
+#interpolation-lab-root .itpl-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.76rem;color:var(--text-secondary,rgba(230,250,255,.68));margin-top:4px}
+#interpolation-lab-root .itpl-legend span{display:inline-flex;align-items:center;gap:5px}
+#interpolation-lab-root .itpl-key{width:14px;height:4px;border-radius:2px;display:inline-block}
+</style>
+<h2 id="interpolation-lab-title">📈 Interpolation Lab — Between the Data Points</h2>
+<p id="interpolation-lab-desc" class="desc">Paste a table of x,y readings and ask for values in between. Linear interpolation rides the segments; the Lagrange polynomial threads every point at once and prints its expanded formula. Goes backwards too — give it a y and it finds x — and it says so out loud when you drift outside the data and start extrapolating.</p>
+<div class="itpl-cols">
+<div>
+<h3>Data points</h3>
+<textarea id="itpl-data" aria-label="data points, one per line as x, y" spellcheck="false">0, 1
+1, 3
+2, 2
+3, 5
+4, 4</textarea>
+<div class="itpl-btns">
+<button type="button" data-p="temp">oven ramp</button>
+<button type="button" data-p="sin">sin table</button>
+<button type="button" data-p="load">load test</button>
+</div>
+<p class="itpl-muted">One point per line as <code>x, y</code>. Duplicate x values are rejected — a function can't have two answers.</p>
+<h3>Query</h3>
+<label for="itpl-fwd">interpolate y at these x values</label>
+<input type="text" id="itpl-fwd" value="0.5, 2.4, 5" aria-label="x values to evaluate">
+<label for="itpl-inv" style="margin-top:6px">solve backwards: x at this y (linear only)</label>
+<input type="text" id="itpl-inv" value="2.5" aria-label="y value to invert">
+<div class="itpl-btns" style="margin-top:8px"><button type="button" id="itpl-go">Interpolate</button></div>
+<div class="itpl-status" id="itpl-status" role="status" aria-live="polite">Ready.</div>
+</div>
+<div>
+<div class="itpl-answer" id="itpl-answer" hidden></div>
+<div class="itpl-poly" id="itpl-polybox" hidden></div>
+<svg id="itpl-chart" viewBox="0 0 470 300" role="img" aria-label="interpolation chart"></svg>
+<div class="itpl-legend">
+<span><i class="itpl-key" style="background:#60e2a0"></i>linear segments</span>
+<span><i class="itpl-key" style="background:#2dd4ff"></i>Lagrange polynomial</span>
+<span><i class="itpl-key" style="background:#ffd666"></i>queries</span>
+</div>
+<p class="itpl-muted">Degree-8 Lagrange through equally spaced points oscillates wildly near the ends (Runge's phenomenon) — that's the price of one smooth polynomial; cubic splines exist because of it. Use the linear answer outside the data range with suspicion.</p>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+var root=document.getElementById('interpolation-lab-root');
+if(!root)return;
+function $(id){return root.querySelector('#'+id)}
+var NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+function fmt(v,dp){if(!isFinite(v))return '∞';var d=dp===undefined?4:dp;if(Math.abs(v)<5e-11)v=0;var s=v.toFixed(d);s=s.replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');return s==='-0'?'0':s}
+var PRESETS={
+ temp:{data:'0, 18\n10, 42\n20, 79\n30, 128\n40, 190',fwd:'5, 25'},
+ sin:{data:'0, 0\n0.5, 0.4794\n1, 0.8415\n1.5, 0.9975\n2, 0.9093\n2.5, 0.5985\n3, 0.1411',fwd:'0.75, 2.2'},
+ load:{data:'0, 0\n0.5, 1.9\n1, 3.6\n1.5, 5.0\n2, 6.1\n2.5, 7.4\n3, 12.9\n3.5, 18.2',fwd:'2.8'}
+};
+root.querySelectorAll('.itpl-btns button[data-p]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var p=PRESETS[b.getAttribute('data-p')];if(!p)return;
+    $('itpl-data').value=p.data;
+    $('itpl-fwd').value=p.fwd;
+    solve();
+  });
+});
+function parseData(){
+  var lines=$('itpl-data').value.split(/[\n;]+/);
+  var pts=[];
+  for(var i=0;i<lines.length;i++){
+    var ln=lines[i].trim();if(!ln)continue;
+    var parts=ln.split(/[,\s]+/).filter(Boolean);
+    if(parts.length<2)throw new Error('line "'+ln+'" needs an x and a y');
+    var x=parseFloat(parts[0]),y=parseFloat(parts[1]);
+    if(!isFinite(x)||!isFinite(y))throw new Error('line "'+ln+'" contains a non-number');
+    pts.push({x:x,y:y});
+  }
+  pts.sort(function(a,b){return a.x-b.x});
+  for(i=1;i<pts.length;i++)if(Math.abs(pts[i].x-pts[i-1].x)<1e-12)throw new Error('duplicate x = '+fmt(pts[i].x)+' with different readings');
+  if(pts.length<2)throw new Error('give at least two points');
+  return pts;
+}
+function linearAt(pts,x){
+  var n=pts.length;
+  var seg=null,extrap=false;
+  if(x<pts[0].x||x>pts[n-1].x)extrap=true;
+  if(x<=pts[0].x)seg=0;else if(x>=pts[n-1].x)seg=n-2;
+  else{for(var i=0;i<n-1;i++){if(x>=pts[i].x&&x<=pts[i+1].x){seg=i;break}}}
+  var a=pts[seg],b=pts[seg+1];
+  var t=(x-a.x)/(b.x-a.x);
+  return {y:a.y+t*(b.y-a.y),seg:seg,extrap:extrap,a:a,b:b};
+}
+function lagrangePoly(pts){
+  var n=pts.length,co=new Array(n+1).fill(0);
+  for(var i=0;i<n;i++){
+    var num=[1],den=1;
+    for(var m=0;m<n;m++){
+      if(m===i)continue;
+      var next=new Array(num.length+1).fill(0);
+      for(var k=0;k<num.length;k++){next[k]+=num[k]*(-pts[m].x);next[k+1]+=num[k]}
+      num=next;den*=(pts[i].x-pts[m].x);
+    }
+    var w=pts[i].y/den;
+    for(k=0;k<num.length;k++)co[k]+=w*num[k];
+  }
+  return co;
+}
+function polyAt(co,x){var s=0;for(var i=co.length-1;i>=0;i--)s=s*x+co[i];return s}
+var SUP={'2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+function xp(p){if(p===1)return 'x';if(p===0)return '';var s='x';for(var i=0;i<String(p).length;i++){var ch=String(p)[i];s+=SUP[ch]||('^'+ch)}return s}
+function polyStr(co){
+  var out='';
+  for(var p=co.length-1;p>=0;p--){
+    var v=co[p];if(Math.abs(v)<1e-10)continue;
+    var abs=Math.abs(v);
+    var mag=(p>0&&Math.abs(abs-1)<1e-10)?'':fmt(abs,4);
+    out+=out?(v<0?' − ':' + '):(v<0?'−':'');
+    out+=mag+xp(p);
+  }
+  return out||'0';
+}
+function inverse(pts,yTarget){
+  var res=[];
+  for(var i=0;i<pts.length-1;i++){
+    var a=pts[i],b=pts[i+1];
+    var lo=Math.min(a.y,b.y),hi=Math.max(a.y,b.y);
+    if(Math.abs(b.y-a.y)<1e-12){if(Math.abs(a.y-yTarget)<1e-9)res.push({whole:[a.x,b.x]});continue}
+    if(yTarget<lo-1e-12||yTarget>hi+1e-12)continue;
+    var t=(yTarget-a.y)/(b.y-a.y);
+    res.push({x:a.x+t*(b.x-a.x),seg:i});
+  }
+  return res;
+}
+function draw(pts,co,queries){
+  var svg=$('itpl-chart');
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var W=470,H=300,P={l:46,r:14,t:14,b:34};
+  var xs=pts.map(function(p){return p.x});
+  var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs);
+  var span=(x1-x0)||1;x0-=span*.06;x1+=span*.06;
+  var ys=[];
+  for(var i=0;i<=140;i++){var x=x0+(x1-x0)*i/140;ys.push(linearAt(pts,x).y);if(co)ys.push(polyAt(co,x))}
+  pts.forEach(function(p){ys.push(p.y)});
+  queries.forEach(function(q){if(isFinite(q.y))ys.push(q.y)});
+  var yy=ys.filter(isFinite);
+  var y0=Math.min.apply(null,yy),y1=Math.max.apply(null,yy);
+  if(y0===y1){y0-=1;y1+=1}
+  var ypad=(y1-y0)*.1;y0-=ypad;y1+=ypad;
+  var X=function(v){return P.l+(v-x0)/(x1-x0)*(W-P.l-P.r)};
+  var Y=function(v){return H-P.b-(v-y0)/(y1-y0)*(H-P.t-P.b)};
+  el('line',{x1:P.l,y1:H-P.b,x2:W-P.r,y2:H-P.b,stroke:'rgba(148,180,199,.5)','stroke-width':1},svg);
+  el('line',{x1:P.l,y1:P.t,x2:P.l,y2:H-P.b,stroke:'rgba(148,180,199,.5)','stroke-width':1},svg);
+  if(x0<0&&x1>0)el('line',{x1:X(0),y1:P.t,x2:X(0),y2:H-P.b,stroke:'rgba(148,180,199,.25)','stroke-dasharray':'2 3'},svg);
+  var linPts='';
+  for(i=0;i<pts.length;i++)linPts+=(i?',':'')+fmt(X(pts[i].x),1)+','+fmt(Y(pts[i].y),1);
+  el('polyline',{points:linPts,fill:'none',stroke:'#60e2a0','stroke-width':2},svg);
+  if(co){
+    var curve='';
+    for(i=0;i<=200;i++){
+      var xq=x0+(x1-x0)*i/200;
+      var yq=polyAt(co,xq);
+      if(!isFinite(yq))continue;
+      curve+=(curve?',':'')+fmt(X(xq),1)+','+fmt(Math.max(y0,Math.min(y1,yq)),1);
+    }
+    el('polyline',{points:curve,fill:'none',stroke:'#2dd4ff','stroke-width':1.6,'stroke-dasharray':'5 4'},svg);
+  }
+  pts.forEach(function(p){el('circle',{cx:fmt(X(p.x),1),cy:fmt(Y(p.y),1),r:3.4,fill:'#e6faff',stroke:'#60e2a0','stroke-width':1.6},svg)});
+  queries.forEach(function(q){
+    if(!isFinite(q.y))return;
+    var col=q.back?'#ff9db8':'#ffd666';
+    el('line',{x1:fmt(X(q.at),1),y1:P.t,x2:fmt(X(q.at),1),y2:H-P.b,stroke:col,'stroke-width':1,'stroke-opacity':.5,'stroke-dasharray':'3 3'},svg);
+    el('circle',{cx:fmt(X(q.at),1),cy:fmt(Y(q.y),1),r:4.5,fill:col,'fill-opacity':.9},svg);
+  });
+  var lbl=function(t,x,y,anchor){var e=el('text',{x:x,y:y,fill:'rgba(230,250,255,.75)','font-size':10,anchor:anchor||'start'},svg);e.textContent=t;return e};
+  for(i=0;i<=4;i++){
+    var v=x0+(x1-x0)*i/4;
+    lbl(fmt(v,2),X(v),H-P.b+14,'middle');
+    var w=y0+(y1-y0)*i/4;
+    lbl(fmt(w,2),P.l-4,Y(w)+3,'end');
+  }
+}
+function solve(){
+  var status=$('itpl-status');
+  var pts;
+  try{pts=parseData()}catch(e){status.textContent=e.message.charAt(0).toUpperCase()+e.message.slice(1);return}
+  if(pts.length<2){status.textContent='At least two points needed.';return}
+  var co=lagrangePoly(pts);
+  var warns=[];
+  var out=[];
+  var queries=[];
+  var fwdRaw=$('itpl-fwd').value.split(/[,\s]+/).filter(Boolean);
+  var fs=[];
+  for(var i=0;i<fwdRaw.length;i++){var v=parseFloat(fwdRaw[i]);if(isFinite(v))fs.push(v)}
+  for(i=0;i<fs.length;i++){
+    var L=linearAt(pts,fs[i]);
+    if(L.extrap)warns.push('x='+fmt(fs[i],3)+' is outside the data — that is extrapolation');
+    var lg=polyAt(co,fs[i]);
+    out.push('x = '+fmt(fs[i],4)+'  →  linear '+fmt(L.y,5)+'   (segment '+fmt(L.a.x,2)+'→'+fmt(L.b.x,2)+')  ·  Lagrange '+fmt(lg,5));
+    queries.push({at:fs[i],y:L.y});
+    queries.push({at:fs[i],y:lg});
+  }
+  var invRaw=parseFloat($('itpl-inv').value);
+  if(isFinite(invRaw)){
+    var inv=inverse(pts,invRaw);
+    if(!inv.length){out.push('no segment reaches y = '+fmt(invRaw,4)+' — it is outside the data range');warns.push('inverse target not covered by the piecewise line')}
+    inv.forEach(function(r){
+      if(r.whole){out.push('y = '+fmt(invRaw,4)+' is flat along the segment x ∈ ['+fmt(r.whole[0],3)+', '+fmt(r.whole[1],3)+']')}
+      else{out.push('y = '+fmt(invRaw,4)+'  →  x = '+fmt(r.x,5)+'   (segment '+fmt(pts[r.seg].x,2)+'→'+fmt(pts[r.seg+1].x,2)+')');
+        queries.push({at:r.x,y:invRaw,back:true})}
+    });
+  }
+  var ans=$('itpl-answer');
+  ans.hidden=false;
+  ans.textContent=out.length?out.join('\n'):'Enter at least one x (or a y to invert).';
+  ans.classList.toggle('itpl-warn',warns.length>0);
+  if(warns.length)ans.textContent+='\n⚠ '+warns.join(' · ');
+  var pb=$('itpl-polybox');
+  pb.hidden=false;
+  pb.textContent='p(x) = '+polyStr(co)+'   (degree '+(pts.length-1)+', fits all '+pts.length+' points'+(pts.length>6?' — beware oscillation between them':'')+')';
+  status.textContent=pts.length+' points · '+fs.length+' forward queries'+(isFinite(invRaw)?' · 1 inverse query':'');
+  draw(pts,co,queries);
+}
+$('itpl-go').addEventListener('click',solve);
+$('itpl-data').addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();solve()}});
+solve();
+})();
+</script>
+</section>

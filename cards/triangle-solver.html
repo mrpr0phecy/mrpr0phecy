@@ -1,0 +1,250 @@
+<section id="triangle-solver-root" aria-labelledby="triangle-solver-title">
+<style>
+#triangle-solver-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#triangle-solver-root *{box-sizing:border-box}
+#triangle-solver-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#triangle-solver-root h3{margin:18px 0 8px;font-size:.95rem;color:var(--accent,#2dd4ff)}
+#triangle-solver-root .tsol-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#triangle-solver-root .tsol-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+#triangle-solver-root label{display:block;font-size:.78rem;font-weight:600;margin:0 0 4px}
+#triangle-solver-root select,#triangle-solver-root input[type=number]{width:100%;padding:8px;border:1px solid rgba(148,180,199,.35);border-radius:8px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.92rem}
+#triangle-solver-root select:focus-visible,#triangle-solver-root input:focus-visible,#triangle-solver-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#triangle-solver-root button{min-height:40px;padding:8px 16px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.88rem;font-weight:700;cursor:pointer}
+#triangle-solver-root button:hover{background:rgba(45,212,255,.2)}
+#triangle-solver-root .tsol-status{min-height:1.4em;margin:8px 0;font-size:.86rem;color:#ffb4a9}
+#triangle-solver-root .tsol-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0}
+#triangle-solver-root .tsol-stat{background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:8px;padding:8px 10px}
+#triangle-solver-root .tsol-stat b{display:block;font-size:1.05rem;color:var(--accent,#2dd4ff);word-break:break-word}
+#triangle-solver-root .tsol-stat span{font-size:.72rem;color:var(--text-secondary,rgba(230,250,255,.68))}
+#triangle-solver-root ol.tsol-steps{margin:6px 0;padding-left:22px;font-size:.85rem;color:var(--text-secondary,rgba(230,250,255,.82))}
+#triangle-solver-root ol.tsol-steps li{margin:3px 0}
+#triangle-solver-root svg{display:block;max-width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin-top:8px}
+#triangle-solver-root .tsol-note{background:rgba(255,180,169,.08);border:1px solid rgba(255,180,169,.3);border-radius:8px;padding:10px 12px;font-size:.85rem;margin-top:10px}
+</style>
+<h2 id="triangle-solver-title">📐 Full Triangle Solver — Sine &amp; Cosine Rules</h2>
+<p id="triangle-solver-desc" class="desc">Solve any triangle from three known parts — sides, angles, or both. Works out the missing sides and angles, area, perimeter, in-circle and circum-circle, shows the law-of-sines or law-of-cosines steps, and draws the triangle to scale. Handles the ambiguous SSA case.</p>
+<div class="tsol-muted">Angle A sits opposite side a, B opposite b, C opposite c — and A + B + C always sums to 180°. Pick what you know, fill those three boxes, press Solve.</div>
+<div class="tsol-grid">
+<div><label for="tsol-mode">Known parts</label><select id="tsol-mode">
+<option value="sss">Three sides (SSS)</option>
+<option value="sas" selected>Two sides &amp; the angle between (SAS)</option>
+<option value="asa">Two angles &amp; the side between (ASA)</option>
+<option value="aas">Two angles &amp; a side opposite one (AAS)</option>
+<option value="ssa">Two sides &amp; an angle not between (SSA — ambiguous)</option>
+</select></div>
+</div>
+<div class="tsol-grid" id="tsol-inputs">
+<div id="tsol-w-a"><label for="tsol-a">Side a</label><input type="number" id="tsol-a" step="any" min="0" placeholder="e.g. 7"></div>
+<div id="tsol-w-b"><label for="tsol-b">Side b</label><input type="number" id="tsol-b" step="any" min="0" placeholder="e.g. 9"></div>
+<div id="tsol-w-c"><label for="tsol-c">Side c</label><input type="number" id="tsol-c" step="any" min="0" placeholder="e.g. 12"></div>
+<div id="tsol-w-A"><label for="tsol-A">Angle A (°)</label><input type="number" id="tsol-A" step="any" min="0" max="180" placeholder="e.g. 40"></div>
+<div id="tsol-w-B"><label for="tsol-B">Angle B (°)</label><input type="number" id="tsol-B" step="any" min="0" max="180" placeholder="e.g. 65"></div>
+<div id="tsol-w-C"><label for="tsol-C">Angle C (°)</label><input type="number" id="tsol-C" step="any" min="0" max="180" placeholder="e.g. 75"></div>
+</div>
+<button type="button" id="tsol-solve">Solve triangle</button>
+<div id="tsol-status" class="tsol-status" role="status"></div>
+<div id="tsol-result" hidden>
+<h3>The solved triangle</h3>
+<div class="tsol-stats" id="tsol-stats"></div>
+<svg id="tsol-svg" viewBox="0 0 560 320" role="img" aria-label="Drawing of the solved triangle, to scale"></svg>
+<h3>How it was solved</h3>
+<ol class="tsol-steps" id="tsol-steps"></ol>
+<div id="tsol-extra"></div>
+</div>
+<div class="tsol-note">Angles use degrees. The ambiguous SSA case (two sides and an angle opposite one of them) can have zero, one or two valid triangles — this solver checks for all of them instead of silently picking one.</div>
+<script>
+(function () {
+  'use strict';
+  var root = document.getElementById('triangle-solver-root');
+  if (!root) return;
+  function $(id) { return document.getElementById(id); }
+  var D2R = Math.PI / 180;
+  var modeSel = $('tsol-mode');
+  var fields = { a: $('tsol-a'), b: $('tsol-b'), c: $('tsol-c'), A: $('tsol-A'), B: $('tsol-B'), C: $('tsol-C') };
+  var wrappers = { a: $('tsol-w-a'), b: $('tsol-w-b'), c: $('tsol-w-c'), A: $('tsol-w-A'), B: $('tsol-w-B'), C: $('tsol-w-C') };
+  var STATUS = $('tsol-status');
+  var need = { sss: 'abc', sas: 'bcA', asa: 'cAB', aas: 'aAB', ssa: 'abA' };
+  function fmt(v, d) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    var p = Math.pow(10, d == null ? 4 : d), n = Math.round(v * p) / p;
+    if (Object.is(n, -0)) n = 0;
+    return String(n);
+  }
+  function setMode() {
+    var wanted = need[modeSel.value] || '';
+    for (var k in fields) {
+      var on = wanted.indexOf(k) !== -1;
+      wrappers[k].style.display = on ? '' : 'none';
+      fields[k].disabled = !on;
+      if (!on) fields[k].value = '';
+    }
+    var hint = { sss: 'Enter all three sides — the angles come out of the cosine rule.',
+      sas: 'A is the angle between sides b and c.',
+      asa: 'c is the side between angles A and B.',
+      aas: 'a is the side opposite angle A; B is your second angle.',
+      ssa: 'A is opposite side a, with side b known too — expect 0, 1 or 2 solutions.' }[modeSel.value];
+    STATUS.textContent = '';
+    var note = $('tsol-note-live');
+    if (note) note.textContent = hint;
+  }
+  function stat(label, value) {
+    var d = document.createElement('div'); d.className = 'tsol-stat';
+    var b = document.createElement('b'); b.textContent = value;
+    var s = document.createElement('span'); s.textContent = label;
+    d.appendChild(b); d.appendChild(s); return d;
+  }
+  function step(li, text) { var el = document.createElement('li'); el.textContent = text; li.appendChild(el); }
+  function complete(a, b, c, A, B, C) {
+    var s = (a + b + c) / 2;
+    var area = 0.5 * b * c * Math.sin(A * D2R);
+    var r = area / s;
+    var R = a / (2 * Math.sin(A * D2R));
+    var kind = (Math.abs(a - b) < 1e-9 && Math.abs(b - c) < 1e-9) ? 'Equilateral' :
+      (Math.abs(a - b) < 1e-9 || Math.abs(b - c) < 1e-9 || Math.abs(a - c) < 1e-9) ? 'Isosceles' : 'Scalene';
+    var biggest = Math.max(A, B, C);
+    var cls = Math.abs(biggest - 90) < 1e-7 ? 'Right-angled' : biggest > 90 ? 'Obtuse' : 'Acute';
+    return { a: a, b: b, c: c, A: A, B: B, C: C, s: s, area: area, r: r, R: R, kind: kind, cls: cls, peri: 2 * s };
+  }
+  function render(t, steps, warn) {
+    var result = $('tsol-result');
+    result.hidden = false;
+    var stats = $('tsol-stats');
+    while (stats.firstChild) stats.removeChild(stats.firstChild);
+    stats.appendChild(stat('side a', fmt(t.a))); stats.appendChild(stat('side b', fmt(t.b))); stats.appendChild(stat('side c', fmt(t.c)));
+    stats.appendChild(stat('angle A', fmt(t.A, 2) + '°')); stats.appendChild(stat('angle B', fmt(t.B, 2) + '°')); stats.appendChild(stat('angle C', fmt(t.C, 2) + '°'));
+    stats.appendChild(stat('area', fmt(t.area, 3))); stats.appendChild(stat('perimeter', fmt(t.peri, 3)));
+    stats.appendChild(stat('inradius r', fmt(t.r, 3))); stats.appendChild(stat('circumradius R', fmt(t.R, 3)));
+    stats.appendChild(stat('shape', t.kind)); stats.appendChild(stat('corner', t.cls));
+    var ol = $('tsol-steps');
+    while (ol.firstChild) ol.removeChild(ol.firstChild);
+    steps.forEach(function (tx) { step(ol, tx); });
+    var extra = $('tsol-extra');
+    while (extra.firstChild) extra.removeChild(extra.firstChild);
+    if (warn) { var w = document.createElement('div'); w.className = 'tsol-note'; w.textContent = warn; extra.appendChild(w); }
+    draw(t);
+  }
+  function draw(t) {
+    var svg = $('tsol-svg');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var NS = 'http://www.w3.org/2000/svg';
+    function put(tag, attrs, text) {
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (text != null) e.textContent = text;
+      svg.appendChild(e); return e;
+    }
+    var Axy = { x: 0, y: 0 };
+    var Bxy = { x: t.c, y: 0 };
+    var x = (t.b * t.b + t.c * t.c - t.a * t.a) / (2 * t.c);
+    var y2 = t.b * t.b - x * x;
+    var y = Math.sqrt(Math.max(0, y2));
+    var Cxy = { x: x, y: y };
+    var pts = [Axy, Bxy, Cxy];
+    var minX = Math.min(0, x), maxX = Math.max(t.c, x), minY = Math.min(0, y), maxY = Math.max(0, y);
+    var pad = 34, spanX = Math.max(1e-9, maxX - minX), spanY = Math.max(1e-9, maxY - minY);
+    var sc = Math.min((560 - 2 * pad) / spanX, (320 - 2 * pad) / spanY);
+    function P(p) { return { x: pad + (p.x - minX) * sc + (560 - 2 * pad - spanX * sc) / 2, y: 320 - (pad + (p.y - minY) * sc) - (320 - 2 * pad - spanY * sc) / 2 }; }
+    var a1 = P(Axy), b1 = P(Bxy), c1 = P(Cxy);
+    put('polygon', { points: a1.x + ',' + a1.y + ' ' + b1.x + ',' + b1.y + ' ' + c1.x + ',' + c1.y, fill: 'rgba(45,212,255,.10)', stroke: 'var(--accent,#2dd4ff)', 'stroke-width': 2 });
+    put('text', { x: (b1.x + c1.x) / 2, y: (b1.y + c1.y) / 2 - 8, fill: '#e6faff', 'font-size': 13, 'text-anchor': 'middle' }, 'a = ' + fmt(t.a, 2));
+    put('text', { x: (a1.x + c1.x) / 2 + 10, y: (a1.y + c1.y) / 2, fill: '#9fd8ff', 'font-size': 13, 'text-anchor': 'start' }, 'b = ' + fmt(t.b, 2));
+    put('text', { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 + 18, fill: '#9fd8ff', 'font-size': 13, 'text-anchor': 'middle' }, 'c = ' + fmt(t.c, 2));
+    [['A', a1, 14, 18], ['B', b1, -16, 18], ['C', c1, 0, -10]].forEach(function (lab) {
+      put('text', { x: lab[1].x + lab[2], y: lab[1].y + lab[3], fill: '#8ea3b5', 'font-size': 13, 'font-weight': 700, 'text-anchor': 'middle' }, lab[0]);
+    });
+    if (Math.abs(Math.max(t.A, t.B, t.C) - 90) < 1e-7) {
+      var rightAt = t.A === 90 ? a1 : t.B === 90 ? b1 : c1;
+      put('rect', { x: rightAt.x - 5, y: rightAt.y - 5, width: 10, height: 10, fill: 'none', stroke: '#e6faff', 'stroke-width': 1.5 });
+    }
+  }
+  function solve() {
+    var m = modeSel.value, want = need[m];
+    var v = {};
+    for (var i = 0; i < want.length; i++) {
+      var k = want[i], raw = fields[k].value.trim();
+      if (raw === '') { STATUS.textContent = 'Fill in ' + k + ' (or switch the “known parts” mode).'; $('tsol-result').hidden = true; return; }
+      var num = parseFloat(raw);
+      if (!isFinite(num) || (k >= 'a' && k <= 'c' && num <= 0) || (k >= 'A' && k <= 'C' && (num <= 0 || num >= 180))) {
+        STATUS.textContent = (k >= 'a' && k <= 'c') ? 'Side ' + k + ' must be a positive number.' : 'Angle ' + k + ' must be between 0 and 180°.';
+        $('tsol-result').hidden = true; return;
+      }
+      v[k] = num;
+    }
+    STATUS.textContent = '';
+    var steps = [];
+    try {
+      if (m === 'sss') {
+        var a = v.a, b = v.b, c = v.c;
+        if (a + b <= c || a + c <= b || b + c <= a) {
+          STATUS.textContent = 'No triangle with sides ' + fmt(a) + ', ' + fmt(b) + ', ' + fmt(c) + ' — one side is at least as long as the other two (triangle inequality).';
+          $('tsol-result').hidden = true; return;
+        }
+        var A = Math.acos((b * b + c * c - a * a) / (2 * b * c)) / D2R;
+        var B = Math.acos((a * a + c * c - b * b) / (2 * a * c)) / D2R;
+        var C = 180 - A - B;
+        steps.push('Cosine rule: cos A = (b² + c² − a²) / 2bc = (' + fmt(b * b, 2) + ' + ' + fmt(c * c, 2) + ' − ' + fmt(a * a, 2) + ') / ' + fmt(2 * b * c, 2) + ' → A = ' + fmt(A, 2) + '°');
+        steps.push('Same again for B: cos B = (a² + c² − b²) / 2ac → B = ' + fmt(B, 2) + '°');
+        steps.push('Angle sum: C = 180° − A − B = ' + fmt(C, 2) + '°');
+        steps.push('Area from ½·b·c·sin A = ½ × ' + fmt(b) + ' × ' + fmt(c) + ' × ' + fmt(Math.sin(A * D2R), 4) + ' = ' + fmt(0.5 * b * c * Math.sin(A * D2R), 4));
+        render(complete(a, b, c, A, B, C), steps);
+        return;
+      }
+      if (m === 'sas') {
+        var a2 = Math.sqrt(v.b * v.b + v.c * v.c - 2 * v.b * v.c * Math.cos(v.A * D2R));
+        steps.push('Cosine rule: a² = b² + c² − 2bc·cos A → a = √(' + fmt(v.b * v.b, 2) + ' + ' + fmt(v.c * v.c, 2) + ' − ' + fmt(2 * v.b * v.c * Math.cos(v.A * D2R), 2) + ') = ' + fmt(a2, 4));
+        var cosB = (a2 * a2 + v.c * v.c - v.b * v.b) / (2 * a2 * v.c);
+        var B2 = Math.acos(Math.min(1, Math.max(-1, cosB))) / D2R;
+        var C2 = 180 - v.A - B2;
+        if (C2 <= 0) { STATUS.textContent = 'Those parts cannot form a triangle (angles exceed 180°).'; $('tsol-result').hidden = true; return; }
+        var c2 = a2 * Math.sin(C2 * D2R) / Math.sin(v.A * D2R);
+        steps.push('Cosine rule again: cos B = (a² + c² − b²) / 2ac → B = ' + fmt(B2, 2) + '° (safer than arcsin — no ambiguous mirror angle)');
+        steps.push('Angle sum: C = 180° − A − B = ' + fmt(C2, 2) + '°; then sine rule gives c = a·sin C / sin A = ' + fmt(c2, 4));
+        render(complete(a2, v.b, c2, v.A, B2, C2), steps);
+        return;
+      }
+      if (m === 'asa' || m === 'aas') {
+        var A3 = v.A, B3 = v.B, C3 = 180 - A3 - B3;
+        if (C3 <= 0) { STATUS.textContent = 'A + B is already 180° or more — no triangle fits.'; $('tsol-result').hidden = true; return; }
+        steps.push('Angle sum: C = 180° − ' + fmt(A3, 2) + '° − ' + fmt(B3, 2) + '° = ' + fmt(C3, 2) + '°');
+        var known, knownOpp;
+        if (m === 'asa') { known = v.c; knownOpp = Math.sin(C3 * D2R); steps.push('Side c is opposite C; sine rule scales everything by c / sin C.'); }
+        else { known = v.a; knownOpp = Math.sin(A3 * D2R); steps.push('Side a is opposite A; sine rule scales everything by a / sin A.'); }
+        var k = known / knownOpp;
+        var a3 = k * Math.sin(A3 * D2R), b3 = k * Math.sin(B3 * D2R), c3 = k * Math.sin(C3 * D2R);
+        steps.push('Sine rule: a = k·sin A, b = k·sin B, c = k·sin C with k = ' + fmt(k, 4));
+        render(complete(a3, b3, c3, A3, B3, C3), steps);
+        return;
+      }
+      if (m === 'ssa') {
+        var a4 = v.a, b4 = v.b, A4 = v.A;
+        var h = b4 * Math.sin(A4 * D2R);
+        var sinB4 = b4 * Math.sin(A4 * D2R) / a4;
+        steps.push('Perpendicular height h = b·sin A = ' + fmt(h, 4));
+        steps.push('Sine rule: sin B = b·sin A / a = ' + fmt(sinB4, 6));
+        if (a4 < h - 1e-12) {
+          STATUS.textContent = 'No triangle: a = ' + fmt(a4) + ' is shorter than the perpendicular h = b·sin A = ' + fmt(h, 4) + ' — side a never reaches the base line.';
+          $('tsol-result').hidden = true; return;
+        }
+        var B4 = Math.asin(Math.min(1, Math.max(-1, sinB4))) / D2R;
+        var alt = 180 - B4;
+        var hasAlt = a4 < b4 && Math.abs(B4 - 90) > 1e-9 && alt + A4 < 180 - 1e-12;
+        var C4 = 180 - A4 - B4;
+        var c4 = a4 * Math.sin(C4 * D2R) / Math.sin(A4 * D2R);
+        steps.push('B = arcsin(' + fmt(sinB4, 4) + ') = ' + fmt(B4, 2) + '° → C = ' + fmt(C4, 2) + '°, c = ' + fmt(c4, 4));
+        render(complete(a4, b4, c4, A4, B4, C4), steps, hasAlt ? 'A second triangle also fits: B′ = 180° − B = ' + fmt(alt, 2) + '° gives C′ = ' + fmt(180 - A4 - alt, 2) + '° and c′ = ' + fmt(a4 * Math.sin((180 - A4 - alt) * D2R) / Math.sin(A4 * D2R), 4) + '. The drawing shows the acute-B solution.' : null);
+        return;
+      }
+    } catch (e) {
+      STATUS.textContent = 'Could not solve those parts: ' + e.message;
+      $('tsol-result').hidden = true;
+    }
+  }
+  modeSel.addEventListener('change', setMode);
+  $('tsol-solve').addEventListener('click', solve);
+  var note = document.createElement('div');
+  note.className = 'tsol-muted'; note.id = 'tsol-note-live'; note.setAttribute('role', 'status');
+  root.insertBefore(note, $('tsol-inputs'));
+  setMode();
+})();
+</script>
+</section>

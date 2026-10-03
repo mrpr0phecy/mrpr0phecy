@@ -1,0 +1,268 @@
+<section id="moving-average-forecaster-root" aria-labelledby="moving-average-forecaster-title">
+<style>
+#moving-average-forecaster-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#moving-average-forecaster-root *{box-sizing:border-box}
+#moving-average-forecaster-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#moving-average-forecaster-root h3{margin:14px 0 6px;font-size:.93rem;color:var(--accent,#2dd4ff)}
+#moving-average-forecaster-root .mavg-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#moving-average-forecaster-root .mavg-cols{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(300px,1.4fr);gap:14px}
+@media (max-width:780px){#moving-average-forecaster-root .mavg-cols{grid-template-columns:1fr}}
+#moving-average-forecaster-root label{display:block;font-size:.72rem;font-weight:600;margin-bottom:3px}
+#moving-average-forecaster-root input,#moving-average-forecaster-root select,#moving-average-forecaster-root textarea{padding:6px;border:1px solid rgba(148,180,199,.35);border-radius:7px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.85rem;min-width:0;width:100%}
+#moving-average-forecaster-root textarea{font-family:ui-monospace,Menlo,Consolas,monospace;min-height:130px;resize:vertical;line-height:1.4}
+#moving-average-forecaster-root input:focus-visible,#moving-average-forecaster-root select:focus-visible,#moving-average-forecaster-root textarea:focus-visible,#moving-average-forecaster-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#moving-average-forecaster-root button{min-height:34px;padding:6px 12px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+#moving-average-forecaster-root button:hover{background:rgba(45,212,255,.2)}
+#moving-average-forecaster-root .mavg-opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:6px 0}
+#moving-average-forecaster-root .mavg-status{min-height:1.35em;font-size:.82rem;color:#ffe3a1;margin:6px 0}
+#moving-average-forecaster-root svg{display:block;width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin:6px 0}
+#moving-average-forecaster-root .mavg-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.76rem;color:var(--text-secondary,rgba(230,250,255,.68));margin-bottom:6px}
+#moving-average-forecaster-root .mavg-legend span{display:inline-flex;align-items:center;gap:5px}
+#moving-average-forecaster-root .mavg-key{width:14px;height:4px;border-radius:2px;display:inline-block}
+#moving-average-forecaster-root table{border-collapse:collapse;width:100%;font-size:.8rem;margin:6px 0}
+#moving-average-forecaster-root th,#moving-average-forecaster-root td{padding:4px 8px;border-bottom:1px solid rgba(148,180,199,.14);text-align:right;font-family:ui-monospace,Menlo,Consolas,monospace}
+#moving-average-forecaster-root th:first-child,#moving-average-forecaster-root td:first-child{text-align:left}
+#moving-average-forecaster-root th{color:var(--accent,#2dd4ff)}
+#moving-average-forecaster-root .mavg-best td{background:rgba(96,226,160,.1);color:#a9f0c0;font-weight:700}
+#moving-average-forecaster-root .mavg-presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#moving-average-forecaster-root .mavg-presets button{font-size:.74rem;min-height:30px;padding:4px 9px}
+</style>
+<h2 id="moving-average-forecaster-title">📊 Moving Average Forecaster — Smooth, Backtest, Step Forward</h2>
+<p id="moving-average-forecaster-desc" class="desc">Paste any ordered series — sales, signups, call volumes, temperatures — and every average you can pick (simple, exponential, weighted) is scored against the data's own history before it dares to predict. The drift forecast comes with error bands sized from the backtest, so you see exactly how much the “forecast” is worth.</p>
+<div class="mavg-cols">
+<div>
+<h3>Series</h3>
+<textarea id="mavg-data" spellcheck="false" aria-label="one value per line, optional label and comma" >Jan, 96
+Feb, 99
+Mar, 104
+Apr, 102
+May, 108
+Jun, 111
+Jul, 109
+Aug, 115
+Sep, 118
+Oct, 121
+Nov, 126
+Dec, 133</textarea>
+<div class="mavg-presets">
+<button type="button" data-p="sales">steady growth</button>
+<button type="button" data-p="temps">seasonal temps</button>
+<button type="button" data-p="noisy">noisy ops</button>
+</div>
+<div class="mavg-opts">
+<div><label for="mavg-model">model</label>
+<select id="mavg-model"><option value="sma">SMA</option><option value="ema">EMA</option><option value="wma">WMA</option></select></div>
+<div><label for="mavg-window">window</label><input type="number" id="mavg-window" min="2" max="36" value="3"></div>
+<div><label for="mavg-horizon">forecast steps</label><input type="number" id="mavg-horizon" min="1" max="12" value="3"></div>
+</div>
+<button type="button" id="mavg-go" style="width:100%">Fit &amp; forecast</button>
+<div class="mavg-status" id="mavg-status" role="status" aria-live="polite">Ready — 12 points loaded.</div>
+<p class="mavg-muted">Rows may be “value” or “label, value”. Lines starting with # are ignored.</p>
+</div>
+<div>
+<svg id="mavg-chart" viewBox="0 0 620 260" role="img" aria-label="history, moving average and forecast chart"></svg>
+<div class="mavg-legend">
+<span><i class="mavg-key" style="background:#63d3ff"></i>history</span>
+<span><i class="mavg-key" style="background:#60e2a0"></i>moving average</span>
+<span><i class="mavg-key" style="background:#ffd666"></i>drift forecast</span>
+<span><i class="mavg-key" style="background:rgba(255,214,102,.25)"></i>backtest-sized band</span>
+</div>
+<table aria-label="forecast table">
+<thead><tr><th>step</th><th>forecast</th><th>low</th><th>high</th></tr></thead>
+<tbody id="mavg-ftb"></tbody>
+</table>
+<table aria-label="backtest comparison">
+<thead><tr><th>method</th><th>MAPE</th><th>mean abs err</th><th>lag</th></tr></thead>
+<tbody id="mavg-btb"></tbody>
+</table>
+<p class="mavg-muted" id="mavg-story"></p>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+var root=document.getElementById('moving-average-forecaster-root');
+if(!root)return;
+function $(id){return root.querySelector('#'+id)}
+var NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+function fmt(v,d){if(!isFinite(v))return '—';var p=d===undefined?2:d;return v.toFixed(p).replace(/\.?0+$/,'')}
+var PRESETS={
+ sales:{text:'Jan, 96\nFeb, 99\nMar, 104\nApr, 102\nMay, 108\nJun, 111\nJul, 109\nAug, 115\nSep, 118\nOct, 121\nNov, 126\nDec, 133',w:3},
+ temps:{text:'m1 4.2\nm2 4.6\nm3 7.8\nm4 10.6\nm5 13.9\nm6 16.8\nm7 18.7\nm8 18.2\nm9 15.1\nm10 11.3\nm11 7.1\nm12 4.8\nm13 4.4\nm14 5.1\nm15 7.5\nm16 11.2\nm17 14.6\nm18 16.1\nm19 19.2\nm20 17.9\nm21 15.6\nm22 11.8\nm23 6.9\nm24 5.2',w:12},
+ noisy:{text:'41\n47\n39\n52\n44\n58\n49\n61\n55\n66\n57\n72\n63\n78\n69\n81\n74\n88\n79\n93',w:4}
+};
+root.querySelectorAll('.mavg-presets button').forEach(function(b){
+  b.addEventListener('click',function(){
+    var p=PRESETS[b.getAttribute('data-p')];if(!p)return;
+    $('mavg-data').value=p.text;
+    $('mavg-window').value=p.w;
+    solve();
+  });
+});
+function parseSeries(){
+  var labels=[],vals=[];
+  $('mavg-data').value.split(/\n+/).forEach(function(line){
+    line=line.trim();
+    if(!line||line[0]==='#')return;
+    var toks=line.split(/[,\t;]+|\s+/).filter(Boolean);
+    var lastV=parseFloat(toks[toks.length-1]);
+    if(!isFinite(lastV))throw new Error('row “'+line+'” does not end in a number');
+    if(toks.length===1){labels.push(''+(vals.length+1))}
+    else labels.push(toks.slice(0,-1).join(' '));
+    vals.push(lastV);
+  });
+  if(vals.length<4)throw new Error('give me at least 4 numeric rows');
+  if(vals.some(function(v){return !isFinite(v)}))throw new Error('a row is not a number');
+  return {labels:labels,y:vals};
+}
+function sma(y,w){
+  var out=new Array(y.length).fill(NaN);
+  for(var t=w-1;t<y.length;t++){var s=0;for(var k=0;k<w;k++)s+=y[t-k];out[t]=s/w}
+  return out;
+}
+function wma(y,w){
+  var out=new Array(y.length).fill(NaN);
+  var norm=w*(w+1)/2;
+  for(var t=w-1;t<y.length;t++){var s=0;for(var k=0;k<w;k++)s+=y[t-k]*(k+1);out[t]=s/norm}
+  return out;
+}
+function ema(y,w){
+  var a=2/(w+1),out=[y[0]];
+  for(var t=1;t<y.length;t++)out.push(a*y[t]+(1-a)*out[t-1]);
+  return out;
+}
+function solve(){
+  var status=$('mavg-status');
+  var S;
+  try{S=parseSeries()}catch(e){status.textContent=e.message.charAt(0).toUpperCase()+e.message.slice(1);return}
+  var y=S.y,n=y.length;
+  var model=$('mavg-model').value;
+  var w=parseInt($('mavg-window').value,10);
+  if(!isFinite(w)||w<2){status.textContent='Window must be at least 2.';return}
+  if(w>=n-1){status.textContent='Window '+w+' is too big for '+n+' points — need at least '+(w+2)+' rows or a smaller window.';return}
+  var h=Math.max(1,Math.min(12,parseInt($('mavg-horizon').value,10)||1));
+  var ma=model==='sma'?sma(y,w):model==='wma'?wma(y,w):ema(y,w);
+  var maName=model==='sma'?'SMA('+w+')':model==='wma'?'WMA('+w+')':'EMA(α='+(2/(w+1)).toFixed(3)+')';
+  var startIdx=model==='ema'?1:w-1;
+  var errs=[],ape=[];
+  for(var t=startIdx;t<n-1;t++){
+    var e=y[t+1]-ma[t];
+    errs.push(e);
+    if(Math.abs(y[t+1])>1e-9)ape.push(Math.abs(e/y[t+1]));
+  }
+  function score(pred){
+    var es=[],aps=[];
+    for(var i=0;i<pred.length;i++){var pr=pred[i].v,tr=pred[i].y;es.push(tr-pr);if(Math.abs(tr)>1e-9)aps.push(Math.abs((tr-pr)/tr))}
+    var mae=es.reduce(function(a,b){return a+Math.abs(b)},0)/(es.length||1);
+    var mape=aps.length?aps.reduce(function(a,b){return a+b},0)/aps.length*100:NaN;
+    return {mae:mae,mape:mape};
+  }
+  var driftSlope=function(series,from,idx){
+    var xs=[],ys=[];
+    for(var i=Math.max(from,idx-w+1);i<=idx;i++){if(isFinite(series[i])){xs.push(i);ys.push(series[i])}}
+    if(xs.length<2)return 0;
+    var mx=xs.reduce(function(a,b){return a+b},0)/xs.length,my=ys.reduce(function(a,b){return a+b},0)/ys.length;
+    var num=0,den=0;
+    for(i=0;i<xs.length;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)*(xs[i]-mx)}
+    return den>0?num/den:0;
+  }(ma,startIdx,n-1);
+  var base=isFinite(ma[n-1])?ma[n-1]:y[n-1];
+  var fc=[];
+  for(var k2=1;k2<=h;k2++)fc.push(base+driftSlope*k2);
+  var mean=errs.reduce(function(a,b){return a+b},0)/(errs.length||1);
+  var sd=Math.sqrt(errs.reduce(function(a,b){return a+(b-mean)*(b-mean)},0)/(errs.length||1));
+  var rows=[
+    {name:maName+' → step',mape:ape.length?ape.reduce(function(a,b){return a+b},0)/ape.length*100:NaN,mae:errs.reduce(function(a,b){return a+Math.abs(b)},0)/(errs.length||1),lag:(model==='ema'?'—':(w-1)+' pts'),pred:ma},
+    {name:'naive (last value)',mape:score(y.slice(1,n-1).map(function(v,i){return {v:y[i],y:v}})).mape,mae:score(y.slice(1,n-1).map(function(v,i){return {v:y[i],y:v}})).mae,lag:'0 pts'}
+  ];
+  var driftPred=[];
+  for(t=startIdx;t<n-1;t++)driftPred.push({v:ma[t]+driftSlope,y:y[t+1]});
+  var ds=driftPred.length?score(driftPred):{mape:NaN,mae:NaN};
+  rows.push({name:maName+' + drift',mape:ds.mape,mae:ds.mae,lag:(model==='ema'?'—':(w-1)+' pts')});
+  var bestK=0,bestV=Infinity;
+  rows.forEach(function(r,i){if(isFinite(r.mape)&&r.mape<bestV){bestV=r.mape;bestK=i}});
+  var btb=$('mavg-btb');btb.replaceChildren();
+  rows.forEach(function(r,i){
+    var tr=document.createElement('tr');
+    if(i===bestK)tr.className='mavg-best';
+    var c0=document.createElement('td');c0.textContent=r.name+(i===bestK?' ★':'');
+    var c1=document.createElement('td');c1.textContent=isFinite(r.mape)?fmt(r.mape,2)+'%':'—';
+    var c2=document.createElement('td');c2.textContent=fmt(r.mae,3);
+    var c3=document.createElement('td');c3.textContent=r.lag;
+    [c0,c1,c2,c3].forEach(function(c){tr.appendChild(c)});
+    btb.appendChild(tr);
+  });
+  var ftb=$('mavg-ftb');ftb.replaceChildren();
+  for(k2=1;k2<=h;k2++){
+    var band=1.28*sd*Math.sqrt(k2);
+    var tr=document.createElement('tr');
+    var c0=document.createElement('td');c0.textContent='+'+k2;
+    var c1=document.createElement('td');c1.textContent=fmt(fc[k2-1],2);
+    var c2=document.createElement('td');c2.textContent=fmt(fc[k2-1]-band,2);
+    var c3=document.createElement('td');c3.textContent=fmt(fc[k2-1]+band,2);
+    [c0,c1,c2,c3].forEach(function(c){tr.appendChild(c)});
+    ftb.appendChild(tr);
+  }
+  drawChart(S.labels,y,ma,fc,sd,n,h);
+  var story='';
+  if(model==='ema'){story='EMA reacts fastest (weight 2/(w+1) on the newest point) — its “lag” row is dash because every index has a value.'}
+  else story='SMA/WMA lag the trend by roughly (w−1)/2 points — the ★ method trades a worse one-step error for a smoother line; check both against a naive forecast before trusting either.';
+  var seas=noteSeasonality(y);
+  $('mavg-story').textContent=story+(seas?' '+seas:'');
+  status.textContent=n+' points · '+maName+' · backtest over '+(n-1-startIdx)+' steps · σ(err) '+fmt(sd,3);
+}
+function noteSeasonality(y){
+  var d=y.map(function(v,i){return i? v-y[i-1]:0}).slice(1);
+  var flips=0;
+  for(var i=1;i<d.length;i++)if(d[i]*d[i-1]<0)flips++;
+  var rate=flips/(d.length-1||1);
+  if(rate>0.6)return 'Sign of the period-to-period change flips on '+Math.round(rate*100)+'% of steps — that smells like seasonality; a plain moving average will just chase the wave.';
+  return '';
+}
+function drawChart(labels,y,ma,fc,sd,n,h){
+  var svg=$('mavg-chart');while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var W=620,H=260,P={l:46,r:12,t:12,b:26};
+  var total=n+h-1;
+  var yvs=[];
+  y.forEach(function(v){yvs.push(v)});
+  ma.forEach(function(v){if(isFinite(v))yvs.push(v)});
+  fc.forEach(function(v,i){yvs.push(v+1.28*sd*Math.sqrt(i+1),v-1.28*sd*Math.sqrt(i+1))});
+  var y0=Math.min.apply(null,yvs),y1=Math.max.apply(null,yvs);
+  if(y0===y1){y0-=1;y1+=1}
+  var pad=(y1-y0)*.08;y0-=pad;y1+=pad;
+  var X=function(t){return P.l+(total? t/total:0)*(W-P.l-P.r)};
+  var Y=function(v){return H-P.b-(v-y0)/(y1-y0)*(H-P.t-P.b)};
+  for(var g=0;g<=4;g++){
+    var v=y0+(y1-y0)*g/4;
+    el('line',{x1:P.l,y1:fmt1(Y(v)),x2:W-P.r,y2:fmt1(Y(v)),stroke:'rgba(148,180,199,.14)'},svg);
+    var tx=el('text',{x:P.l-5,y:fmt1(Y(v))+3,'text-anchor':'end','font-size':10,fill:'rgba(230,250,255,.6)'},svg);
+    tx.textContent=fmt(v,1);
+  }
+  if(n<total)el('line',{x1:fmt1(X(n-1)),y1:P.t,x2:fmt1(X(n-1)),y2:H-P.b,stroke:'rgba(255,214,102,.4)','stroke-dasharray':'3 4'},svg);
+  var poly='';
+  fc.forEach(function(v,i){poly+=(poly?' ':'')+fmt1(X(n-1+i+1))+','+fmt1(Y(v+1.28*sd*Math.sqrt(i+1)))});
+  for(i=fc.length-1;i>=0;i--)poly+=' '+fmt1(X(n-1+i+1))+','+fmt1(Y(fc[i]-1.28*sd*Math.sqrt(i+1)));
+  if(fc.length)el('polygon',{points:poly,fill:'rgba(255,214,102,.16)',stroke:'none'},svg);
+  var hist='';
+  y.forEach(function(v,i){hist+=(hist?' ':'')+fmt1(X(i))+','+fmt1(Y(v))});
+  el('polyline',{points:hist,fill:'none',stroke:'#63d3ff','stroke-width':2},svg);
+  var mas='';
+  ma.forEach(function(v,i){if(isFinite(v))mas+=(mas?' ':'')+fmt1(X(i))+','+fmt1(Y(v))});
+  el('polyline',{points:mas,fill:'none',stroke:'#60e2a0','stroke-width':1.8},svg);
+  if(fc.length){
+    var fpath=fmt1(X(n-1))+','+fmt1(Y(ma[n-1]))+' '+fc.map(function(v,i){return fmt1(X(n-1+i+1))+','+fmt1(Y(v))}).join(' ');
+    el('polyline',{points:fpath,fill:'none',stroke:'#ffd666','stroke-width':2,'stroke-dasharray':'6 4'},svg);
+  }
+  var lt=el('text',{x:P.l,y:H-6,'font-size':10,fill:'rgba(230,250,255,.55)'},svg);
+  lt.textContent=labels[0]||'1';
+  var rt=el('text',{x:W-P.r,y:H-6,'font-size':10,fill:'rgba(255,214,102,.8)','text-anchor':'end'},svg);
+  rt.textContent=(labels[n-1]||n)+' +'+h+' forecast';
+  function fmt1(v){return Math.round(v*10)/10}
+}
+$('mavg-go').addEventListener('click',solve);
+['mavg-model','mavg-window','mavg-horizon'].forEach(function(id){$(id).addEventListener('change',solve)});
+solve();
+})();
+</script>
+</section>
