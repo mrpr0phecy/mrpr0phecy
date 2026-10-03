@@ -97,8 +97,8 @@ function runChunk(cards, { verbose = true } = {}) {
       // 1,250-card sweep is worth reading only if its FAIL count is defects.
       const notes = new Map();
       for (const line of out.split('\n')) {
-        const m = /^\s+(ok|FAIL|LEAK)\s+(cards\/\S+\.html)/.exec(line);
-        if (m) verdicts.set(m[2], m[1]);
+        const m = /^\s+(ok|FAIL|LEAK)\s+(cards\/[^\s:]+\.html)/.exec(line);
+        if (m && (m[1] !== 'ok' || !verdicts.has(m[2]))) verdicts.set(m[2], m[1]);
         const n = /^\s+note\s+(cards\/\S+\.html):\s*(.+)$/.exec(line);
         if (n) notes.set(n[1], [...(notes.get(n[1]) || []), n[2]]);
       }

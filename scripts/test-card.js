@@ -153,7 +153,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith(
 }
 
 let fails = 0;
-function fail(file, msg) { fails += 1; console.log(`  FAIL ${file}: ${msg}`); }
+const failedCards = new Set();
+function fail(file, msg) { fails += 1; failedCards.add(file); console.log(`  FAIL ${file}: ${msg}`); }
 function note(file, msg) { console.log(`  note ${file}: ${msg}`); }
 
 const shellHtml = `<!doctype html><html><head><meta charset="utf-8">
@@ -1266,7 +1267,7 @@ process.on('unhandledRejection', reason => {
 
     if (mountedErrors.length) {
       mountedErrors.slice(0, 6).forEach(e => fail(card.rel, e));
-    } else if (!leftBehind.length) {
+    } else if (!leftBehind.length && !failedCards.has(card.rel)) {
       console.log(`  ok   ${card.rel}`);
     }
     // A card that survived mounting and then broke on its own second
