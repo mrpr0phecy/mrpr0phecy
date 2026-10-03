@@ -47,7 +47,7 @@
                     <label for="sp-primary-color">Primary Color</label>
                     <div class="color-input">
                         <input type="color" id="sp-primary-color" value="#2dd4ff">
-                        <input type="text" id="sp-primary-hex" value="#2DD4FF">
+                        <input type="text" id="sp-primary-hex" aria-label="Primary Color Hex" value="#2DD4FF">
                     </div>
                 </div>
                 
@@ -55,7 +55,7 @@
                     <label for="sp-secondary-color">Secondary Color</label>
                     <div class="color-input">
                         <input type="color" id="sp-secondary-color" value="#6366f1">
-                        <input type="text" id="sp-secondary-hex" value="#6366F1">
+                        <input type="text" id="sp-secondary-hex" aria-label="Secondary Color Hex" value="#6366F1">
                     </div>
                 </div>
                 
@@ -183,7 +183,7 @@
         </div>
         
         <div class="meta-code-container">
-            <textarea id="sp-meta-code" readonly></textarea>
+            <textarea id="sp-meta-code" aria-label="Generated HTML Meta Tags" readonly></textarea>
             <button id="copy-meta" class="copy-btn">Copy</button>
         </div>
     </div>
@@ -992,9 +992,11 @@ function initPlatformGrid() {
 // can open another tool in the middle of it. Every use of the DOM after an
 // await is checked, because tool.html has cleared the card by then.
 function spCardGone() { return !document.getElementById('platform-grid'); }
+let spBatchRunToken = 0;
 
 async function generateAllPlatforms() {
     if (spCardGone()) return;
+    const myRun = ++spBatchRunToken;
     const checked = Array.from(document.querySelectorAll('#platform-grid input:checked'))
         .map(input => input.value);
     
@@ -1010,7 +1012,13 @@ async function generateAllPlatforms() {
     grid.innerHTML = '';
     
     for (const platform of checked) {
+        if (spCardGone() || myRun !== spBatchRunToken) return;
         const info = SP_CONFIG.platforms[platform];
+        const prevExisting = grid.querySelector(`#batch-${platform}`);
+        if (prevExisting) {
+            const wrap = prevExisting.closest('.batch-preview');
+            if (wrap) wrap.remove(); else prevExisting.remove();
+        }
         
         // Create preview container
         const preview = document.createElement('div');
@@ -1026,7 +1034,7 @@ async function generateAllPlatforms() {
         
         // Small delay
         await new Promise(resolve => setTimeout(resolve, 100));
-        if (spCardGone()) return;   // the visitor left while we were waiting
+        if (spCardGone() || myRun !== spBatchRunToken) return;   // the visitor left or restarted while we were waiting
     }
     
     document.getElementById('batch-results').style.display = 'block';
