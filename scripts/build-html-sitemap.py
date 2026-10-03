@@ -240,6 +240,10 @@ def build() -> tuple[str, list[str]]:
 
     hero = re.sub(r"(Sitemap · \d+ top-level pages · )\d+( tools)", rf"\g<1>{total}\g<2>", hero)
     head = re.sub(r"\d+( free tools, \d+ top-level pages)", rf"{total}\g<1>", head)
+    # This page is a site-wide directory, so its curated lists can describe
+    # both products. Its footer, however, belongs to the catalogue and must not
+    # promote the separate music product.
+    footer = re.sub(r'·<a href="listen\.html">Music</a>', "", footer)
     footer = (
         footer_before
         + re.sub(r"All \d+ tools", f"All {total} tools", footer)

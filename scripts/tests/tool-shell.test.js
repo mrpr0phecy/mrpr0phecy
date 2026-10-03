@@ -46,6 +46,14 @@ assert(/body\.embed-mode \.top-nav[\s\S]*display: none !important/.test(html),
   'embed-mode CSS does not hide the page chrome');
 assert(/viewport-fit=cover/.test(html) && /100dvh/.test(html) && /safe-area-inset-top/.test(html),
   'the tool shell must clear the iPhone notch and use dynamic viewport height');
+assert(/<body>\s*<a class="skip-link" href="#main-content">Skip to main content/.test(html),
+  'keyboard visitors need a first-tab skip link on the shared tool shell');
+assert(/<main id="main-content" class="main-wrapper" tabindex="-1">/.test(html),
+  'the skip link must land on the main landmark and focus it');
+assert(/\.skip-link:focus-visible[\s\S]*?transform: translateY\(0\)/.test(html),
+  'the skip link must become visible when keyboard-focused');
+assert(/body\.embed-mode \.skip-link[\s\S]*?display: none !important/.test(html),
+  'chrome-free embeds must not gain an unnecessary skip-link stop');
 assert(/__mp_recent/.test(html),
   'opening a tool remembers it so the home page can offer Continue');
 // The loader watchdog: every fetch in init() is bounded by fetchWithTimeout,

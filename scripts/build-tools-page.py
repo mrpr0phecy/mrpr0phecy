@@ -233,9 +233,12 @@ def build() -> str:
     head = re.sub(
         r'("numberOfItems":\s*)\d+', rf"\g<1>{total}", head
     )
+    # This is a Product A index. The footer is retained from its shell for
+    # design, but must not become a cross-promotion path into Product B.
+    footer_body = re.sub(r'·<a href="listen\.html">Music</a>', "", _footer)
     footer = (
         footer_before
-        + re.sub(r"All \d+ tools", f"All {total} tools", _footer)
+        + re.sub(r"All \d+ tools", f"All {total} tools", footer_body)
         + tail
     )
 

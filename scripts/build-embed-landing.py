@@ -335,7 +335,7 @@ gtag('js',new Date());gtag('config','G-G058FVW6Z2');</script>
 </main>
 
 <footer><div class="wrap">
-<p><a href="index.html">All {total} tools</a>·<a href="embed.html">Embed any tool</a>·<a href="changelog.html">Changelog</a>·<a href="about.html">About</a>·<a href="help.html">Help</a>·<a href="donate.html">Donate</a>·<a href="sponsor.html">Sponsor</a>·<a href="listen.html">Music</a></p>
+<p><a href="index.html">All {total} tools</a>·<a href="embed.html">Embed any tool</a>·<a href="changelog.html">Changelog</a>·<a href="about.html">About</a>·<a href="help.html">Help</a>·<a href="donate.html">Donate</a>·<a href="sponsor.html">Sponsor</a></p>
 <p class="foot-note">Traffic on this landing page is measured with Google Analytics. The embedded calculators themselves record nothing — there is no sign-up, no paywall and no input anywhere in them that reaches us. Everything runs in your browser.</p>
 </div></footer>
 </body></html>

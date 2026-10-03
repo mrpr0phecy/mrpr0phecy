@@ -440,7 +440,7 @@ ${otherCategoriesHtml}
 
   <footer>
     <div class="container">
-      <p><a href="../index.html">All ${totalSiteTools} tools</a> · <a href="../about.html">About</a> · <a href="../press.html">Press</a> · <a href="../tools.html">Index</a> · <a href="../popular.html">Popular</a> · <a href="../new.html">New</a> · <a href="../use-case.html">Use case</a> · <a href="../help.html">Help</a> · <a href="../changelog.html">Changelog</a> · <a href="../embed.html">Embed</a> · <a href="../sitemap.html">Sitemap</a> · <a href="../blog/">Blog</a> · <a href="../donate.html">Donate</a> · <a href="../sponsor.html">Sponsor</a> · <a href="../listen.html">Music</a></p>
+      <p><a href="../index.html">All ${totalSiteTools} tools</a> · <a href="../about.html">About</a> · <a href="../press.html">Press</a> · <a href="../tools.html">Index</a> · <a href="../popular.html">Popular</a> · <a href="../new.html">New</a> · <a href="../use-case.html">Use case</a> · <a href="../help.html">Help</a> · <a href="../changelog.html">Changelog</a> · <a href="../embed.html">Embed</a> · <a href="../sitemap.html">Sitemap</a> · <a href="../blog/">Blog</a> · <a href="../donate.html">Donate</a> · <a href="../sponsor.html">Sponsor</a></p>
       <p style="font-size:0.78rem;opacity:0.7;">Free client-side browser tools. No tracking, no paywalls, no login required.</p>
     </div>
   </footer>
