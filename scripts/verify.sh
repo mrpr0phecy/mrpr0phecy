@@ -322,11 +322,11 @@ deep_generated() {
 }
 
 deep_tests() {
-  # An explicit glob, not `node --test scripts/tests/`: Node treats a bare
-  # directory argument as a module to load and dies with MODULE_NOT_FOUND.
+  # Use the same preflighted entry point as local contributors. The harness
+  # dependency stays in /tmp/tenv rather than becoming a repo dependency.
   expect "the product test suite passes (homepage, loader, tool shell, QR, monitor)" \
          "product regression — read the failing test above" \
-         bash -c 'node --test scripts/tests/*.test.js' 
+         npm test
 }
 
 deep_floors() {

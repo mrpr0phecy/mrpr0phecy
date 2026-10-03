@@ -184,7 +184,7 @@ drift. Everything below the fold is `[data-explore="json"]`, an empty container.
 | file | size | when |
 |---|---|---|
 | `home.css` | about 49 KB | first paint — render-blocking on purpose |
-| `home-deferred.css` | about 9 KB | containers hidden at first paint; applied after it (13 KB gzip for the pair) |
+| `home-deferred.css` | about 7.5 KB | containers hidden at first paint; applied after it (13 KB gzip for the pair) |
 | `explore.css` | about 27 KB | the list layer, shared with four other page types |
 | `explore.js` | about 62 KB | list engine: fetch, filter, sort, reveal, keyboard, URL state |
 | `toolbox.js` | about 33 KB | saved list, ＋ buttons, panel; lite-tier fetch on intent |

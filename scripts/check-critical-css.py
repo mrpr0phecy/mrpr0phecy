@@ -101,6 +101,8 @@ INDEX_GZIP_BUDGET = 18_000
 # main page stopped mounting tools (see scripts/tests/no-live-tools.test.js).
 # Their rules went with them, so their entries have gone too — the checker
 # fails on a stale entry precisely so this list cannot drift from the file.
+# The 2026-10-03 product-boundary cleanup likewise removed the catalogue's
+# music spotlight and its CSS; it is intentionally absent from the list.
 HIDDEN = [
     ("palette", "the accent/theme popover, closed until asked for", None, None),
     ("theme-btn", "theme swatches inside that popover", None, None),
@@ -113,7 +115,6 @@ HIDDEN = [
     ("panel", "the shared popover shell", ".panel", "display: none"),
     ("popover", "closed popovers are hidden by the UA stylesheet", None, None),
     ("backdrop", "::backdrop only paints with an open popover/dialog", None, None),
-    ("music-spotlight", "footer spotlight, an entire catalogue below the fold", None, None),
 ]
 
 STYLE_BLOCK = re.compile(r"<style[^>]*>([\s\S]*?)</style>", re.I)
