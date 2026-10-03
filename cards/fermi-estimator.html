@@ -1,0 +1,200 @@
+<section id="fermi-estimator-root" aria-labelledby="fermi-estimator-title">
+<style>
+#fermi-estimator-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#fermi-estimator-root *{box-sizing:border-box}
+#fermi-estimator-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#fermi-estimator-root h3{margin:14px 0 6px;font-size:.93rem;color:var(--accent,#2dd4ff)}
+#fermi-estimator-root .fmi-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#fermi-estimator-root .fmi-cols{display:grid;grid-template-columns:minmax(280px,1.1fr) minmax(260px,1fr);gap:14px}
+@media (max-width:760px){#fermi-estimator-root .fmi-cols{grid-template-columns:1fr}}
+#fermi-estimator-root label{display:block;font-size:.72rem;font-weight:600;margin-bottom:3px}
+#fermi-estimator-root input,#fermi-estimator-root select{padding:6px;border:1px solid rgba(148,180,199,.35);border-radius:7px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.85rem;min-width:0;width:100%}
+#fermi-estimator-root input:focus-visible,#fermi-estimator-root select:focus-visible,#fermi-estimator-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#fermi-estimator-root button{min-height:34px;padding:6px 12px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+#fermi-estimator-root button:hover{background:rgba(45,212,255,.2)}
+#fermi-estimator-root .fmi-row{display:grid;grid-template-columns:56px 1fr 92px 96px 32px;gap:6px;align-items:center;margin-bottom:6px}
+#fermi-estimator-root .fmi-row input,#fermi-estimator-root .fmi-row select{padding:5px;font-size:.82rem}
+#fermi-estimator-root .fmi-row .fmi-part{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.74rem;color:var(--text-secondary,rgba(230,250,255,.7));text-align:right;overflow-wrap:anywhere}
+#fermi-estimator-root .fmi-del{padding:3px 6px;min-height:28px;font-size:.72rem;border-color:rgba(240,113,110,.35);background:rgba(240,113,110,.08);color:#ffb4a9}
+#fermi-estimator-root .fmi-ans{padding:12px;border:1px solid rgba(96,226,160,.45);border-radius:10px;background:rgba(96,226,160,.08);margin:10px 0}
+#fermi-estimator-root .fmi-ans strong{font-size:1.5rem;color:#a9f0c0;display:block;line-height:1.2}
+#fermi-estimator-root .fmi-ans em{font-style:normal;font-size:.86rem;color:var(--text-secondary,rgba(230,250,255,.75))}
+#fermi-estimator-root svg{display:block;width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin:8px 0}
+#fermi-estimator-root .fmi-note{font-size:.8rem;color:#ffe3a1;padding:8px 10px;border:1px dashed rgba(255,227,161,.4);border-radius:9px;margin:8px 0}
+#fermi-estimator-root .fmi-btns{display:flex;gap:6px;margin:8px 0}
+</style>
+<h2 id="fermi-estimator-title">🧮 Fermi Estimator — Order-of-Magnitude Thinking</h2>
+<p id="fermi-estimator-desc" class="desc">Enrico Fermi walked into interviews and produced piano-tuner counts out of thin air: chain a handful of round numbers together and the answer lands within a factor of ten of the truth. Pick a classic question or build your own chain — the running product, a powers-of-ten ruler and the real-world sanity check update as you type.</p>
+<div class="fmi-cols">
+<div>
+<h3>Question</h3>
+<select id="fmi-scenario" aria-label="choose a Fermi question">
+<option value="tuners">Piano tuners in a big city</option>
+<option value="stations">Gas stations in a country</option>
+<option value="heart">Heartbeats in a lifetime</option>
+<option value="bus">Golf balls in a bus</option>
+<option value="rain">Raindrops on a football pitch</option>
+<option value="custom">Your own question</option>
+</select>
+<p class="fmi-muted" id="fmi-intro"></p>
+<div id="fmi-rows"></div>
+<div class="fmi-btns">
+<button type="button" id="fmi-add">+ Add step</button>
+<button type="button" id="fmi-reset">Reset this question</button>
+</div>
+<p class="fmi-muted">First row is the starting quantity; every row after it multiplies (×) or divides (÷) something you can guess to one significant figure. Rounding each factor to a friendly number is the technique, not a bug.</p>
+</div>
+<div>
+<div class="fmi-ans"><em id="fmi-quest"></em><strong id="fmi-answer">—</strong><span id="fmi-words" class="fmi-muted"></span></div>
+<svg id="fmi-ruler" viewBox="0 0 470 150" role="img" aria-label="powers-of-ten ruler showing each step"></svg>
+<p class="fmi-muted">Each dot is one step of the chain on a log₁₀ ruler — the whole point of Fermi maths is that you only ever need the exponent to be right.</p>
+<div class="fmi-note" id="fmi-note"></div>
+<p class="fmi-muted">Compounding rule of thumb: if every factor is only accurate to a factor of 2, a five-factor chain is “accurate” to ×/÷ 32. That is why Fermi answers are judged as decades, not decimals — an estimate inside one order of magnitude is a success.</p>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+var root=document.getElementById('fermi-estimator-root');
+if(!root)return;
+function $(id){return root.querySelector('#'+id)}
+var NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+var SC={
+ tuners:{q:'How many piano tuners work in a city of 9 million people?',
+  intro:'Fermi’s own 1930s classic (he asked it about Chicago). Nobody knows the number — but everybody knows enough to build it.',
+  note:'Fermi reportedly answered “a few hundred” for Chicago-scale cities. Modern city surveys land in the same decade: tens, not thousands.',
+  steps:[['','City population',9000000],['÷','People per household',2.4],['×','Households with a piano worth tuning',0.05],['×','Tunings per piano per year',1.5],['÷','Tunings one tuner can do per year',1000]]},
+ stations:{q:'How many gas stations serve a country of 330 million people?',
+  intro:'Another interview favourite — start from cars, then from how busy one forecourt is.',
+  note:'US censuses count roughly 120,000–150,000 outlets selling motor fuel. A chain of five round numbers should land inside that decade.',
+  steps:[['','People',330000000],['÷','People per car',1.7],['×','Tanks filled per car per week',1.6],['÷','Pumps’ throughput: fill-ups per station per week',2500],['×','Extra stations for rural gaps',1.2]]},
+ heart:{q:'How many times does a heart beat in one lifetime?',
+  intro:'Only round biology needed: a pulse rate and a lifespan, with minutes, hours and days as free multipliers.',
+  note:'Cardiology sources quote 2–3.5 billion beats per lifetime — the chain below should agree.',
+  steps:[['','Beats per minute',70],['×','Minutes per hour',60],['×','Hours per day',24],['×','Days per year',365],['×','Years',80]]},
+ bus:{q:'How many golf balls fit inside a double-decker bus?',
+  intro:'The back-of-envelope geometry question: a box of air, a usable fraction, and one small sphere.',
+  note:'Packing loose spheres leaves only ~64–74% of volume usable — folded into “free fraction” here. Popular estimates cluster around half a million to 1.5 million.',
+  steps:[['','Bus length (m)',11],['×','Bus width (m)',2.5],['×','Bus height (m)',3],['×','Free fraction after seats and stair',0.45],['÷','Volume of one golf ball (m³)',4.1e-5]]},
+ rain:{q:'How many raindrops fall on a football pitch in a 20 mm rain?',
+  intro:'Volume of water over the pitch, divided by the volume of one average drop — pure geometry, zero meteorology.',
+  note:'Drop-size tables give ~0.05–0.1 mL per medium raindrop; that spread alone swings the answer by a factor of two, which is normal and fine.',
+  steps:[['','Pitch length (m)',105],['×','Pitch width (m)',68],['×','Rain depth (m)',0.02],['÷','Volume of one drop (m³)',6.5e-8]]},
+ custom:{q:'Your own question — describe it above and build the chain.',intro:'Set the starting quantity, then multiply and divide one guess at a time.',note:'',
+  steps:[['','Starting quantity',1000],['×','Factor',1],['÷','Divisor',1]]}
+};
+var SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻','+':''};
+function tenSup(exp){var s='10';for(var i=0;i<String(exp).length;i++)s+=SUP[String(exp)[i]]||String(exp)[i];return s}
+function fmtBig(v){
+  if(!isFinite(v))return '—';
+  if(v===0)return '0';
+  var a=Math.abs(v);
+  if(a>=100000||a<0.01){
+    var e=Math.floor(Math.log10(a));
+    var m=v/Math.pow(10,e);
+    if(Math.abs(m-10)<5e-7){m=1;e+=1}
+    return (Math.abs(m-Math.round(m))<1e-9?String(Math.round(m)):m.toFixed(2))+'×'+tenSup(e);
+  }
+  return v.toLocaleString('en-GB',{maximumFractionDigits:2});
+}
+var WORDS=[[1e12,'trillion'],[1e9,'billion'],[1e6,'million'],[1e3,'thousand']];
+function wordForm(v){
+  if(!isFinite(v)||v<=0)return '';
+  for(var i=0;i<WORDS.length;i++){
+    var n=v/WORDS[i][0];
+    if(n>=1&&n<1000)return '≈ '+(n>=100?Math.round(n):n.toFixed(1))+' '+WORDS[i][1];
+  }
+  return v>=1?'≈ '+Math.round(v).toLocaleString('en-GB'):'';
+}
+var scenEl=$('fmi-scenario');
+var chain=[];
+function loadScenario(key){
+  var s=SC[key];
+  chain=s.steps.map(function(st){return {op:st[0],label:st[1],val:st[2]}});
+  $('fmi-quest').textContent=s.q;
+  $('fmi-intro').textContent=s.intro;
+  $('fmi-note').textContent=s.note?('Reality check: '+s.note):'';
+  render();
+}
+function render(){
+  var box=$('fmi-rows');box.replaceChildren();
+  chain.forEach(function(step,i){
+    var row=document.createElement('div');row.className='fmi-row';
+    var op=document.createElement('select');op.setAttribute('aria-label','operation for step '+(i+1));
+    if(i===0){var none=document.createElement('option');none.value='';none.textContent='=';op.appendChild(none);op.disabled=true}
+    else{
+      ['×','÷'].forEach(function(o){var e2=document.createElement('option');e2.value=o;e2.textContent=o;op.appendChild(e2)});
+      op.value=step.op==='÷'?'÷':'×';
+    }
+    op.addEventListener('change',function(){step.op=op.value;calc()});
+    var lab=document.createElement('input');lab.type='text';lab.value=step.label;lab.setAttribute('aria-label','label for step '+(i+1));lab.spellcheck=false;
+    lab.addEventListener('input',function(){step.label=lab.value;calc()});
+    var val=document.createElement('input');val.type='number';val.step='any';val.value=step.val;val.setAttribute('aria-label','value for step '+(i+1));
+    val.addEventListener('input',function(){var v=parseFloat(val.value);step.val=isFinite(v)?v:NaN;calc()});
+    var del=document.createElement('button');del.type='button';del.className='fmi-del';del.textContent='✕';del.setAttribute('aria-label','delete step '+(i+1));
+    del.addEventListener('click',function(){if(chain.length>1){chain.splice(i,1);render()}});
+    var part=document.createElement('span');part.className='fmi-part';part.id='fmi-part'+i;
+    row.appendChild(op);row.appendChild(lab);row.appendChild(val);row.appendChild(part);row.appendChild(del);
+    box.appendChild(row);
+  });
+  calc();
+}
+function calc(){
+  var v=NaN,vals=[];
+  for(var i=0;i<chain.length;i++){
+    var s=chain[i];
+    if(!isFinite(s.val)){vals.push(null);continue}
+    if(i===0)v=s.val;
+    else if(s.op==='÷'){if(s.val===0){v=NaN}else v=v/s.val}
+    else v=v*s.val;
+    vals.push(v);
+    var p=root.querySelector('#fmi-part'+i);
+    if(p)p.textContent=isFinite(v)?fmtBig(v):'—';
+  }
+  var ans=$('fmi-answer');
+  if(!isFinite(v)){ans.textContent='—';$('fmi-words').textContent='Give every step a finite number (and no ÷0).';drawRuler([]);return}
+  ans.textContent=fmtBig(v);
+  $('fmi-words').textContent=wordForm(v);
+  drawRuler(vals);
+}
+function drawRuler(vals){
+  var svg=$('fmi-ruler');
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var W=470,H=150,P={l:26,r:26,t:22,b:34};
+  var logs=[];
+  vals.forEach(function(v){if(isFinite(v)&&v>0)logs.push(Math.log10(v))});
+  if(!logs.length)return;
+  var lo=Math.floor(Math.min.apply(null,logs)),hi=Math.ceil(Math.max.apply(null,logs));
+  if(hi-lo<2)hi=lo+2;
+  var X=function(e){return P.l+(e-lo)/(hi-lo)*(W-P.l-P.r)};
+  var yBase=H-P.b;
+  el('line',{x1:P.l-6,y1:yBase,x2:W-P.r+6,y2:yBase,stroke:'rgba(148,180,199,.5)','stroke-width':1},svg);
+  for(var e=lo;e<=hi;e++){
+    el('line',{x1:X(e),y1:yBase-5,x2:X(e),y2:yBase+5,stroke:'rgba(148,180,199,.6)'},svg);
+    var t=el('text',{x:X(e),y:yBase+18,'text-anchor':'middle','font-size':10,fill:'rgba(230,250,255,.75)'},svg);
+    t.textContent='10'+supOnly(e);
+    el('line',{x1:X(e),y1:P.t-6,x2:X(e),y2:yBase-5,stroke:'rgba(148,180,199,.13)'},svg);
+  }
+  var last=logs.length-1;
+  logs.forEach(function(lg,i){
+    var x=X(lg);
+    el('circle',{cx:x,cy:yBase-16-i*0,r:4.5,fill:i===last?'#60e2a0':'#63d3ff','fill-opacity':i===last?1:.8},svg);
+    var tt=el('text',{x:x,y:yBase-26,'text-anchor':'middle','font-size':9.5,fill:'rgba(230,250,255,.7)'},svg);
+    tt.textContent=fmtBig(vals[i]);
+    if(i>0)el('line',{x1:X(logs[i-1]),y1:yBase-16,x2:x,y2:yBase-16,stroke:'rgba(99,211,255,.4)','stroke-width':1.2},svg);
+  });
+  var cap=el('text',{x:W-P.r,y:P.t-8,'text-anchor':'end','font-size':10,fill:'rgba(230,250,255,.55)'},svg);
+  cap.textContent='every tick is a decade';
+}
+function supOnly(n){var s='';n=String(n);for(var i=0;i<n.length;i++)s+=SUP[n[i]]||n[i];return s}
+scenEl.addEventListener('change',function(){loadScenario(scenEl.value)});
+$('fmi-add').addEventListener('click',function(){
+  chain.push({op:'×',label:'New factor',val:1});
+  render();
+});
+$('fmi-reset').addEventListener('click',function(){loadScenario(scenEl.value)});
+loadScenario('tuners');
+})();
+</script>
+</section>

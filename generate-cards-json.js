@@ -183,6 +183,45 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-02 — ten Mathematics gap-fills found by auditing all 64 maths cards: no card
+  // SOLVES a general triangle (trigonometry only prints the sine/cosine rules), no shoelace
+  // coordinate-area tool, no binomial EXPANSION (probability covers the distribution only),
+  // no Benford screening tool, no numeric-methods labs that show convergence (statistics and
+  // graphing-calculator compute; neither teaches error behaviour), no Collatz or
+  // magic-square generator, no graphical linear programming, and the statistics card's
+  // hypothesis tab is t-test only (no χ²). Eigenvalues, modular arithmetic, Pascal,
+  // birthday paradox, nPr/nCr, Fourier, Monte-Carlo π and 4×4 matrix ops were checked and
+  // are already covered by number-theory/discrete-math/probability-paradox-lab/
+  // permutation-combination/fourier-series-synthesizer/monte-carlo-pi-estimator/linear-algebra.
+  'triangle-solver': 'Mathematics',
+  'polygon-shoelace-calculator': 'Mathematics',
+  'binomial-expansion-calculator': 'Mathematics',
+  'benford-law-checker': 'Mathematics',
+  'riemann-sum-lab': 'Mathematics',
+  'root-finder-lab': 'Mathematics',
+  'collatz-conjecture-explorer': 'Mathematics',
+  'magic-square-lab': 'Mathematics',
+  'linear-programming-graphical': 'Mathematics',
+  'chi-square-lab': 'Mathematics',
+  // 2026-10-03 — a second ten: another full sweep over the maths shelves found nothing that
+  // SOLVES simultaneous linear equations with free coefficients, interpolates data (splines vs
+  // Lagrange vs Newton side by side), simplifies surds by rationalising denominators, minimises
+  // Boolean expressions on a draggable K-map, sanity-checks Fermi back-of-envelope chains,
+  // builds probability trees with Bayes reversals, plots polynomial roots with a Durand–Kerner
+  // trace, backtests SMA/WMA/EMA with drift forecasts, explores continued fractions (convergents,
+  // √d periodicity, Pell, best rational under a denominator cap) or grows a Penrose rhomb
+  // tiling by deflation. Weighted averages, sieve, CRT, unit circle, Bayes tab, eigenvalues and
+  // Taylor were audited as already covered and skipped.
+  'simultaneous-equations-solver': 'Mathematics',
+  'interpolation-lab': 'Mathematics',
+  'surds-simplifier': 'Mathematics',
+  'karnaugh-map-optimizer': 'Mathematics',
+  'fermi-estimator': 'Mathematics',
+  'probability-tree-builder': 'Mathematics',
+  'polynomial-roots-lab': 'Mathematics',
+  'moving-average-forecaster': 'Mathematics',
+  'continued-fraction-explorer': 'Mathematics',
+  'penrose-tiling-studio': 'Mathematics',
   // 2026-10-02 — two practical household workflows plus two AI-era tools:
   // transparent task-exposure what-if modelling and a voice-clone scam safety drill.
   'pantry-freezer-stock-tracker': 'Culinary & Food Science',

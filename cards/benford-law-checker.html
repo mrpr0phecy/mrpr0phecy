@@ -1,0 +1,221 @@
+<section id="benford-law-checker-root" aria-labelledby="benford-law-checker-title">
+<style>
+#benford-law-checker-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#benford-law-checker-root *{box-sizing:border-box}
+#benford-law-checker-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#benford-law-checker-root h3{margin:16px 0 8px;font-size:.95rem;color:var(--accent,#2dd4ff)}
+#benford-law-checker-root .bfd-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#benford-law-checker-root textarea{width:100%;min-height:130px;padding:10px;border:1px solid rgba(148,180,199,.35);border-radius:8px;background:var(--surface,#101c25);color:inherit;font:inherit;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;resize:vertical}
+#benford-law-checker-root textarea:focus-visible,#benford-law-checker-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#benford-law-checker-root .bfd-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+#benford-law-checker-root button{min-height:40px;padding:8px 14px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
+#benford-law-checker-root button.bfd-ghost{border-color:rgba(148,180,199,.3);background:rgba(255,255,255,.04);color:inherit}
+#benford-law-checker-root button:hover{background:rgba(45,212,255,.2)}
+#benford-law-checker-root .bfd-status{min-height:1.3em;font-size:.84rem;margin:4px 0}
+#benford-law-checker-root .bfd-verdict{border-radius:10px;padding:12px 14px;margin:10px 0;font-size:.92rem;border:1px solid rgba(148,180,199,.25);background:var(--surface,#101c25)}
+#benford-law-checker-root .bfd-ok{border-color:rgba(96,226,160,.5);color:#9ff0c6}
+#benford-law-checker-root .bfd-warn{border-color:rgba(240,200,80,.5);color:#ffe3a1}
+#benford-law-checker-root .bfd-bad{border-color:rgba(230,110,110,.55);color:#ffb4a9}
+#benford-law-checker-root .bfd-table-wrap{overflow-x:auto;border:1px solid rgba(148,180,199,.2);border-radius:8px;margin-top:8px}
+#benford-law-checker-root table{width:100%;border-collapse:collapse;font-size:.8rem}
+#benford-law-checker-root th,#benford-law-checker-root td{padding:6px 10px;border-bottom:1px solid rgba(148,180,199,.14);text-align:right}
+#benford-law-checker-root th:first-child,#benford-law-checker-root td:first-child{text-align:left}
+#benford-law-checker-root th{color:var(--accent,#2dd4ff);background:rgba(45,212,255,.06)}
+#benford-law-checker-root svg{display:block;width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin-top:10px}
+#benford-law-checker-root .bfd-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:10px}
+#benford-law-checker-root .bfd-stat{background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:8px;padding:8px 10px}
+#benford-law-checker-root .bfd-stat b{display:block;font-size:1.02rem;color:var(--accent,#2dd4ff)}
+#benford-law-checker-root .bfd-stat span{font-size:.7rem;color:var(--text-secondary,rgba(230,250,255,.68))}
+</style>
+<h2 id="benford-law-checker-title">🕵️ Benford's Law First-Digit Scanner</h2>
+<p id="benford-law-checker-desc" class="desc">In real-world data — expenses, populations, invoices — a leading 1 shows up about 30% of the time and a 9 under 5%. Paste a column of numbers and this scanner compares their first digits with the log₁₀(1 + 1/d) curve, computes χ², the mean absolute deviation and a Nigrini-style conformity verdict used by fraud auditors.</p>
+<div class="bfd-muted">Paste any text that contains numbers — one per line, comma-separated, a CSV column, even a whole report. Every number with a non-zero leading digit counts; nothing leaves your browser.</div>
+<textarea id="bfd-input" spellcheck="false" placeholder="128.40&#10;3,114&#10;57&#10;0.042&#10;…"></textarea>
+<div class="bfd-actions">
+<button type="button" id="bfd-scan">Scan first digits</button>
+<button type="button" id="bfd-sample" class="bfd-ghost">Load sample ledger</button>
+<button type="button" id="bfd-tamper" class="bfd-ghost">Load tampered ledger</button>
+<button type="button" id="bfd-clear" class="bfd-ghost">Clear</button>
+</div>
+<div class="bfd-status" id="bfd-status" role="status"></div>
+<div id="bfd-results" hidden>
+<div class="bfd-verdict" id="bfd-verdict"></div>
+<svg id="bfd-chart" viewBox="0 0 640 240" role="img" aria-label="Bar chart of observed first-digit shares against the Benford expectation"></svg>
+<div class="bfd-stats" id="bfd-stats"></div>
+<h3>Digit-by-digit</h3>
+<div class="bfd-table-wrap"><table id="bfd-table">
+  <thead><tr><th scope="col">Leading digit</th><th scope="col">Count</th><th scope="col">Observed</th><th scope="col">Benford</th><th scope="col">Difference</th><th scope="col">χ² cell</th></tr></thead>
+  <tbody id="bfd-rows"></tbody>
+</table></div>
+<p class="bfd-muted">Benford's law holds when data spans several orders of magnitude and isn't bounded (invoice totals, town populations, river lengths). It fails for uniform or bounded things like ages or lottery numbers — check the data type before believing the verdict. A flag means “look closer”, never “guilty”.</p>
+</div>
+<script>
+(function () {
+  'use strict';
+  var root = document.getElementById('benford-law-checker-root');
+  if (!root) return;
+  function $(id) { return document.getElementById(id); }
+  var input = $('bfd-input'), status = $('bfd-status');
+  function lgam(x) {
+    var cof = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, tmp = x + 5.5; tmp -= (x + 0.5) * Math.log(tmp);
+    var ser = 1.000000000190015;
+    for (var j = 0; j < 6; j++) ser += cof[j] / ++y;
+    return -tmp + Math.log(2.5066282746310005 * ser / x);
+  }
+  function gser(a, x) {
+    var ap = a, sum = 1 / a, del = sum;
+    for (var n = 0; n < 400; n++) { ap++; del *= x / ap; sum += del; if (Math.abs(del) < Math.abs(sum) * 1e-14) break; }
+    return sum * Math.exp(-x + a * Math.log(x) - lgam(a));
+  }
+  function gcf(a, x) {
+    var FPMIN = 1e-300, b = x + 1 - a, c = 1 / FPMIN, d = 1 / b, h = d;
+    for (var i = 1; i < 400; i++) {
+      var an = -i * (i - a); b += 2;
+      d = an * d + b; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = b + an / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; var del = d * c; h *= del;
+      if (Math.abs(del - 1) < 1e-14) break;
+    }
+    return Math.exp(-x + a * Math.log(x) - lgam(a)) * h;
+  }
+  function chiSqP(x, df) { if (!(x > 0)) return 1; var a = df / 2, xx = x / 2; return xx < a + 1 ? 1 - gser(a, xx) : gcf(a, xx); }
+  function fmt(v, d) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    var p = Math.pow(10, d == null ? 4 : d), n = Math.round(v * p) / p;
+    if (Object.is(n, -0)) n = 0;
+    return String(n);
+  }
+  var NUM = /[0-9][0-9,\u00a0_]*(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|\.[0-9]+/g;
+  function firstDigit(token) {
+    var t = token.replace(/[,\u00a0_]/g, '');
+    var m = t.match(/^0*(?:\.)?(0*)/);
+    var i = (m ? m[0].length : 0);
+    for (; i < t.length; i++) {
+      var c = t.charCodeAt(i);
+      if (c >= 49 && c <= 57) return c - 48;
+      if (c === 101 || c === 69) break;
+      if (!(c >= 48 && c <= 57) && c !== 46) break;
+    }
+    return 0;
+  }
+  function counts(text) {
+    var c = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], n = 0, tokens = text.match(NUM) || [];
+    for (var i = 0; i < tokens.length && i < 250000; i++) {
+      var d = firstDigit(tokens[i]);
+      if (d >= 1 && d <= 9) { c[d]++; n++; }
+    }
+    return { c: c, n: n };
+  }
+  function scan() {
+    var res = counts(input.value);
+    if (res.n < 20) {
+      $('bfd-results').hidden = true;
+      status.style.color = '#ffb4a9';
+      status.textContent = res.n === 0 ? 'No usable numbers found — paste something containing digits.' : 'Only ' + res.n + ' numbers: Benford patterns need ~50+ to be meaningful.';
+      return;
+    }
+    status.style.color = '';
+    status.textContent = res.n + ' numbers scanned' + (input.value.match(NUM).length > 250000 ? ' (first 250,000)' : '') + '.';
+    var total = res.n, chi = 0, mad = 0;
+    var obs = [], exp = [];
+    for (var d = 1; d <= 9; d++) {
+      var pe = Math.log10(1 + 1 / d), po = res.c[d] / total;
+      obs.push(po); exp.push(pe);
+      chi += Math.pow(res.c[d] - total * pe, 2) / (total * pe);
+      mad += Math.abs(po - pe);
+    }
+    mad /= 9;
+    var p = chiSqP(chi, 8);
+    var verdict, cls;
+    if (mad < 0.006) { verdict = 'Close conformity to Benford’s curve (MAD ' + fmt(mad, 5) + ' < 0.006). Nothing shouts here.'; cls = 'bfd-ok'; }
+    else if (mad < 0.012) { verdict = 'Marginal conformity (MAD ' + fmt(mad, 5) + '). Worth a second look, nothing conclusive.'; cls = 'bfd-warn'; }
+    else if (mad < 0.015) { verdict = 'Nonconformity (MAD ' + fmt(mad, 5) + ' ≥ 0.012). Real Benford-following data rarely drifts this far.'; cls = 'bfd-warn'; }
+    else { verdict = 'Obvious nonconformity (MAD ' + fmt(mad, 5) + ' ≥ 0.015). The leading digits are clearly off the log curve — this is what invented numbers look like.'; cls = 'bfd-bad'; }
+    var small = total < 100;
+    if (small) verdict += ' (Only ' + total + ' values — treat everything loosely.)';
+    var v = $('bfd-verdict');
+    v.className = 'bfd-verdict ' + cls;
+    v.textContent = verdict;
+    var stats = $('bfd-stats');
+    while (stats.firstChild) stats.removeChild(stats.firstChild);
+    function stat(label, value) {
+      var div = document.createElement('div'); div.className = 'bfd-stat';
+      var b = document.createElement('b'); b.textContent = value;
+      var s = document.createElement('span'); s.textContent = label;
+      div.appendChild(b); div.appendChild(s); stats.appendChild(div);
+    }
+    stat('numbers', total.toLocaleString('en-GB'));
+    stat('χ² (df 8)', fmt(chi, 2));
+    stat('p-value', p < 0.001 ? '<0.001' : fmt(p, 4));
+    stat('MAD', fmt(mad, 5));
+    stat('most common digit', String(obs.indexOf(Math.max.apply(null, obs)) + 1) + ' (' + (Math.max.apply(null, obs) * 100).toFixed(1) + '%)');
+    var rows = $('bfd-rows');
+    while (rows.firstChild) rows.removeChild(rows.firstChild);
+    for (var d2 = 1; d2 <= 9; d2++) {
+      var tr = document.createElement('tr');
+      var pe2 = Math.log10(1 + 1 / d2);
+      var vals = [String(d2), String(res.c[d2]), (obs[d2 - 1] * 100).toFixed(2) + '%', (pe2 * 100).toFixed(2) + '%', ((obs[d2 - 1] - pe2) * 100 >= 0 ? '+' : '') + ((obs[d2 - 1] - pe2) * 100).toFixed(2) + 'pp', fmt(chi ? Math.pow(res.c[d2] - total * pe2, 2) / (total * pe2) : 0, 3)];
+      vals.forEach(function (txt, ci) {
+        var td = document.createElement('td');
+        if (ci === 0) { var th = document.createElement('th'); th.scope = 'row'; th.textContent = txt; tr.appendChild(th); }
+        else { td.textContent = txt; tr.appendChild(td); }
+      });
+      rows.appendChild(tr);
+    }
+    chart(obs, exp);
+    $('bfd-results').hidden = false;
+  }
+  function chart(obs, exp) {
+    var svg = $('bfd-chart');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var NS = 'http://www.w3.org/2000/svg';
+    function put(tag, attrs, text) {
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (text != null) e.textContent = text;
+      svg.appendChild(e); return e;
+    }
+    var max = Math.max(Math.max.apply(null, obs), Math.max.apply(null, exp)) * 1.15;
+    var padL = 34, padB = 26, padT = 10, W = 640, H = 240;
+    var bw = (W - padL - 10) / 9;
+    for (var g = 1; g <= 4; g++) {
+      var yv = max * g / 4;
+      var y = H - padB - (yv / max) * (H - padB - padT);
+      put('line', { x1: padL, y1: y, x2: W - 10, y2: y, stroke: 'rgba(148,180,199,.15)' });
+      put('text', { x: padL - 5, y: y + 4, fill: '#8ea3b5', 'font-size': 10, 'text-anchor': 'end' }, (yv * 100).toFixed(0) + '%');
+    }
+    for (var d = 0; d < 9; d++) {
+      var x = padL + d * bw + 6;
+      var hObs = (obs[d] / max) * (H - padB - padT);
+      var hExp = (exp[d] / max) * (H - padB - padT);
+      put('rect', { x: x, y: H - padB - hObs, width: bw - 12, height: Math.max(1, hObs), fill: 'rgba(45,212,255,.55)', rx: 3 });
+      put('rect', { x: x + (bw - 12) * 0.18, y: H - padB - hExp, width: (bw - 12) * 0.64, height: Math.max(1, hExp), fill: 'none', stroke: '#f0b429', 'stroke-width': 1.6, 'stroke-dasharray': '4 3', rx: 3 });
+      put('text', { x: x + (bw - 12) / 2, y: H - 8, fill: '#c9d7e2', 'font-size': 12, 'text-anchor': 'middle' }, String(d + 1));
+    }
+    put('text', { x: padL + 4, y: padT + 8, fill: '#8ea3b5', 'font-size': 10 }, 'observed (filled) vs Benford expectation (dashed)');
+  }
+  function lcg(seed) { var s = seed >>> 0; return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function makeLedger(corrupt) {
+    var rnd = lcg(5150), lines = [];
+    for (var i = 0; i < 2600; i++) {
+      var u = rnd();
+      var v = Math.pow(10, 0.7 + u * 8.3); // log-uniform across ~8 orders of magnitude — textbook Benford material
+      if (corrupt && i % 10 === 5) { // "every tenth invoice quietly rounded up toward the next power of ten" — a lazy fabrication tell
+        var e = Math.pow(10, Math.floor(Math.log10(v)));
+        v = e * (9 + rnd());
+      }
+      lines.push(v.toFixed(2));
+    }
+    return lines.join('\n');
+  }
+  $('bfd-scan').addEventListener('click', scan);
+  $('bfd-sample').addEventListener('click', function () { input.value = makeLedger(false); scan(); });
+  $('bfd-tamper').addEventListener('click', function () { input.value = makeLedger(true); scan(); });
+  $('bfd-clear').addEventListener('click', function () {
+    input.value = ''; $('bfd-results').hidden = true;
+    status.textContent = '';
+  });
+})();
+</script>
+</section>

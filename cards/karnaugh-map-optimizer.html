@@ -1,0 +1,361 @@
+<section id="karnaugh-map-optimizer-root" aria-labelledby="karnaugh-map-optimizer-title">
+<style>
+#karnaugh-map-optimizer-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#karnaugh-map-optimizer-root *{box-sizing:border-box}
+#karnaugh-map-optimizer-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#karnaugh-map-optimizer-root h3{margin:14px 0 6px;font-size:.93rem;color:var(--accent,#2dd4ff)}
+#karnaugh-map-optimizer-root .kmap-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#karnaugh-map-optimizer-root .kmap-cols{display:grid;grid-template-columns:minmax(240px,.9fr) minmax(300px,1.3fr);gap:14px}
+@media (max-width:760px){#karnaugh-map-optimizer-root .kmap-cols{grid-template-columns:1fr}}
+#karnaugh-map-optimizer-root label{display:block;font-size:.72rem;font-weight:600;margin-bottom:3px}
+#karnaugh-map-optimizer-root input,#karnaugh-map-optimizer-root select{padding:6px;border:1px solid rgba(148,180,199,.35);border-radius:7px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.85rem;min-width:0;width:100%}
+#karnaugh-map-optimizer-root input:focus-visible,#karnaugh-map-optimizer-root select:focus-visible,#karnaugh-map-optimizer-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#karnaugh-map-optimizer-root button{min-height:34px;padding:6px 12px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+#karnaugh-map-optimizer-root button:hover{background:rgba(45,212,255,.2)}
+#karnaugh-map-optimizer-root .kmap-row2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}
+#karnaugh-map-optimizer-root .kmap-status{min-height:1.3em;font-size:.82rem;color:#ffe3a1;margin:6px 0}
+#karnaugh-map-optimizer-root .kmap-grid{display:inline-grid;gap:3px;margin:4px 0}
+#karnaugh-map-optimizer-root .kmap-cell{width:64px;height:48px;border:1px solid rgba(148,180,199,.4);border-radius:8px;background:var(--surface,#101c25);color:inherit;font-size:1.05rem;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;padding:0;min-height:0}
+#karnaugh-map-optimizer-root .kmap-cell:hover{border-color:var(--accent,#2dd4ff)}
+#karnaugh-map-optimizer-root .kmap-cell .kmap-m{position:absolute;top:2px;left:5px;font-size:.58rem;font-weight:400;color:var(--text-secondary,rgba(230,250,255,.55))}
+#karnaugh-map-optimizer-root .kmap-axis{display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text-secondary,rgba(230,250,255,.75));background:none;border:none;min-height:0}
+#karnaugh-map-optimizer-root .kmap-answer{padding:10px 12px;border:1px solid rgba(96,226,160,.45);border-radius:10px;background:rgba(96,226,160,.08);font-size:1.08rem;font-weight:700;color:#a9f0c0;margin:10px 0;overflow-wrap:anywhere}
+#karnaugh-map-optimizer-root .kmap-groups{display:flex;flex-wrap:wrap;gap:8px;font-size:.8rem;margin:6px 0}
+#karnaugh-map-optimizer-root .kmap-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:8px;background:rgba(16,28,37,.6);border:1px solid rgba(148,180,199,.25);font-family:ui-monospace,Menlo,Consolas,monospace}
+#karnaugh-map-optimizer-root .kmap-swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+#karnaugh-map-optimizer-root .kmap-presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#karnaugh-map-optimizer-root .kmap-presets button{font-size:.74rem;min-height:30px;padding:4px 9px}
+#karnaugh-map-optimizer-root details{margin:8px 0}
+#karnaugh-map-optimizer-root summary{cursor:pointer;font-size:.84rem;color:var(--accent,#2dd4ff)}
+#karnaugh-map-optimizer-root table{border-collapse:collapse;width:100%;font-size:.78rem;margin-top:6px}
+#karnaugh-map-optimizer-root th,#karnaugh-map-optimizer-root td{padding:3px 7px;border-bottom:1px solid rgba(148,180,199,.14);text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace}
+#karnaugh-map-optimizer-root th{color:var(--accent,#2dd4ff)}
+</style>
+<h2 id="karnaugh-map-optimizer-title">🗺️ Karnaugh Map Optimiser — Click the Cells, Get the Logic</h2>
+<p id="karnaugh-map-optimizer-desc" class="desc">Paint 1s and don't-cares onto a two, three or four-variable K-map and it finds the prime implicants for real — no eyeballing wraps — returning a minimal sum-of-products or product-of-sums with every loop colour-coded back onto the grid. The same Quine–McCluskey machinery a synthesis tool runs, sized for homework.</p>
+<div class="kmap-cols">
+<div>
+<h3>Setup</h3>
+<div class="kmap-row2">
+<div><label for="kmap-vars">variables</label><select id="kmap-vars"><option value="2">2 — A,B</option><option value="3" selected>3 — A,B,C</option><option value="4">4 — A,B,C,D</option></select></div>
+<div><label for="kmap-form">output form</label><select id="kmap-form"><option value="sop" selected>sum of products</option><option value="pos">product of sums</option></select></div>
+</div>
+<label for="kmap-minterms">on-set (m₀..) and don't-cares, e.g. “3 5 6 7  d: 1”</label>
+<div class="kmap-row2" style="grid-template-columns:1.6fr 1fr">
+<input type="text" id="kmap-minterms" value="3 5 6 7" spellcheck="false" aria-label="minterms that are 1">
+<input type="text" id="kmap-dc" value="" placeholder="don't-cares e.g. 0 2" spellcheck="false" aria-label="don't-care minterms">
+</div>
+<button type="button" id="kmap-load" style="width:100%">Load onto grid</button>
+<div class="kmap-presets" aria-label="example circuits">
+<button type="button" data-p="maj">3-input majority</button>
+<button type="button" data-p="xor">XOR</button>
+<button type="button" data-p="two4">≥2 of four</button>
+<button type="button" data-p="alu">full-adder carry</button>
+</div>
+<div class="kmap-row2">
+<button type="button" id="kmap-solve">Optimise</button>
+<button type="button" id="kmap-clear">Clear</button>
+</div>
+<div class="kmap-status" id="kmap-status" role="status" aria-live="polite">Click grid cells to toggle 0 → 1 → X.</div>
+</div>
+<div>
+<div id="kmap-mapwrap"></div>
+<div class="kmap-answer" id="kmap-answer" hidden></div>
+<div class="kmap-groups" id="kmap-groups"></div>
+<details id="kmap-ttdetails"><summary>Truth table &amp; how each loop was drawn</summary><div id="kmap-tt"></div></details>
+<p class="kmap-muted">Cells wrap around: the leftmost and rightmost columns of each row are neighbours, and so are the top and bottom rows — that's what makes the 4-corners group legal. X cells may be borrowed by any loop but never need covering.</p>
+</div>
+</div>
+<script>
+(function(){
+'use strict';
+var root=document.getElementById('karnaugh-map-optimizer-root');
+if(!root)return;
+function $(id){return root.querySelector('#'+id)}
+var GRAY=[0,1,3,2];
+var cells=new Array(16).fill(0);
+var nv=3;
+function cellMinterm(r,c){
+  if(nv===2)return r*2+c;
+  if(nv===3)return r*4+GRAY[c];
+  return GRAY[r]*4+GRAY[c];
+}
+function mintermRC(m){
+  if(nv===2)return [Math.floor(m/2),m%2];
+  if(nv===3)return [Math.floor(m/4),GRAY.indexOf(m%4)];
+  return [GRAY.indexOf(Math.floor(m/4)),m%4];
+}
+function buildGrid(){
+  var wrap=$('kmap-mapwrap');wrap.replaceChildren();
+  var dims=nv===2?[2,2]:nv===3?[2,4]:[4,4];
+  var grid=document.createElement('div');
+  grid.className='kmap-grid';
+  grid.style.gridTemplateColumns='36px repeat('+dims[1]+',64px)';
+  grid.style.gridTemplateRows='24px repeat('+dims[0]+',48px)';
+  var rowLab=nv===2?['0','1']:nv===3?['A=0','A=1']:['AB=00','AB=01','AB=11','AB=10'];
+  var colLab=nv===2?['B=0','B=1']:nv===3?['BC=00','BC=01','BC=11','BC=10']:['CD=00','CD=01','CD=11','CD=10'];
+  var corner=document.createElement('div');corner.className='kmap-axis';grid.appendChild(corner);
+  for(var c=0;c<dims[1];c++){var h=document.createElement('div');h.className='kmap-axis';h.textContent=colLab[c];grid.appendChild(h)}
+  for(var r=0;r<dims[0];r++){
+    var rh=document.createElement('div');rh.className='kmap-axis';rh.textContent=rowLab[r];grid.appendChild(rh);
+    for(c=0;c<dims[1];c++){
+      var m=cellMinterm(r,c);
+      var b=document.createElement('button');
+      b.type='button';b.className='kmap-cell';b.setAttribute('data-m',String(m));
+      b.setAttribute('aria-label','minterm '+m+', value '+(cells[m]===0?'0':cells[m]===1?'1':'don\'t care'));
+      var tag=document.createElement('span');tag.className='kmap-m';tag.textContent='m'+m;b.appendChild(tag);
+      var v=document.createElement('span');v.textContent=cells[m]===2?'X':String(cells[m]);v.style.paddingTop='10px';b.appendChild(v);
+      b.addEventListener('click',function(ev){
+        var mm=parseInt(ev.currentTarget.getAttribute('data-m'),10);
+        cells[mm]=(cells[mm]+1)%3;
+        buildGrid();paintGroups(null);syncText();
+      });
+      grid.appendChild(b);
+    }
+  }
+  wrap.appendChild(grid);
+}
+function syncText(){
+  var on=[],dc=[];
+  cells.forEach(function(v,i){if(v===1)on.push(i);if(v===2)dc.push(i)});
+  $('kmap-minterms').value=on.join(' ');
+  $('kmap-dc').value=dc.join(' ');
+}
+function parseList(txt,max){
+  var out=[];
+  String(txt).split(/[\s,;]+/).forEach(function(tok){
+    if(!tok)return;
+    var m=/^m?(\d+)$/i.exec(tok);
+    if(!m)throw new Error('“'+tok+'” is not a minterm number');
+    var v=parseInt(m[1],10);
+    if(v<0||v>=max)throw new Error('minterm '+v+' is out of range for '+nv+' variables');
+    if(out.indexOf(v)<0)out.push(v);
+  });
+  return out;
+}
+var COLORS=['#63d3ff','#ffb347','#8af0a9','#ff8fa3','#c9a1ff','#ffe3a1'];
+function groupPaint(groups){
+  var idx={};
+  if(groups)groups.forEach(function(g,gi){g.real.forEach(function(m){if(idx[m]===undefined)idx[m]=gi})});
+  root.querySelectorAll('.kmap-cell').forEach(function(b){
+    var m=parseInt(b.getAttribute('data-m'),10);
+    if(groups&&idx[m]!==undefined){b.style.background=COLORS[idx[m]%COLORS.length];b.style.color='#0a141c';b.style.borderColor='transparent'}
+    else if(cells[m]===2){b.style.background='rgba(148,180,199,.16)';b.style.color='inherit';b.style.borderColor='rgba(148,180,199,.4)'}
+    else if(cells[m]===1){b.style.background='rgba(99,211,255,.14)';b.style.color='inherit';b.style.borderColor='rgba(99,211,255,.55)'}
+    else{b.style.background='var(--surface,#101c25)';b.style.color='var(--text-secondary,rgba(230,250,255,.5))';b.style.borderColor='rgba(148,180,199,.25)'}
+  });
+}
+function paintGroups(groups){groupPaint(groups)}
+/* ---- Quine–McCluskey with real cell-set bookkeeping ---- */
+function primeImplicants(coverSet,mset,nvars){
+  var all=coverSet.slice();
+  var nodes=all.map(function(m){
+    var p='';for(var k=nvars-1;k>=0;k--)p+=String((m>>k)&1);
+    return {p:p,real:[m]};
+  });
+  var primes=[],seen={};
+  while(nodes.length){
+    var used={},next={},nextList=[];
+    for(var i=0;i<nodes.length;i++)for(var j=i+1;j<nodes.length;j++){
+      var A=nodes[i],B=nodes[j];
+      var diff=-1,ok=true,shared=false;
+      for(var k=0;k<nvars;k++){
+        if(A.p[k]!==B.p[k]){
+          if(A.p[k]==='-'||B.p[k]==='-'||diff>=0){ok=false;break}
+          diff=k;
+        }
+      }
+      if(!ok)continue;
+      var setB={};A.real.forEach(function(m){setB[m]=1});
+      for(var t=0;t<B.real.length;t++)if(setB[B.real[t]]){shared=true;break}
+      if(shared)continue;
+      var merged=A.real.concat(B.real).sort(function(x,y){return x-y});
+      var p2='';for(k=0;k<nvars;k++)p2+=k===diff?'-':A.p[k];
+      var every=[];
+      for(var m2=0;m2<(1<<nvars);m2++){
+        if(all.indexOf(m2)<0)continue;
+        var match=true;
+        for(k=0;k<nvars;k++){var bit=(m2>>(nvars-1-k))&1;if(p2[k]!=='-'&&p2[k]!==String(bit)){match=false;break}}
+        if(match)every.push(m2);
+      }
+      var same=every.length===merged.length&&every.every(function(v,vi2){return v===merged[vi2]});
+      if(!same)continue;
+      if(next[p2])continue;
+      next[p2]={p:p2,real:merged};nextList.push(next[p2]);
+      used[i]=used[j]=1;
+    }
+    for(i=0;i<nodes.length;i++)if(!used[i]&&!seen[nodes[i].p]){seen[nodes[i].p]=1;primes.push(nodes[i])}
+    nodes=nextList;
+  }
+  return primes;
+}
+function termFromPattern(p,nvars,pos){
+  var s='';
+  for(var k=0;k<nvars;k++){
+    if(p[k]==='-')continue;
+    var one=p[k]==='1';
+    var lit=pos?String.fromCharCode(65+k)+(one?'′':''):String.fromCharCode(65+k)+(one?'':'′');
+    s+=(s?(pos?'+':''):'')+lit;
+  }
+  return s||(pos?'0':'1');
+}
+function optimize(){
+  var status=$('kmap-status');
+  var mset=[],dset=[];
+  cells.forEach(function(v,i){if(v===1)mset.push(i);if(v===2)dset.push(i)});
+  var form=$('kmap-form').value;
+  var target=mset;
+  var cover=mset.concat(dset);
+  if(form==='pos'){
+    var allM=[];for(var m=0;m<(1<<nv);m++)if(cells[m]===0)allM.push(m);
+    target=allM;cover=allM.concat(dset);
+  }
+  if(!target.length){
+    var constant=form==='pos'?'1 — every cell already outputs 1':'0 — the map is empty';
+    status.textContent=form==='pos'?'Nothing to cover — the output is constant.':'No 1s painted — add some cells first.';
+    $('kmap-answer').hidden=false;$('kmap-answer').textContent='f = '+constant;
+    $('kmap-groups').replaceChildren();paintGroups(null);$('kmap-tt').replaceChildren();
+    return;
+  }
+  var primes=primeImplicants(cover,target,nv);
+  var rem=new Set(target);
+  var chosen=[];
+  for(var ti=0;ti<target.length;ti++){
+    var only=primes.filter(function(pi){return pi.real.indexOf(target[ti])>=0});
+    if(only.length===1&&chosen.indexOf(only[0])<0){chosen.push(only[0]);only[0].real.forEach(function(m){rem.delete(m)})}
+  }
+  var rest=primes.filter(function(pi){return chosen.indexOf(pi)<0});
+  /* exact minimum for ≤14 remaining, else greedy */
+  if(rest.length<=14){
+    var bestSet=null,bestCost=1e9;
+    var need=target.filter(function(m){return rem.has(m)});
+    for(var size=1;need.length&&size<=Math.min(5,rest.length);size++){
+      var idxs=[];for(var r0=0;r0<size;r0++)idxs.push(r0);
+      var hit=[];
+      function combos(pos2,chosen2){
+        if(pos2===size){
+          var cov=new Set();var cost=0;
+          chosen2.forEach(function(ix){cov=new Set(Array.from(cov).concat(rest[ix].real));cost+=rest[ix].p.replace(/-/g,'').length});
+          var ok2=need.every(function(mm){return cov.has(mm)});
+          if(ok2&&cost<bestCost){bestCost=cost;bestSet=chosen2.slice()}
+          return;
+        }
+        for(var c2=chosen2.length?chosen2[chosen2.length-1]+1:0;c2<rest.length;c2++){chosen2.push(c2);combos(pos2+1,chosen2);chosen2.pop()}
+      }
+      combos(0,[]);
+      if(bestSet)break;
+    }
+    if(bestSet)bestSet.forEach(function(ix){var pi=rest[ix];if(chosen.indexOf(pi)<0)chosen.push(pi)});
+    else{
+      var remNow=new Set(need);
+      while(remNow.size){
+        var best=null,bc=0;
+        for(var pi2=0;pi2<rest.length;pi2++){
+          var n2=rest[pi2].real.filter(function(mm){return remNow.has(mm)}).length;
+          if(n2>bc||(n2===bc&&best&&rest[pi2].p.replace(/-/g,'').length<best.p.replace(/-/g,'').length)){bc=n2;best=rest[pi2]}
+        }
+        if(!best||bc===0)break;
+        if(chosen.indexOf(best)<0)chosen.push(best);
+        best.real.forEach(function(mm){remNow.delete(mm)});
+      }
+      chosen=chosen.filter(function(pi){
+        var others=new Set();chosen.forEach(function(o){if(o!==pi)o.real.forEach(function(m3){others.add(m3)})});
+        return pi.real.some(function(mm){return remNow0(pi,mm,others)});
+        function remNow0(pi3,mm3,oth3){return !oth3.has(mm3)}
+      });
+    }
+  }else{
+    var rn=new Set(rem);
+    while(rn.size){var bb=null,bn=0;
+      for(var pi3=0;pi3<rest.length;pi3++){var n3=rest[pi3].real.filter(function(m4){return rn.has(m4)}).length;if(n3>bn){bn=n3;bb=rest[pi3]}}
+      if(!bb||!bn)break;chosen.push(bb);bb.real.forEach(function(m5){rn.delete(m5)})}
+  }
+  var finalMiss=target.filter(function(mm){return !chosen.some(function(c){return c.real.indexOf(mm)>=0})});
+  if(finalMiss.length){status.textContent='Some cells could not be covered (should be impossible) — minterms '+finalMiss.join(', ');return}
+  var expr=chosen.map(function(pi){return termFromPattern(pi.p,nv,form==='pos')});
+  var out=chosen.map(function(pi){
+    var t=termFromPattern(pi.p,nv,false);
+    if(form==='pos'){var sum=termFromPattern(pi.p,nv,true);return '('+sum+')'}
+    return t;
+  }).join(form==='pos'?'·':' + ');
+  chosen.sort(function(a,b){return a.real[0]-b.real[0]});
+  var ans=$('kmap-answer');ans.hidden=false;
+  ans.textContent=(form==='pos'?'f = '+out:'f = '+out);
+  var gb=$('kmap-groups');gb.replaceChildren();
+  chosen.forEach(function(g,gi){
+    var chip=document.createElement('span');chip.className='kmap-chip';
+    var sw=document.createElement('i');sw.className='kmap-swatch';sw.style.background=COLORS[gi%COLORS.length];
+    var t=document.createElement('span');
+    t.textContent=(form==='pos'?'loop → ('+termFromPattern(g.p,nv,true)+')':termFromPattern(g.p,nv,false))+'  ·  cells '+g.real.join(', ');
+    chip.appendChild(sw);chip.appendChild(t);gb.appendChild(chip);
+  });
+  buildTruth(chosen,form);
+  status.textContent=chosen.length+' loop'+(chosen.length>1?'s':'')+' · '+primes.length+' prime implicants examined';
+  paintGroups(chosen);
+}
+function buildTruth(chosen,form){
+  var box=$('kmap-tt');box.replaceChildren();
+  var table=document.createElement('table');
+  var thead=document.createElement('thead');var hr=document.createElement('tr');
+  for(var k=0;k<nv;k++){var th=document.createElement('th');th.textContent=String.fromCharCode(65+k);hr.appendChild(th)}
+  var thv=document.createElement('th');thv.textContent='f';hr.appendChild(thv);
+  var thg=document.createElement('th');thg.textContent='covered by';hr.appendChild(thg);
+  thead.appendChild(hr);table.appendChild(thead);
+  var tb=document.createElement('tbody');
+  for(var m=0;m<(1<<nv);m++){
+    var tr=document.createElement('tr');
+    for(k=0;k<nv;k++){var td=document.createElement('td');td.textContent=String((m>>(nv-1-k))&1);tr.appendChild(td)}
+    var on=cells[m];
+    var tdf=document.createElement('td');
+    tdf.textContent=on===2?'X':String(on);
+    tdf.style.color=on===1?'#a9f0c0':on===2?'#ffe3a1':'rgba(230,250,255,.45)';
+    tr.appendChild(tdf);
+    var gs=[];
+    chosen.forEach(function(g,gi){if(g.real.indexOf(m)>=0)gs.push(String(gi+1))});
+    var tdg=document.createElement('td');tdg.textContent=gs.length?gs.join(''):'—';tr.appendChild(tdg);
+    tb.appendChild(tr);
+  }
+  table.appendChild(tb);box.appendChild(table);
+}
+$('kmap-vars').addEventListener('change',function(){
+  nv=parseInt($('kmap-vars').value,10);
+  var maxM=1<<nv;
+  for(var m=maxM;m<16;m++)cells[m]=0;
+  buildGrid();optimize();
+  $('kmap-status').textContent='Map rebuilt for '+nv+' variables — cells beyond m'+(maxM-1)+' dropped.';
+});
+$('kmap-load').addEventListener('click',function(){
+  var status=$('kmap-status');
+  try{
+    var on=parseList($('kmap-minterms').value,1<<nv);
+    var dc=parseList($('kmap-dc').value,1<<nv);
+    cells=new Array(16).fill(0);
+    on.forEach(function(m){cells[m]=1});
+    dc.forEach(function(m){cells[m]=2});
+    buildGrid();optimize();
+  }catch(e){status.textContent=e.message}
+});
+$('kmap-solve').addEventListener('click',function(){optimize()});
+$('kmap-clear').addEventListener('click',function(){cells=new Array(16).fill(0);buildGrid();$('kmap-groups').replaceChildren();$('kmap-answer').hidden=true;$('kmap-tt').replaceChildren();$('kmap-status').textContent='Cleared.';syncText()});
+var PRESETS={
+ maj:{v:'3',on:[3,5,6,7],dc:[]},
+ xor:{v:'2',on:[1,2],dc:[]},
+ two4:{v:'4',on:[3,5,6,9,10,12,14,15],dc:[7,11,13]},
+ alu:{v:'3',on:[3,5,6,7],dc:[]}
+};
+function applyPreset(name){
+  var p=PRESETS[name];if(!p)return;
+  $('kmap-vars').value=p.v;nv=parseInt(p.v,10);
+  cells=new Array(16).fill(0);
+  p.on.forEach(function(m){cells[m]=1});
+  p.dc.forEach(function(m){cells[m]=2});
+  syncText();buildGrid();optimize();
+}
+root.querySelectorAll('.kmap-presets button').forEach(function(b){
+  b.addEventListener('click',function(){applyPreset(b.getAttribute('data-p'))});
+});
+buildGrid();
+applyPreset('maj');
+})();
+</script>
+</section>

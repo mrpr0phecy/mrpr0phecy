@@ -1,0 +1,182 @@
+<section id="collatz-conjecture-explorer-root" aria-labelledby="collatz-conjecture-explorer-title">
+<style>
+#collatz-conjecture-explorer-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#collatz-conjecture-explorer-root *{box-sizing:border-box}
+#collatz-conjecture-explorer-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#collatz-conjecture-explorer-root h3{margin:16px 0 6px;font-size:.95rem;color:var(--accent,#2dd4ff)}
+#collatz-conjecture-explorer-root .clz-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.86rem}
+#collatz-conjecture-explorer-root .clz-row{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:10px 0}
+#collatz-conjecture-explorer-root label{display:block;font-size:.76rem;font-weight:600;margin-bottom:4px}
+#collatz-conjecture-explorer-root input{padding:8px;border:1px solid rgba(148,180,199,.35);border-radius:8px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.9rem;width:150px;font-family:ui-monospace,Menlo,Consolas,monospace}
+#collatz-conjecture-explorer-root input:focus-visible,#collatz-conjecture-explorer-root button:focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#collatz-conjecture-explorer-root button{min-height:40px;padding:8px 14px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
+#collatz-conjecture-explorer-root button:hover{background:rgba(45,212,255,.2)}
+#collatz-conjecture-explorer-root .clz-status{min-height:1.3em;font-size:.84rem;color:#ffb4a9}
+#collatz-conjecture-explorer-root .clz-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:8px 0}
+#collatz-conjecture-explorer-root .clz-stat{background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:8px;padding:8px 10px}
+#collatz-conjecture-explorer-root .clz-stat b{display:block;font-size:.95rem;color:var(--accent,#2dd4ff);word-break:break-word}
+#collatz-conjecture-explorer-root .clz-stat span{font-size:.7rem;color:var(--text-secondary,rgba(230,250,255,.68))}
+#collatz-conjecture-explorer-root svg{display:block;width:100%;height:auto;background:var(--surface,#101c25);border:1px solid rgba(148,180,199,.2);border-radius:10px;margin:6px 0}
+#collatz-conjecture-explorer-root .clz-steps{max-height:150px;overflow:auto;border:1px solid rgba(148,180,199,.18);border-radius:8px;padding:8px 10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.72rem;line-height:1.8;color:var(--text-secondary,rgba(230,250,255,.75));word-break:break-word}
+#collatz-conjecture-explorer-root table{border-collapse:collapse;width:100%;font-size:.82rem}
+#collatz-conjecture-explorer-root th,#collatz-conjecture-explorer-root td{padding:5px 8px;border-bottom:1px solid rgba(148,180,199,.14);text-align:right}
+#collatz-conjecture-explorer-root th:first-child,#collatz-conjecture-explorer-root td:first-child{text-align:left}
+#collatz-conjecture-explorer-root th{color:var(--accent,#2dd4ff)}
+#collatz-conjecture-explorer-root td .clz-bar{display:inline-block;height:8px;border-radius:4px;background:linear-gradient(90deg,#2dd4ff,#7a5cff);vertical-align:middle;margin-right:6px}
+</style>
+<h2 id="collatz-conjecture-explorer-title">🌀 Collatz Conjecture Explorer</h2>
+<p id="collatz-conjecture-explorer-desc" class="desc">Take any positive whole number: halve it if even, triple-and-add-one if odd. Every number ever tried falls into the 4-2-1 loop — nobody has proved why. Chart any starting value (BigInt-sized), measure its stopping time and peak, and scan ranges for the longest-running chains.</p>
+<div class="clz-row">
+<div><label for="clz-n">Start value n</label><input id="clz-n" value="27" autocomplete="off" spellcheck="false"></div>
+<button type="button" id="clz-go">Drop it</button>
+<button type="button" id="clz-27" class="clz-chip">27 (111 steps)</button>
+<button type="button" id="clz-big">837799 (longest under 1M)</button>
+</div>
+<div class="clz-status" id="clz-status" role="status"></div>
+<svg id="clz-chart" viewBox="0 0 640 200" role="img" aria-label="Sparkline of the trajectory values on a logarithmic scale"></svg>
+<div class="clz-stats" id="clz-stats"></div>
+<h3 style="margin-top:6px">The first steps</h3>
+<div class="clz-steps" id="clz-steps">—</div>
+<h3>Range scan — who resists the longest?</h3>
+<div class="clz-muted">Every integer in [from, to] gets walked to 1 (double-precision; up to a span of 5,000).</div>
+<div class="clz-row">
+<div><label for="clz-from">from</label><input id="clz-from" value="1" style="width:110px"></div>
+<div><label for="clz-to">to</label><input id="clz-to" value="200" style="width:110px"></div>
+<button type="button" id="clz-scan">Scan</button>
+</div>
+<div class="clz-status" id="clz-scan-status" role="status"></div>
+<div id="clz-scan-out"></div>
+<script>
+(function () {
+  'use strict';
+  var root = document.getElementById('collatz-conjecture-explorer-root');
+  if (!root) return;
+  function $(id) { return document.getElementById(id); }
+  var TWO = 2n, THREE = 3n, ONE = 1n;
+  function approx(v) {
+    var s = v.toString();
+    return s.length <= 15 ? Number(v) : parseFloat(s[0] + '.' + (s.slice(1, 8) || '0') + 'e' + (s.length - 1));
+  }
+  function sci(v) {
+    var s = v.toString();
+    if (s.length <= 15) return s;
+    return s[0] + '.' + s.slice(1, 5) + '×10^' + (s.length - 1);
+  }
+  function run() {
+    var status = $('clz-status');
+    status.textContent = '';
+    var raw = $('clz-n').value.trim().replace(/\s|_/g, '');
+    if (!/^\d+$/.test(raw) || raw === '0' || raw === '') { status.textContent = 'Enter a positive whole number (digits only).'; return; }
+    if (raw.length > 400) { status.textContent = 'Max 400 digits — this is a browser tab, not a supercomputer.'; return; }
+    var n = BigInt(raw);
+    var steps = 0, oddSteps = 0, max = n;
+    var vals = [approx(n)];
+    var firstFew = [n];
+    while (n !== ONE && steps < 50000) {
+      if (n % TWO === ONE) { n = n * THREE + ONE; oddSteps++; }
+      else n = n / TWO;
+      steps++;
+      if (n > max) max = n;
+      if (steps % 4 === 0 || steps < 40) vals.push(approx(n));
+      if (firstFew.length < 140) firstFew.push(n);
+    }
+    if (n !== ONE) status.textContent = 'Still falling after 50,000 steps (the conjecture says it eventually lands — try a smaller start).';
+    var stats = $('clz-stats');
+    while (stats.firstChild) stats.removeChild(stats.firstChild);
+    function stat(label, value) {
+      var d = document.createElement('div'); d.className = 'clz-stat';
+      var b = document.createElement('b'); b.textContent = value;
+      var s = document.createElement('span'); s.textContent = label;
+      d.appendChild(b); d.appendChild(s); stats.appendChild(d);
+    }
+    stat('steps to reach 1', steps.toLocaleString('en-GB'));
+    stat('odd steps (the 3n+1 jumps)', oddSteps.toLocaleString('en-GB'));
+    stat('peak value', sci(max));
+    stat('peak digits', String(max.toString().length));
+    stat('peak ÷ start', max > 0n && approx(vals[0]) > 0 ? (approx(max) / vals[0]).toExponential(1) : '—');
+    var stepsNode = $('clz-steps');
+    stepsNode.textContent = firstFew.map(function (v) { return v.toString(); }).join(' → ') + (firstFew.length >= 140 ? ' → …' : ' → 1');
+    chart(vals);
+  }
+  function chart(vals) {
+    var svg = $('clz-chart');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var NS = 'http://www.w3.org/2000/svg';
+    function put(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); svg.appendChild(e); return e; }
+    var W = 640, H = 200, pad = 18;
+    if (vals.length < 2) { put('text', { x: W / 2, y: H / 2, fill: '#8ea3b5', 'font-size': 13, 'text-anchor': 'middle' }, 'no descent to draw — n = 1'); return; }
+    var logs = vals.map(function (v) { return Math.log10(Math.max(1e-9, v)); });
+    var mx = Math.max.apply(null, logs), mn = 0;
+    var budget = 1400, decim = Math.max(1, Math.ceil(vals.length / budget));
+    var pts = [];
+    for (var i = 0; i < logs.length; i += decim) {
+      var lo = logs[i];
+      for (var j = i; j < Math.min(logs.length, i + decim); j++) if (logs[j] > lo) lo = logs[j];
+      pts.push([i, lo]);
+    }
+    pts.push([logs.length - 1, logs[logs.length - 1]]);
+    function PX(i) { return pad + i / (logs.length - 1) * (W - 2 * pad); }
+    function PY(l) { return H - pad - (l - mn) / Math.max(1e-9, mx - mn) * (H - 2 * pad); }
+    for (var g = 0; g * 3 <= mx + 1; g++) {
+      var lv = g * 3;
+      if (lv > mx) break;
+      put('line', { x1: pad, y1: PY(lv), x2: W - pad, y2: PY(lv), stroke: 'rgba(148,180,199,.14)' });
+      put('text', { x: 4, y: PY(lv) + 3, fill: '#8ea3b5', 'font-size': 9 }, '10^' + (lv === 0 ? 0 : lv.toFixed(0)));
+    }
+    var d = pts.map(function (p, idx) { return (idx ? 'L' : 'M') + PX(p[0]).toFixed(1) + ' ' + PY(p[1]).toFixed(1); }).join('');
+    put('path', { d: d, fill: 'none', stroke: '#2dd4ff', 'stroke-width': 1.8 });
+    put('text', { x: W - pad, y: H - 4, fill: '#8ea3b5', 'font-size': 9, 'text-anchor': 'end' }, '→ step ' + (vals.length ? vals.length * decim : 0) + ' · log height (peak 10^' + mx.toFixed(1) + ')');
+  }
+  function scan() {
+    var status = $('clz-scan-status');
+    status.textContent = '';
+    var from = Math.floor(Number($('clz-from').value)), to = Math.floor(Number($('clz-to').value));
+    if (!isFinite(from) || !isFinite(to) || from < 1 || to <= from) { status.textContent = 'Use 1 ≤ from < to.'; return; }
+    if (to - from > 5000) { status.textContent = 'Span capped at 5,000 to keep the tab responsive.'; to = from + 5000; $('clz-to').value = String(to); }
+    var out = [];
+    for (var n = from; n <= to; n++) {
+      var x = n, steps = 0;
+      while (x > 1 && steps < 12000) { x = (x % 2) ? 3 * x + 1 : x / 2; steps++; }
+      out.push([n, steps]);
+    }
+    out.sort(function (a, b) { return b[1] - a[1]; });
+    var top = out.slice(0, 10);
+    var maxS = top.length ? top[0][1] : 1;
+    var node = $('clz-scan-out');
+    while (node.firstChild) node.removeChild(node.firstChild);
+    var tbl = document.createElement('table');
+    var trh = document.createElement('tr');
+    ['n', 'steps to 1', 'vs range'].forEach(function (h) { var th = document.createElement('th'); th.scope = 'col'; th.textContent = h; trh.appendChild(th); });
+    var thead = document.createElement('thead'); thead.appendChild(trh); tbl.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    top.forEach(function (r) {
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td'); td1.textContent = String(r[0]); tr.appendChild(td1);
+      var td2 = document.createElement('td'); td2.textContent = String(r[1]); tr.appendChild(td2);
+      var td3 = document.createElement('td');
+      var bar = document.createElement('span'); bar.className = 'clz-bar';
+      bar.style.width = Math.max(3, Math.round(r[1] / maxS * 120)) + 'px';
+      td3.appendChild(bar); tr.appendChild(td3);
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    node.appendChild(tbl);
+    var mean = out.reduce(function (s, r) { return s + r[1]; }, 0) / out.length;
+    var note = document.createElement('p');
+    note.className = 'clz-muted';
+    note.textContent = (to - from + 1) + ' numbers walked · longest chain ' + maxS + ' steps (from ' + top[0][0] + ') · mean ' + mean.toFixed(1) + ' steps. Powers of two sit at the very bottom — 2ᵏ needs just k steps.';
+    node.appendChild(note);
+  }
+  $('clz-go').addEventListener('click', run);
+  $('clz-27').addEventListener('click', function () { $('clz-n').value = '27'; run(); });
+  $('clz-big').addEventListener('click', function () {
+    $('clz-n').value = '837799'; // longest known chain below 1,000,000 — 524 steps
+    run();
+  });
+  $('clz-scan').addEventListener('click', scan);
+  $('clz-n').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') run(); });
+  run();
+  scan();
+})();
+</script>
+</section>
