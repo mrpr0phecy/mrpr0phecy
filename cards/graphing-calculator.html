@@ -22,7 +22,7 @@
       <!-- Quick Language Selector -->
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
         <span style="color:var(--muted);font-size:12px;align-self:center;">🌍 </span>
-        <select id="gc-lang" style="font-size:12px;padding:4px 8px;background:var(--glass);border:1px solid var(--border);border-radius:6px;color:var(--text);max-width:120px;">
+        <select id="gc-lang" aria-label="Language" style="font-size:12px;padding:4px 8px;background:var(--glass);border:1px solid var(--border);border-radius:6px;color:var(--text);max-width:120px;">
           <option value="en">English</option>
           <option value="es">Español</option>
           <option value="fr">Français</option>
@@ -666,7 +666,208 @@ function plotExplicit(expr, samples) {
   gc.ctx.lineWidth = 2;
   gc.ctx.stroke();
   
-  return { points, type: 'explicit' };
+  return { points, type: 'explicit', expr };
+}
+
+function plotPolar(expr, samples) {
+  const f = makeEvaluator(expr.replace(/theta|θ/gi, 't'), ['x', 't']);
+  if (!f) throw new Error('Invalid polar expression');
+  const ts = linspace(0, Math.PI * 2, samples || 600);
+  const points = [];
+  gc.ctx.beginPath();
+  let firstPoint = true;
+  for (let i = 0; i < ts.length; i++) {
+    const t = ts[i];
+    let r;
+    try {
+      r = f(t, t);
+      if (!isFinite(r)) throw new Error('Non-finite result');
+    } catch (e) {
+      firstPoint = true;
+      continue;
+    }
+    const x = r * Math.cos(t);
+    const y = r * Math.sin(t);
+    const [sx, sy] = worldToScreen(x, y);
+    if (firstPoint) { gc.ctx.moveTo(sx, sy); firstPoint = false; }
+    else gc.ctx.lineTo(sx, sy);
+    points.push([x, y]);
+  }
+  gc.ctx.strokeStyle = gc.colors.graph;
+  gc.ctx.lineWidth = 2;
+  gc.ctx.stroke();
+  return { points, type: 'polar', expr };
+}
+
+function plotParametric(expr, samples) {
+  const parts = (expr || 'cos(t), sin(t)').split(/[,;]/);
+  const xExpr = (parts[0] || 'cos(t)').trim();
+  const yExpr = (parts[1] || 'sin(t)').trim();
+  const fx = makeEvaluator(xExpr, ['t', 'x']);
+  const fy = makeEvaluator(yExpr, ['t', 'x']);
+  if (!fx || !fy) throw new Error('Invalid parametric expression (use x(t), y(t))');
+  const [xmin, xmax] = gc.bounds;
+  const ts = linspace(xmin, xmax, samples || 600);
+  const points = [];
+  gc.ctx.beginPath();
+  let firstPoint = true;
+  for (let i = 0; i < ts.length; i++) {
+    const t = ts[i];
+    let x, y;
+    try {
+      x = fx(t, t);
+      y = fy(t, t);
+      if (!isFinite(x) || !isFinite(y)) throw new Error('Non-finite result');
+    } catch (e) {
+      firstPoint = true;
+      continue;
+    }
+    const [sx, sy] = worldToScreen(x, y);
+    if (firstPoint) { gc.ctx.moveTo(sx, sy); firstPoint = false; }
+    else gc.ctx.lineTo(sx, sy);
+    points.push([x, y]);
+  }
+  gc.ctx.strokeStyle = gc.colors.graph;
+  gc.ctx.lineWidth = 2;
+  gc.ctx.stroke();
+  return { points, type: 'parametric', expr };
+}
+
+function plotImplicit(expr, samples) {
+  let clean = expr;
+  if (clean.includes('=') && !/[<>!=]=/.test(clean)) {
+    const sides = clean.split('=');
+    clean = `(${sides[0]}) - (${sides.slice(1).join('=')})`;
+  }
+  const f = makeEvaluator(clean, ['x', 'y']);
+  if (!f) throw new Error('Invalid implicit expression');
+  const [xmin, xmax, ymin, ymax] = gc.bounds;
+  const n = Math.max(30, Math.min(120, Math.round(Math.sqrt(samples || 800) * 2)));
+  const xs = linspace(xmin, xmax, n);
+  const ys = linspace(ymin, ymax, n);
+  const points = [];
+  gc.ctx.beginPath();
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < n - 1; j++) {
+      const x0 = xs[i], x1 = xs[i + 1];
+      const y0 = ys[j], y1 = ys[j + 1];
+      const v00 = f(x0, y0), v10 = f(x1, y0), v01 = f(x0, y1), v11 = f(x1, y1);
+      if (!isFinite(v00) || !isFinite(v10) || !isFinite(v01) || !isFinite(v11)) continue;
+      const s00 = v00 >= 0, s10 = v10 >= 0, s01 = v01 >= 0, s11 = v11 >= 0;
+      if (s00 === s10 && s00 === s01 && s00 === s11) continue;
+      const xm = 0.5 * (x0 + x1), ym = 0.5 * (y0 + y1);
+      const [sx, sy] = worldToScreen(xm, ym);
+      gc.ctx.moveTo(sx - 1, sy);
+      gc.ctx.lineTo(sx + 1, sy);
+      points.push([xm, ym]);
+    }
+  }
+  gc.ctx.strokeStyle = gc.colors.graph;
+  gc.ctx.lineWidth = 2;
+  gc.ctx.stroke();
+  return { points, type: 'implicit', expr };
+}
+
+function plotDerivative(expr) {
+  const f = makeEvaluator(expr, ['x']);
+  if (!f) return;
+  const [xmin, xmax] = gc.bounds;
+  const xs = linspace(xmin, xmax, 400);
+  const h = 1e-5;
+  gc.ctx.save();
+  gc.ctx.beginPath();
+  gc.ctx.setLineDash([5, 4]);
+  let firstPoint = true;
+  for (let i = 0; i < xs.length; i++) {
+    const x = xs[i];
+    const dy = (f(x + h) - f(x - h)) / (2 * h);
+    if (!isFinite(dy)) { firstPoint = true; continue; }
+    const [sx, sy] = worldToScreen(x, dy);
+    if (firstPoint) { gc.ctx.moveTo(sx, sy); firstPoint = false; }
+    else gc.ctx.lineTo(sx, sy);
+  }
+  gc.ctx.strokeStyle = '#ffcc00';
+  gc.ctx.lineWidth = 1.5;
+  gc.ctx.stroke();
+  gc.ctx.restore();
+}
+
+function plotIntegral(expr, a, b) {
+  const f = makeEvaluator(expr, ['x']);
+  if (!f || !isFinite(a) || !isFinite(b) || a === b) return 0;
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  const n = 200;
+  const xs = linspace(lo, hi, n + 1);
+  let area = 0;
+  gc.ctx.save();
+  gc.ctx.beginPath();
+  const [sx0, sy0] = worldToScreen(lo, 0);
+  gc.ctx.moveTo(sx0, sy0);
+  for (let i = 0; i <= n; i++) {
+    const x = xs[i];
+    const y = f(x);
+    if (isFinite(y)) {
+      const [sx, sy] = worldToScreen(x, y);
+      gc.ctx.lineTo(sx, sy);
+      if (i > 0) {
+        const yPrev = f(xs[i - 1]);
+        if (isFinite(yPrev)) area += 0.5 * (yPrev + y) * (xs[i] - xs[i - 1]);
+      }
+    }
+  }
+  const [sx1, sy1] = worldToScreen(hi, 0);
+  gc.ctx.lineTo(sx1, sy1);
+  gc.ctx.closePath();
+  gc.ctx.fillStyle = 'rgba(57, 255, 20, 0.2)';
+  gc.ctx.fill();
+  gc.ctx.restore();
+  const signedArea = a <= b ? area : -area;
+  const el = document.getElementById('gc-stats-integral');
+  if (el) el.textContent = signedArea.toFixed(2);
+  return signedArea;
+}
+
+function findRoots(expr) {
+  const f = makeEvaluator(expr, ['x']);
+  if (!f) return [];
+  const [xmin, xmax] = gc.bounds;
+  const n = 400;
+  const xs = linspace(xmin, xmax, n + 1);
+  const roots = [];
+  for (let i = 0; i < n; i++) {
+    let a = xs[i], b = xs[i + 1];
+    let fa = f(a), fb = f(b);
+    if (!isFinite(fa) || !isFinite(fb)) continue;
+    if (Math.abs(fa) < 1e-9) {
+      if (!roots.some(r => Math.abs(r - a) < 1e-4)) roots.push(a);
+      continue;
+    }
+    if (fa * fb < 0) {
+      for (let k = 0; k < 30; k++) {
+        const m = 0.5 * (a + b);
+        const fm = f(m);
+        if (!isFinite(fm)) break;
+        if (Math.abs(fm) < 1e-10) { a = b = m; break; }
+        if (fa * fm <= 0) { b = m; fb = fm; } else { a = m; fa = fm; }
+      }
+      const r = 0.5 * (a + b);
+      if (Math.abs(f(r)) < 1e-2 && !roots.some(prev => Math.abs(prev - r) < 1e-4)) {
+        roots.push(r);
+      }
+    }
+  }
+  gc.ctx.save();
+  gc.ctx.fillStyle = '#ff2d55';
+  for (const r of roots) {
+    const [sx, sy] = worldToScreen(r, 0);
+    gc.ctx.beginPath();
+    gc.ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+    gc.ctx.fill();
+  }
+  gc.ctx.restore();
+  const el = document.getElementById('gc-stats-roots');
+  if (el) el.textContent = String(roots.length);
+  return roots;
 }
 
 // ========== UTILITY FUNCTIONS ==========
@@ -1555,14 +1756,41 @@ function updateOutput(message, type = 'info') {
 }
 
 function updateStats(result) {
-  // Update root count (simplified)
-  const roots = Math.floor(Math.random() * 5); // This would be calculated
-  document.getElementById('gc-stats-roots').textContent = roots;
-  
-  // Update integral value
-  if (result && result.points) {
-    const integral = result.points.reduce((sum, p) => sum + Math.abs(p[1]), 0) / result.points.length;
-    document.getElementById('gc-stats-integral').textContent = integral.toFixed(2);
+  const expr = (result && result.expr) || (document.getElementById('gc-expression') && document.getElementById('gc-expression').value.trim()) || '';
+  const f = expr ? makeEvaluator(expr, ['x']) : null;
+  if (f) {
+    const [xmin, xmax] = gc.bounds;
+    const xs = linspace(xmin, xmax, 201);
+    const roots = [];
+    for (let i = 0; i < xs.length - 1; i++) {
+      const fa = f(xs[i]), fb = f(xs[i + 1]);
+      if (!isFinite(fa) || !isFinite(fb)) continue;
+      if (Math.abs(fa) < 1e-9 || fa * fb < 0) {
+        const approx = Math.abs(fa) < 1e-9 ? xs[i] : xs[i] - fa * (xs[i + 1] - xs[i]) / (fb - fa);
+        if (!roots.some(r => Math.abs(r - approx) < 1e-3)) roots.push(approx);
+      }
+    }
+    const rootsEl = document.getElementById('gc-stats-roots');
+    if (rootsEl) rootsEl.textContent = String(roots.length);
+
+    const a = parseFloat(document.getElementById('gc-integral-a')?.value);
+    const b = parseFloat(document.getElementById('gc-integral-b')?.value);
+    if (isFinite(a) && isFinite(b)) {
+      const ixs = linspace(a, b, 101);
+      let area = 0;
+      for (let i = 1; i < ixs.length; i++) {
+        const y0 = f(ixs[i - 1]), y1 = f(ixs[i]);
+        if (isFinite(y0) && isFinite(y1)) area += 0.5 * (y0 + y1) * (ixs[i] - ixs[i - 1]);
+      }
+      const intEl = document.getElementById('gc-stats-integral');
+      if (intEl) intEl.textContent = area.toFixed(2);
+    }
+
+    const x0 = parseFloat(document.getElementById('gc-root-x')?.value) || 0;
+    const h = 1e-5;
+    const df = (f(x0 + h) - f(x0 - h)) / (2 * h);
+    const derivEl = document.getElementById('gc-stats-derivative');
+    if (derivEl) derivEl.textContent = isFinite(df) ? df.toFixed(2) : '—';
   }
 }
 
