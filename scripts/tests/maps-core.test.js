@@ -1702,3 +1702,354 @@ test('page: every MM.<namespace>.<member> the page calls actually exists', () =>
   }
   assert.ok(checked > 60, `expected the page to use the engine in many places, checked only ${checked}`);
 });
+
+// ------------------------------------------------------- the offline renderer
+//
+// These four tests exist because of what measuring the map actually found: the
+// world was not being drawn at all on first paint, a zoomed-out pan cost 30 ms
+// a frame, and the Measure tool drew its line at (null, null). Each one is a
+// behaviour a visitor can see, so each one is asserted here rather than left to
+// a benchmark nobody runs.
+
+/**
+ * A canvas that records what it was asked to draw. The renderer is exercised
+ * for real — its own draw() — without a browser, so these tests stay part of
+ * the dependency-free suite.
+ */
+function recordingCanvasHarness() {
+  const drawn = { fills: 0, strokes: 0, points: [], texts: [], badCoordinates: 0 };
+  const ctx = {
+    canvas: null,
+    fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, lineJoin: 'miter', lineCap: 'butt',
+    globalAlpha: 1, font: '10px sans-serif', textBaseline: 'alphabetic',
+    setTransform() {}, clearRect() {}, save() {}, restore() {}, beginPath() {}, closePath() {},
+    fill() { drawn.fills += 1; }, stroke() { drawn.strokes += 1; }, fillRect() {}, strokeRect() {},
+    arc(x, y) { drawn.points.push([x, y]); },
+    fillText(text, x, y) { drawn.texts.push([x, y, String(text)]); },
+    measureText: (t) => ({ width: String(t).length * 6 }),
+    moveTo(x, y) { if (!Number.isFinite(x) || !Number.isFinite(y)) drawn.badCoordinates += 1; drawn.points.push([x, y]); },
+    lineTo(x, y) { if (!Number.isFinite(x) || !Number.isFinite(y)) drawn.badCoordinates += 1; drawn.points.push([x, y]); },
+  };
+  const canvas = {
+    style: {}, width: 0, height: 0, className: '', tabIndex: 0,
+    setAttribute() {}, getContext: () => ctx, addEventListener() {}, removeEventListener() {},
+    setPointerCapture() {}, releasePointerCapture() {},
+    getBoundingClientRect: () => ({ width: 800, height: 600, top: 0, left: 0, right: 800, bottom: 600 }),
+  };
+  const container = {
+    appendChild(node) { canvas.parentNode = container; return node; },
+    removeChild(node) { canvas.parentNode = null; return node; },
+    clientWidth: 800, clientHeight: 600,
+    getBoundingClientRect: () => ({ width: 800, height: 600, top: 0, left: 0, right: 800, bottom: 600 }),
+  };
+  return { drawn, container, withDocument: (fn) => {
+    const previous = global.document;
+    global.document = { createElement: () => canvas };
+    try { return fn(); } finally {
+      if (previous === undefined) delete global.document; else global.document = previous;
+    }
+  } };
+}
+
+function decodedWorld(which) {
+  const fs = require('node:fs');
+  const geo = require(path.join(ROOT, 'maps/core/geo.js'));
+  globalThis.topojson = require(path.join(ROOT, 'maps/vendor/topojson-client.min.js'));
+  const file = which === 'detail' ? 'maps/data/countries-50m.json' : 'maps/data/countries-110m.json';
+  return geo.fromTopology(JSON.parse(fs.readFileSync(path.join(ROOT, file), 'utf8')), 'countries');
+}
+
+test('localmap: the offline world draws land, and keeps both resolutions', () => {
+  require(path.join(ROOT, 'maps/core/geodesy.js'));
+  require(path.join(ROOT, 'maps/core/geo.js'));
+  const LocalMap = require(path.join(ROOT, 'maps/localmap.js'));
+  const coarse = decodedWorld();
+  const detail = decodedWorld('detail');
+  const harness = recordingCanvasHarness();
+
+  const map = harness.withDocument(() => new LocalMap(harness.container, {
+    center: { lat: 20, lon: 0 }, zoom: 2, countries: coarse, countriesDetail: detail,
+  }));
+  try {
+    harness.drawn.fills = 0;
+    map.draw();
+    assert.ok(harness.drawn.fills > 100, `a world view should fill a country per landmass, filled ${harness.drawn.fills}`);
+    assert.ok(harness.drawn.points.length > 2000, 'and trace a real coastline');
+    assert.equal(map._activeCountries(), coarse, 'the coarse set is what a zoomed-out view draws');
+
+    // Zoom in and the detailed set takes over — without the coarse one being
+    // thrown away, which is what made every later zoomed-out pan expensive.
+    map.zoom = 7;
+    assert.equal(map._activeCountries(), detail);
+    harness.drawn.fills = 0;
+    map.draw();
+    assert.ok(harness.drawn.fills > 0, 'the detailed set draws too');
+    assert.equal(map._activeCountries() === coarse, false);
+    map.zoom = 2;
+    assert.equal(map._activeCountries(), coarse, 'zooming back out returns to the coarse set');
+  } finally {
+    harness.withDocument(() => map.destroy());
+  }
+});
+
+test('localmap: a projection cache draws the same coastline with far less work', () => {
+  const LocalMap = require(path.join(ROOT, 'maps/localmap.js'));
+  const coarse = decodedWorld();
+  const harness = recordingCanvasHarness();
+  const map = harness.withDocument(() => new LocalMap(harness.container, {
+    center: { lat: 51.5, lon: -0.1 }, zoom: 4, countries: coarse,
+  }));
+  try {
+    map.draw();
+    const firstFrame = harness.drawn.points.slice();
+    // The cache is per dataset: the same data drawn again, at the same view,
+    // must land on exactly the same pixels.
+    harness.drawn.points.length = 0;
+    map.draw();
+    assert.deepEqual(harness.drawn.points, firstFrame, 'redrawing is deterministic');
+    assert.ok(firstFrame.length > 1000, 'the world view traced a real coastline');
+  } finally {
+    harness.withDocument(() => map.destroy());
+  }
+
+  // The transform itself, on geometry small enough that nothing enters or
+  // leaves the frame: a pan must move every vertex by exactly the same offset,
+  // and a zoom must scale it. That is the whole promise the cached projection
+  // makes, and it is what stops a cached map from slowly warping.
+  const shapes = {
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', properties: { name: 'A' }, geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]] } },
+      { type: 'Feature', properties: { name: 'B' }, geometry: { type: 'MultiPolygon', coordinates: [[[[40, 20], [50, 20], [45, 30], [40, 20]]]] } },
+    ],
+  };
+  const small = recordingCanvasHarness();
+  const mini = small.withDocument(() => new LocalMap(small.container, {
+    center: { lat: 20, lon: 20 }, zoom: 3, countries: shapes, graticule: false, scaleBar: false, showCities: false,
+  }));
+  try {
+    mini.draw();
+    const before = small.drawn.points.slice();
+    const centreBefore = mini.worldPixel(mini.center);
+    mini.center = { lat: 20, lon: 22 };
+    small.drawn.points.length = 0;
+    mini.draw();
+    assert.equal(small.drawn.points.length, before.length, 'a pan draws the same vertices');
+    const dx = centreBefore.x - mini.worldPixel(mini.center).x;
+    for (let i = 0; i < before.length; i += 1) {
+      assert.ok(Math.abs(before[i][0] + dx - small.drawn.points[i][0]) < 1e-9, `vertex ${i} must translate by exactly the pan offset`);
+      assert.equal(small.drawn.points[i][1], before[i][1], `vertex ${i} must not move vertically on a horizontal pan`);
+    }
+    // One zoom level doubles every distance from the centre of the frame.
+    const zoomedFrom = small.drawn.points.slice();
+    const centreX = mini.width / 2;
+    const centreY = mini.height / 2;
+    mini.setView({ lat: 20, lon: 22 }, mini.zoom + 1, { silent: true });
+    small.drawn.points.length = 0;
+    mini.draw();
+    assert.equal(small.drawn.points.length, zoomedFrom.length, 'a zoom draws the same vertices');
+    for (let i = 0; i < zoomedFrom.length; i += 1) {
+      const expectedX = centreX + (zoomedFrom[i][0] - centreX) * 2;
+      const expectedY = centreY + (zoomedFrom[i][1] - centreY) * 2;
+      assert.ok(Math.abs(small.drawn.points[i][0] - expectedX) < 1e-6, `vertex ${i} must double its distance from the frame centre in x`);
+      assert.ok(Math.abs(small.drawn.points[i][1] - expectedY) < 1e-6, `vertex ${i} must double its distance from the frame centre in y`);
+    }
+  } finally {
+    small.withDocument(() => mini.destroy());
+  }
+});
+
+test('localmap: a measurement is drawn where it was taken, whichever row shape', () => {
+  const LocalMap = require(path.join(ROOT, 'maps/localmap.js'));
+  const harness = recordingCanvasHarness();
+  const map = harness.withDocument(() => new LocalMap(harness.container, {
+    // Nothing but the measurement is drawn, so every recorded point belongs to
+    // the path or the polygon and can be checked exactly.
+    center: { lat: 51.5, lon: -0.1 }, zoom: 6, graticule: false, scaleBar: false, showCities: false,
+  }));
+  try {
+    // The page measures in {lat, lon} objects; the cards pass [lon, lat]. Both
+    // have to draw. Indexing the wrong shape gives (null, null), which the
+    // canvas ignores without complaining — the line simply never appears.
+    for (const [label, rows] of [
+      ['{lat, lon} objects', [{ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: 0 }, { lat: 51.4, lon: 0.1 }]],
+      ['[lon, lat] arrays', [[-0.1, 51.5], [0, 51.6], [0.1, 51.4]]],
+    ]) {
+      map.setPath(rows);
+      map.setPolygon(rows);
+      harness.drawn.points.length = 0;
+      harness.drawn.badCoordinates = 0;
+      map.draw();
+      assert.equal(harness.drawn.badCoordinates, 0, `${label}: every drawn coordinate must be a number`);
+      const finite = harness.drawn.points.filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+      assert.equal(finite.length, harness.drawn.points.length, `${label}: nothing may be drawn at a null coordinate`);
+      assert.ok(finite.length >= 6, `${label}: path and polygon were traced (${finite.length} points)`);
+      // The first measured point is the map centre, so it must land mid-canvas.
+      assert.ok(Math.abs(finite[0][0] - 400) < 2 && Math.abs(finite[0][1] - 300) < 2,
+        `${label}: the first point should be the centre, got ${finite[0]}`);
+    }
+    // And a path handed to the renderer once, then extended in place the way
+    // the Measure tool extends it, must draw the new leg.
+    const measure = [{ lat: 51.5, lon: -0.1 }, { lat: 51.6, lon: 0 }];
+    map.setPath(measure);
+    harness.drawn.points.length = 0;
+    map.draw();
+    const twoLegs = harness.drawn.points.length;
+    measure.push({ lat: 51.4, lon: 0.2 });
+    map.setPath(measure);
+    harness.drawn.points.length = 0;
+    map.draw();
+    assert.ok(harness.drawn.points.length > twoLegs, 'extending a measurement in place must redraw it');
+  } finally {
+    harness.withDocument(() => map.destroy());
+  }
+});
+
+test('page: the world the page loads is a topology, and the page decodes it', () => {
+  // The shipped boundaries are TopoJSON. Handing that straight to the renderer
+  // draws nothing at all — no features, no country on a click — and does it
+  // silently, because `features` is simply absent. Both halves of the
+  // invariant are asserted: what the file is, and what the page does with it.
+  const fs = require('node:fs');
+  const coarse = JSON.parse(fs.readFileSync(path.join(ROOT, 'maps/data/countries-110m.json'), 'utf8'));
+  assert.equal(coarse.type, 'Topology', 'the coarse world ships as TopoJSON');
+  assert.equal(coarse.features, undefined, 'so it has no .features for a renderer to read');
+
+  const app = fs.readFileSync(path.join(ROOT, 'maps/app.js'), 'utf8');
+  assert.match(app, /fromTopology\(topology, 'countries'\)/,
+    'maps/app.js must decode the topology before it reaches the renderer');
+  assert.ok(!/countries:\s*loaded/.test(app), 'the page must not hand the raw file to LocalMap');
+  assert.match(app, /countriesDetail:\s*collection/, 'the detailed set is added alongside, not swapped in');
+});
+
+// ----------------------------------------------------------- search indexing
+
+test('gazetteer: the search index returns exactly what a full scan would', () => {
+  const fs = require('node:fs');
+  const gazModule = require(path.join(ROOT, 'maps/core/gazetteer.js'));
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'maps/data/gazetteer.json'), 'utf8'));
+  const countries = JSON.parse(fs.readFileSync(path.join(ROOT, 'maps/data/countries.json'), 'utf8'));
+  const gaz = gazModule.create(data).setCountries(countries);
+  const fold = gazModule.fold;
+
+  const queries = ['l', 'e', 'lu', 'lut', 'london', 'san', 'san francisco', 'springfield', 'york new',
+    'sao paulo', 'malmo', 'burg', 'ville', 'x', 'zz', 'a', 'st', 'de la', 'fort', 'bad', 'inverness',
+    'w', 'port', 'rio', 'los a', 'kyiv', 'ab', 'o', 'strand', 'el paso'];
+  const centres = [null, { lat: 51.5, lon: -0.1 }, { lat: 39.78, lon: -89.65 }, { lat: -33.87, lon: 151.21 }];
+
+  let compared = 0;
+  for (const query of queries) {
+    for (const near of centres) {
+      for (const options of [{ limit: 6, near }, { limit: 4, near, cc: 'US' }, { limit: 5, near, minPop: 200000 }]) {
+        const indexed = gaz.search(query, options);
+        // The reference: score every row, sort, take the top N. This is what
+        // the search used to do on every keystroke.
+        const scanned = [];
+        for (const row of data.cities) {
+          if (options.cc && row[3] !== options.cc) continue;
+          if (row[4] < (options.minPop || 0)) continue;
+          let score = gazModule.scoreName(row[0], fold(query).trim());
+          if (!score) continue;
+          score += gazModule.populationScore(row[4]);
+          let km = null;
+          if (near) {
+            km = geodesy.distanceKm(near, { lat: row[1], lon: row[2] });
+            score += Math.max(0, 30 * (1 - km / 2000));
+          }
+          scanned.push({ name: row[0], cc: row[3], pop: row[4], score, km });
+        }
+        scanned.sort((a, b) => (b.score !== a.score ? b.score - a.score : b.pop - a.pop));
+        const expected = scanned.slice(0, options.limit);
+        assert.equal(indexed.length, expected.length, `"${query}" returned ${indexed.length}, a scan returns ${expected.length}`);
+        expected.forEach((want, i) => {
+          const got = indexed[i];
+          assert.equal(got.name, want.name, `"${query}" rank ${i + 1}: ${got.name} vs ${want.name}`);
+          assert.ok(Math.abs(got.score - want.score) < 1e-9, `"${query}" rank ${i + 1} score ${got.score} vs ${want.score}`);
+          if (want.km != null) assert.ok(Math.abs(got.km - want.km) < 1e-9, 'the reported distance stays exact');
+        });
+        compared += 1;
+      }
+    }
+  }
+  assert.ok(compared > 200, `expected a broad comparison, made ${compared}`);
+});
+
+test('gazetteer: the index narrows the search instead of scanning every place', () => {
+  const fs = require('node:fs');
+  const gazModule = require(path.join(ROOT, 'maps/core/gazetteer.js'));
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'maps/data/gazetteer.json'), 'utf8'));
+  const gaz = gazModule.create(data);
+  const total = data.cities.length;
+
+  const narrowed = gaz._candidates(gazModule.fold('london'));
+  assert.ok(narrowed.length > 0, 'a real query has candidates');
+  assert.ok(narrowed.length < total / 5,
+    `"london" should not consider all ${total} places, considered ${narrowed.length}`);
+
+  // Every candidate list must still be a superset of the matches — that is the
+  // property the speedup is not allowed to trade away.
+  for (const query of ['london', 'lut', 'san francisco', 'springfield', 'ville', 'kyiv', 'strand']) {
+    const q = gazModule.fold(query);
+    const candidates = new Set(gaz._candidates(q));
+    const missed = data.cities
+      .map((row, i) => ({ i, name: row[0] }))
+      .filter(({ name }) => gazModule.scoreFolded(gazModule.fold(name), q) > 0)
+      .filter(({ i }) => !candidates.has(i));
+    assert.deepEqual(missed, [], `"${query}" would miss ${missed.length} places, e.g. ${missed.slice(0, 3).map(m => m.name)}`);
+  }
+
+  // A single character has no two-character fragment to look up, so it falls
+  // back to the one-character bucket — which must still contain every match.
+  const single = new Set(gaz._candidates('l'));
+  const singleMissed = data.cities
+    .map((row, i) => ({ i, name: row[0] }))
+    .filter(({ name }) => gazModule.fold(name).indexOf('l') >= 0)
+    .filter(({ i }) => !single.has(i));
+  assert.deepEqual(singleMissed, [], 'the one-character bucket must hold every name containing it');
+
+  // Repeating a query is free, and the cached answer is a copy: a caller
+  // sorting what it was handed must not reorder what the next caller gets.
+  // (Every Cambridge has the same name, so the order is compared by country.)
+  const first = gaz.search('cambridge', { limit: 5 });
+  assert.ok(first.length > 1, 'there is more than one Cambridge to reorder');
+  first.reverse();
+  first[0].name = 'edited by the caller';
+  const second = gaz.search('cambridge', { limit: 5 });
+  assert.notEqual(second[0].cc, first[0].cc, 'a cached result must not be handed out by reference');
+  assert.equal(second[0].name, 'Cambridge', 'nor may a caller edit the cached rows');
+  assert.deepEqual(second.map((r) => r.cc), gaz.search('cambridge', { limit: 5 }).map((r) => r.cc));
+});
+
+test('providers: a cancelled search is not a failure, and stops the chain', async () => {
+  const providers = require(path.join(ROOT, 'maps/providers.js'));
+  providers.clearCache();
+  const original = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (url, options) => {
+    asked.push(String(url));
+    return new Promise((resolve, reject) => {
+      const signal = options && options.signal;
+      if (!signal) return resolve(new Response('{"features":[]}', { status: 200 }));
+      if (signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+      signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      // Never resolves on its own: only the cancellation ends this request.
+      return null;
+    });
+  };
+  const controller = new AbortController();
+  const pending = providers.geocode('luton', { near: LUTON, signal: controller.signal });
+  const settled = pending.then(() => 'resolved', (error) => error.name);
+  try {
+    controller.abort();
+    assert.equal(await settled, 'AbortError', 'the caller is told the call was cancelled, not that nothing was found');
+    // Give the chain a moment to (not) fall through to the second geocoder.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(asked.length, 1, `cancelling must not start the fallback provider, saw ${asked.length} requests`);
+    const health = providers.health ? providers.health() : null;
+    if (health && health.photon) {
+      assert.equal(health.photon.failures, 0, 'being cancelled is not a provider failure');
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
