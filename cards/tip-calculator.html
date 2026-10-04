@@ -231,10 +231,42 @@ function tcInitialize() {
     });
     
     tcElements.currency.addEventListener('change', function() {
+        tcRenderScenarios();
         tcCalculate();
         tcSaveSettings();
     });
-    
+
+    // Pressing Enter in any number field commits the value (recalculates + saves).
+    [tcElements.bill, tcElements.tipPercent, tcElements.people].forEach(function (inp) {
+        inp.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                tcUpdatePeopleLabel();
+                tcCalculate();
+                tcSaveSettings();
+                inp.blur();
+            }
+        });
+    });
+
+    // Aria-pressed on tip preset buttons so screen readers know which is active,
+    // and keep the visual "pressed" style in sync with the underlying input.
+    var tipBtns = document.querySelectorAll('button[onclick*="tcSetTipPercent"]');
+    function tcSyncPresetAria() {
+        var current = parseInt(tcElements.tipPercent.value, 10);
+        tipBtns.forEach(function (b) {
+            var m = b.getAttribute('onclick').match(/tcSetTipPercent\((\d+(?:\.\d+)?)\)/);
+            var pct = m ? parseFloat(m[1]) : NaN;
+            var active = pct === current;
+            b.setAttribute('aria-pressed', active ? 'true' : 'false');
+            b.style.fontWeight = active ? '600' : '400';
+            b.style.background = active ? 'rgba(45,212,255,0.2)' : 'rgba(45,212,255,0.1)';
+            b.style.borderColor = active ? 'rgba(45,212,255,0.4)' : 'rgba(45,212,255,0.3)';
+        });
+    }
+    tcSyncPresetAria();
+    tcElements.tipPercent.addEventListener('input', tcSyncPresetAria);
+
     tcElements.people.addEventListener('input', function() {
         tcUpdatePeopleLabel();
         tcCalculate();
@@ -248,6 +280,7 @@ function tcInitialize() {
     
     // Initial calculation
     tcUpdatePeopleLabel();
+    tcRenderScenarios();
     tcCalculate();
     
     console.log('Tip Calculator initialized');
@@ -460,10 +493,10 @@ function tcLoadScenario(type) {
     if (!window.tcElements) tcInitialize();
     
     const scenarios = {
-        'dinner': { bill: 85, tip: 15, people: 4, currency: 'GBP' },
-        'coffee': { bill: 25, tip: 10, people: 3, currency: 'GBP' },
-        'delivery': { bill: 40, tip: 18, people: 2, currency: 'GBP' },
-        'bar': { bill: 120, tip: 20, people: 6, currency: 'GBP' }
+        'dinner': { bill: 85, tip: 15, people: 4 },
+        'coffee': { bill: 25, tip: 10, people: 3 },
+        'delivery': { bill: 40, tip: 18, people: 2 },
+        'bar': { bill: 120, tip: 20, people: 6 }
     };
     
     const scenario = scenarios[type];
@@ -472,11 +505,41 @@ function tcLoadScenario(type) {
     tcElements.bill.value = scenario.bill;
     tcElements.tipPercent.value = scenario.tip;
     tcElements.people.value = scenario.people;
-    tcElements.currency.value = scenario.currency;
+    // Currency is left as-is — visitor keeps whatever they've picked, so the
+    // preset amounts are interpreted in their current currency.
     
     tcUpdatePeopleLabel();
     tcCalculate();
     tcSaveSettings();
+    tcRenderScenarios();
+}
+
+// Render quick-scenario prices in the currently-selected currency (previously
+// they were hard-coded to £ regardless of the currency selector).
+function tcRenderScenarios() {
+    if (!window.tcElements) return;
+    const currency = tcElements.currency.value;
+    const scenarios = [
+        { id: 'dinner',   label: 'Dinner Out',     bill: 85,  tip: 15, people: 4 },
+        { id: 'coffee',   label: 'Coffee Run',     bill: 25,  tip: 10, people: 3 },
+        { id: 'delivery', label: 'Food Delivery',  bill: 40,  tip: 18, people: 2 },
+        { id: 'bar',      label: 'Bar Tab',        bill: 120, tip: 20, people: 6 }
+    ];
+    const host = document.querySelector('[onclick*="tcLoadScenario"]');
+    const grid = host && host.closest ? host.closest('.preset-section, div') : null;
+    // Re-query: the scenarios live in the grid div whose parent follows #tc-detailed-breakdown?
+    // Use a stable marker: find the container that holds all four tcLoadScenario buttons.
+    const buttons = document.querySelectorAll('[onclick*="tcLoadScenario"]');
+    buttons.forEach(btn => {
+        const m = btn.getAttribute('onclick').match(/tcLoadScenario\('([^']+)'\)/);
+        if (!m) return;
+        const s = scenarios.find(x => x.id === m[1]);
+        if (!s) return;
+        const price = tcFormatMoney(s.bill, currency);
+        const labelDiv = btn.querySelector('div:first-child');
+        const priceDiv = btn.querySelector('div:last-child');
+        if (priceDiv) priceDiv.textContent = price + ', ' + s.tip + '%, ' + s.people + ' people';
+    });
 }
 
 // Reset function

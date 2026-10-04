@@ -16,8 +16,20 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div class="field">
         <label for="ci-principal" style="display:block;margin-bottom:6px;color:var(--accent);font-weight:500;">
-          🏦 Initial Investment (£)
+          🏦 Initial Investment (<span id="ci-currency-symbol">£</span>)
         </label>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <label for="ci-currency" style="font-size:12px;color:rgba(230,250,255,0.7);">Currency</label>
+          <select id="ci-currency" style="padding:6px 8px;border-radius:6px;border:1px solid rgba(45,212,255,0.3);background:rgba(45,212,255,0.05);color:inherit;font-size:12px;">
+            <option value="GBP" selected>£ GBP</option>
+            <option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option>
+            <option value="CAD">CA$ CAD</option>
+            <option value="AUD">A$ AUD</option>
+            <option value="JPY">¥ JPY</option>
+            <option value="INR">₹ INR</option>
+          </select>
+        </div>
         <div style="position:relative;">
           <input id="ci-principal" type="range" min="100" max="1000000" step="100" value="10000"
                  oninput="ciUpdateSlider('principal', this.value)"
@@ -157,6 +169,10 @@
     <button type="button" onclick="ciReset()"
             style="padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
       🔄 Reset
+    </button>
+    <button type="button" onclick="ciCopySummary()"
+            style="padding:12px 16px;background:rgba(45,212,255,0.08);border:1px solid rgba(45,212,255,0.3);border-radius:8px;color:var(--accent);cursor:pointer;">
+      📋 Copy Summary
     </button>
     <button type="button" onclick="ciExport()"
             style="padding:12px 16px;background:rgba(57,255,20,0.1);border:1px solid rgba(57,255,20,0.3);border-radius:8px;color:#39ff14;cursor:pointer;">
@@ -327,27 +343,71 @@ function ciCalculateAfterTax(value, taxRate) {
 
 // Snapshot of the last completed calculation (used by ciExport)
 let ciLastCalc = null;
+// Currency helper - user-selectable, used everywhere we format money.
+var CI_SYMBOLS = { GBP: '£', USD: '$', EUR: '€', CAD: 'CA$', AUD: 'A$', JPY: '¥', INR: '₹' };
+function ciSym() { return CI_SYMBOLS[(document.getElementById("ci-currency") || {}).value] || '£'; }
+function ciFmt(n, digits) {
+  if (digits === undefined) digits = 0;
+  return ciSym() + Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+function ciFlashStatus(msg, color) {
+  var s = document.querySelector("#ci-status");
+  if (!s) return;
+  s.textContent = msg; s.style.color = color || "var(--accent)";
+  setTimeout(function () { s.textContent = '✅ Calculation complete'; s.style.color = "#39ff14"; }, 2000);
+}
+function ciCopySummary() {
+  if (!ciLastCalc) ciCalculate();
+  var r = ciLastCalc || {};
+  var res = r.results || {};
+  var yrs = (r.inputs && r.inputs.years) || (document.querySelector("#ci-years") ? document.querySelector("#ci-years").value : '–');
+  var rate = (r.inputs && r.inputs.annualRate) || (document.querySelector("#ci-annual-rate") ? document.querySelector("#ci-annual-rate").value : '–');
+  var monthly = (r.inputs && r.inputs.monthlyContribution) || 0;
+  var principal = (r.inputs && r.inputs.principal) || 0;
+  var lines = [
+    '£ Compound interest projection',
+    "Start: " + ciFmt(principal, 0) + "  ·  Monthly: " + ciFmt(monthly, 0),
+    "Rate: " + rate + "%  ·  Years: " + yrs,
+    "Future value: " + ciFmt(res.futureValue || 0, 0),
+    "Total contributions: " + ciFmt(res.totalContributions || 0, 0) + "  ·  Interest earned: " + ciFmt(res.totalInterest || 0, 0),
+    "Inflation-adjusted: " + ciFmt(res.realValue || 0, 0),
+    '',
+    "Calculated on The Most Useful Site in the World"
+  ];
+  var text = lines.join('\n');
+  var done = function () { ciFlashStatus('✅ Summary copied', "#39ff14"); };
+  var fail = function () { ciFlashStatus('⚠️ Copy failed', "#ff4d4d"); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, fail);
+  } else {
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta); done();
+    } catch (e) { fail(); }
+  }
+}
+
 
 // UI Update Functions
 function ciUpdateSlider(type, value) {
-  const display = document.querySelector(`#ci-${type}-display`);
+  var display = document.querySelector("#ci-" + type + "-display");
   if (!display) return;
-  
-  switch(type) {
-    case 'principal':
-      display.textContent = `£${parseInt(value).toLocaleString()}`;
+  var sym = ciSym();
+  switch (type) {
+    case "principal":
+      display.textContent = sym + parseInt(value, 10).toLocaleString();
       break;
-    case 'monthly':
-      display.textContent = `£${parseInt(value).toLocaleString()}`;
+    case "monthly":
+      display.textContent = sym + parseInt(value, 10).toLocaleString();
       break;
-    case 'rate':
-      display.textContent = `${parseFloat(value).toFixed(1)}%`;
+    case "rate":
+      display.textContent = parseFloat(value).toFixed(1) + "%";
       break;
-    case 'years':
-      display.textContent = `${parseInt(value)}`;
+    case "years":
+      display.textContent = String(parseInt(value, 10));
       break;
   }
-  
   // Auto-calculate on slider change
   setTimeout(ciCalculate, 100);
 }
@@ -388,29 +448,32 @@ function ciCalculate() {
     const realValue = ciCalculateInflationAdjusted(futureValue, inflationRate, years);
     const afterTax = ciCalculateAfterTax(futureValue, taxRate);
     
-    // Update quick stats
-    document.querySelector('#ci-stat-future').textContent = `£${futureValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.querySelector('#ci-stat-interest').textContent = `£${totalInterest.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.querySelector('#ci-stat-contributions').textContent = `£${totalContributions.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    document.querySelector('#ci-stat-real').textContent = `£${realValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    // Update quick stats using the chosen currency
+    document.querySelector("#ci-stat-future").textContent = ciFmt(futureValue, 0);
+    document.querySelector("#ci-stat-interest").textContent = ciFmt(totalInterest, 0);
+    document.querySelector("#ci-stat-contributions").textContent = ciFmt(totalContributions, 0);
+    document.querySelector("#ci-stat-real").textContent = ciFmt(realValue, 0);
 
-    // Simple vs compound comparison: same money in/out, no compounding on interest
-    const simpleInterest = principal * (annualRate / 100) * years;
-    const simpleTotal = totalContributions + simpleInterest;
-    const compoundEdge = futureValue - simpleTotal;
-    const noteEl = document.querySelector('#ci-simple-note');
+    var symEl = document.querySelector("#ci-currency-symbol");
+    if (symEl) symEl.textContent = ciSym();
+
+    // Simple vs compound comparison
+    var simpleInterest = principal * (annualRate / 100) * years;
+    var simpleTotal = totalContributions + simpleInterest;
+    var compoundEdge = futureValue - simpleTotal;
+    var noteEl = document.querySelector("#ci-simple-note");
     if (noteEl) {
-      noteEl.innerHTML = '⚖️ <strong style="color:var(--accent);">Simple interest</strong> (no compounding) would return ' +
-        '<strong>£' + simpleTotal.toLocaleString(undefined, {maximumFractionDigits: 0}) + '</strong>' +
-        ' — compounding earns you <strong style="color:#39ff14;">£' +
-        Math.max(0, compoundEdge).toLocaleString(undefined, {maximumFractionDigits: 0}) + ' more</strong>.';
+      noteEl.innerHTML = "⚖️ <strong style=\"color:var(--accent);\">Simple interest</strong> (no compounding on interest) would return " +
+        "<strong>" + ciFmt(simpleTotal, 0) + "</strong>" +
+        " — compounding earns you <strong style=\"color:#39ff14;\">" +
+        ciFmt(Math.max(0, compoundEdge), 0) + " more</strong> over the same period.";
     }
-    
+
     // Update goal progress
-    const goalPercent = Math.min(100, (futureValue / goal) * 100);
-    document.querySelector('#ci-goal-percent').textContent = `${goalPercent.toFixed(1)}%`;
-    document.querySelector('#ci-goal-progress').style.width = `${goalPercent}%`;
-    document.querySelector('#ci-goal-target').textContent = `Goal: £${goal.toLocaleString()}`;
+    var goalPercent = Math.min(100, (futureValue / goal) * 100);
+    document.querySelector("#ci-goal-percent").textContent = goalPercent.toFixed(1) + "%";
+    document.querySelector("#ci-goal-progress").style.width = goalPercent + "%";
+    document.querySelector("#ci-goal-target").textContent = "Goal: " + ciFmt(goal, 0);
     
     // Update yearly table
     const tableBody = document.querySelector('#ci-yearly-table');
@@ -421,13 +484,12 @@ function ciCalculate() {
       
       const row = document.createElement('tr');
       row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-      row.innerHTML = `
-        <td style="padding:8px;color:var(--accent);font-weight:500;">Year ${data.year}</td>
-        <td style="padding:8px;text-align:right;color:#39ff14;">£${data.balance.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-        <td style="padding:8px;text-align:right;color:#ffa500;">£${data.contributions.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-        <td style="padding:8px;text-align:right;color:var(--accent);">£${data.interest.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-        <td style="padding:8px;text-align:right;color:rgba(230,250,255,0.7);">£${realYearValue.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-      `;
+      row.innerHTML =
+        "<td style=\"padding:8px;color:var(--accent);font-weight:500;\">Year " + data.year + "</td>" +
+        "<td style=\"padding:8px;text-align:right;color:#39ff14;\">" + ciFmt(data.balance, 0) + "</td>" +
+        "<td style=\"padding:8px;text-align:right;color:#ffa500;\">" + ciFmt(data.contributions, 0) + "</td>" +
+        "<td style=\"padding:8px;text-align:right;color:var(--accent);\">" + ciFmt(data.interest, 0) + "</td>" +
+        "<td style=\"padding:8px;text-align:right;color:rgba(230,250,255,0.7);\">" + ciFmt(realYearValue, 0) + "</td>";
       tableBody.appendChild(row);
     });
     
@@ -438,9 +500,9 @@ function ciCalculate() {
     const conservativeResult = ciCalculateFutureValue(principal, 4, years, frequency, monthlyContribution, contributionIncrease);
     const aggressiveResult = ciCalculateFutureValue(principal, 10, years, frequency, monthlyContribution, contributionIncrease);
     
-    document.querySelector('#ci-compare-conservative').textContent = `£${conservativeResult.total.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-    document.querySelector('#ci-compare-current').textContent = `£${futureValue.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-    document.querySelector('#ci-compare-aggressive').textContent = `£${aggressiveResult.total.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+    document.querySelector("#ci-compare-conservative").textContent = ciFmt(conservativeResult.total, 0);
+    document.querySelector("#ci-compare-current").textContent = ciFmt(futureValue, 0);
+    document.querySelector("#ci-compare-aggressive").textContent = ciFmt(aggressiveResult.total, 0);
     
     // Update status
     const status = document.querySelector('#ci-status');
@@ -506,7 +568,7 @@ function ciUpdateChart(yearlyData) {
       `;
       
       // Add value label on hover
-      bar.title = `Year ${data.year}: £${data.balance.toLocaleString()}`;
+      bar.title = "Year " + data.year + ": " + ciFmt(data.balance, 0);
       
       // Add year label for some bars
       if (index === 0 || index === yearlyData.length - 1 || index % 5 === 0) {
@@ -604,10 +666,12 @@ function ciReset() {
   document.querySelector('#ci-years').value = 20;
   
   // Reset displays
-  ciUpdateSlider('principal', 10000);
-  ciUpdateSlider('monthly', 100);
-  ciUpdateSlider('rate', 7);
-  ciUpdateSlider('years', 20);
+  ciUpdateSlider("principal", 10000);
+  ciUpdateSlider("monthly", 100);
+  ciUpdateSlider("rate", 7);
+  ciUpdateSlider("years", 20);
+  var symElR = document.querySelector("#ci-currency-symbol");
+  if (symElR) symElR.textContent = ciSym();
   
   // Reset other inputs
   document.querySelector('#ci-frequency').value = '12';
@@ -690,15 +754,16 @@ function ciInit() {
   ciUpdateSlider('rate', 7);
   ciUpdateSlider('years', 20);
 
-  // Calculate on load
+  var symEl0 = document.querySelector("#ci-currency-symbol");
+  if (symEl0) symEl0.textContent = ciSym();
+  var goalTarget0 = document.querySelector("#ci-goal-target");
+  if (goalTarget0) goalTarget0.textContent = "Goal: " + ciFmt(parseFloat(document.querySelector("#ci-goal").value) || 100000, 0);
   setTimeout(ciCalculate, 500);
 
   // Add input listeners for auto-calculation
-  ['#ci-inflation', '#ci-tax-rate', '#ci-goal', '#ci-contribution-increase', '#ci-frequency'].forEach(selector => {
-    const input = document.querySelector(selector);
-    if (input) {
-      input.addEventListener('change', ciCalculate);
-    }
+  ["#ci-inflation", "#ci-tax-rate", "#ci-goal", "#ci-contribution-increase", "#ci-frequency", "#ci-currency"].forEach(function (selector) {
+    var input = document.querySelector(selector);
+    if (input) input.addEventListener("change", ciCalculate);
   });
 }
 

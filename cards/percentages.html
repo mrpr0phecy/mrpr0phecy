@@ -494,8 +494,14 @@ function percentInit() {
   
   // Initialize first mode
   percentSetMode('basic');
-  
-  console.log('Percentages Explorer initialized');
+
+  // Pressing Enter in any number box runs the calculation
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.matches && e.target.matches('input[type="number"]')) {
+      e.preventDefault();
+      percentCalculate();
+    }
+  });
 }
 
 // Set calculation mode
@@ -552,16 +558,18 @@ function percentFormatNumber(value) {
     ? value.toExponential(Math.min(4, precision))
     : value.toFixed(precision);
   
-  // Apply format
+  // Apply format. "percentage" treats value as a raw number already on the
+  // 0-100 scale (caller multiplies by 100 before passing). "both" shows both
+  // the percentage and its decimal form (was double-multiplying before).
   switch(format) {
     case 'decimal':
       return formatted;
     case 'percentage':
-      return `${formatted}%`;
+      return formatted + '%';
     case 'fraction':
-      return percentToFraction(value);
+      return percentToFraction(value / 100);
     case 'both':
-      return `${(value * 100).toFixed(precision)}% (${formatted})`;
+      return formatted + '% (' + (value / 100).toFixed(Math.min(precision + 2, 6)) + ')';
     default:
       return formatted;
   }
@@ -1305,26 +1313,29 @@ function percentPrintResults() {
 
 // Reset calculator
 function percentReset() {
-  const card = document.currentScript?.closest('.card') || document;
-  
   // Clear inputs
-  const inputs = card.querySelectorAll('#percent-inputs-container input');
-  inputs.forEach(input => input.value = '');
-  
+  const inputs = document.querySelectorAll('#percent-inputs-container input');
+  inputs.forEach(function (input) { input.value = ''; });
+
   // Clear base value
-  card.querySelector('#percent-base-value').value = '';
-  
+  const baseValue = document.querySelector('#percent-base-value');
+  if (baseValue) baseValue.value = '';
+  const quickValue = document.querySelector('#percent-quick-value');
+  if (quickValue) quickValue.value = '10';
+
   // Hide results
-  card.querySelector('#percent-results').style.display = 'none';
-  card.querySelector('#percent-breakdown-container').style.display = 'none';
-  card.querySelector('#percent-visualization-container').style.display = 'none';
-  card.querySelector('#percent-fractions-container').style.display = 'none';
-  card.querySelector('#percent-comparison-container').style.display = 'none';
-  
-  // Hide advanced panels
-  document.getElementById('percent-advanced').style.display = 'none';
-  document.getElementById('percent-history').style.display = 'none';
-  
+  ['#percent-results', '#percent-breakdown-container', '#percent-visualization-container',
+   '#percent-fractions-container', '#percent-comparison-container'].forEach(function (sel) {
+    const el = document.querySelector(sel);
+    if (el) el.style.display = 'none';
+  });
+
+  // Hide optional panels if they exist (they are created on demand)
+  ['#percent-advanced', '#percent-history'].forEach(function (sel) {
+    const el = document.querySelector(sel);
+    if (el) el.style.display = 'none';
+  });
+
   percentShowMessage('Calculator reset', '#ffa500');
 }
 

@@ -32,15 +32,15 @@
     <div class="field" style="background:rgba(20,20,20,0.8);border-radius:10px;padding:16px;border:2px solid rgba(255,204,0,0.3);">
       <div style="color:var(--accent);font-weight:500;margin-bottom:12px;">⚧ Gender</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-        <button type="button" onclick="bmrSelectGender('male')" id="bmr-gender-male"
+        <button type="button" onclick="bmrSelectGender('male')" id="bmr-gender-male" aria-pressed="true"
                 style="padding:12px;background:linear-gradient(135deg, rgba(45,212,255,0.2), rgba(20,20,20,0.8));border:2px solid var(--accent);border-radius:8px;color:var(--accent);cursor:pointer;font-weight:500;">
           ♂ Male
         </button>
-        <button type="button" onclick="bmrSelectGender('female')" id="bmr-gender-female"
+        <button type="button" onclick="bmrSelectGender('female')" id="bmr-gender-female" aria-pressed="false"
                 style="padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
           ♀ Female
         </button>
-        <button type="button" onclick="bmrSelectGender('other')" id="bmr-gender-other"
+        <button type="button" onclick="bmrSelectGender('other')" id="bmr-gender-other" aria-pressed="false"
                 style="padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">
           ⚧ Other
         </button>
@@ -67,14 +67,14 @@
         <input id="bmr-height-input" type="number" min="100" max="220" step="0.1" value="175" 
                style="flex:1;padding:12px;border-radius:8px;border:2px solid rgba(57,255,20,0.3);background:rgba(20,20,20,0.8);color:inherit;font-size:1rem;" />
         <div style="display:flex;gap:8px;">
-          <button type="button" onclick="bmrSetHeightUnit('cm')" style="padding:6px 12px;background:rgba(57,255,20,0.2);border:2px solid #39ff14;border-radius:6px;color:#39ff14;cursor:pointer;">cm</button>
-          <button type="button" onclick="bmrSetHeightUnit('in')" style="padding:6px 12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">in</button>
+          <button type="button" onclick="bmrSetHeightUnit('cm')" aria-pressed="true" role="switch" style="padding:6px 12px;background:rgba(57,255,20,0.2);border:2px solid #39ff14;border-radius:6px;color:#39ff14;cursor:pointer;">cm</button>
+          <button type="button" onclick="bmrSetHeightUnit('in')" aria-pressed="false" role="switch" style="padding:6px 12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">in</button>
         </div>
       </div>
       
       <div class="small" style="display:flex;justify-content:space-between;margin-top:8px;color:rgba(230,250,255,0.7);">
-        <span>100 cm</span>
-        <span>220 cm</span>
+        <span id="bmr-height-min">100 cm</span>
+        <span id="bmr-height-max">220 cm</span>
       </div>
     </div>
 
@@ -94,14 +94,14 @@
         <input id="bmr-weight-input" type="number" min="40" max="150" step="0.1" value="70" 
                style="flex:1;padding:12px;border-radius:8px;border:2px solid rgba(255,204,0,0.3);background:rgba(20,20,20,0.8);color:inherit;font-size:1rem;" />
         <div style="display:flex;gap:8px;">
-          <button type="button" onclick="bmrSetWeightUnit('kg')" style="padding:6px 12px;background:rgba(255,204,0,0.2);border:2px solid #ffcc00;border-radius:6px;color:#ffcc00;cursor:pointer;">kg</button>
-          <button type="button" onclick="bmrSetWeightUnit('lb')" style="padding:6px 12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">lb</button>
+          <button type="button" onclick="bmrSetWeightUnit('kg')" aria-pressed="true" role="switch" style="padding:6px 12px;background:rgba(255,204,0,0.2);border:2px solid #ffcc00;border-radius:6px;color:#ffcc00;cursor:pointer;">kg</button>
+          <button type="button" onclick="bmrSetWeightUnit('lb')" aria-pressed="false" role="switch" style="padding:6px 12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:6px;color:inherit;cursor:pointer;">lb</button>
         </div>
       </div>
       
       <div class="small" style="display:flex;justify-content:space-between;margin-top:8px;color:rgba(230,250,255,0.7);">
-        <span>40 kg</span>
-        <span>150 kg</span>
+        <span id="bmr-weight-min">40 kg</span>
+        <span id="bmr-weight-max">150 kg</span>
       </div>
     </div>
   </div>
@@ -351,14 +351,19 @@ function bmrSyncInputs() {
         heightSlider.addEventListener('input', function() {
             const value = parseFloat(this.value);
             heightInput.value = value;
-            heightDisplay.textContent = value + ' cm';
+            heightDisplay.textContent = value + ' ' + bmrHeightUnit;
+            heightSlider.setAttribute('aria-valuetext', value + ' ' + (bmrHeightUnit === 'in' ? 'inches' : 'centimetres'));
         });
         
         heightInput.addEventListener('input', function() {
-            let value = parseFloat(this.value) || 175;
-            value = Math.min(220, Math.max(100, value));
+            const min = bmrHeightUnit === 'in' ? 40 : 100;
+            const max = bmrHeightUnit === 'in' ? 87 : 220;
+            let value = parseFloat(this.value);
+            if (!Number.isFinite(value)) value = min;
+            value = Math.min(max, Math.max(min, value));
             heightSlider.value = value;
-            heightDisplay.textContent = value + ' cm';
+            heightDisplay.textContent = value + ' ' + bmrHeightUnit;
+            heightSlider.setAttribute('aria-valuetext', value + ' ' + (bmrHeightUnit === 'in' ? 'inches' : 'centimetres'));
         });
     }
     
@@ -371,14 +376,19 @@ function bmrSyncInputs() {
         weightSlider.addEventListener('input', function() {
             const value = parseFloat(this.value);
             weightInput.value = value;
-            weightDisplay.textContent = value + ' kg';
+            weightDisplay.textContent = value + ' ' + bmrWeightUnit;
+            weightSlider.setAttribute('aria-valuetext', value + ' ' + (bmrWeightUnit === 'lb' ? 'pounds' : 'kilograms'));
         });
         
         weightInput.addEventListener('input', function() {
-            let value = parseFloat(this.value) || 70;
-            value = Math.min(150, Math.max(40, value));
+            const min = bmrWeightUnit === 'lb' ? 88 : 40;
+            const max = bmrWeightUnit === 'lb' ? 330 : 150;
+            let value = parseFloat(this.value);
+            if (!Number.isFinite(value)) value = min;
+            value = Math.min(max, Math.max(min, value));
             weightSlider.value = value;
-            weightDisplay.textContent = value + ' kg';
+            weightDisplay.textContent = value + ' ' + bmrWeightUnit;
+            weightSlider.setAttribute('aria-valuetext', value + ' ' + (bmrWeightUnit === 'lb' ? 'pounds' : 'kilograms'));
         });
     }
 }
@@ -387,11 +397,13 @@ function bmrSyncInputs() {
 function bmrSelectGender(gender) {
     bmrGender = gender;
     
-    // Update buttons
+    // Update buttons and aria-pressed state
     ['male', 'female', 'other'].forEach(g => {
-        const btn = document.querySelector(`#bmr-gender-${g}`);
+        const btn = document.querySelector('#bmr-gender-' + g);
         if (btn) {
-            if (g === gender) {
+            const active = (g === gender);
+            btn.setAttribute('aria-pressed', String(active));
+            if (active) {
                 btn.style.background = 'linear-gradient(135deg, rgba(45,212,255,0.2), rgba(20,20,20,0.8))';
                 btn.style.border = '2px solid var(--accent)';
                 btn.style.color = 'var(--accent)';
@@ -407,142 +419,125 @@ function bmrSelectGender(gender) {
     setTimeout(() => bmrCalculate(), 100);
 }
 
-// Set height unit
+// Set height unit (fixed: capture previous unit before mutation, update
+// input bounds + min/max labels + aria-pressed state; no double-conversion)
 function bmrSetHeightUnit(unit) {
-    bmrHeightUnit = unit;
-    
+    if (unit !== 'cm' && unit !== 'in') return;
+    const previousUnit = bmrHeightUnit;
+    if (previousUnit === unit) return;
+
     const heightCmBtn = document.querySelector('[onclick="bmrSetHeightUnit(\'cm\')"]');
     const heightInBtn = document.querySelector('[onclick="bmrSetHeightUnit(\'in\')"]');
     const heightInput = document.querySelector('#bmr-height-input');
     const heightSlider = document.querySelector('#bmr-height');
     const heightDisplay = document.querySelector('#bmr-height-display');
-    
+    const heightMinLabel = document.querySelector('#bmr-height-min');
+    const heightMaxLabel = document.querySelector('#bmr-height-max');
+
     if (!heightInput || !heightSlider) return;
-    
-    let currentValue = parseFloat(heightInput.value) || 175;
-    
-    if (unit === 'cm') {
-        // Convert inches to centimeters
-        if (bmrHeightUnit === 'in') {
-            currentValue = Math.round(currentValue * 2.54);
-        }
-        heightSlider.min = 100;
-        heightSlider.max = 220;
-        heightSlider.step = 1;
-        
-        // Update buttons
-        if (heightCmBtn) {
-            heightCmBtn.style.background = 'rgba(57,255,20,0.2)';
-            heightCmBtn.style.border = '2px solid #39ff14';
-            heightCmBtn.style.color = '#39ff14';
-        }
-        if (heightInBtn) {
-            heightInBtn.style.background = 'rgba(20,20,20,0.8)';
-            heightInBtn.style.border = '2px solid rgba(255,255,255,0.1)';
-            heightInBtn.style.color = 'inherit';
-        }
-    } else if (unit === 'in') {
-        // Convert centimeters to inches
-        if (bmrHeightUnit === 'cm') {
-            currentValue = Math.round(currentValue / 2.54);
-        }
-        heightSlider.min = 40;
-        heightSlider.max = 87;
-        heightSlider.step = 0.5;
-        
-        // Update buttons
-        if (heightCmBtn) {
-            heightCmBtn.style.background = 'rgba(20,20,20,0.8)';
-            heightCmBtn.style.border = '2px solid rgba(255,255,255,0.1)';
-            heightCmBtn.style.color = 'inherit';
-        }
-        if (heightInBtn) {
-            heightInBtn.style.background = 'rgba(57,255,20,0.2)';
-            heightInBtn.style.border = '2px solid #39ff14';
-            heightInBtn.style.color = '#39ff14';
-        }
+
+    const settings = unit === 'in'
+        ? { min: 40, max: 87, step: 0.5, spokenUnit: 'inches' }
+        : { min: 100, max: 220, step: 1, spokenUnit: 'centimetres' };
+
+    let currentValue = parseFloat(heightInput.value);
+    if (!Number.isFinite(currentValue)) currentValue = unit === 'in' ? 69 : 175;
+
+    if (previousUnit === 'cm' && unit === 'in') {
+        currentValue = Math.round((currentValue / 2.54) * 10) / 10;
+    } else if (previousUnit === 'in' && unit === 'cm') {
+        currentValue = Math.round((currentValue * 2.54) * 10) / 10;
     }
-    
-    // Apply bounds
-    currentValue = Math.min(heightSlider.max, Math.max(heightSlider.min, currentValue));
-    
-    // Update values
+
+    heightSlider.min = settings.min;
+    heightSlider.max = settings.max;
+    heightSlider.step = settings.step;
+    heightInput.min = settings.min;
+    heightInput.max = settings.max;
+    heightInput.step = settings.step;
+
+    currentValue = Math.min(settings.max, Math.max(settings.min, currentValue));
     heightInput.value = currentValue;
     heightSlider.value = currentValue;
-    heightDisplay.textContent = currentValue + ' ' + unit;
-    
-    // Auto-calculate
-    setTimeout(() => bmrCalculate(), 100);
+    heightSlider.setAttribute('aria-valuetext', currentValue + ' ' + settings.spokenUnit);
+    if (heightDisplay) heightDisplay.textContent = currentValue + ' ' + unit;
+    if (heightMinLabel) heightMinLabel.textContent = settings.min + ' ' + unit;
+    if (heightMaxLabel) heightMaxLabel.textContent = settings.max + ' ' + unit;
+
+    [['cm', heightCmBtn], ['in', heightInBtn]].forEach(function (pair) {
+        const u = pair[0], btn = pair[1];
+        if (!btn) return;
+        const active = (u === unit);
+        btn.setAttribute('aria-pressed', String(active));
+        btn.style.background = active ? 'rgba(57,255,20,0.2)' : 'rgba(20,20,20,0.8)';
+        btn.style.border = active ? '2px solid #39ff14' : '2px solid rgba(255,255,255,0.1)';
+        btn.style.color = active ? '#39ff14' : 'inherit';
+    });
+
+    bmrHeightUnit = unit;
+    setTimeout(function () { bmrCalculate(); }, 100);
 }
 
-// Set weight unit
+// Set weight unit (fixed: same pattern as height — capture previous unit,
+// update bounds, labels and aria-pressed state; no double-conversion bug)
 function bmrSetWeightUnit(unit) {
-    bmrWeightUnit = unit;
-    
+    if (unit !== 'kg' && unit !== 'lb') return;
+    const previousUnit = bmrWeightUnit;
+    if (previousUnit === unit) return;
+
     const weightKgBtn = document.querySelector('[onclick="bmrSetWeightUnit(\'kg\')"]');
     const weightLbBtn = document.querySelector('[onclick="bmrSetWeightUnit(\'lb\')"]');
     const weightInput = document.querySelector('#bmr-weight-input');
     const weightSlider = document.querySelector('#bmr-weight');
     const weightDisplay = document.querySelector('#bmr-weight-display');
-    
+    const weightMinLabel = document.querySelector('#bmr-weight-min');
+    const weightMaxLabel = document.querySelector('#bmr-weight-max');
+
     if (!weightInput || !weightSlider) return;
-    
-    let currentValue = parseFloat(weightInput.value) || 70;
-    
-    if (unit === 'kg') {
-        // Convert pounds to kilograms
-        if (bmrWeightUnit === 'lb') {
-            currentValue = Math.round((currentValue / 2.20462) * 10) / 10;
-        }
-        weightSlider.min = 40;
-        weightSlider.max = 150;
-        weightSlider.step = 0.5;
-        
-        // Update buttons
-        if (weightKgBtn) {
-            weightKgBtn.style.background = 'rgba(255,204,0,0.2)';
-            weightKgBtn.style.border = '2px solid #ffcc00';
-            weightKgBtn.style.color = '#ffcc00';
-        }
-        if (weightLbBtn) {
-            weightLbBtn.style.background = 'rgba(20,20,20,0.8)';
-            weightLbBtn.style.border = '2px solid rgba(255,255,255,0.1)';
-            weightLbBtn.style.color = 'inherit';
-        }
-    } else if (unit === 'lb') {
-        // Convert kilograms to pounds
-        if (bmrWeightUnit === 'kg') {
-            currentValue = Math.round(currentValue * 2.20462 * 10) / 10;
-        }
-        weightSlider.min = 88;
-        weightSlider.max = 330;
-        weightSlider.step = 0.5;
-        
-        // Update buttons
-        if (weightKgBtn) {
-            weightKgBtn.style.background = 'rgba(20,20,20,0.8)';
-            weightKgBtn.style.border = '2px solid rgba(255,255,255,0.1)';
-            weightKgBtn.style.color = 'inherit';
-        }
-        if (weightLbBtn) {
-            weightLbBtn.style.background = 'rgba(255,204,0,0.2)';
-            weightLbBtn.style.border = '2px solid #ffcc00';
-            weightLbBtn.style.color = '#ffcc00';
-        }
+
+    const settings = unit === 'lb'
+        ? { min: 88, max: 330, step: 0.5, spokenUnit: 'pounds' }
+        : { min: 40, max: 150, step: 0.5, spokenUnit: 'kilograms' };
+
+    let currentValue = parseFloat(weightInput.value);
+    if (!Number.isFinite(currentValue)) currentValue = unit === 'lb' ? 154.3 : 70;
+
+    if (previousUnit === 'kg' && unit === 'lb') {
+        currentValue = Math.round((currentValue * 2.20462) * 10) / 10;
+    } else if (previousUnit === 'lb' && unit === 'kg') {
+        currentValue = Math.round((currentValue / 2.20462) * 10) / 10;
     }
-    
-    // Apply bounds
-    currentValue = Math.min(weightSlider.max, Math.max(weightSlider.min, currentValue));
-    
-    // Update values
+
+    weightSlider.min = settings.min;
+    weightSlider.max = settings.max;
+    weightSlider.step = settings.step;
+    weightInput.min = settings.min;
+    weightInput.max = settings.max;
+    weightInput.step = settings.step;
+
+    currentValue = Math.min(settings.max, Math.max(settings.min, currentValue));
     weightInput.value = currentValue;
     weightSlider.value = currentValue;
-    weightDisplay.textContent = currentValue + ' ' + unit;
-    
-    // Auto-calculate
-    setTimeout(() => bmrCalculate(), 100);
+    weightSlider.setAttribute('aria-valuetext', currentValue + ' ' + settings.spokenUnit);
+    if (weightDisplay) weightDisplay.textContent = currentValue + ' ' + unit;
+    if (weightMinLabel) weightMinLabel.textContent = settings.min + ' ' + unit;
+    if (weightMaxLabel) weightMaxLabel.textContent = settings.max + ' ' + unit;
+
+    [['kg', weightKgBtn, '#ffcc00'], ['lb', weightLbBtn, '#ffcc00']].forEach(function (pair) {
+        const u = pair[0], btn = pair[1], color = pair[2];
+        if (!btn) return;
+        const active = (u === unit);
+        btn.setAttribute('aria-pressed', String(active));
+        btn.style.background = active ? 'rgba(255,204,0,0.2)' : 'rgba(20,20,20,0.8)';
+        btn.style.border = active ? '2px solid ' + color : '2px solid rgba(255,255,255,0.1)';
+        btn.style.color = active ? color : 'inherit';
+    });
+
+    bmrWeightUnit = unit;
+    setTimeout(function () { bmrCalculate(); }, 100);
 }
 
+// Update activity description
 // Update activity description
 function updateActivityDescription() {
     const activitySelect = document.querySelector('#bmr-activity');
@@ -602,8 +597,8 @@ function bmrCalculate() {
         weightKg = weightKg / 2.20462; // Convert pounds to kg
     }
     
-    // Validate inputs
-    if (age < 15 || age > 80 || heightCm < 100 || weightKg < 40) {
+    // Validate inputs after unit conversion
+    if (age < 15 || age > 80 || heightCm < 50 || heightCm > 250 || weightKg < 20 || weightKg > 300) {
         bmrShowError('Please enter valid values');
         return;
     }
