@@ -37,7 +37,7 @@ Measured 2026-08-30, from public sources:
 | YouTube subscribers | **1,360** | Past the 1,000 YPP threshold |
 | YouTube videos | **233** | Substantial back catalogue |
 | Shorts | **46** | Alternate YPP route exists |
-| Tools on site | **1,285** | Real, working, original (re-derived 2026-09-24 from `cards/`) |
+| Tools on site | **1,338** | Real, working, original (re-derived 2026-10-04 from `cards/`) |
 | Site analytics | Now on 12 key pages | Was on 1 |
 
 **The single most important fact: you are already past YouTube's hardest
@@ -139,7 +139,7 @@ made for overheads, but it moves the money surfaces, so here is where they are
 now — all of them unchanged in kind, none of them new in number:
 
 - **One sponsorship position per page, and it is enforced.** Every list page
-  (`index.html`, `tools.html`, `tools-index.html`, the 28 category pages)
+  (`index.html`, `tools.html`, `tools-index.html`, the 29 category pages)
   carries exactly one invitation block, `.xp-sponsor`, written as an invitation
   and *not* as a fake placement. `scripts/check-finance.js` now counts those
   blocks alongside the `SPONSOR-SLOT` comments in card fragments and fails the

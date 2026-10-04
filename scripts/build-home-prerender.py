@@ -144,7 +144,7 @@ def category_tiles(catalogue: dict[str, dict]) -> str:
     """The category hubs as real anchors, in the browse order the page uses.
 
     The home page reaches the crawlable catalogue through these links: a
-    crawler (or a no-JS visitor) arriving at `/` gets all 28 hubs and, one hop
+    crawler (or a no-JS visitor) arriving at `/` gets all 29 hubs and, one hop
     further, a page listing every tool in each. Before this block existed the
     hub links were rendered from tools-index.json after it landed, so the home
     page's route into the catalogue existed only for browsers running scripts.

@@ -106,7 +106,9 @@
 // empty category groups, rather than letting its grid display override it.
 // v32: catalogue cross-promotions were removed from the home page; the paired
 // home styles changed as well, so version the HTML, app, and precache together.
-const CACHE_VERSION = 'v32-2026-10-03';
+// v33: category pages opt out of directory pagination so every tool in a
+// focused category remains visible after the shared list enhancer mounts.
+const CACHE_VERSION = 'v33-2026-10-04';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

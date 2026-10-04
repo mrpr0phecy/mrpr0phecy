@@ -70,7 +70,7 @@ const CRITICAL_FILES = [
   'home.css',
   'home-deferred.css',
   'home-core.js',
-  // The shared list layer: the home page, tools.html and all 28 category pages
+  // The shared list layer: the home page, tools.html and all 29 category pages
   // load these three. A deploy missing any of them renders every list dead.
   'explore.css',
   'explore.js',
