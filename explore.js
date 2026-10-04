@@ -11,11 +11,14 @@
       the visitor has asked for it, which is why the homepage now opens in one
       paint instead of mounting 1,338 tools.
 
-   2. `data-explore="static"` — tools.html and the 28 category pages. The rows
+   2. `data-explore="static"` — tools.html and the category pages. The rows
       are already real links in the served HTML (crawlers and no-JS visitors
       get everything); this adds the toolbar, the ＋ buttons and the expandable
       description on top. Nothing is fetched and nothing is re-rendered, so the
-      enhancement costs nothing on pages that already have their rows.
+      enhancement costs nothing on pages that already have their rows. Category
+      hubs mark themselves `data-explore-reveal="all"` because a page dedicated
+      to one category must not hide part of that category after enhancement; the
+      two large directories retain their 60-row progressive reveal.
 
    What it deliberately does NOT do: run a tool. A list row opens a tool on its
    own page, where it has the whole viewport and a fresh document. That is the
@@ -50,10 +53,18 @@
     cat: '',
     sort: 'az',
     shown: PAGE_SIZE,
+    // Category hubs are already complete static pages. They opt out of the
+    // 60-row progressive reveal used by the two very large directories, so a
+    // page never looks truncated simply because its shared list script ran.
+    revealAll: false,
     rows: [],
     current: -1,
     mode: null
   };
+
+  function resetShown() {
+    state.shown = state.revealAll ? Infinity : PAGE_SIZE;
+  }
 
   var els = {};          // container, bar, list, facets, more, count
   var categoryCounts = [];
@@ -586,13 +597,18 @@
   /* Static lists keep every row in the DOM (they were in the served HTML to
      begin with) and toggle `hidden` on the ones that do not match. Group
      wrappers — tools.html's one section per category — disappear when none of
-     their rows survive, so a filtered page never leaves empty headings behind. */
+     their rows survive, so a filtered page never leaves empty headings behind.
+     Category hubs opt out of the progressive reveal with
+     `data-explore-reveal="all"`; their complete category stays visible after
+     the shared enhancer runs. */
   function renderStatic(list) {
-    /* Static lists hold every row the generator wrote (1,205 links for
-       crawlers, for find-in-page, for a broken script), and lay out only as
-       many as the visitor has asked for. `display:none` subtrees skip layout,
-       so the index paints at the speed of its first screen and still contains
-       the whole catalogue.
+    /* Static lists hold every row the generator wrote (1,338 links for
+       crawlers, for find-in-page, for a broken script). The two large
+       directories lay out only as many as the visitor has asked for;
+       `display:none` subtrees skip layout, so those indexes paint at the speed
+       of their first screen while still containing the whole catalogue.
+       Category hubs are smaller, focused pages, so they deliberately reveal
+       all of their rows.
 
        The reveal is *per group*, not global: tools.html is one section per
        category with a TOC pointing at those headings, so a global "first 60 by
@@ -720,7 +736,7 @@
 
   function setQuery(q, opts) {
     state.q = String(q || '');
-    state.shown = PAGE_SIZE;
+    resetShown();
     if (state.mode === 'json' && !catalogueReady) {
       queuedQuery = state.q;
       syncOtherInputs(state.q);
@@ -759,7 +775,7 @@
 
   function setCategory(name) {
     state.cat = resolveCategory(name);
-    state.shown = PAGE_SIZE;
+    resetShown();
     if (state.mode === 'json' && !catalogueReady) {
       ensureCatalogue();
       return;
@@ -896,7 +912,7 @@
       setQuery(e.target.value);
     });
     els.bar.addEventListener('change', function (e) {
-      if (e.target.id === 'xp-sort') { state.sort = e.target.value; state.shown = PAGE_SIZE; render(); pushState(); }
+      if (e.target.id === 'xp-sort') { state.sort = e.target.value; resetShown(); render(); pushState(); }
       if (e.target.id === 'xp-cat') { setCategory(e.target.value); }
     });
     els.bar.addEventListener('click', function (e) {
@@ -983,6 +999,16 @@
     els.wrap = container.parentNode;
     els.container = container;
     els.more = container.parentNode.querySelector('[data-xp-more]');
+    // A category page is a complete, focused catalogue, not a preview of one.
+    // Keep the progressive reveal for the two large directory surfaces, but
+    // never hide valid category rows just because this shared enhancer ran.
+    state.revealAll = state.mode !== 'json' &&
+      (container.getAttribute('data-explore-reveal') === 'all' ||
+       // Older cached category HTML has the category marker even if it has not
+       // received the new explicit attribute yet. Treat it as complete too, so
+       // a mixed deploy can never regress to the truncated view.
+       container.hasAttribute('data-cat-name'));
+    resetShown();
 
     // The toolbar sits directly above the list it filters.
     var bar = document.createElement('div');

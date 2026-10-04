@@ -128,9 +128,11 @@ Two mount shapes:
     add), not at `DOMContentLoaded` — 123 KB of JSON for a closed panel.
 - **`data-explore="static"`** (tools.html, tools-index.html, category pages).
   Rows are already in the served HTML; the engine decorates them in place and
-  filters by hiding. The reveal is **per group**: each category shows its first
-  60 and "Show 60 more" extends every one (a global "first 60" would empty most
-  of the 29 categories).
+  filters by hiding. The two large directories use a **per-group** progressive
+  reveal: each category shows its first 60 and "Show 60 more" extends every one
+  (a global "first 60" would empty most of the 29 categories). Category hubs
+  set `data-explore-reveal="all"`, so every tool in the focused category remains
+  visible after the enhancer runs rather than looking like a truncated page.
 
 Rules that keep it honest, each pinned by a test:
 

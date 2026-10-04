@@ -142,6 +142,9 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
 
   // Same row component as tools.html and the home page's catalogue list: one
   // toolbar, one keyboard map, one ＋ button behaviour across the whole site.
+  // A category page is the complete landing page for that category, so mark it
+  // for the shared enhancer's full-reveal path rather than its directory-only
+  // 60-row progressive reveal.
   const toolRowsHtml = catTools.map(t => `        <li class="xp-row" data-slug="${esc(t.slug)}">
           <a class="xp-open" href="../${esc(t.url)}">
             <span class="xp-title">${esc(t.title)}</span>
@@ -419,7 +422,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
         <a href="../sponsor.html">Sponsor this category →</a>
       </div>
 
-      <div data-explore="static" id="explore" data-cat-name="${esc(cat.name)}">
+      <div data-explore="static" data-explore-reveal="all" id="explore" data-cat-name="${esc(cat.name)}">
         <ul class="xp-list">
 ${toolRowsHtml}
         </ul>
