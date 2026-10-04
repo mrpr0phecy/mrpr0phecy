@@ -30,6 +30,8 @@
   var host = document.currentScript.parentNode;
   var $ = function (id) { return host.querySelector('#' + id); };
   var lock = false;
+  var lastSource = 'hourly'; // remembers which box the user last typed in
+
   function money(v) { return isFinite(v) ? v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'; }
   function hours() {
     var h = Number($('hsal-hpw').value), w = Number($('hsal-wpy').value);
@@ -38,14 +40,22 @@
   function paint(hourly, annual, totalH) {
     var weekly = hourly * Number($('hsal-hpw').value);
     var monthly = annual / 12;
-    var daily = Number($('hsal-hpw').value) ? weekly / 5 : 0;
+    var hpw = Number($('hsal-hpw').value);
+    var daily = hpw ? (hourly * hpw) / 5 : 0;
     $('hsal-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">' +
       [['Hourly', money(hourly)], ['Daily (5-day week)', money(daily)], ['Weekly', money(weekly)], ['Monthly', money(monthly)], ['Annual', money(annual)], ['Hours / year', totalH ? totalH.toLocaleString() : '—']].map(function (row) {
         return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + row[0] + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + row[1] + '</div></div>';
       }).join('') + '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">UK National Living Wage and holiday pay are separate. 52 paid weeks means holiday is paid at the same rate. Use 46.4 weeks if you want unpaid leave of 5.6 weeks stripped out.</p>';
   }
+  function recalcFromLastSource() {
+    // Recompute from whichever side the user last edited. Previously changing
+    // hours/weeks always recomputed from hourly, so editing the annual box then
+    // changing hours wiped out the annual value you'd just typed.
+    if (lastSource === 'annual') fromAnnual(); else fromHourly();
+  }
   function fromHourly() {
     if (lock) return;
+    lastSource = 'hourly';
     var h = Number($('hsal-hourly').value), t = hours();
     if (!(h >= 0 && t > 0)) return;
     var a = h * t;
@@ -54,6 +64,7 @@
   }
   function fromAnnual() {
     if (lock) return;
+    lastSource = 'annual';
     var a = Number($('hsal-annual').value), t = hours();
     if (!(a >= 0 && t > 0)) return;
     var h = a / t;
@@ -62,8 +73,8 @@
   }
   $('hsal-hourly').addEventListener('input', fromHourly);
   $('hsal-annual').addEventListener('input', fromAnnual);
-  $('hsal-hpw').addEventListener('input', fromHourly);
-  $('hsal-wpy').addEventListener('input', fromHourly);
+  $('hsal-hpw').addEventListener('input', recalcFromLastSource);
+  $('hsal-wpy').addEventListener('input', recalcFromLastSource);
   fromHourly();
 })();
 </script>

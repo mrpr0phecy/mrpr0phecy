@@ -86,10 +86,10 @@
       </div>
       <div>
         <div style="margin-bottom:8px;color:rgba(230,250,255,0.9);font-size:0.9rem;">Gender</div>
-        <div style="display:flex;gap:8px;">
-          <button type="button" onclick="bmiSetGender('male')" style="flex:1;padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">Male</button>
-          <button type="button" onclick="bmiSetGender('female')" style="flex:1;padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">Female</button>
-          <button type="button" onclick="bmiSetGender('other')" style="flex:1;padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">Other</button>
+        <div style="display:flex;gap:8px;" role="group" aria-label="Gender">
+          <button type="button" onclick="bmiSetGender('male')" aria-pressed="false" style="flex:1;padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">Male</button>
+          <button type="button" onclick="bmiSetGender('female')" aria-pressed="false" style="flex:1;padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">Female</button>
+          <button type="button" onclick="bmiSetGender('other')" aria-pressed="false" style="flex:1;padding:12px;background:rgba(20,20,20,0.8);border:2px solid rgba(255,255,255,0.1);border-radius:8px;color:inherit;cursor:pointer;">Other / Prefer not to say</button>
         </div>
       </div>
     </div>
@@ -299,6 +299,8 @@ function bmiSyncInputs() {
             const rawValue = parseFloat(this.value);
             const value = Math.min(max, Math.max(min, Number.isFinite(rawValue) ? rawValue : min));
             const spokenUnit = bmiHeightUnit === 'in' ? 'inches' : 'centimetres';
+            heightSlider.min = min;
+            heightSlider.max = max;
             heightSlider.value = value;
             heightSlider.setAttribute('aria-valuetext', value + ' ' + spokenUnit);
             heightDisplay.textContent = value + ' ' + bmiHeightUnit;
@@ -325,6 +327,8 @@ function bmiSyncInputs() {
             const rawValue = parseFloat(this.value);
             const value = Math.min(max, Math.max(min, Number.isFinite(rawValue) ? rawValue : min));
             const spokenUnit = bmiWeightUnit === 'lb' ? 'pounds' : 'kilograms';
+            weightSlider.min = min;
+            weightSlider.max = max;
             weightSlider.value = value;
             weightSlider.setAttribute('aria-valuetext', value + ' ' + spokenUnit);
             weightDisplay.textContent = value + ' ' + bmiWeightUnit;
@@ -458,23 +462,22 @@ function bmiSetWeightUnit(unit, calculate = true) {
     if (calculate) setTimeout(() => bmiCalculate(), 100);
 }
 
-// Set gender
+// Set gender (also updates aria-pressed state for screen readers)
 function bmiSetGender(gender) {
     bmiGender = gender;
-
-    // Update buttons
-    ['male', 'female', 'other'].forEach(g => {
-        const btn = document.querySelector(`[onclick="bmiSetGender('${g}')"]`);
-        if (btn) {
-            if (g === gender) {
-                btn.style.background = 'rgba(45,212,255,0.2)';
-                btn.style.border = '2px solid var(--accent)';
-                btn.style.color = 'var(--accent)';
-            } else {
-                btn.style.background = 'rgba(20,20,20,0.8)';
-                btn.style.border = '2px solid rgba(255,255,255,0.1)';
-                btn.style.color = 'inherit';
-            }
+    ['male', 'female', 'other'].forEach(function (g) {
+        const btn = document.querySelector('[onclick="bmiSetGender(\'' + g + '\')"]');
+        if (!btn) return;
+        const active = (g === gender);
+        btn.setAttribute('aria-pressed', String(active));
+        if (active) {
+            btn.style.background = 'rgba(45,212,255,0.2)';
+            btn.style.border = '2px solid var(--accent)';
+            btn.style.color = 'var(--accent)';
+        } else {
+            btn.style.background = 'rgba(20,20,20,0.8)';
+            btn.style.border = '2px solid rgba(255,255,255,0.1)';
+            btn.style.color = 'inherit';
         }
     });
 }
@@ -700,13 +703,18 @@ function bmiShowHealthInfo(bmi, category) {
         recommendation = `Urgent medical consultation required. Treatment may include medical supervision, lifestyle changes, and possibly bariatric surgery consultation.`;
     }
     
-    // Add age-specific information if provided
+    // Add age/gender context
     if (bmiAge) {
         if (bmiAge > 65) {
-            healthInfo += ` Note: For adults over 65, a slightly higher BMI (up to 27) may be associated with lower mortality risk.`;
+            healthInfo += ' Note: for adults over 65, a slightly higher BMI (up to ~27) is associated with lower mortality risk in several studies.';
         } else if (bmiAge < 25) {
-            healthInfo += ` Note: BMI interpretation may vary for younger adults. Consider body composition analysis.`;
+            healthInfo += ' Note: for younger adults and adolescents, BMI is interpreted against age/sex percentile charts — the adult bands used here are only a rough guide.';
         }
+    }
+    if (bmiGender === 'female') {
+        healthInfo += ' Women on average carry more body fat than men at the same BMI; waist-to-height ratio (>0.5 is a flag) often adds a better risk picture.';
+    } else if (bmiGender === 'male') {
+        healthInfo += ' Men tend to carry visceral fat around the waist — a waist circumference above 94 cm adds risk even at a "normal" BMI.';
     }
     
     healthDetails.textContent = healthInfo;
@@ -715,45 +723,48 @@ function bmiShowHealthInfo(bmi, category) {
 
 // Calculate ideal weight range
 function bmiCalculateIdealWeight(heightM) {
-    const idealMin = 18.5 * (heightM * heightM);
-    const idealMax = 24.9 * (heightM * heightM);
-    const idealOptimal = 21.5 * (heightM * heightM); // Middle of healthy range
-    
-    // Display ideal weights
+    const h2 = heightM * heightM;
+    const idealMinKg = 18.5 * h2;
+    const idealMaxKg = 24.9 * h2;
+    const idealOptimalKg = 21.5 * h2;
+
+    // Convert to the user's chosen weight unit (previously always kg)
+    const toDisplay = function (kg) {
+        if (bmiWeightUnit === 'lb') {
+            const lb = kg * 2.20462;
+            return lb.toFixed(1) + ' lb';
+        }
+        return kg.toFixed(1) + ' kg';
+    };
+
     const idealMinEl = document.querySelector('#ideal-min');
     const idealMaxEl = document.querySelector('#ideal-max');
     const idealOptimalEl = document.querySelector('#ideal-optimal');
     const idealAnalysisEl = document.querySelector('#ideal-analysis');
     const idealWeightSection = document.querySelector('#bmi-ideal-weight');
-    
-    if (idealMinEl) idealMinEl.textContent = idealMin.toFixed(1) + ' kg';
-    if (idealMaxEl) idealMaxEl.textContent = idealMax.toFixed(1) + ' kg';
-    if (idealOptimalEl) idealOptimalEl.textContent = idealOptimal.toFixed(1) + ' kg';
-    
-    // Get current weight
+
+    if (idealMinEl) idealMinEl.textContent = toDisplay(idealMinKg);
+    if (idealMaxEl) idealMaxEl.textContent = toDisplay(idealMaxKg);
+    if (idealOptimalEl) idealOptimalEl.textContent = toDisplay(idealOptimalKg);
+
+    // Get current weight in kg
     const weightInput = document.querySelector('#bmi-weight-input');
-    // tool.html clears the card on the next navigation and cannot cancel
-    // this callback: bail out rather than write to a DOM that is gone.
     if (!weightInput) return;
-    let currentWeight = parseFloat(weightInput.value) || 70;
-    
-    // Convert to kg if needed
-    if (bmiWeightUnit === 'lb') {
-        currentWeight = currentWeight / 2.20462;
-    }
-    
-    // Calculate weight to lose/gain
+    let currentWeight = parseFloat(weightInput.value);
+    if (!Number.isFinite(currentWeight)) currentWeight = 70;
+    if (bmiWeightUnit === 'lb') currentWeight = currentWeight / 2.20462;
+
     let analysis = '';
-    if (currentWeight < idealMin) {
-        const toGain = (idealMin - currentWeight).toFixed(1);
-        analysis = `You are underweight. To reach healthy range, you need to gain approximately ${toGain} kg.`;
-    } else if (currentWeight > idealMax) {
-        const toLose = (currentWeight - idealMax).toFixed(1);
-        analysis = `You are overweight. To reach healthy range, you need to lose approximately ${toLose} kg.`;
+    if (currentWeight < idealMinKg) {
+        const toGainKg = idealMinKg - currentWeight;
+        analysis = 'You are underweight for your height. To reach the healthy range you need to gain roughly ' + toDisplay(toGainKg) + '.';
+    } else if (currentWeight > idealMaxKg) {
+        const toLoseKg = currentWeight - idealMaxKg;
+        analysis = 'You are above the healthy range. To get back into it you would need to lose roughly ' + toDisplay(toLoseKg) + '.';
     } else {
-        analysis = `You are within the healthy weight range. Maintain your current weight.`;
+        analysis = 'You are within the WHO healthy weight range for your height. Maintain your current weight.';
     }
-    
+
     if (idealAnalysisEl) idealAnalysisEl.textContent = analysis;
     if (idealWeightSection) idealWeightSection.style.display = 'block';
 }
