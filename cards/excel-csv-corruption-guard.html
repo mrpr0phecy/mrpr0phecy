@@ -1,0 +1,130 @@
+<section id="excel-csv-corruption-guard" aria-labelledby="excel-csv-corruption-guard-title">
+<style>
+#excel-csv-corruption-guard{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#excel-csv-corruption-guard *{box-sizing:border-box}
+#excel-csv-corruption-guard h2{color:var(--accent,#22d3ee);margin-top:0}
+#excel-csv-corruption-guard label{display:block;font-size:.88rem;font-weight:600;margin:10px 0 5px}
+#excel-csv-corruption-guard textarea,#excel-csv-corruption-guard select,#excel-csv-corruption-guard input[type=file]{display:block;width:100%;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#excel-csv-corruption-guard textarea{min-height:150px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.84rem;resize:vertical}
+#excel-csv-corruption-guard .ecg-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+#excel-csv-corruption-guard button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#excel-csv-corruption-guard :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#excel-csv-corruption-guard .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#excel-csv-corruption-guard .ecg-scroll{overflow-x:auto}
+#excel-csv-corruption-guard table{width:100%;border-collapse:collapse;font-size:.85rem}
+#excel-csv-corruption-guard th,#excel-csv-corruption-guard td{text-align:left;padding:6px;border-bottom:1px solid rgba(148,180,199,.25);vertical-align:top}
+#excel-csv-corruption-guard .ecg-bad{color:#ffb4a8}
+#excel-csv-corruption-guard .ecg-ok{color:#9be7b0}
+#excel-csv-corruption-guard code{font-family:ui-monospace,Menlo,Consolas,monospace}
+</style>
+<h2 id="excel-csv-corruption-guard-title">🛡️ Excel CSV Corruption Guard</h2>
+<p id="excel-csv-corruption-guard-desc" class="small">Open a CSV in Excel and it silently eats leading zeros, turns long IDs into 1.23E+15, makes “1-2” into 2-Jan and gene names like MARCH1 into dates. This finds every cell Excel would mangle and exports a protected copy that opens intact.</p>
+
+<label for="excel-csv-corruption-guard-file">CSV file (read locally)</label>
+<input id="excel-csv-corruption-guard-file" type="file" accept=".csv,.tsv,.txt,text/csv">
+<label for="excel-csv-corruption-guard-in">…or paste CSV</label>
+<textarea id="excel-csv-corruption-guard-in" spellcheck="false">order_id,zip,phone,part,size,gene,card,note
+000123,02134,07700900123,1-2,3/4,MARCH1,4111111111111111,=HYPERLINK("x")
+000124,90210,+447700900456,10-12,1/2,SEPT2,5500000000000004,ok
+000125,00501,0044 20 7946 0000,OCT4,1E5,DEC1,1234567890123456789,"Café, ok"</textarea>
+<label for="excel-csv-corruption-guard-mode">How to protect risky cells</label>
+<select id="excel-csv-corruption-guard-mode">
+  <option value="formula">Wrap as ="value" — opens as text in every Excel version (recommended)</option>
+  <option value="tab">Prefix a tab character — survives Excel, but leaves a hidden tab in other tools</option>
+</select>
+<div class="ecg-actions">
+  <button type="button" id="excel-csv-corruption-guard-scan">Scan for risks</button>
+  <button type="button" id="excel-csv-corruption-guard-dl">Download protected CSV</button>
+</div>
+<p id="excel-csv-corruption-guard-status" class="small" role="status" aria-live="polite"></p>
+<div id="excel-csv-corruption-guard-out" class="ecg-scroll"></div>
+<p class="small">The download is UTF-8 with a byte-order mark so accents survive too. Cells starting with = + - @ are also neutralised (CSV formula injection). Protected cells are text in Excel — convert back with VALUE() if you need maths on them. Guide only: Excel’s rules vary by locale and version.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('excel-csv-corruption-guard');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#excel-csv-corruption-guard-'+id);};
+  var rows=[],delim=',',flags=[],QQ=String.fromCharCode(34);
+  function detect(text){var first=text.split(/\r?\n/,1)[0]||'';var c={',':0,';':0,'\t':0,'|':0};for(var k in c)c[k]=first.split(k).length-1;return Object.keys(c).sort(function(a,b){return c[b]-c[a];})[0]||',';}
+  function parse(text,d){
+    var out=[],row=[],f='',q=false,i=0;
+    for(;i<text.length;i++){var ch=text[i];
+      if(q){if(ch===QQ){if(text[i+1]===QQ){f+=QQ;i++;}else q=false;}else f+=ch;}
+      else if(ch===QQ&&f==='')q=true;
+      else if(ch===d){row.push(f);f='';}
+      else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(f);out.push(row);row=[];f='';}
+      else f+=ch;}
+    if(f!==''||row.length){row.push(f);out.push(row);}
+    return out.filter(function(r){return r.length>1||r[0]!=='';});
+  }
+  var MON='jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december';
+  var reMonNum=new RegExp('^('+MON+')[-\\s/]?\\d{1,4}$','i'),reNumMon=new RegExp('^\\d{1,2}[-\\s/]('+MON+')([-\\s/]\\d{2,4})?$','i');
+  function risk(v){
+    var s=v.trim();if(!s)return null;
+    if(/^[=+\-@]/.test(s)&&!/^[+-]?\d+(\.\d+)?$/.test(s))return /^\+\d[\d\s]*$/.test(s)?'Phone with + is read as a formula / number — the + and spaces vanish':'Starts with = + - @ — Excel runs it as a formula (formula injection risk)';
+    if(/^\+\d{6,}$/.test(s))return 'Leading + is dropped and long numbers become scientific notation ('+s+' → '+Number(s).toExponential(4).replace('e+','E+')+')';
+    if(/^0\d+$/.test(s))return 'Leading zero(s) would be stripped ('+s+' → '+String(Number(s))+')';
+    if(/^\d{16,}$/.test(s))return 'More than 15 digits — Excel keeps only 15 significant digits, the rest become 0';
+    if(/^\d{12,15}$/.test(s))return 'Long number shown as scientific notation ('+Number(s).toExponential(2).replace('e+','E+')+')';
+    if(/^\d+(\.\d+)?e[+-]?\d+$/i.test(s))return 'Read as scientific notation ('+s+' → '+Number(s)+')';
+    if(/^\d{1,2}[-\/]\d{1,2}$/.test(s))return 'Turned into a date ('+s+' → day/month)';
+    if(/^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}$/.test(s))return 'Converted to a date serial; DD/MM vs MM/DD depends on the PC locale';
+    if(reMonNum.test(s)||reNumMon.test(s))return 'Looks like a month name + number — becomes a date (classic gene-name / product-code corruption)';
+    if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(s))return 'Converted to a time value';
+    if(/^\d+\s+\d+\/\d+$/.test(s)||/^\d+\/\d+$/.test(s)&&!/[-\/]\d{1,2}$/.test(s))return 'Read as a fraction';
+    if(/^[\d.,]+%$/.test(s))return 'Percent is converted to a decimal';
+    if(/^\d[\d\s]{9,}$/.test(s)&&/\s/.test(s))return 'Long digit string with spaces — may be reformatted';
+    if(/^(true|false)$/i.test(s))return 'Becomes the boolean TRUE / FALSE';
+    return null;
+  }
+  function scan(){
+    var text=$('in').value,out=$('out');out.textContent='';flags=[];
+    delim=detect(text);rows=parse(text,delim);
+    if(!rows.length){$('status').textContent='Paste or open a CSV first.';return;}
+    var head=rows[0],perCol={};
+    for(var r=1;r<rows.length;r++)for(var c=0;c<rows[r].length;c++){var why=risk(rows[r][c]);if(why){flags.push({r:r,c:c,v:rows[r][c],why:why});(perCol[c]=perCol[c]||[]).push(why);}}
+    $('status').textContent=rows.length-1+' data rows, '+head.length+' columns, delimiter '+(delim==='\t'?'TAB':'"'+delim+'"')+'. '+(flags.length?flags.length+' cell'+(flags.length===1?'':'s')+' Excel would change.':'No risky cells found — Excel should open this unchanged.');
+    if(!flags.length)return;
+    var h3=document.createElement('h3');h3.textContent='Columns at risk';out.appendChild(h3);
+    var t=document.createElement('table'),tr=document.createElement('tr');
+    ['Column','Risky cells','Main problem'].forEach(function(x){var th=document.createElement('th');th.scope='col';th.textContent=x;tr.appendChild(th);});t.appendChild(tr);
+    Object.keys(perCol).forEach(function(c){var row=document.createElement('tr'),list=perCol[c],count={};list.forEach(function(w){count[w]=(count[w]||0)+1;});var top=Object.keys(count).sort(function(a,b){return count[b]-count[a];})[0];
+      [head[c]||('Column '+(+c+1)),String(list.length),top].forEach(function(v,i){var d=document.createElement('td');d.textContent=v;if(i===2)d.className='ecg-bad';row.appendChild(d);});t.appendChild(row);});
+    out.appendChild(t);
+    var h4=document.createElement('h3');h4.textContent='First risky cells';out.appendChild(h4);
+    var t2=document.createElement('table'),tr2=document.createElement('tr');
+    ['Row','Column','Value','What Excel does'].forEach(function(x){var th=document.createElement('th');th.scope='col';th.textContent=x;tr2.appendChild(th);});t2.appendChild(tr2);
+    flags.slice(0,60).forEach(function(f){var row=document.createElement('tr');[String(f.r+1),head[f.c]||String(f.c+1),f.v,f.why].forEach(function(v,i){var d=document.createElement('td');d.textContent=v;if(i===2){var code=document.createElement('code');code.textContent=v;d.textContent='';d.appendChild(code);}row.appendChild(d);});t2.appendChild(row);});
+    out.appendChild(t2);
+  }
+  var QRE=new RegExp(QQ,'g'),NEEDQ=new RegExp('['+QQ+',\\r\\n;\\t|]');
+  function esc(v){return NEEDQ.test(v)?QQ+v.replace(QRE,QQ+QQ)+QQ:v;}
+  function download(){
+    scan();if(!rows.length)return;
+    var mode=$('mode').value,risky={};flags.forEach(function(f){risky[f.r+':'+f.c]=1;});
+    // ="value" must reach Excel as "=""value""" inside a quoted CSV field.
+    var lines=rows.map(function(row,r){return row.map(function(v,c){
+      if(!risky[r+':'+c])return esc(v);
+      if(mode==='tab')return esc('\t'+v);
+      return QQ+'='+QQ+QQ+v.replace(QRE,QQ+QQ+QQ+QQ)+QQ+QQ+QQ;
+    }).join(',');});
+    var blob=new Blob(['\uFEFF'+lines.join('\r\n')+'\r\n'],{type:'text/csv;charset=utf-8'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='excel-safe.csv';root.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);
+    $('status').textContent='Downloaded excel-safe.csv with '+flags.length+' protected cell'+(flags.length===1?'':'s')+' (comma-delimited, UTF-8 BOM).';
+  }
+  $('scan').addEventListener('click',scan);
+  $('dl').addEventListener('click',download);
+  $('file').addEventListener('change',function(){var f=this.files[0];if(!f)return;f.text().then(function(t){if(!document.getElementById('excel-csv-corruption-guard'))return;$('in').value=t.replace(/^\uFEFF/,'');scan();});});
+  scan();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

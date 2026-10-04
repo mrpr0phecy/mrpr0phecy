@@ -1,0 +1,102 @@
+<section id="dst-recurring-meeting-drift" aria-labelledby="dst-recurring-meeting-drift-title">
+<style>
+#dst-recurring-meeting-drift{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#dst-recurring-meeting-drift *{box-sizing:border-box}
+#dst-recurring-meeting-drift h2{color:var(--accent,#22d3ee);margin-top:0}
+#dst-recurring-meeting-drift .drm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
+#dst-recurring-meeting-drift label{display:block;font-size:.86rem;font-weight:600}
+#dst-recurring-meeting-drift input,#dst-recurring-meeting-drift select,#dst-recurring-meeting-drift textarea{display:block;width:100%;margin-top:5px;padding:9px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#dst-recurring-meeting-drift button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:14px 10px 0 0}
+#dst-recurring-meeting-drift :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#dst-recurring-meeting-drift .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#dst-recurring-meeting-drift .drm-scroll{overflow-x:auto;margin-top:14px}
+#dst-recurring-meeting-drift table{border-collapse:collapse;font-size:.84rem;min-width:100%}
+#dst-recurring-meeting-drift th,#dst-recurring-meeting-drift td{padding:6px 8px;border-bottom:1px solid rgba(148,180,199,.25);text-align:left;white-space:nowrap}
+#dst-recurring-meeting-drift td.drm-shift{background:rgba(232,163,61,.18);color:#ffd59a;font-weight:700}
+#dst-recurring-meeting-drift td.drm-off{color:#ffb4a8}
+#dst-recurring-meeting-drift .drm-summary{padding:12px 14px;border-left:3px solid #e8a33d;background:rgba(232,163,61,.08);border-radius:4px;margin-top:14px}
+</style>
+<h2 id="dst-recurring-meeting-drift-title">🕰️ DST Meeting Drift Predictor</h2>
+<p id="dst-recurring-meeting-drift-desc" class="small">“Why is my weekly meeting suddenly an hour off?” Because the US, Europe, and much of the Southern Hemisphere change clocks on different dates. Enter a recurring meeting and the attendees’ cities to see every week it moves for someone, before it happens.</p>
+<div class="drm-fields">
+  <label for="dst-recurring-meeting-drift-zone">Meeting is anchored to (organiser’s zone)<select id="dst-recurring-meeting-drift-zone"></select></label>
+  <label for="dst-recurring-meeting-drift-time">Meeting time in that zone<input id="dst-recurring-meeting-drift-time" type="time" value="09:00"></label>
+  <label for="dst-recurring-meeting-drift-day">Repeats every<select id="dst-recurring-meeting-drift-day"><option value="1">Monday</option><option value="2" selected>Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label>
+  <label for="dst-recurring-meeting-drift-weeks">Look ahead (weeks)<input id="dst-recurring-meeting-drift-weeks" type="number" min="4" max="104" value="52"></label>
+</div>
+<label for="dst-recurring-meeting-drift-people" style="margin-top:12px">Attendee time zones (one per line — IANA names such as America/New_York)</label>
+<textarea id="dst-recurring-meeting-drift-people" rows="4" spellcheck="false">America/New_York
+Europe/Berlin
+Australia/Sydney
+Asia/Kolkata</textarea>
+<button type="button" id="dst-recurring-meeting-drift-run">Predict drift</button>
+<button type="button" id="dst-recurring-meeting-drift-copy">Copy warnings</button>
+<p id="dst-recurring-meeting-drift-status" class="small" role="status" aria-live="polite"></p>
+<div id="dst-recurring-meeting-drift-summary" class="drm-summary" hidden></div>
+<div class="drm-scroll" id="dst-recurring-meeting-drift-table"></div>
+<p class="small">Uses your browser’s built-in time-zone database (no network). Calendar apps anchor a recurring event to the organiser’s zone, so attendees elsewhere see it move. Highlighted weeks are the changes. Governments occasionally change DST rules at short notice; keep your browser updated.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('dst-recurring-meeting-drift');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#dst-recurring-meeting-drift-'+id);};
+  var zones=[];try{zones=Intl.supportedValuesOf('timeZone');}catch(e){}
+  if(!zones.length)zones=['UTC','Europe/London','Europe/Berlin','America/New_York','America/Chicago','America/Los_Angeles','Australia/Sydney','Asia/Kolkata','Asia/Tokyo'];
+  var here=Intl.DateTimeFormat().resolvedOptions().timeZone||'Europe/London';
+  zones.forEach(function(z){var o=document.createElement('option');o.value=o.textContent=z;if(z===(zones.indexOf('Europe/London')>=0?'Europe/London':here))o.selected=true;$('zone').appendChild(o);});
+  var fmts={};
+  function parts(ms,tz){
+    var f=fmts[tz]||(fmts[tz]=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',weekday:'short'}));
+    var o={};f.formatToParts(new Date(ms)).forEach(function(p){o[p.type]=p.value;});return o;
+  }
+  function offsetMin(ms,tz){var p=parts(ms,tz);return (Date.UTC(+p.year,+p.month-1,+p.day,+p.hour%24,+p.minute)-Math.floor(ms/60000)*60000)/60000;}
+  function zonedToUtc(y,m,d,h,mi,tz){var guess=Date.UTC(y,m,d,h,mi);var off=offsetMin(guess,tz);var t=guess-off*60000;var off2=offsetMin(t,tz);return guess-off2*60000;}
+  var warnings=[];
+  function run(){
+    var tz=$('zone').value,tm=$('time').value.split(':'),dow=+$('day').value,weeks=Math.max(4,Math.min(104,parseInt($('weeks').value,10)||52));
+    var people=$('people').value.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean),bad=[];
+    people=people.filter(function(z){try{new Intl.DateTimeFormat('en',{timeZone:z});return true;}catch(e){bad.push(z);return false;}});
+    $('status').textContent=bad.length?'Unknown zone(s) skipped: '+bad.join(', '):'';
+    var now=new Date(),p=parts(now.getTime(),tz),y=+p.year,m=+p.month-1,d=+p.day;
+    var start=new Date(Date.UTC(y,m,d));while(start.getUTCDay()!==dow)start.setUTCDate(start.getUTCDate()+1);
+    var cols=[tz].concat(people.filter(function(z){return z!==tz;}));
+    var table=document.createElement('table'),hr=document.createElement('tr');
+    ['Week of'].concat(cols.map(function(z){return z.replace(/_/g,' ');})).forEach(function(x){var th=document.createElement('th');th.scope='col';th.textContent=x;hr.appendChild(th);});table.appendChild(hr);
+    var prev={};warnings=[];var shifts=0;
+    for(var w=0;w<weeks;w++){
+      var day=new Date(start.getTime()+w*7*86400000);
+      var utc=zonedToUtc(day.getUTCFullYear(),day.getUTCMonth(),day.getUTCDate(),+tm[0],+tm[1],tz);
+      var tr=document.createElement('tr'),c0=document.createElement('td');c0.textContent=day.toISOString().slice(0,10);tr.appendChild(c0);
+      cols.forEach(function(z){
+        var q=parts(utc,z),label=q.hour+':'+q.minute+(q.weekday!==parts(utc,tz).weekday?' ('+q.weekday+')':''),cell=document.createElement('td');
+        cell.textContent=label;
+        var hm=+q.hour*60+ +q.minute;
+        if(prev[z]!==undefined&&prev[z]!==hm){cell.className='drm-shift';var diff=hm-prev[z];if(diff>720)diff-=1440;if(diff<-720)diff+=1440;
+          cell.textContent=label+' ('+(diff>0?'+':'')+diff/60+'h)';shifts++;
+          warnings.push(day.toISOString().slice(0,10)+': '+z+' attendees move from '+String(Math.floor(prev[z]/60)).padStart(2,'0')+':'+String(prev[z]%60).padStart(2,'0')+' to '+q.hour+':'+q.minute+' local.');}
+        if(+q.hour<7||+q.hour>=20)cell.classList.add('drm-off');
+        prev[z]=hm;tr.appendChild(cell);
+      });
+      table.appendChild(tr);
+    }
+    var box=$('table');box.textContent='';box.appendChild(table);
+    var s=$('summary');s.hidden=false;s.textContent='';
+    var h=document.createElement('strong');h.textContent=shifts?shifts+' local-time change'+(shifts===1?'':'s')+' in the next '+weeks+' weeks.':'No drift — every attendee keeps the same local time for '+weeks+' weeks.';s.appendChild(h);
+    if(shifts){var ul=document.createElement('ul');warnings.forEach(function(x){var li=document.createElement('li');li.textContent=x;ul.appendChild(li);});s.appendChild(ul);
+      var tip=document.createElement('p');tip.className='small';tip.textContent='Fix options: warn attendees on those weeks, anchor the series to UTC if everyone agrees to share the shift, or split the series at each change. Red times fall outside 07:00–20:00 local.';s.appendChild(tip);}
+  }
+  $('run').addEventListener('click',run);
+  ['zone','time','day','weeks'].forEach(function(k){$(k).addEventListener('change',run);});
+  $('copy').addEventListener('click',function(){var t=warnings.length?warnings.join('\n'):'No DST drift found.';navigator.clipboard.writeText(t).then(function(){if(document.contains(root))$('status').textContent='Copied.';},function(){if(document.contains(root))$('status').textContent='Clipboard unavailable.';});});
+  run();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

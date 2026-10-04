@@ -1,0 +1,103 @@
+<section id="subtitle-drift-fixer" aria-labelledby="subtitle-drift-fixer-title">
+<style>
+#subtitle-drift-fixer{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#subtitle-drift-fixer *{box-sizing:border-box}
+#subtitle-drift-fixer h2{color:var(--accent,#22d3ee);margin-top:0}
+#subtitle-drift-fixer label{display:block;font-size:.86rem;font-weight:600;margin:8px 0 4px}
+#subtitle-drift-fixer input,#subtitle-drift-fixer select,#subtitle-drift-fixer textarea{display:block;width:100%;padding:9px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#subtitle-drift-fixer textarea{min-height:140px;font:.84rem ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+#subtitle-drift-fixer .sdf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px}
+#subtitle-drift-fixer fieldset{border:1px solid rgba(148,180,199,.3);border-radius:10px;padding:10px 12px;margin:12px 0}
+#subtitle-drift-fixer legend{padding:0 6px;font-weight:700}
+#subtitle-drift-fixer button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:6px 10px 6px 0}
+#subtitle-drift-fixer :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#subtitle-drift-fixer .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="subtitle-drift-fixer-title">🎬 Subtitle Drift Fixer — Two-Point Sync</h2>
+<p id="subtitle-drift-fixer-desc" class="small">Subtitles start in sync and slowly slide out of time? That is drift, not an offset — usually a 23.976 vs 25 fps mismatch — and a plain time shift can’t fix it. Give two lines with their correct times (or pick the frame-rate pair) and every timestamp is stretched to match. SRT and WebVTT.</p>
+<label for="subtitle-drift-fixer-file">Subtitle file (.srt or .vtt, read locally)</label>
+<input id="subtitle-drift-fixer-file" type="file" accept=".srt,.vtt,text/vtt,text/plain">
+<label for="subtitle-drift-fixer-in">…or paste subtitles</label>
+<textarea id="subtitle-drift-fixer-in" spellcheck="false">1
+00:00:05,000 --> 00:00:07,500
+First line of dialogue
+
+2
+00:42:10,000 --> 00:42:12,000
+A line near the end</textarea>
+<label for="subtitle-drift-fixer-mode">Correction method</label>
+<select id="subtitle-drift-fixer-mode">
+  <option value="points">Two sync points (most accurate)</option>
+  <option value="fps">Frame-rate conversion</option>
+  <option value="offset">Constant offset only</option>
+</select>
+<fieldset id="subtitle-drift-fixer-points"><legend>Two sync points</legend>
+<p class="small">Pick an early and a late subtitle; type when that line is actually spoken in your video (h:mm:ss.mmm or seconds).</p>
+<div class="sdf-grid">
+<label for="subtitle-drift-fixer-c1">Early subtitle<select id="subtitle-drift-fixer-c1"></select></label>
+<label for="subtitle-drift-fixer-t1">…actually spoken at<input id="subtitle-drift-fixer-t1" value="0:00:06.000"></label>
+<label for="subtitle-drift-fixer-c2">Late subtitle<select id="subtitle-drift-fixer-c2"></select></label>
+<label for="subtitle-drift-fixer-t2">…actually spoken at<input id="subtitle-drift-fixer-t2" value="0:40:30.000"></label>
+</div></fieldset>
+<fieldset id="subtitle-drift-fixer-fpsbox" hidden><legend>Frame rates</legend><div class="sdf-grid">
+<label for="subtitle-drift-fixer-from">Subtitles were timed for<select id="subtitle-drift-fixer-from"><option>23.976</option><option>24</option><option selected>25</option><option>29.97</option><option>30</option></select></label>
+<label for="subtitle-drift-fixer-to">Your video plays at<select id="subtitle-drift-fixer-to"><option selected>23.976</option><option>24</option><option>25</option><option>29.97</option><option>30</option></select></label>
+</div></fieldset>
+<fieldset id="subtitle-drift-fixer-offbox" hidden><legend>Offset</legend>
+<label for="subtitle-drift-fixer-off">Shift every line by (seconds, negative = earlier)<input id="subtitle-drift-fixer-off" type="number" step="0.001" value="0"></label></fieldset>
+<button type="button" id="subtitle-drift-fixer-run">Fix timing</button>
+<button type="button" id="subtitle-drift-fixer-dl">Download fixed file</button>
+<p id="subtitle-drift-fixer-status" class="small" role="status" aria-live="polite"></p>
+<label for="subtitle-drift-fixer-out">Fixed subtitles</label>
+<textarea id="subtitle-drift-fixer-out" readonly spellcheck="false"></textarea>
+<p class="small">Two-point sync fits the straight line new = a × old + b through your two corrections, which fixes both offset and drift at once. If the subtitles jump at a single point (an ad break or a different cut), split the file there and fix each part.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('subtitle-drift-fixer');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#subtitle-drift-fixer-'+id);};
+  var TS=/(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})|(?:^|\s)(\d{2}):(\d{2})[.](\d{3})(?=\s)/g;
+  var cues=[],fixed='',isVtt=false;
+  function toMs(h,m,s,ms){return ((+h*60+ +m)*60+ +s)*1000+ +String(ms).padEnd(3,'0');}
+  function fmt(ms,comma){if(ms<0)ms=0;ms=Math.round(ms);var h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000),r=ms%1000;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+(comma?',':'.')+String(r).padStart(3,'0');}
+  function parseUser(v){v=String(v).trim().replace(',','.');if(/^-?\d+(\.\d+)?$/.test(v))return parseFloat(v)*1000;var p=v.split(':').map(Number);if(p.some(isNaN))return NaN;var s=0;p.forEach(function(x){s=s*60+x;});return s*1000;}
+  function scan(){
+    var text=$('in').value;isVtt=/^\uFEFF?WEBVTT/.test(text);cues=[];
+    text.split(/\r?\n/).forEach(function(line,i,arr){var m=line.match(/(\d{1,2}:)?\d{2}:\d{2}[,.]\d{1,3}\s*-->/);if(m){var t=line.split('-->')[0].trim(),p=t.split(/[:.,]/);if(p.length===3)p.unshift('0');
+      var label=(arr[i+1]||'').replace(/<[^>]+>/g,'').slice(0,50);cues.push({ms:toMs(p[0],p[1],p[2],p[3]),label:label});}});
+    [['c1',0],['c2',cues.length-1]].forEach(function(x){var sel=$(x[0]),keep=sel.value;sel.textContent='';cues.forEach(function(c,i){var o=document.createElement('option');o.value=i;o.textContent=fmt(c.ms,false)+' — '+c.label;sel.appendChild(o);});sel.value=keep&&keep<cues.length?keep:Math.max(0,x[1]);});
+  }
+  function mapper(){
+    var mode=$('mode').value;
+    if(mode==='offset'){var o=parseFloat($('off').value)*1000;if(!isFinite(o))throw new Error('Enter an offset in seconds.');return {f:function(t){return t+o;},d:'Shifted every line by '+(o/1000)+' s.'};}
+    if(mode==='fps'){var a=parseFloat($('from').value)/parseFloat($('to').value);return {f:function(t){return t*a;},d:'Scaled by '+$('from').value+' / '+$('to').value+' = '+a.toFixed(6)+' (a 2-hour film moves '+((a-1)*7200).toFixed(1)+' s by the end).'};}
+    var i1=+$('c1').value,i2=+$('c2').value;if(!cues[i1]||!cues[i2]||i1===i2)throw new Error('Pick two different subtitles.');
+    var o1=cues[i1].ms,o2=cues[i2].ms,n1=parseUser($('t1').value),n2=parseUser($('t2').value);
+    if(!isFinite(n1)||!isFinite(n2))throw new Error('Type the corrected times as h:mm:ss.mmm or seconds.');
+    var k=(n2-n1)/(o2-o1),b=n1-k*o1;if(!(k>0))throw new Error('The corrected times must keep the two lines in the same order.');
+    var guess='';[[23.976,25],[25,23.976],[24,25],[25,24],[23.976,24],[24,23.976],[29.97,25],[25,29.97],[29.97,30],[30,29.97]].forEach(function(p){if(Math.abs(k-p[0]/p[1])<0.0015)guess=' This matches a '+p[0]+' → '+p[1]+' fps mismatch.';});
+    return {f:function(t){return k*t+b;},d:'Stretch ×'+k.toFixed(6)+', offset '+(b/1000).toFixed(3)+' s.'+guess};
+  }
+  function run(){
+    try{scan();if(!cues.length)throw new Error('No subtitle timestamps found.');var m=mapper(),n=0;
+      fixed=$('in').value.replace(/(\d{1,2}:)?(\d{2}):(\d{2})[,.](\d{1,3})(?=\s*-->|\s*$|\s+(?:align|line|position|size|vertical):|\s*\r?$)/gm,function(all,h,mi,s,ms){n++;return fmt(m.f(toMs(h?h.slice(0,-1):0,mi,s,ms)),!isVtt);});
+      $('out').value=fixed;$('status').textContent='Fixed '+n+' timestamps. '+m.d;
+    }catch(e){$('status').textContent=e.message;}
+  }
+  $('mode').addEventListener('change',function(){var v=this.value;$('points').hidden=v!=='points';$('fpsbox').hidden=v!=='fps';$('offbox').hidden=v!=='offset';});
+  $('in').addEventListener('change',scan);
+  $('run').addEventListener('click',run);
+  $('file').addEventListener('change',function(){var f=this.files[0];if(!f)return;f.text().then(function(t){if(!document.getElementById('subtitle-drift-fixer'))return;$('in').value=t;$('c1').value='';$('c2').value='';scan();$('status').textContent='Loaded '+cues.length+' cues from '+f.name+'.';});});
+  $('dl').addEventListener('click',function(){if(!fixed)run();if(!fixed)return;var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([fixed],{type:'text/plain;charset=utf-8'}));a.download=isVtt?'fixed.vtt':'fixed.srt';root.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);});
+  scan();run();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

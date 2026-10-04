@@ -267,6 +267,32 @@ const categoryMap = {
   'moving-average-forecaster': 'Mathematics',
   'continued-fraction-explorer': 'Mathematics',
   'penrose-tiling-studio': 'Mathematics',
+  // 2026-10-05 — ten consent-based community prosperity worksheets.
+  'community-skills-needs-matcher': 'Wellbeing & Community',
+  'community-tool-library-scheduler': 'Productivity & Lifestyle',
+  'repair-cafe-capacity-planner': 'Home & DIY',
+  'cooperative-surplus-splitter': 'Finance & Money',
+  'solidarity-fund-runway': 'Finance & Money',
+  'community-project-budget-picker': 'Finance & Money',
+  'local-supplier-gap-finder': 'Finance & Money',
+  'community-apprenticeship-planner': 'Wellbeing & Community',
+  'surplus-materials-exchange': 'Home & DIY',
+  'mutual-aid-shift-planner': 'Productivity & Lifestyle',
+  // 2026-10-04 — ten fixes for common problems that lack a good free tool:
+  // mojibake repair, Excel CSV auto-format damage, DST drift in recurring meetings,
+  // invisible/lookalike characters, furniture route fitting, subtitle drift (two-point
+  // sync), photo GPS scrubbing, account-recovery loops, DD/MM vs MM/DD resolution, mystery hums.
+  'mojibake-text-repair': 'Algorithms & Computer Science',
+  'excel-csv-corruption-guard': 'Algorithms & Computer Science',
+  'dst-recurring-meeting-drift': 'Productivity & Lifestyle',
+  'invisible-character-detector': 'Algorithms & Computer Science',
+  'will-it-fit-furniture-path': 'Home & DIY',
+  'subtitle-drift-fixer': 'Algorithms & Computer Science',
+  'photo-location-leak-scrubber': 'Productivity & Lifestyle',
+  'account-recovery-lockout-map': 'Productivity & Lifestyle',
+  'ambiguous-date-resolver': 'Productivity & Lifestyle',
+  'mystery-noise-identifier': 'Home & DIY',
+  'pdf-copy-paste-fixer': 'Writing & Language',
   // 2026-10-02 — two practical household workflows plus two AI-era tools:
   // transparent task-exposure what-if modelling and a voice-clone scam safety drill.
   'pantry-freezer-stock-tracker': 'Culinary & Food Science',
