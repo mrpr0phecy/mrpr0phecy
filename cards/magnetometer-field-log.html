@@ -1,0 +1,142 @@
+<div id="mfl-root" style="color:var(--text);">
+  <h2 id="mfl-title" style="margin-top:0;color:var(--accent);">🧲 Magnetic Field Log</h2>
+  <p id="mfl-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">
+    If your browser exposes a magnetometer, read the phone's real magnetic field in microteslas, set a baseline, and mark changes with time. Unsupported devices stay honestly blank—no simulated readings.
+  </p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(45,212,255,.25);border-radius:10px;background:rgba(45,212,255,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:var(--accent);">A MAGNETOMETER IS NOT A GHOST DETECTOR</strong><br>
+    Readings change near speakers, phones, wiring, metal and magnets. This tool records only a physical sensor measurement; it cannot identify a cause or detect spirits. Sensor support and permission vary by browser.
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;">
+    <button id="mfl-start" type="button" style="padding:11px 15px;border:0;border-radius:8px;background:var(--accent);color:#071017;font-weight:800;cursor:pointer;">Enable phone sensor</button>
+    <button id="mfl-stop" type="button" disabled style="padding:11px 15px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:transparent;color:var(--text);font-weight:700;cursor:pointer;">Stop sensor</button>
+    <button id="mfl-baseline" type="button" disabled style="padding:11px 15px;border:1px solid rgba(45,212,255,.35);border-radius:8px;background:rgba(45,212,255,.08);color:var(--accent);font-weight:700;cursor:pointer;">Set current baseline</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px;margin-bottom:13px;">
+    <div style="padding:13px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);">
+      <div style="color:var(--text-secondary);font-size:.78rem;">Live field strength</div>
+      <div id="mfl-live" style="font:800 1.45rem ui-monospace,monospace;color:var(--accent);margin-top:3px;">— µT</div>
+    </div>
+    <div style="padding:13px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);">
+      <div style="color:var(--text-secondary);font-size:.78rem;">Baseline</div>
+      <div id="mfl-base" style="font:800 1.45rem ui-monospace,monospace;color:#c6f8dc;margin-top:3px;">Not set</div>
+    </div>
+    <div style="padding:13px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);">
+      <div style="color:var(--text-secondary);font-size:.78rem;">Change from baseline</div>
+      <div id="mfl-delta" style="font:800 1.45rem ui-monospace,monospace;color:#ffd18a;margin-top:3px;">— µT</div>
+    </div>
+  </div>
+  <div aria-hidden="true" style="height:12px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:14px;">
+    <div id="mfl-bar" style="height:100%;width:0;background:linear-gradient(90deg,#2dd4ff,#a4ffd2,#ffd18a);transition:width .18s ease;"></div>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+    <button id="mfl-mark" type="button" disabled style="padding:9px 12px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--text);font-weight:700;cursor:pointer;">Mark this reading</button>
+    <button id="mfl-export" type="button" style="padding:9px 12px;border-radius:7px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.08);color:var(--accent);font-weight:700;cursor:pointer;">Export sensor log CSV</button>
+  </div>
+  <div id="mfl-status" role="status" aria-live="polite" style="padding:10px 12px;border-radius:8px;background:rgba(0,0,0,.15);color:var(--text-secondary);font-size:.84rem;line-height:1.5;">
+    Sensor idle. Press “Enable phone sensor” to request a reading; no data is collected in the background.
+  </div>
+  <ol id="mfl-log" aria-label="Timestamped magnetometer readings" style="padding-left:22px;margin:12px 0 0;color:var(--text-secondary);font: .8rem ui-monospace,monospace;line-height:1.7;"></ol>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('mfl-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#mfl-' + key); };
+  var sensor = null;
+  var latest = null;
+  var baseline = null;
+  var log = [];
+  var lastAutoLog = 0;
+  function nowLabel() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+  function stopSensor() {
+    if (sensor) {
+      sensor.onreading = null;
+      sensor.onerror = null;
+      try { sensor.stop(); } catch (_) {}
+      sensor = null;
+    }
+    $('start').disabled = false;
+    $('stop').disabled = true;
+    $('baseline').disabled = latest === null;
+    $('mark').disabled = latest === null;
+  }
+  function record(value, label) {
+    log.push({ time: new Date().toISOString(), value: value, label: label || 'sample' });
+    if (log.length > 300) log.shift();
+    var list = $('log');
+    while (list.firstChild) list.removeChild(list.firstChild);
+    log.slice(-20).forEach(function (row) {
+      var item = document.createElement('li');
+      item.textContent = new Date(row.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' · ' + row.value.toFixed(1) + ' µT · ' + row.label;
+      list.appendChild(item);
+    });
+  }
+  function update() {
+    if (!Number.isFinite(latest)) return;
+    $('live').textContent = latest.toFixed(1) + ' µT';
+    $('base').textContent = baseline === null ? 'Not set' : baseline.toFixed(1) + ' µT';
+    $('delta').textContent = baseline === null ? '— µT' : (latest - baseline >= 0 ? '+' : '') + (latest - baseline).toFixed(1) + ' µT';
+    $('bar').style.width = Math.max(0, Math.min(100, latest / 150 * 100)) + '%';
+    $('baseline').disabled = false;
+    $('mark').disabled = false;
+    var stamp = Date.now();
+    if (stamp - lastAutoLog > 1000) { record(latest, 'sample'); lastAutoLog = stamp; }
+  }
+  $('start').addEventListener('click', function () {
+    if (sensor) return;
+    if (!window.isSecureContext) { $('status').textContent = 'A secure HTTPS page is required by browser sensor rules. No simulated values are shown.'; return; }
+    if (typeof window.Magnetometer !== 'function') { $('status').textContent = 'This browser or device does not expose the Generic Sensor Magnetometer API. Nothing is being simulated; try a supported mobile browser or use a dedicated meter.'; return; }
+    try {
+      sensor = new window.Magnetometer({ frequency: 5 });
+      sensor.onreading = function () {
+        var x = Number(sensor.x), y = Number(sensor.y), z = Number(sensor.z);
+        if (![x, y, z].every(Number.isFinite)) return;
+        latest = Math.sqrt(x * x + y * y + z * z);
+        update();
+      };
+      sensor.onerror = function (event) {
+        var message = event && event.error && event.error.name === 'NotAllowedError' ? 'Sensor permission was denied.' : 'Sensor is unavailable or blocked by this browser.';
+        $('status').textContent = message + ' No paranormal interpretation is made.';
+        stopSensor();
+      };
+      sensor.start();
+      $('start').disabled = true;
+      $('stop').disabled = false;
+      $('status').textContent = 'Sensor active · values are raw environmental magnetic-field magnitude in µT.';
+    } catch (_) {
+      sensor = null;
+      $('status').textContent = 'The browser blocked the magnetometer. Check device support and site permissions; no readings are fabricated.';
+    }
+  });
+  $('stop').addEventListener('click', function () {
+    stopSensor();
+    $('status').textContent = 'Sensor stopped. The current session log remains on this page until you leave or export it.';
+  });
+  $('baseline').addEventListener('click', function () {
+    if (latest === null) return;
+    baseline = latest;
+    $('status').textContent = 'Baseline set from the current reading. Nearby electronics and metal can change it.';
+    update();
+  });
+  $('mark').addEventListener('click', function () {
+    if (latest === null) return;
+    record(latest, 'manual marker · ' + nowLabel());
+    $('status').textContent = 'Manual marker added to the local sensor log.';
+  });
+  $('export').addEventListener('click', function () {
+    if (!log.length) { $('status').textContent = 'No readings yet. Enable the supported phone sensor first.'; return; }
+    var rows = ['timestamp_utc,field_magnitude_microtesla,label'];
+    log.forEach(function (row) { rows.push('"' + row.time + '",' + row.value.toFixed(2) + ',"' + row.label.replace(/"/g, '""') + '"'); });
+    var url = URL.createObjectURL(new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    var link = document.createElement('a'); link.href = url; link.download = 'magnetic-field-log.csv'; link.click();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    $('status').textContent = 'Sensor log exported locally. Values do not identify their cause.';
+  });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function () { if (!root.isConnected) { stopSensor(); observer.disconnect(); } });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+})();
+</script>

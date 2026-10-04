@@ -1,0 +1,113 @@
+<div id="hcs-root" style="color:var(--text);">
+  <h2 id="hcs-title" style="margin-top:0;color:var(--accent);">🎬 Haunted Shoot Cue Sequencer</h2>
+  <p id="hcs-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">
+    Run a calm, predictable cue list for a permissioned horror shoot: room tone, camera holds, cast lines and resets. The tool only displays crew prompts—no lights, speakers, or devices are triggered.
+  </p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(255,190,90,.23);border-radius:10px;background:rgba(255,190,90,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:#ffd18a;">CONSENTED CREW · CONTROLLED SET ONLY</strong><br>
+    Agree the cues with everyone first. There is no jump-scare audio, flashing, or automatic effect; anyone can call a stop.
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:13px;">
+    <div>
+      <label for="hcs-interval" style="display:block;margin-bottom:5px;color:var(--accent);font-size:.8rem;font-weight:700;">Time between prompts (seconds)</label>
+      <input id="hcs-interval" type="number" min="15" max="180" step="5" value="30" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);">
+    </div>
+    <div>
+      <label for="hcs-custom" style="display:block;margin-bottom:5px;color:var(--accent);font-size:.8rem;font-weight:700;">Add a crew cue (optional)</label>
+      <div style="display:flex;gap:6px;"><input id="hcs-custom" type="text" maxlength="100" placeholder="e.g. hold for room tone" style="min-width:0;flex:1;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"><button id="hcs-add" type="button" style="padding:8px 10px;border-radius:7px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.08);color:var(--accent);font-weight:700;cursor:pointer;">Add</button></div>
+    </div>
+  </div>
+  <div style="padding:17px;border-radius:11px;background:linear-gradient(145deg,rgba(80,20,40,.22),rgba(0,0,0,.28));border:1px solid rgba(255,255,255,.09);min-height:145px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;color:var(--text-secondary);font-size:.78rem;margin-bottom:9px;"><span id="hcs-index">Cue deck · stopped</span><span>Next in <strong id="hcs-countdown" style="color:var(--accent);font:800 1rem ui-monospace,monospace;">—</strong></span></div>
+    <div id="hcs-cue" role="status" aria-live="polite" style="font-size:clamp(1.05rem,4vw,1.45rem);font-weight:800;line-height:1.45;color:#f5e6e8;">Ready for a cue deck.</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px;">
+    <button id="hcs-start" type="button" style="padding:10px 13px;border:0;border-radius:8px;background:#9c2340;color:#fff;font-weight:800;cursor:pointer;">Start cue deck</button>
+    <button id="hcs-pause" type="button" disabled style="padding:10px 13px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:transparent;color:var(--text);font-weight:700;cursor:pointer;">Pause</button>
+    <button id="hcs-next" type="button" disabled style="padding:10px 13px;border:1px solid rgba(45,212,255,.3);border-radius:8px;background:rgba(45,212,255,.06);color:var(--accent);font-weight:700;cursor:pointer;">Next cue</button>
+    <button id="hcs-stop" type="button" disabled style="padding:10px 13px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:transparent;color:var(--text-secondary);font-weight:700;cursor:pointer;">Stop / reset</button>
+  </div>
+  <strong style="color:var(--accent);font-size:.84rem;">Cue deck</strong>
+  <ol id="hcs-list" style="padding-left:22px;margin:7px 0 0;color:var(--text-secondary);font-size:.83rem;line-height:1.65;"></ol>
+  <div id="hcs-status" style="margin-top:8px;color:var(--text-secondary);font-size:.82rem;">Nothing is scheduled until you press Start.</div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('hcs-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#hcs-' + key); };
+  var cues = [
+    'Camera: hold on an empty doorway for a slow, steady shot.',
+    'Audio: capture 20 seconds of room tone; label it clearly.',
+    'Cast: deliver the agreed line only when ready.',
+    'Director: leave a quiet beat, then cut and reset.',
+    'Crew check-in: confirm everyone is comfortable before another take.'
+  ];
+  var index = -1;
+  var remaining = 0;
+  var timer = 0;
+  var paused = false;
+  function renderList() {
+    var list = $('list'); while (list.firstChild) list.removeChild(list.firstChild);
+    cues.forEach(function (cue) { var li = document.createElement('li'); li.textContent = cue; list.appendChild(li); });
+  }
+  function showCue() {
+    if (!cues.length) { $('cue').textContent = 'Add a cue before starting.'; return; }
+    index = (index + 1) % cues.length;
+    $('cue').textContent = cues[index];
+    $('index').textContent = 'Cue ' + (index + 1) + ' of ' + cues.length;
+    remaining = Math.max(15, Math.min(180, Number($('interval').value) || 30));
+    $('countdown').textContent = remaining + ' s';
+  }
+  function tick() {
+    if (paused) return;
+    remaining -= 1;
+    if (remaining <= 0) showCue();
+    else $('countdown').textContent = remaining + ' s';
+  }
+  function startTimer() {
+    if (timer) window.clearInterval(timer);
+    paused = false;
+    showCue();
+    timer = window.setInterval(tick, 1000);
+    $('pause').textContent = 'Pause'; $('pause').disabled = false;
+    $('next').disabled = false; $('stop').disabled = false; $('start').disabled = true;
+    $('status').textContent = 'Cue deck running · prompts are visual only and do not activate equipment.';
+  }
+  function stopTimer(reset) {
+    if (timer) window.clearInterval(timer);
+    timer = 0; paused = false;
+    $('pause').textContent = 'Pause'; $('pause').disabled = true;
+    $('next').disabled = true; $('stop').disabled = true; $('start').disabled = false;
+    if (reset) {
+      index = -1; remaining = 0;
+      $('index').textContent = 'Cue deck · stopped'; $('countdown').textContent = '—';
+      $('cue').textContent = 'Ready for a cue deck.';
+      $('status').textContent = 'Stopped · nothing is scheduled.';
+    }
+  }
+  $('add').addEventListener('click', function () {
+    var cue = $('custom').value.trim();
+    if (!cue) { $('status').textContent = 'Type a short crew prompt before adding it.'; return; }
+    if (cues.length >= 20) { $('status').textContent = 'Keep the deck to 20 cues or fewer.'; return; }
+    cues.push(cue); $('custom').value = ''; renderList();
+    $('status').textContent = 'Added a local cue. It will enter the rotation on the next cycle.';
+  });
+  $('custom').addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); $('add').click(); } });
+  $('start').addEventListener('click', startTimer);
+  $('pause').addEventListener('click', function () {
+    if (!timer) return;
+    paused = !paused;
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+    $('status').textContent = paused ? 'Paused · no cue is advancing.' : 'Cue deck resumed.';
+  });
+  $('next').addEventListener('click', function () { if (timer && !paused) showCue(); });
+  $('stop').addEventListener('click', function () { stopTimer(true); });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function () { if (!root.isConnected) { stopTimer(false); observer.disconnect(); } });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  renderList();
+})();
+</script>

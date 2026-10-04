@@ -1,0 +1,99 @@
+<div id="eim-root" style="color:var(--text);">
+  <h2 id="eim-title" style="margin-top:0;color:var(--accent);">🔐 Evidence File Integrity Manifest</h2>
+  <p id="eim-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">Create a local inventory of selected evidence files with file metadata and SHA-256 hashes for manageable files, then append handling events. This helps detect later file changes; it does not prove where, when, or how a recording was made.</p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(255,190,90,.22);border-radius:10px;background:rgba(255,190,90,.05);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:#ffd18a;">HASHES DO NOT PROVE AUTHENTICITY</strong><br>
+    Files are read in your browser only. SHA-256 is calculated for selected files up to 64 MB; larger files still get a metadata row but are not hashed. Keep original media read-only and document any transfer.
+  </div>
+  <label for="eim-files" style="display:block;margin-bottom:5px;color:var(--accent);font-size:.82rem;font-weight:700;">Select evidence files (audio, photo, video, or document)</label>
+  <input id="eim-files" type="file" multiple style="display:block;width:100%;margin-bottom:9px;color:var(--text);">
+  <button id="eim-hash" type="button" style="padding:10px 13px;border:0;border-radius:8px;background:var(--accent);color:#071017;font-weight:800;cursor:pointer;">Inventory selected files</button>
+  <div id="eim-status" role="status" aria-live="polite" style="margin:9px 0;color:var(--text-secondary);font-size:.82rem;">Nothing is processed until you click the button.</div>
+  <div style="overflow-x:auto;border:1px solid rgba(255,255,255,.1);border-radius:9px;margin-bottom:14px;">
+    <table style="width:100%;min-width:490px;border-collapse:collapse;font-size:.78rem;"><thead><tr style="color:var(--accent);background:rgba(45,212,255,.06);text-align:left;"><th scope="col" style="padding:8px;">File</th><th scope="col" style="padding:8px;">Size</th><th scope="col" style="padding:8px;">Modified</th><th scope="col" style="padding:8px;">SHA-256 / status</th></tr></thead><tbody id="eim-files-list"></tbody></table>
+  </div>
+  <strong style="display:block;color:var(--accent);font-size:.85rem;margin-bottom:7px;">Handling / chain-of-custody note</strong>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px;align-items:end;">
+    <div><label for="eim-target" style="display:block;margin-bottom:5px;font-size:.78rem;color:var(--text-secondary);">Affected file / scope</label><select id="eim-target" style="width:100%;padding:8px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"><option value="" selected disabled>Choose file / batch…</option><option value="session">Session-wide / no file selected</option></select></div>
+    <div><label for="eim-action" style="display:block;margin-bottom:5px;font-size:.78rem;color:var(--text-secondary);">Action</label><select id="eim-action" style="width:100%;padding:8px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"><option value="" selected disabled>Choose an action…</option><option>Captured original</option><option>Copied for review</option><option>Transferred to another custodian</option><option>Reviewed / played back</option><option>Other handling event</option></select></div>
+    <div><label for="eim-operator" style="display:block;margin-bottom:5px;font-size:.78rem;color:var(--text-secondary);">Operator code (not full name)</label><input id="eim-operator" type="text" maxlength="30" placeholder="e.g. OP-1" style="width:100%;padding:8px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"></div>
+    <div><label for="eim-note" style="display:block;margin-bottom:5px;font-size:.78rem;color:var(--text-secondary);">Note (optional)</label><input id="eim-note" type="text" maxlength="120" placeholder="Storage medium / hand-off detail" style="width:100%;padding:8px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"></div>
+    <button id="eim-add-event" type="button" style="padding:9px 11px;border:1px solid rgba(45,212,255,.3);border-radius:7px;background:rgba(45,212,255,.06);color:var(--accent);font-weight:700;cursor:pointer;">Add handling event</button>
+  </div>
+  <ol id="eim-events" aria-label="Evidence handling events" style="padding-left:22px;margin:9px 0;color:var(--text-secondary);font-size:.8rem;line-height:1.6;"></ol>
+  <button id="eim-export" type="button" disabled style="padding:10px 13px;border:1px solid rgba(45,212,255,.3);border-radius:8px;background:transparent;color:var(--accent);font-weight:800;cursor:pointer;">Export JSON manifest</button>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('eim-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#eim-' + key); };
+  var files = [];
+  var events = [];
+  var LIMIT = 64 * 1024 * 1024;
+  function sizeLabel(n) { return n < 1024*1024 ? (n/1024).toFixed(1)+' KB' : (n/(1024*1024)).toFixed(1)+' MB'; }
+  function renderFiles() {
+    var tbody = $('files-list'); while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    files.forEach(function (file) {
+      var tr = document.createElement('tr');
+      [file.name, sizeLabel(file.size), file.lastModified || 'unknown', file.hash || file.hash_status].forEach(function (value, index) {
+        var td = document.createElement('td'); td.textContent = value; td.style.cssText = 'padding:8px;border-top:1px solid rgba(255,255,255,.07);'+(index===3?'font-family:ui-monospace,monospace;word-break:break-all;':''); tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    var target = $('target'); var previous = target.value;
+    while (target.firstChild) target.removeChild(target.firstChild);
+    function addOption(value, label, disabled) { var option = document.createElement('option'); option.value = value; option.textContent = label; option.disabled = !!disabled; target.appendChild(option); }
+    addOption('', 'Choose file / batch…', true); addOption('session', 'Session-wide / no file selected', false);
+    if (files.length) {
+      addOption('batch', 'All inventoried files', false);
+      files.forEach(function (file, index) { addOption('file:' + index, file.name, false); });
+    }
+    if (Array.from(target.options).some(function (option) { return option.value === previous; })) target.value = previous;
+  }
+  function renderEvents() {
+    var list = $('events'); while (list.firstChild) list.removeChild(list.firstChild);
+    events.forEach(function (event) { var li = document.createElement('li'); li.textContent = event.time + ' · ' + event.file_target + ' · ' + event.action + ' · ' + event.operator + (event.note ? ' · ' + event.note : ''); list.appendChild(li); });
+  }
+  function toHex(buffer) { return Array.from(new Uint8Array(buffer), function (b) { return b.toString(16).padStart(2,'0'); }).join(''); }
+  $('hash').addEventListener('click', async function () {
+    var selected = Array.from($('files').files || []);
+    if (!selected.length) { $('status').textContent = 'Choose at least one file first.'; return; }
+    $('hash').disabled = true; $('export').disabled = true;
+    $('target').value = '';
+    files = selected.map(function (file) { return { name:file.name, size:file.size, type:file.type || 'unknown', lastModified:file.lastModified ? new Date(file.lastModified).toISOString() : 'unknown', hash:'', hash_status:'pending' }; });
+    renderFiles();
+    for (var i = 0; i < selected.length; i += 1) {
+      var file = selected[i];
+      $('status').textContent = 'Processing file ' + (i + 1) + ' of ' + selected.length + ' locally…';
+      if (file.size > LIMIT) { files[i].hash_status = 'not hashed · over 64 MB'; renderFiles(); continue; }
+      if (!window.crypto || !window.crypto.subtle || !file.arrayBuffer) { files[i].hash_status = 'not hashed · Web Crypto unavailable'; renderFiles(); continue; }
+      try {
+        var digest = await window.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+        files[i].hash = toHex(digest); files[i].hash_status = 'SHA-256';
+      } catch (_) { files[i].hash_status = 'not hashed · browser error'; }
+      renderFiles();
+    }
+    $('hash').disabled = false; $('export').disabled = !files.length;
+    $('status').textContent = 'Inventory ready. File contents were not uploaded. Hashes are integrity checks, not proof of provenance.';
+  });
+  $('add-event').addEventListener('click', function () {
+    var scope = $('target').value;
+    if (!scope) { $('status').textContent = 'Choose the affected file or scope before recording an event.'; return; }
+    if (!$('action').value) { $('status').textContent = 'Choose the handling action before recording an event.'; return; }
+    var targetLabel = scope === 'session' ? 'Session-wide / not file-associated' : scope === 'batch' ? 'All inventoried files' : (files[Number(scope.slice(5))] || {}).name || 'Selected file';
+    events.push({ time:new Date().toISOString(), file_target:targetLabel, action:$('action').value, operator:$('operator').value.trim() || 'not recorded', note:$('note').value.trim() });
+    $('note').value = ''; renderEvents(); $('export').disabled = !(files.length || events.length);
+    $('status').textContent = 'Handling event appended to the in-memory manifest.';
+  });
+  $('export').addEventListener('click', function () {
+    if (!files.length && !events.length) return;
+    var manifest = { created_at_utc:new Date().toISOString(), statement:'Local file inventory; hashes do not prove origin, time of capture, or an unaltered chain of custody.', files:files, handling_events:events };
+    var url = URL.createObjectURL(new Blob([JSON.stringify(manifest,null,2)],{type:'application/json;charset=utf-8'}));
+    var a = document.createElement('a'); a.href=url; a.download='evidence-integrity-manifest.json'; a.click();
+    window.setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    $('status').textContent = 'JSON manifest exported locally.';
+  });
+})();
+</script>

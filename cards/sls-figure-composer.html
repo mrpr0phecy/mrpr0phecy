@@ -1,0 +1,135 @@
+<div id="sls-root" style="color:var(--text);">
+  <h2 id="sls-title" style="margin-top:0;color:var(--accent);">🦴 SLS-Style Figure Composer</h2>
+  <p id="sls-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">
+    Place an adjustable skeletal-tracking effect over a still photo for a clearly staged horror shot. Drag it into position with the controls, preview the framing, then export a PNG—no live camera or tracking is used.
+  </p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(255,190,90,.23);border-radius:10px;background:rgba(255,190,90,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:#ffd18a;">MANUAL VIDEO EFFECT · NOT SLS DETECTION</strong><br>
+    The figure is drawn by this page over your chosen image. It does not identify a person, spirit, or shape in the room. Use edited media as a fictional prop, not captured evidence.
+  </div>
+  <label for="sls-file" style="display:block;margin-bottom:6px;color:var(--accent);font-size:.85rem;font-weight:700;">Choose a photo (up to 20 MB)</label>
+  <input id="sls-file" type="file" accept="image/*" style="display:block;width:100%;margin-bottom:12px;color:var(--text);">
+  <canvas id="sls-canvas" width="720" height="405" role="img" aria-label="Photo preview with staged skeletal figure effect" style="display:block;width:100%;height:auto;max-height:520px;object-fit:contain;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#05080b;margin-bottom:12px;"></canvas>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:12px;">
+    <div><label for="sls-x" style="display:block;color:var(--accent);font-size:.8rem;font-weight:700;margin-bottom:4px;">Horizontal position: <output id="sls-x-out">72%</output></label><input id="sls-x" type="range" min="5" max="95" value="72" style="width:100%;accent-color:var(--accent);"></div>
+    <div><label for="sls-y" style="display:block;color:var(--accent);font-size:.8rem;font-weight:700;margin-bottom:4px;">Vertical position: <output id="sls-y-out">60%</output></label><input id="sls-y" type="range" min="15" max="90" value="60" style="width:100%;accent-color:var(--accent);"></div>
+    <div><label for="sls-size" style="display:block;color:var(--accent);font-size:.8rem;font-weight:700;margin-bottom:4px;">Figure scale: <output id="sls-size-out">100%</output></label><input id="sls-size" type="range" min="50" max="160" value="100" style="width:100%;accent-color:var(--accent);"></div>
+    <div><label for="sls-opacity" style="display:block;color:var(--accent);font-size:.8rem;font-weight:700;margin-bottom:4px;">Glow opacity: <output id="sls-opacity-out">78%</output></label><input id="sls-opacity" type="range" min="15" max="100" value="78" style="width:100%;accent-color:var(--accent);"></div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;margin:8px 0 13px;color:var(--text-secondary);font-size:.84rem;"><input id="sls-watermark" type="checkbox" checked style="accent-color:var(--accent);"> Include a small “STAGED FX” watermark in the export</label>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;">
+    <button id="sls-export" type="button" disabled style="padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#071017;font-weight:800;cursor:pointer;">Export staged PNG</button>
+    <span id="sls-status" role="status" aria-live="polite" style="color:var(--text-secondary);font-size:.83rem;">Choose a photo. Processing stays in your browser.</span>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('sls-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#sls-' + key); };
+  var canvas = $('canvas');
+  var ctx = canvas.getContext('2d');
+  var image = null;
+  var imageUrl = '';
+  function status(text) { $('status').textContent = text; }
+  function drawFigure(x, y, size, alpha) {
+    var unit = Math.min(canvas.width, canvas.height) * 0.0025 * size / 100;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(unit, unit);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#b8ffdc';
+    ctx.fillStyle = 'rgba(125,255,195,.13)';
+    ctx.lineWidth = 4.4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = '#65ffb5';
+    ctx.shadowBlur = 15;
+    var bones = [
+      [[0,-57],[0,-38],[0,-8],[0,27]],
+      [[0,-37],[-29,-30],[-46,-4],[-42,20]],
+      [[0,-37],[29,-30],[46,-4],[42,20]],
+      [[0,27],[-18,60],[-19,93],[-22,123]],
+      [[0,27],[18,60],[19,93],[22,123]],
+      [[-29,-30],[29,-30]]
+    ];
+    bones.forEach(function (bone) {
+      ctx.beginPath();
+      ctx.moveTo(bone[0][0], bone[0][1]);
+      for (var i = 1; i < bone.length; i += 1) ctx.lineTo(bone[i][0], bone[i][1]);
+      ctx.stroke();
+    });
+    var joints = [[0,-38],[0,-8],[0,27],[-29,-30],[29,-30],[-46,-4],[46,-4],[-42,20],[42,20],[-18,60],[18,60],[-19,93],[19,93],[-22,123],[22,123]];
+    joints.forEach(function (joint) { ctx.beginPath(); ctx.arc(joint[0], joint[1], 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); });
+    ctx.beginPath(); ctx.arc(0, -77, 19, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-8, -77); ctx.lineTo(8, -77); ctx.moveTo(0, -85); ctx.lineTo(0, -69); ctx.stroke();
+    ctx.restore();
+  }
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!image) {
+      ctx.fillStyle = '#8b9aa7';
+      ctx.font = '16px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Choose a photo to build a staged figure effect', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    var x = Number($('x').value) / 100 * canvas.width;
+    var y = Number($('y').value) / 100 * canvas.height;
+    drawFigure(x, y, Number($('size').value), Number($('opacity').value) / 100);
+    if ($('watermark').checked) {
+      ctx.save();
+      ctx.font = '700 13px ui-monospace, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(5,9,12,.72)';
+      ctx.fillRect(canvas.width - 120, canvas.height - 27, 110, 18);
+      ctx.fillStyle = '#fff';
+      ctx.fillText('STAGED FX', canvas.width - 16, canvas.height - 14);
+      ctx.restore();
+    }
+  }
+  $('file').addEventListener('change', function () {
+    var file = $('file').files && $('file').files[0];
+    if (!file) return;
+    if (file.type.indexOf('image/') !== 0 || file.size > 20 * 1024 * 1024) { status('Choose an image no larger than 20 MB.'); return; }
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    imageUrl = URL.createObjectURL(file);
+    var next = document.createElement('img');
+    next.onload = function () {
+      image = next;
+      var factor = Math.min(1, 1200 / next.naturalWidth, 800 / next.naturalHeight);
+      canvas.width = Math.max(1, Math.round(next.naturalWidth * factor));
+      canvas.height = Math.max(1, Math.round(next.naturalHeight * factor));
+      $('export').disabled = false;
+      render();
+      status('Photo ready · the figure is a manually placed graphic, not a detected person.');
+    };
+    next.onerror = function () { image = null; $('export').disabled = true; status('Could not open that image. Try a JPEG, PNG, or WebP photo.'); };
+    next.src = imageUrl;
+  });
+  ['x','y','size','opacity'].forEach(function (key) {
+    $(key).addEventListener('input', function () {
+      $(key + '-out').textContent = $(key).value + '%';
+      render();
+    });
+  });
+  $('watermark').addEventListener('change', render);
+  $('export').addEventListener('click', function () {
+    if (!image || !canvas.toBlob) { status('Load a photo first; this browser cannot export a PNG.'); return; }
+    canvas.toBlob(function (blob) {
+      if (!blob) { status('The image could not be exported.'); return; }
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a'); link.href = url; link.download = 'staged-sls-figure.png'; link.click();
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      status('Staged PNG exported locally.');
+    }, 'image/png');
+  });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function () { if (!root.isConnected) { if (imageUrl) URL.revokeObjectURL(imageUrl); observer.disconnect(); } });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  render();
+})();
+</script>

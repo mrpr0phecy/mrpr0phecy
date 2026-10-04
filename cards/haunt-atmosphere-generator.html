@@ -1,0 +1,121 @@
+<div id="hag-root" style="color:var(--text);">
+  <h2 id="hag-title" style="margin-top:0;color:var(--accent);">🌫 Haunted Atmosphere Generator</h2>
+  <p id="hag-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">
+    Make a gentle, continuous horror sound bed from synthesized wind-like noise and low tones. Pick a room, mix the layers, and start or stop it yourself—no recordings or sound files are used.
+  </p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(45,212,255,.25);border-radius:10px;background:rgba(45,212,255,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:var(--accent);">USER-CONTROLLED AUDIO</strong><br>
+    Playback never starts automatically, has a conservative volume cap, and contains no sudden stingers or startling blasts. Use a comfortable level; pause before moving around.
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:11px;margin-bottom:13px;">
+    <div>
+      <label for="hag-scene" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Room tone</label>
+      <select id="hag-scene" style="width:100%;padding:10px;border-radius:8px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);">
+        <option value="hall">Empty hall · airy</option><option value="cellar">Stone cellar · muffled</option><option value="corridor">Long corridor · thin and distant</option>
+      </select>
+    </div>
+    <div>
+      <label for="hag-volume" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Master level: <output id="hag-volume-out">7%</output></label>
+      <input id="hag-volume" type="range" min="0" max="20" value="7" style="width:100%;accent-color:var(--accent);">
+    </div>
+  </div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin:7px 0 15px;color:var(--text-secondary);font-size:.87rem;">
+    <label style="display:flex;align-items:center;gap:7px;"><input id="hag-wind" type="checkbox" checked style="accent-color:var(--accent);"> Air / soft static texture</label>
+    <label style="display:flex;align-items:center;gap:7px;"><input id="hag-drone" type="checkbox" checked style="accent-color:var(--accent);"> Low harmonic drone</label>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px;">
+    <button id="hag-start" type="button" style="padding:11px 15px;border:0;border-radius:8px;background:#9c2340;color:#fff;font-weight:800;cursor:pointer;">Start sound bed</button>
+    <button id="hag-stop" type="button" disabled style="padding:11px 15px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:transparent;color:var(--text);font-weight:700;cursor:pointer;">Stop audio</button>
+  </div>
+  <div style="padding:15px;border-radius:10px;background:radial-gradient(ellipse at 50% 120%,rgba(45,212,255,.13),rgba(0,0,0,.38));border:1px solid rgba(45,212,255,.13);">
+    <div id="hag-meter" aria-hidden="true" style="height:64px;display:flex;align-items:center;justify-content:center;gap:5px;overflow:hidden;">
+      <i style="width:3px;height:14px;border-radius:6px;background:var(--accent);opacity:.6;"></i><i style="width:3px;height:25px;border-radius:6px;background:var(--accent);opacity:.55;"></i><i style="width:3px;height:40px;border-radius:6px;background:#9c2340;opacity:.62;"></i><i style="width:3px;height:28px;border-radius:6px;background:var(--accent);opacity:.7;"></i><i style="width:3px;height:52px;border-radius:6px;background:#9c2340;opacity:.68;"></i><i style="width:3px;height:32px;border-radius:6px;background:var(--accent);opacity:.55;"></i><i style="width:3px;height:18px;border-radius:6px;background:var(--accent);opacity:.6;"></i><i style="width:3px;height:43px;border-radius:6px;background:#9c2340;opacity:.58;"></i><i style="width:3px;height:23px;border-radius:6px;background:var(--accent);opacity:.7;"></i><i style="width:3px;height:50px;border-radius:6px;background:#9c2340;opacity:.6;"></i><i style="width:3px;height:26px;border-radius:6px;background:var(--accent);opacity:.65;"></i><i style="width:3px;height:37px;border-radius:6px;background:var(--accent);opacity:.55;"></i><i style="width:3px;height:18px;border-radius:6px;background:#9c2340;opacity:.7;"></i><i style="width:3px;height:46px;border-radius:6px;background:var(--accent);opacity:.55;"></i><i style="width:3px;height:31px;border-radius:6px;background:#9c2340;opacity:.6;"></i><i style="width:3px;height:21px;border-radius:6px;background:var(--accent);opacity:.7;"></i>
+    </div>
+    <div id="hag-status" role="status" aria-live="polite" style="text-align:center;color:var(--text-secondary);font-size:.84rem;">Stopped · no sound is playing.</div>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('hag-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#hag-' + key); };
+  var context = null;
+  var master = null;
+  var nodes = [];
+  var filters = [];
+  var toneParams = [];
+  var cleanupTimer = 0;
+  var scenes = {
+    hall: { cutoff: 780, tones: [54, 55.7] },
+    cellar: { cutoff: 360, tones: [47, 49.2] },
+    corridor: { cutoff: 1250, tones: [61, 63.4] }
+  };
+  function updateVolumeLabel() { $('volume-out').textContent = $('volume').value + '%'; }
+  function stopNow() {
+    if (cleanupTimer) { window.clearTimeout(cleanupTimer); cleanupTimer = 0; }
+    nodes.forEach(function (node) { try { node.stop(); } catch (_) {} try { node.disconnect(); } catch (_) {} });
+    nodes = []; filters = []; toneParams = [];
+    if (context) { try { context.close(); } catch (_) {} }
+    context = null; master = null;
+    $('start').disabled = false; $('stop').disabled = true;
+    $('status').textContent = 'Stopped · no sound is playing.';
+  }
+  function setScene() {
+    var scene = scenes[$('scene').value] || scenes.hall;
+    filters.forEach(function (filter) { filter.frequency.setTargetAtTime(scene.cutoff, context.currentTime, .08); });
+    toneParams.forEach(function (entry, index) { entry.frequency.setTargetAtTime(scene.tones[index % scene.tones.length], context.currentTime, .1); });
+    $('status').textContent = 'Room tone updated · sound remains user-controlled.';
+  }
+  function start() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { $('status').textContent = 'Web Audio is unavailable in this browser. No fallback sound or recording is used.'; return; }
+    if (!$('wind').checked && !$('drone').checked) { $('status').textContent = 'Select at least one sound layer.'; return; }
+    try {
+      context = new AC();
+      if (context.state === 'suspended' && context.resume) context.resume();
+      var now = context.currentTime;
+      master = context.createGain();
+      master.gain.setValueAtTime(0, now);
+      master.gain.linearRampToValueAtTime(Math.min(.12, Number($('volume').value) / 100 * .6), now + 1.4);
+      master.connect(context.destination);
+      var scene = scenes[$('scene').value] || scenes.hall;
+      if ($('wind').checked) {
+        var buffer = context.createBuffer(1, context.sampleRate * 3, context.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * .14;
+        var source = context.createBufferSource(); source.buffer = buffer; source.loop = true;
+        var filter = context.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = scene.cutoff;
+        var highpass = context.createBiquadFilter(); highpass.type = 'highpass'; highpass.frequency.value = 45;
+        var airGain = context.createGain(); airGain.gain.value = .22;
+        source.connect(highpass); highpass.connect(filter); filter.connect(airGain); airGain.connect(master);
+        source.start(); nodes.push(source, highpass, filter, airGain); filters.push(filter);
+      }
+      if ($('drone').checked) {
+        scene.tones.forEach(function (hz, index) {
+          var oscillator = context.createOscillator(); oscillator.type = 'sine'; oscillator.frequency.value = hz;
+          var toneGain = context.createGain(); toneGain.gain.value = index === 0 ? .045 : .022;
+          oscillator.connect(toneGain); toneGain.connect(master); oscillator.start();
+          nodes.push(oscillator, toneGain); toneParams.push(oscillator);
+        });
+      }
+      $('start').disabled = true; $('stop').disabled = false;
+      $('status').textContent = 'Playing a locally synthesized ambience bed · press Stop Audio to end it.';
+    } catch (_) {
+      stopNow();
+      $('status').textContent = 'Could not start Web Audio. Check browser audio support and try again.';
+    }
+  }
+  $('start').addEventListener('click', start);
+  $('stop').addEventListener('click', stopNow);
+  $('scene').addEventListener('change', function () { if (context) setScene(); });
+  $('volume').addEventListener('input', function () {
+    updateVolumeLabel();
+    if (master && context) master.gain.setTargetAtTime(Math.min(.12, Number($('volume').value) / 100 * .6), context.currentTime, .08);
+  });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function () { if (!root.isConnected) { stopNow(); observer.disconnect(); } });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+})();
+</script>

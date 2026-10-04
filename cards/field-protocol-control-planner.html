@@ -1,0 +1,81 @@
+<div id="ficp-root" style="color:var(--text);">
+  <h2 id="ficp-title" style="margin-top:0;color:var(--accent);">🧪 Field Protocol &amp; Control Planner</h2>
+  <p id="ficp-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">Pre-register a small A/B field test before you start: define the question, conditions, repetition count and scoring rule, then generate a balanced random order. This helps separate an observation from expectation.</p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(45,212,255,.24);border-radius:10px;background:rgba(45,212,255,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:var(--accent);">METHOD TOOL · NOT A PARANORMAL DETECTOR</strong><br>
+    Conditions are user-defined and randomization is only a schedule. For a blind review, a separate person must hold the order away from the observer and scorer. Use only an authorized, safe site.
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px;margin-bottom:12px;">
+    <div><label for="ficp-question" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Question / outcome to record</label><input id="ficp-question" type="text" maxlength="160" placeholder="e.g. Does the meter change near the marked source?" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"></div>
+    <div><label for="ficp-a" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Condition A</label><input id="ficp-a" type="text" maxlength="50" value="Control" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"></div>
+    <div><label for="ficp-b" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Condition B</label><input id="ficp-b" type="text" maxlength="50" value="Comparison" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"></div>
+    <div><label for="ficp-pairs" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">A/B pairs</label><input id="ficp-pairs" type="number" min="2" max="20" value="4" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);"></div>
+  </div>
+  <fieldset style="margin:0;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.11);display:grid;gap:9px;">
+    <legend style="padding:0 5px;color:var(--accent);font-weight:700;font-size:.85rem;">Preflight gates</legend>
+    <label style="display:flex;gap:8px;align-items:flex-start;color:var(--text-secondary);font-size:.84rem;line-height:1.45;"><input id="ficp-authorized" type="checkbox" style="margin-top:3px;accent-color:var(--accent);"><span>Permission for this site and time is confirmed; exits and safe access are known.</span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;color:var(--text-secondary);font-size:.84rem;line-height:1.45;"><input id="ficp-blind" type="checkbox" style="margin-top:3px;accent-color:var(--accent);"><span>A separate schedule holder can keep condition order from the blind observer / scorer.</span></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;color:var(--text-secondary);font-size:.84rem;line-height:1.45;"><input id="ficp-rule" type="checkbox" style="margin-top:3px;accent-color:var(--accent);"><span>The observation and scoring rule will be fixed before the first trial.</span></label>
+  </fieldset>
+  <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+    <button id="ficp-build" type="button" disabled style="padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#071017;font-weight:800;cursor:pointer;">Generate balanced schedule</button>
+    <button id="ficp-export" type="button" disabled style="padding:10px 14px;border:1px solid rgba(45,212,255,.3);border-radius:8px;background:rgba(45,212,255,.06);color:var(--accent);font-weight:700;cursor:pointer;">Export CSV</button>
+    <span id="ficp-status" role="status" aria-live="polite" style="color:var(--text-secondary);font-size:.82rem;">Define the test and pass all three gates to unlock the schedule.</span>
+  </div>
+  <div id="ficp-result" style="display:none;padding:13px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.1);">
+    <strong id="ficp-question-out" style="display:block;color:var(--text);margin-bottom:8px;"></strong>
+    <ol id="ficp-sequence" style="margin:0;padding-left:22px;color:var(--text-secondary);font: .86rem ui-monospace,monospace;line-height:1.8;"></ol>
+    <p style="margin:10px 0 0;color:var(--text-secondary);font-size:.78rem;">Balanced pairs are randomized as AB or BA. This order is not blinded unless a separate schedule holder conceals it from the observer.</p>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('ficp-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#ficp-' + key); };
+  var schedule = [];
+  function canBuild() {
+    var ok = $('authorized').checked && $('blind').checked && $('rule').checked && $('question').value.trim() && $('a').value.trim() && $('b').value.trim();
+    $('build').disabled = !ok;
+    if (!ok) $('status').textContent = 'Define the question, both conditions and pass all three preflight gates.';
+  }
+  function randomBit() {
+    if (window.crypto && window.crypto.getRandomValues) return window.crypto.getRandomValues(new Uint8Array(1))[0] & 1;
+    return Math.random() < .5 ? 0 : 1;
+  }
+  ['question','a','b'].forEach(function (key) { $(key).addEventListener('input', canBuild); });
+  ['authorized','blind','rule'].forEach(function (key) { $(key).addEventListener('change', canBuild); });
+  $('build').addEventListener('click', function () {
+    var pairs = Math.max(2, Math.min(20, Math.round(Number($('pairs').value) || 4)));
+    $('pairs').value = String(pairs);
+    var a = $('a').value.trim(), b = $('b').value.trim();
+    if (!a || !b || a.toLowerCase() === b.toLowerCase()) { $('status').textContent = 'Enter two different condition labels.'; $('export').disabled = true; return; }
+    schedule = [];
+    for (var i = 0; i < pairs; i += 1) {
+      var order = randomBit() ? [a,b] : [b,a];
+      order.forEach(function (condition) { schedule.push({ pair: i + 1, condition: condition }); });
+    }
+    $('question-out').textContent = 'Pre-registered question: ' + $('question').value.trim();
+    var list = $('sequence'); while (list.firstChild) list.removeChild(list.firstChild);
+    schedule.forEach(function (trial, index) {
+      var li = document.createElement('li');
+      li.textContent = 'Trial ' + (index + 1) + ' · pair ' + trial.pair + ' · ' + trial.condition;
+      list.appendChild(li);
+    });
+    $('result').style.display = 'block';
+    $('export').disabled = false;
+    $('status').textContent = pairs + ' balanced pairs generated locally. Keep the order from the scorer if blinding is part of the protocol.';
+  });
+  $('export').addEventListener('click', function () {
+    if (!schedule.length) return;
+    var q = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
+    var rows = ['trial,pair,condition,question'];
+    schedule.forEach(function (row, i) { rows.push([i + 1, row.pair, q(row.condition), q($('question').value.trim())].join(',')); });
+    var url = URL.createObjectURL(new Blob([rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    var a = document.createElement('a'); a.href = url; a.download = 'field-protocol-schedule.csv'; a.click();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    $('status').textContent = 'Randomized schedule exported as CSV. It does not classify observations.';
+  });
+})();
+</script>
