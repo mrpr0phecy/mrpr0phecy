@@ -166,7 +166,7 @@ state.rows = rows;
   assert(/function logSearch/.test(SOURCE) && /__mp_zero_searches/.test(SOURCE),
     'a search that returns nothing is still logged — it is the best "what to build next" signal there is');
 
-  // Progressive reveal. A 1,205-row index must not be laid out for a visitor
+  // Progressive reveal. A 1,338-row index must not be laid out for a visitor
   // who reads the first screen; the number is per group, which is why tools.html
   // shows 60 per category rather than 60 in total.
   assert(/var PAGE_SIZE = 60;/.test(SOURCE), 'the page size is 60');

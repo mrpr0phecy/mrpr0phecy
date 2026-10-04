@@ -11,7 +11,7 @@
    as an expandable list. That makes it:
      - cheap (a few hundred bytes in localStorage, no tool code);
      - portable (the same panel works on the home page, the index, the
-       directory and all 28 category pages);
+       directory and all 29 category pages);
      - shareable (a toolbox is a list of slugs, so it fits in a URL);
      - durable (it survives a tool being parked, rewired or rewritten).
 
@@ -655,7 +655,7 @@
          invalid and would follow the link when pressed. */
   /* Pages that do not ship a toolbox panel get one, built here.
      The home page has its panel in the sticky bar; the index, the directory
-     and the 28 category pages do not — and those are exactly the pages where a
+     and the 29 category pages do not — and those are exactly the pages where a
      visitor is most likely to want to keep something. Building the button and
      the panel from the same script (and the same stylesheet) keeps one toolbox
      on the site rather than one per page. */

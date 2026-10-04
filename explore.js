@@ -121,7 +121,7 @@
   function sortTitle(title) {
     var raw = String(title == null ? '' : title);
     // Cached: a comparator calls this ~2n·log n times per sort — about 22,000
-    // calls over the 1,285-row catalogue — and it is the same 1,285 strings
+    // calls over the 1,338-row catalogue — and it is the same 1,338 strings
     // every time. Clearing at the cap keeps a pathological title from pinning
     // memory for the life of the page.
     var cache = sortTitle.cache || (sortTitle.cache = new Map());
@@ -410,7 +410,7 @@
       url: a.getAttribute('href')
     };
     // The search haystack, built once — not rebuilt for every row on every
-    // keystroke (tools.html filters 1,285 served rows).
+    // keystroke (tools.html filters 1,338 served rows).
     row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
     return row;
   }
@@ -422,7 +422,7 @@
     // every trucking tool plus every weight tool. _hay is filled once when the
     // catalogue arrives; fixtures and static rows still build it here.
     // `words` is the query already split — visible() splits it once per
-    // filter instead of once per row (1,285 splits per keystroke before).
+    // filter instead of once per row (1,338 splits per keystroke before).
     var hay = row._hay || norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
     if (!words) words = q.split(/\s+/).filter(Boolean);
     for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false;
@@ -432,7 +432,7 @@
   function sorted(list) {
     /* The whole list is sorted once per sort order and remembered; a keystroke
        then only filters that pre-sorted list, which keeps its order. Before,
-       every keystroke re-sorted up to 1,285 rows with the collator (and
+       every keystroke re-sorted up to 1,338 rows with the collator (and
        visible() ran two or three times per keystroke), so typing paid for a
        full sort each time. Keyed on the array and its length: the catalogue
        arriving, or a fixture growing, is a new key. Callers get a copy, so the

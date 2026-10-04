@@ -197,8 +197,11 @@ KNOWN_STALE = rf"(?:{GROUPED}|\d{{3,4}})"
 
 # A count claim: <number>[+] <up to 4 small words> <noun>.
 # The word window lets "644 free offline browser tools" match while stopping
-# well short of running into unrelated prose.
+# well short of running into unrelated prose. A compact hyphenated form such as
+# "1285-tool catalogue" is also a claim; it is common in calls to action and
+# must not become an unowned exception just because it has no whitespace.
 NOUN = r"(?:tools?|cards?|utilities|utility|calculators?)"
+HYPHENATED_NOUN = r"(?:-\s*)?"
 # Allow comma or period after a word so "708 free, ad-free browser tools"
 # still parses as three words instead of stopping at the comma.
 FILLER = r"(?:[a-z][a-z-]{0,15}[.,]?\s+){0,4}"
@@ -231,7 +234,7 @@ GAP = rf"{BRIDGE}\s*{FILLER}"
 # YMYL" to reach "tool", and that viewport width was renumbered to the tool
 # count on every release until 2026-09-21.
 CLAIM = re.compile(
-    rf"(?<![\d.,])({KNOWN_STALE})(?!\s*px\b)(\+?)({GAP}){NOUN}\b",
+    rf"(?<![\d.,])({KNOWN_STALE})(?!\s*px\b)(\+?)({GAP}){HYPHENATED_NOUN}{NOUN}\b",
     re.IGNORECASE,
 )
 
