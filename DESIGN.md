@@ -12,7 +12,7 @@ Contrast Checker uses (`cards/color-contrast-checker.html`,
 
 ## 1. What this document is for
 
-One person maintains 1,312 tools, 29 category pages, a music product, a
+One person maintains 1,348 tools, 31 category pages, a music product, a
 standalone AI and every generated surface between. Design drift at that scale
 is a maintenance cost, not a matter of taste: this file lets a new tool,
 contributor or agent see the visual rules in one place, records the brand
@@ -79,7 +79,7 @@ change, so the mapping is documented instead):
 | `--fg` / `--fg-dark` | `--text` / `--surface-2` family | unchanged |
 | `--accent-user` | `--accent` (+ `--accent-hue`) | the picker; unchanged |
 | `--accent-house` | `HOUSE_ACCENT` / `HOUSE_ON_LIGHT` in `brand/mark.py` | external brand only — not a page token, on purpose |
-| `--grid-line` / `--rule` | planned (§6) | schematic texture |
+| `--grid-line` / `--rule` | `home.css :root` | faint grid / structural divider |
 | `--font-display` | planned (§4) | the variable display font, when it lands |
 | `--font-body` | `--font-sans` (Inter) | unchanged |
 
@@ -113,13 +113,13 @@ render differently per platform and read "hackathon MVP" next to a suite that
 checks statutory maths. One inline-SVG sprite referenced by `<use>`, so the cost
 across every page is one small file loaded once:
 
-- **File:** `assets/icons/categories.svg` — 29 symbols, one per category.
+- **File:** `assets/icons/categories.svg` — 31 symbols, one per category.
 - **Grid:** 24×24, live area 3–21, **one stroke weight (1.5)**, round caps and
   joins, `currentColor`, no fills except named dots. No second weight, ever.
 - **Ids:** `icon-<category-slug>` — the slugs `scripts/build-tools-index.js`
   owns, so a new category's id is derivable and `iconId` in `tools-index.json`
   follows.
-- **Surfaces:** the home page's 29 tiles (`build-home-prerender.py`), every
+- **Surfaces:** the home page's 31 tiles (`build-home-prerender.py`), every
   category page's badge/h1/pills (`build-category-pages.js`), the directory's
   category strip (`generate-ai-index.js`). A new category-level surface renders
   the sprite reference, never an emoji.
@@ -138,10 +138,16 @@ grid, index-card labels, dense scannable cards. Most of that already exists
 
 - **Category tiles:** chip + icon + mono count; the icon answers the tile's
   hover (accent) rather than being a fixed-colour emoji.
-- **Grid texture (planned):** a faint `--grid-line` over the ambient washes and
-  a slightly higher-contrast `--rule` for dividers — one background layer, check
-  the gzip budget in `check-critical-css.py`, and look at 360 px first (texture
-  that arrives before the content is too strong).
+- **Grid texture (home):** the hero's dot field settles into a faint `--grid-line`
+  grid below the search area; `--rule` carries a little more contrast on section
+  dividers. Both stay subordinate to the links and text, and the grid fades at
+  its edges so it reads as a surface, not a backdrop competing for attention.
+- **Scroll progress:** a two-pixel accent trace follows the root scroll where
+  CSS scroll timelines are available; it is absent when reduced motion is asked for.
+- **Horizontal shelves:** start, middle and end fades track which edge still
+  has content behind it. The shared `explore.js` cue clears reached edges, also
+  remeasuring shelves that become visible later; links stay touch- and
+  keyboard-reachable.
 - **Tool cards/rows:** name, category, one-line description. Resist
   illustrated marketing cards — density is the brand, and the row component is
   shared by home, category and directory pages (`explore.js`), so changes
@@ -164,8 +170,8 @@ words**; do not drift to generic friendly-SaaS copy. Per-surface voice table:
 |---|---|
 | Search / command palette (`/`, j/k, Enter) | the mechanic is the product — restyle chrome only |
 | Toolbox / recently-used tray | visual weight must not compete with the catalogue |
-| Category tiles (29) | done — custom icon set, §5 |
-| Tool card in "all tools" | small changes only; they compound ×1,312 |
+| Category tiles (31) | done — custom icon set, §5 |
+| Tool card in "all tools" | small changes only; they compound ×1,348 |
 | Support / sponsor panel | calm and factual, not persuasive; the page should publish a real current traffic number (needs the owner's GA figures — not derivable here) |
 | Discovery pages (`/popular`, `/new`, `/tools`, `/use-case`, `/tools-index`) | each keeps a distinct reason to exist; do not re-skin them into homepage copies |
 

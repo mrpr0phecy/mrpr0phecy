@@ -108,7 +108,13 @@
 // home styles changed as well, so version the HTML, app, and precache together.
 // v33: category pages opt out of directory pagination so every tool in a
 // focused category remains visible after the shared list enhancer mounts.
-const CACHE_VERSION = 'v33-2026-10-04';
+// v34: the home hero, featured shelf and browse surface are restyled; keep the
+// page assets and cached HTML/CSS on the same version for returning visitors.
+// v35: add a scroll-linked progress trace and focused/hover feedback to the home UI.
+// v36: narrow horizontal shelves hint at their continuation with a trailing fade.
+// v37: align homepage and design-brief category counts with the 31-category catalogue.
+// v38: remeasure shared shelf fades when a previously hidden row becomes visible.
+const CACHE_VERSION = 'v38-2026-10-04';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
