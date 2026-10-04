@@ -702,7 +702,12 @@ references, NOAA sun times, offline place search). Two renderers on purpose:
 `maps/localmap.js` draws Natural Earth boundaries on canvas with no library and
 no network (what every card uses), and `maps/livemap.js` layers MapLibre GL with
 OpenFreeMap vector tiles when online — a failed live layer is invisible because
-the offline map is already there. `maps/embed.js` exposes
+the offline map is already there. The canvas renderer is built like a tile
+engine: both Natural Earth generalisations are kept and chosen per zoom, the
+geometry is projected once and cached, and vertices below the pixel grid are
+not drawn. Place search runs on a fragment index over the offline gazetteer, so
+a keystroke is answered locally in well under a millisecond while the geocoder
+waits for a pause in typing. What it costs, measured: `docs/MAPS.md` §2. `maps/embed.js` exposes
 `window.MostUsefulMaps` (`mount(...)`, plus `distance`, `measure`, `plusCode`,
 `sunTimes`, `parse`, `searchPlaces`) and loads nothing until a card asks. The
 driving layer (`maps/core/speed.js`, `drive.js`) is vehicle-aware speed limits

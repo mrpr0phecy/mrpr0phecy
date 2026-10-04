@@ -53,6 +53,14 @@
   var suggestions = [];
   var searchRequestId = 0;
   var lastRoutePoints = null;
+  // The two halves of one search, kept apart so whichever answers first can be
+  // shown while the other is still on its way.
+  var localMatches = [];
+  var onlineMatches = null;
+  var codeSuggestion = null;
+  var geocodeAbort = null;
+  /** How long the geocoder waits for a pause in typing before being asked. */
+  var REMOTE_SEARCH_DELAY_MS = 320;
 
   /**
    * The driving companion's own state. Kept apart from `state` because most of
@@ -81,6 +89,18 @@
   };
 
   var DRIVE_PREFS_KEY = 'mum-drive-prefs';
+
+  /** Zoom at which the detailed Natural Earth set is worth its vertices. */
+  var DETAIL_FROM_ZOOM = 4.5;
+
+  /**
+   * Work that must not compete with the map: the 800 KB gazetteer, and
+   * decoding the detailed coastline. requestIdleCallback where the browser
+   * has it, a short delay where it does not.
+   */
+  var idle = root.requestIdleCallback
+    ? function (fn) { return root.requestIdleCallback(fn, { timeout: 2000 }); }
+    : function (fn) { return setTimeout(fn, 400); };
 
   // ------------------------------------------------------------------ utils
 
@@ -240,23 +260,32 @@
 
     // The gazetteer is 800 KB and only matters the moment someone searches or
     // zooms into a country, so it loads after the map has painted.
-    var idle = root.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
     idle(function () { ensureGazetteer().catch(function () {}); });
 
     updateHud();
   }
 
   function buildMap() {
-    var loaded = loadJson('data/countries-110m.json');
+    // The map is constructed with no boundaries and paints the sea and the
+    // graticule immediately; the world arrives a few milliseconds later.
+    // Nothing here blocks, which is the whole point — the first frame used to
+    // wait behind a synchronous XMLHttpRequest for this same file.
     map = new MM.LocalMap(els.map, {
       center: state.center,
       zoom: state.zoom,
       theme: state.theme,
-      countries: loaded,
+      countries: null,
+      countriesDetail: null,
+      detailFromZoom: DETAIL_FROM_ZOOM,
       interactive: true,
       units: state.units,
     });
     map.setTheme(state.theme);
+    loadWorld('coarse').then(function (collection) {
+      if (map && collection && collection.features && collection.features.length) {
+        map.setData({ countries: collection });
+      }
+    }).catch(function () { /* the sea and the graticule are still a map */ });
     map.on('click', onMapClick);
     map.on('move', function (view) {
       if (view.hover) updateCoordReadout(view);
@@ -344,30 +373,47 @@
     });
   }
 
-  function loadJson(relativePath) {
-    var xhr = new XMLHttpRequest();
-    var url = 'maps/' + relativePath;
-    xhr.open('GET', url, false); // synchronous on purpose: one 108 KB file that
-    // must exist before the first frame; the alternative is a blank map.
-    try {
-      xhr.send(null);
-      if (xhr.status === 200 || xhr.status === 0) return JSON.parse(xhr.responseText);
-    } catch (error) { /* fall through to the empty world */ }
-    return { type: 'FeatureCollection', features: [] };
+  /**
+   * The offline world, as GeoJSON: Natural Earth boundaries shipped as
+   * TopoJSON in maps/data/, decoded once and remembered.
+   *
+   * Both resolutions are kept rather than swapped, because a tile engine
+   * keeps every generalisation it has and picks one per zoom level. Replacing
+   * the coarse set with the 50 m one — which is ten times the vertices —
+   * meant that after one zoom-in, every zoomed-out pan had to trace the whole
+   * detailed coastline: ~30 ms a frame. The renderer now chooses.
+   */
+  var worldPromises = {};
+
+  function loadWorld(quality) {
+    var key = quality === 'detail' ? 'detail' : 'coarse';
+    if (worldPromises[key]) return worldPromises[key];
+    var file = key === 'detail' ? 'maps/data/countries-50m.json' : 'maps/data/countries-110m.json';
+    worldPromises[key] = fetchJson(file).then(function (topology) {
+      if (!topology || !topology.objects) throw new Error(file + ' is not a topology');
+      return MM.geo.fromTopology(topology, 'countries');
+    }).catch(function (error) {
+      worldPromises[key] = null;   // a failed load must be retryable
+      throw error;
+    });
+    return worldPromises[key];
   }
 
+  /**
+   * Once the visitor is close enough that the coarse coastline looks coarse,
+   * fetch the detailed one — in idle time, so decoding ~100k vertices never
+   * lands in the middle of a pan.
+   */
   function maybeLoadDetail() {
-    if (worldDetailLoaded || state.zoom < 4.5) return;
+    if (worldDetailLoaded || state.zoom < DETAIL_FROM_ZOOM) return;
     worldDetailLoaded = true;
-    try {
-      var detail = loadJson('data/countries-50m.json');
-      if (detail && detail.objects) {
-        var collection = MM.geo.fromTopology(detail, 'countries');
-        if (collection && collection.features && collection.features.length) {
-          map.setData({ countries: collection });
+    idle(function () {
+      loadWorld('detail').then(function (collection) {
+        if (map && collection && collection.features && collection.features.length) {
+          map.setData({ countriesDetail: collection });
         }
-      }
-    } catch (error) { worldDetailLoaded = false; }
+      }).catch(function () { worldDetailLoaded = false; });
+    });
   }
 
   // ------------------------------------------------------------------ data
@@ -428,10 +474,12 @@
       else runSearch(els.search.value, true);
     });
     els.search.addEventListener('input', function () {
-      clearTimeout(searchTimer);
       var value = els.search.value.trim();
-      if (!value) { searchRequestId += 1; closeSuggest(); return; }
-      searchTimer = setTimeout(function () { runSearch(value, false); }, 180);
+      if (!value) { searchRequestId += 1; cancelRemoteSearch(); closeSuggest(); return; }
+      // No debounce on the offline half: it is indexed and answers in well
+      // under a millisecond, so the suggestions track the keystroke instead of
+      // trailing it. The geocoder debounces itself inside runSearch.
+      runSearch(value, false);
     });
     els.search.addEventListener('focus', function () {
       if (els.search.value.trim() && suggestions.length) renderSuggest();
@@ -559,13 +607,25 @@
     }
   }
 
-  /** Offline matches first (instant), live geocoder results when they arrive. */
+  /**
+   * Offline matches first (instant), live geocoder results when they arrive.
+   *
+   * The two are on different clocks, deliberately. The offline index answers
+   * in a fraction of a millisecond, so it runs on every keystroke with no
+   * debounce at all. The geocoder is a volunteer-run public service with a
+   * minimum interval between calls, so it waits for a pause in typing, and its
+   * in-flight request is cancelled when a newer query supersedes it: without
+   * that, every keystroke queued another rate-limited request and the answer
+   * to what you actually typed arrived seconds late.
+   */
   function runSearch(query, jump) {
     var text = query.trim();
     if (!text) return;
     var requestId = ++searchRequestId;
     suggestIndex = -1;
-    var local = [];
+    localMatches = [];
+    onlineMatches = null;
+    codeSuggestion = null;
     var interpretation = null;
     // Codes with no place-name-shaped competition first: Plus Codes, OS grid
     // references, UTM and three-pair Maidenhead locators. Two things are
@@ -580,6 +640,7 @@
     try { interpretation = MM.gazetteer.interpret(text, { gazetteer: null, geohash: false, maidenheadMin: 3 }); } catch (error) { interpretation = null; }
 
     if (interpretation && interpretation.kind !== 'place' && interpretation.kind !== 'unknown') {
+      cancelRemoteSearch();
       selectPlace({
         name: interpretation.label,
         detail: interpretation.note || 'Read from what you typed',
@@ -591,8 +652,8 @@
 
     ensureGazetteer().then(function (gaz) {
       if (requestId !== searchRequestId) return;
-      local = gaz.search(text, { limit: 6, near: state.center });
-      suggestions = local.map(function (row) {
+      var local = gaz.search(text, { limit: 6, near: state.center });
+      localMatches = local.map(function (row) {
         return { name: row.name, detail: row.country, lat: row.lat, lon: row.lon, kind: 'place', pop: row.pop, offline: true };
       });
       if (!local.length) {
@@ -602,33 +663,69 @@
         // row says exactly what it would do.
         var code = MM.locators ? MM.locators.interpret(text, { geohash: true, geohashMin: 5 }) : null;
         if (code && (code.kind === 'geohash' || code.kind === 'maidenhead')) {
-          suggestions = [{
+          codeSuggestion = {
             name: code.label, detail: code.note, kind: code.kind,
             lat: code.point.lat, lon: code.point.lon, offline: true,
-          }];
+          };
         }
       }
-      renderSuggest();
-      if (jump && local.length) { selectPlace(suggestions[0]); return; }
+      composeSuggestions();
+      if (jump && localMatches.length) { selectPlace(suggestions[0]); return; }
     }).catch(function () {});
 
-    if (state.offline) return;
-    MM.providers.geocode(text, { near: state.center }).then(function (result) {
-      if (requestId !== searchRequestId) return;
-      if (!result.results || !result.results.length) {
-        if (!suggestions.length) toast('No match for “' + text + '”');
-        return;
-      }
-      var online = result.results.map(function (row) {
-        return { name: row.name, detail: row.detail, lat: row.lat, lon: row.lon, kind: row.kind, source: result.provider.name };
-      });
-      suggestions = online.concat(suggestions.filter(function (local_) {
-        return !online.some(function (o) {
-          return MM.geodesy.distanceKm(o, local_) < 1;
+    scheduleRemoteSearch(text, requestId);
+  }
+
+  /** Online results first, then the offline ones that are not the same place. */
+  function composeSuggestions() {
+    var base = localMatches.slice();
+    if (!base.length && codeSuggestion) base = [codeSuggestion];
+    if (onlineMatches && onlineMatches.length) {
+      base = onlineMatches.concat(base.filter(function (localRow) {
+        return !onlineMatches.some(function (onlineRow) {
+          return MM.geodesy.distanceKm(onlineRow, localRow) < 1;
         });
-      })).slice(0, 9);
-      renderSuggest();
-    });
+      }));
+    }
+    suggestions = base.slice(0, 9);
+    renderSuggest();
+  }
+
+  /** Drop a queued geocoder call, and cancel the one in flight, if any. */
+  function cancelRemoteSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = null;
+    if (geocodeAbort) {
+      try { geocodeAbort.abort(); } catch (error) { /* already settled */ }
+      geocodeAbort = null;
+    }
+  }
+
+  function scheduleRemoteSearch(text, requestId) {
+    clearTimeout(searchTimer);
+    if (state.offline) { searchTimer = null; return; }
+    searchTimer = setTimeout(function () {
+      searchTimer = null;
+      if (requestId !== searchRequestId) return;
+      cancelRemoteSearch();
+      var controller = typeof root.AbortController === 'function' ? new root.AbortController() : null;
+      geocodeAbort = controller;
+      MM.providers.geocode(text, { near: state.center, signal: controller ? controller.signal : null })
+        .then(function (result) {
+          if (geocodeAbort === controller) geocodeAbort = null;
+          if (requestId !== searchRequestId) return;
+          if (controller && controller.signal.aborted) return;
+          if (!result.results || !result.results.length) {
+            if (!suggestions.length) toast('No match for “' + text + '”');
+            return;
+          }
+          onlineMatches = result.results.map(function (row) {
+            return { name: row.name, detail: row.detail, lat: row.lat, lon: row.lon, kind: row.kind, source: result.provider.name };
+          });
+          composeSuggestions();
+        })
+        .catch(function () { /* cancelled, or every geocoder is down: the offline answer stands */ });
+    }, REMOTE_SEARCH_DELAY_MS);
   }
 
   /** One glyph per way of naming a place, so a result's kind is visible at a glance. */
@@ -669,6 +766,14 @@
   function closeSuggest() {
     suggestions = [];
     suggestIndex = -1;
+    // Dismissing the list also cancels whatever is still on its way for it, so
+    // a geocoder answer cannot pop the list back open after Escape — and the
+    // volunteer-run service is not left answering a question nobody is waiting
+    // for any more.
+    localMatches = [];
+    onlineMatches = null;
+    codeSuggestion = null;
+    cancelRemoteSearch();
     els.suggest.hidden = true;
     if (els.search) els.search.setAttribute('aria-expanded', 'false');
   }

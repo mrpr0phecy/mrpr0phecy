@@ -248,6 +248,13 @@
     return waitTurn(id, opts.minIntervalMs).then(function () {
       var controller = typeof AbortController === 'function' ? new AbortController() : null;
       var timer = setTimeout(function () { if (controller) controller.abort(); }, timeout);
+      // A caller can cancel too — the search box does, every time a keystroke
+      // supersedes the query in flight. The internal controller is what the
+      // fetch actually watches, so the two reasons to stop share one path.
+      if (opts.signal && controller) {
+        if (opts.signal.aborted) controller.abort();
+        else opts.signal.addEventListener('abort', function () { controller.abort(); });
+      }
       var started = Date.now();
       return fetch(url, {
         signal: controller ? controller.signal : undefined,
@@ -264,10 +271,18 @@
         return data;
       }).catch(function (error) {
         clearTimeout(timer);
-        record(id, 'fail', { error: error && error.message ? error.message : 'network error' });
+        // Being cancelled is not the provider failing, and must not be
+        // recorded as a failure or answered by the next provider in the chain.
+        if (!isCancelled(error, opts.signal)) record(id, 'fail', { error: error && error.message ? error.message : 'network error' });
         throw error;
       });
     });
+  }
+
+  /** Was this rejection a cancellation rather than a failure? */
+  function isCancelled(error, signal) {
+    if (signal && signal.aborted) return true;
+    return !!error && (error.name === 'AbortError' || error.name === 'AbortError'.toLowerCase());
   }
 
   /** Try each candidate in order; the first success wins and is remembered. */
@@ -277,6 +292,9 @@
       if (!list.length) return Promise.reject(lastError || new Error('no provider available'));
       var candidate = list.shift();
       return attempt(candidate).catch(function (error) {
+        // A cancelled call stops here: falling through to the next provider
+        // would answer a question the visitor has already stopped asking.
+        if (isCancelled(error)) throw error;
         if (list.length) return next(error);
         throw error;
       });
@@ -316,7 +334,9 @@
       var url = provider.search(query, near);
       var cached = getCached(url, 5 * 60 * 1000);
       if (cached) return Promise.resolve({ results: cached, provider: provider });
-      return fetchJson(url, { id: provider.id, timeoutMs: provider.timeoutMs, minIntervalMs: provider.minIntervalMs })
+      return fetchJson(url, {
+        id: provider.id, timeoutMs: provider.timeoutMs, minIntervalMs: provider.minIntervalMs, signal: opts.signal,
+      })
         .then(function (data) {
           var results = provider.parse(data).filter(function (r) {
             return MM.geodesy && MM.geodesy.validLat(r.lat) && MM.geodesy.validLon(r.lon);
@@ -326,6 +346,9 @@
           return { results: results, provider: provider };
         });
     }).catch(function (error) {
+      // A cancellation is the caller's business, not an empty result: reporting
+      // it as "no results" would tell the visitor their search found nothing.
+      if (isCancelled(error, opts.signal)) throw error;
       return { results: [], provider: null, error: error.message, offline: true };
     });
   }

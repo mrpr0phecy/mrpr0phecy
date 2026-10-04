@@ -59,6 +59,65 @@ MostUsefulMaps paints twice, deliberately:
 The offline layer is never removed, which is why the page has no "something
 went wrong" state.
 
+### How the offline renderer keeps up
+
+A canvas map that redraws the world on every pan frame has to be built like a
+tile engine, or it feels like a slideshow. Four things decide that:
+
+- **Nothing blocks the first frame.** The boundaries are fetched, not
+  synchronously XHR'd; the sea and the graticule paint immediately and the land
+  arrives when the file does. (It used to be a blocking `XMLHttpRequest`, which
+  held up everything behind it.)
+- **Two generalisations of the world, both kept.** The 110 m set draws below
+  zoom 4.5 and the 50 m set above it — `detailFromZoom`, chosen per frame. The
+  detailed set used to *replace* the coarse one, so after a single zoom-in every
+  zoomed-out pan had to trace the whole 50 m coastline.
+- **Geometry is projected once.** Each dataset is projected into zoom-0 world
+  pixels and cached (`WeakMap`, keyed on the dataset, shared by every map on the
+  page). A frame is then two multiplies and two adds per vertex instead of a
+  Mercator projection — and `canvasPoint()` used to re-project the *centre* for
+  every vertex as well.
+- **Vertices below the pixel grid are not drawn.** Points closer together than
+  three quarters of a pixel are skipped, and whole features whose bbox is off
+  screen are skipped without being looked at.
+
+Measured in Node, calling the shipped renderer's own `draw()` against the
+shipped data (110 m = 10,587 vertices, 50 m = 99,539), for the page's real
+configuration — coarse set below 4.5, detailed set above it. These are CPU
+costs with no browser compositing, so they understate a real frame; the
+before/after comparison is what matters, and it is the same harness either way:
+
+| Pan frame | Shipped | Now |
+|---|---|---|
+| World view (110 m) | 2.68 ms | 2.05 ms |
+| Zoom 4 (110 m) | 1.87 ms | 0.51 ms |
+| Zoom 6, detailed set loaded | 8.43 ms | 1.87 ms |
+| Zoom 7, detailed set loaded | 10.41 ms | 1.90 ms |
+| Street zoom 11 | 6.17 ms | 1.69 ms |
+| **Zoomed back out to 3 after a zoom-in** | **33.61 ms** | **0.79 ms** |
+
+The last row is the one a visitor feels: the detailed set used to replace the
+coarse one permanently, so after one zoom-in every zoomed-out pan cost 33 ms —
+about 3 fps — for the rest of the session.
+
+**Two bugs this measurement found, both silent.** The page handed the TopoJSON
+file straight to the renderer, which looks for `.features` and found none — so
+the offline world painted *no land at all* until the visitor zoomed past 4.5,
+and a click could not name a country before then. And the Measure tool passes
+`{lat, lon}` rows while the renderer read `[lon, lat]`, so its line and its area
+polygon were drawn at `(null, null)`: the numbers in the panel were right and
+the map showed nothing. The canvas ignores a `NaN` coordinate without
+complaining, which is why neither ever threw. Both are covered by tests now.
+
+Culling also had a bug, in the same measurement. The old viewport bbox was
+built by unprojecting two corners, and `unproject` normalises longitude to
+±180°, so when the canvas was wider than the world the box came back wrapped:
+at zoom 0 it claimed the view ran from 88°W to 88°E and drew **151 land
+polygons where 177 are visible** — no Americas, no Pacific. At zoom 1.5 it lost
+five more; from zoom 2 upwards it happened to agree. Near the antimeridian the
+same wrap did the opposite and drew 81 features where none are on screen. The
+cull now runs in projected units, where there is nothing to wrap.
+
 ## 3. Data and services
 
 | Purpose | Service | Data / licence | When it is contacted |
@@ -123,6 +182,22 @@ Everything in steps 1–3 and 5 is computed on the device: no service is
 contacted for any code, and none of them needs the network. The Route and
 Drive endpoint fields are resolved in the same order — a geohash works there
 too, once both the place index and the geocoder have come up empty.
+
+**And the place index itself is indexed.** Step 4 used to fold and score all
+19,686 names on every keystroke — 15–23 ms measured, which is a dropped frame
+per character on a desktop and far worse on a phone. Each name is now folded
+once at load and filed under the one- and two-character fragments it contains;
+a query is looked up by the fragment it starts with, which is a candidate list
+*guaranteed* to contain every match, because every way of scoring requires the
+query (or a multi-word query's first word) to occur inside the name. Scoring,
+ranking and the results are unchanged — the equivalence is asserted against a
+full scan in the test suite, over 200 query/centre/option combinations. In the
+same environment, `"lu"` went from 14.6 ms to 0.098 ms and `"london"` from
+15.1 ms to 0.18 ms, so the offline half of a search now runs on the keystroke
+with no debounce, while the geocoder waits for a pause (§5). The proximity
+boost that re-ranks homonyms is computed from a planar approximation for
+ranking — a Vincenty solution per candidate cost more than the whole indexed
+search — and the `km` a result reports is still the exact geodesic distance.
 
 **Route choices and active guidance.** The Route tab supports driving, cycling
 and walking profiles, with fastest, shortest and quieter choices, explicit avoid
@@ -217,6 +292,16 @@ makes the feature testable in CI and usable on a desktop.
   service, and the Info panel lists exactly which service gets what: search
   words go to a geocoder, two endpoints go to a router, a radius and a point go
   to Overpass, sampled points go to OpenTopoData.
+- One connection is opened before anything is asked for: `maps.html` carries
+  `<link rel="preconnect">` for `tiles.openfreemap.org`, the basemap the page
+  already loads on every visit that has a connection and WebGL, so the
+  handshake is not waiting on the first tile. It sends no query and no data —
+  it is the same host, contacted a moment earlier. No other host is contacted
+  early: no geocoder, no font CDN, no analytics.
+- Typing in the search box no longer queues a geocoder call per character. The
+  offline index answers every keystroke; the geocoder waits for a pause, and the
+  request in flight is cancelled when a newer query supersedes it — so the
+  volunteer-run service sees one question, not six.
 - Geolocation is browser-only: the coordinates are used on the device and are
   never sent anywhere by this page.
 - A drive sends more than a search does, and only when you ask for one: the
@@ -340,7 +425,16 @@ session are plain globals on `MM`, with no DOM and no fetching inside them.
 - the search order that keeps a word from being read as a code: "exeter" is
   looked up as a place, `gcpvj0` is not;
 - sun times, phases and moon phase;
-- the offline gazetteer's ranking, folding and interpretation;
+- the offline gazetteer's ranking, folding and interpretation — including that
+  the fragment index returns exactly what a full scan would (over 200
+  query/centre/option combinations) and that no candidate list drops a match;
+- the offline renderer, driven for real against a recording canvas: that a
+  world view fills land at both resolutions and keeps them both, that a cached
+  projection makes a pan a pure translation and a zoom a pure scaling, and that
+  a measurement draws where it was taken in either row shape;
+- that the world file the page loads is a topology and the page decodes it
+  before it reaches the renderer, and that a cancelled search is not recorded as
+  a provider failure or answered by the fallback geocoder;
 - country lookup through the vendored TopoJSON;
 - the driving engine: OSM `maxspeed` parsing including the UK's `maxspeed:type`
   vocabulary, vehicle-specific national limits (car, caravan, van, motorhome,

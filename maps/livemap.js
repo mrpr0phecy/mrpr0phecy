@@ -137,6 +137,24 @@
         // Globe projection is a MapLibre 5 feature; asking for it on an older
         // build is harmless, which is why it is a plain option.
         projection: opts.globe ? 'globe' : 'mercator',
+        // The knobs that decide how the map feels while you move it:
+        //   fadeDuration      tiles appear as they decode rather than after a
+        //                     third of a second of grey (300 is the default);
+        //   validateStyle     the style comes from a fixed, known-good URL, so
+        //                     re-validating its schema on every load is work
+        //                     nobody benefits from;
+        //   refreshExpiredTiles  a vector tile that has aged out of its
+        //                     cache-control header is not re-fetched mid-pan.
+        //                     OpenStreetMap data changes slowly; a reload picks
+        //                     up anything new, and the volunteer tile server is
+        //                     spared a second request for the same square;
+        //   maxTileCacheSize  a bigger cache than the default, so panning back
+        //                     over ground you have just crossed is free.
+        fadeDuration: opts.fadeDuration == null ? 120 : opts.fadeDuration,
+        validateStyle: false,
+        refreshExpiredTiles: opts.refreshExpiredTiles === true,
+        maxTileCacheSize: opts.maxTileCacheSize == null ? 250 : opts.maxTileCacheSize,
+        renderWorldCopies: opts.worldCopies !== false,
       });
       handle.map = map;
       if (opts.nav !== false && opts.controls !== false && maplibregl.NavigationControl) {
