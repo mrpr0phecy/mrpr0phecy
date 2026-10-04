@@ -6,12 +6,84 @@ stay stable. Everything else is reference (§6).
 ## 0. What this is
 
 Static GitHub Pages — no runtime deps, no deploy build; `main` is live.
+Two products share the domain and must stay separate (§3 hard line 6).
 
-- **Catalogue (Product A):** `cards/<slug>.html` fragments mount in `index.html`
-  / `tool.html`; `cards/` is the truth. `ai.html` is Lantern, a separate
-  on-device AI.
-- **Music (Product B):** `listen.html` + twelve language pages, `music.html`,
-  `radio.html`, `sync.html`. Never cross-promote the products.
+### Product A — the catalogue (1,348 tools)
+
+`cards/<slug>.html` fragments, mounted by `index.html` / `tool.html`.
+Manifest: `manifest.tools.json`. No ads, no analytics on cards.
+
+| Page | Role |
+|---|---|
+| `index.html` | catalogue home |
+| `tool.html` | shared DOM shell — runs one card at a time |
+| `tools.html` | interactive catalogue directory |
+| `tools-index.html` | plain no-JS directory (what `llms.txt` links) |
+| `embed.html` | embed catalogue + licensing funnel |
+| `embed-finance.html` | generated finance-licence landing |
+| `popular.html`, `new.html`, `use-case.html` | filtered catalogue views |
+| `changelog.html` | catalogue changelog |
+| `donate.html` | donation appeal |
+| `sponsor.html` | sponsorship enquiries |
+| `help.html`, `about.html`, `press.html`, `legal.html` | site pages |
+| `guides.html`, `guides/*.html`, `case-studies.html` | long-form content |
+| `jobs.html` | multi-step tool workflows |
+| `agents.html` | machine guide for AI agents |
+| `sitemap.html` | HTML sitemap |
+| `blog/*.html` | blog posts |
+
+### Product B — MrProphecy music
+
+Manifest: `manifest.json` (the music PWA). GA on every public page.
+
+| Page | Role |
+|---|---|
+| `listen.html` | music hub — main entry point |
+| `music.html` | press kit, bio, booking |
+| `radio.html` | continuous player (47 tracks) |
+| `sync.html`, `sync-licence.html` | sync licensing |
+| `support.html` | direct artist support (tipping) |
+| `thisorthat.html` | head-to-head voting game |
+| `youtubepromo2.html` | long-form guide — **indexed, deliberate** |
+| `luton.html` | local SEO |
+| `mpnews.html` | music news |
+| `animation.html` | MrProphecy hip-hop animation |
+| 12 language pages | `bengali chinese dutch french hindi japanese marathi portuguese punjabi russian spanish thai` |
+
+Noindex music pages (superseded — don't re-index):
+`youtubepromo.html`, `youtubepromo1.html`, `youtubepromo3.html`.
+
+### Standalone pages
+
+| Page | Role | Notes |
+|---|---|---|
+| `ai.html` | Lantern — on-device AI | own brand, no catalogue data |
+| `maps.html` | MostUsefulMaps | open-data map engine |
+| `opensourcenews.html` | global live news broadcast | open RSS feeds, no backend |
+| `token.html` | $MRPROPHECY token page | kept deliberately, no crypto promotion |
+
+### Experiments / personal pages
+
+Ask before deleting any: `supaviewer.html`, `sonicfansite.html`, `riley.html`,
+`tattoo.html`, `birdapp.html`, `clock.html`, `beachsimulator.html`,
+`citysimulator.html`, `fightsimulator.html`, `aiwalker.html`,
+`eternalbeffudlementmachine.html`, `edgeoftomorrow.html`, `government.html`.
+
+### Noindex / redirect stubs
+
+Do not re-index or edit content: `byte-realistic.html`, `byte-realistic-v4.html`,
+`local-ai.html` (→ ai.html), `licence-admin.html` (owner console, offline),
+`slideshowtest.html`, `supadupaman.html`.
+
+### Infrastructure
+
+| File | Role |
+|---|---|
+| `404.html` | custom error page |
+| `manifest.json` | music PWA manifest (Product B only) |
+| `manifest.tools.json` | catalogue PWA manifest (Product A only) |
+| `robots.txt` | allow all + sitemap reference |
+| `sw.js` | service worker — registered by `home-core.js` |
 
 Make the smallest complete change; batch edits before checking; search before
 reading large or generated files; no unrelated cleanup. Decide routine details
