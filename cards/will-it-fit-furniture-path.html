@@ -1,0 +1,119 @@
+<section id="will-it-fit-furniture-path" aria-labelledby="will-it-fit-furniture-path-title">
+<style>
+#will-it-fit-furniture-path{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#will-it-fit-furniture-path *{box-sizing:border-box}
+#will-it-fit-furniture-path h2{color:var(--accent,#22d3ee);margin-top:0}
+#will-it-fit-furniture-path fieldset{border:1px solid rgba(148,180,199,.3);border-radius:10px;padding:10px 12px;margin:12px 0}
+#will-it-fit-furniture-path legend{padding:0 6px;font-weight:700}
+#will-it-fit-furniture-path .wif-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px}
+#will-it-fit-furniture-path label{display:block;font-size:.84rem}
+#will-it-fit-furniture-path input,#will-it-fit-furniture-path select{display:block;width:100%;margin-top:4px;padding:9px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#will-it-fit-furniture-path button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#will-it-fit-furniture-path :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#will-it-fit-furniture-path .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#will-it-fit-furniture-path .wif-result{margin-top:12px}
+#will-it-fit-furniture-path .wif-step{padding:10px 12px;border-radius:8px;margin:8px 0;border-left:4px solid #587080;background:var(--surface,#101c25)}
+#will-it-fit-furniture-path .wif-pass{border-left-color:#3ccf74}
+#will-it-fit-furniture-path .wif-tight{border-left-color:#e8a33d}
+#will-it-fit-furniture-path .wif-fail{border-left-color:#ff6b6b}
+#will-it-fit-furniture-path canvas{width:100%;max-width:420px;height:auto;background:var(--surface,#101c25);border-radius:10px;border:1px solid #587080;display:block;margin-top:10px}
+</style>
+<h2 id="will-it-fit-furniture-path-title">🛋️ Will It Fit? Sofa &amp; Furniture Path Checker</h2>
+<p id="will-it-fit-furniture-path-desc" class="small">Checks the whole route, not one door: a doorway, the tilt-and-pivot through it, then a 90° hallway corner — the place sofas actually get stuck. Uses the real geometry of a box turning a corner and tells you which orientation to carry it in.</p>
+<label for="will-it-fit-furniture-path-unit" style="max-width:220px">Units<select id="will-it-fit-furniture-path-unit"><option value="cm">centimetres</option><option value="in">inches</option></select></label>
+<fieldset><legend>The furniture</legend><div class="wif-fields">
+<label for="will-it-fit-furniture-path-L">Length (longest side)<input id="will-it-fit-furniture-path-L" type="number" min="1" step="0.5" value="210"></label>
+<label for="will-it-fit-furniture-path-D">Depth (front to back)<input id="will-it-fit-furniture-path-D" type="number" min="1" step="0.5" value="90"></label>
+<label for="will-it-fit-furniture-path-H">Height (floor to top of back)<input id="will-it-fit-furniture-path-H" type="number" min="1" step="0.5" value="85"></label>
+<label for="will-it-fit-furniture-path-A">Arm/back height for diagonal (0 if boxy)<input id="will-it-fit-furniture-path-A" type="number" min="0" step="0.5" value="45"></label>
+</div></fieldset>
+<fieldset><legend>Doorway</legend><div class="wif-fields">
+<label for="will-it-fit-furniture-path-dw">Clear width (stop to stop)<input id="will-it-fit-furniture-path-dw" type="number" min="1" step="0.5" value="76"></label>
+<label for="will-it-fit-furniture-path-dh">Clear height<input id="will-it-fit-furniture-path-dh" type="number" min="1" step="0.5" value="198"></label>
+</div></fieldset>
+<fieldset><legend>Hallway corner after the door (0 = none)</legend><div class="wif-fields">
+<label for="will-it-fit-furniture-path-h1">Width of corridor you arrive in<input id="will-it-fit-furniture-path-h1" type="number" min="0" step="0.5" value="100"></label>
+<label for="will-it-fit-furniture-path-h2">Width of corridor you turn into<input id="will-it-fit-furniture-path-h2" type="number" min="0" step="0.5" value="95"></label>
+<label for="will-it-fit-furniture-path-ch">Ceiling height there<input id="will-it-fit-furniture-path-ch" type="number" min="0" step="0.5" value="240"></label>
+</div></fieldset>
+<button type="button" id="will-it-fit-furniture-path-run">Check the route</button>
+<div id="will-it-fit-furniture-path-out" class="wif-result" aria-live="polite"></div>
+<canvas id="will-it-fit-furniture-path-cv" width="420" height="420" aria-label="Diagram of the furniture at the tightest point of the corner turn"></canvas>
+<p class="small">Measure the narrowest point (door stops, handrails, radiators). Allow 2–3 cm (1 in) for hands and blankets — results within that margin are marked tight. Removing legs, feet or the door itself often adds several centimetres. Geometry assumes a rigid box; soft cushions can compress, frames cannot.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('will-it-fit-furniture-path');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#will-it-fit-furniture-path-'+id);};
+  var v=function(id){var n=parseFloat($(id).value);return isFinite(n)&&n>0?n:0;};
+  // Can a w×len rectangle turn from a corridor of width a into one of width b (horizontal plane)?
+  // Worst case over angle θ of the clearance function; returns min slack (≥0 means fits) and θ.
+  function cornerSlack(len,w,a,b){
+    var worst=Infinity,at=0;
+    for(var i=1;i<900;i++){var t=i/900*Math.PI/2,s=Math.sin(t),c=Math.cos(t);
+      // Max length that fits at angle t: L(t)=(a - w·c... ) classic ladder-with-width formula
+      var Lmax=(a-w*s)/c+(b-w*c)/s; // valid when positive
+      var slack=Lmax-len;if(slack<worst){worst=slack;at=t;}}
+    return {slack:worst,theta:at};
+  }
+  function step(cls,title,text){var d=document.createElement('div');d.className='wif-step '+cls;var b=document.createElement('strong');b.textContent=title;d.appendChild(b);var p=document.createElement('div');p.textContent=text;d.appendChild(p);return d;}
+  function run(){
+    var u=$('unit').value,m=u==='cm'?2.5:1,out=$('out');out.textContent='';
+    var L=v('L'),D=v('D'),H=v('H'),A=v('A'),dw=v('dw'),dh=v('dh'),h1=v('h1'),h2=v('h2'),ch=v('ch');
+    if(!L||!D||!H||!dw||!dh){out.appendChild(step('wif-fail','Missing sizes','Enter the furniture and doorway measurements.'));return;}
+    var cls=function(s){return s<0?'wif-fail':s<m?'wif-tight':'wif-pass';};
+    var f=function(n){return (Math.round(n*10)/10)+' '+u;};
+    // Doorway: one dimension travels through; the other two must fit width × height (either way round).
+    var opts3=[[L,'length',D,H],[D,'depth',L,H],[H,'height',L,D]],best=null;
+    opts3.forEach(function(o){[[o[2],o[3]],[o[3],o[2]]].forEach(function(p){var sl=Math.min(dw-p[0],dh-p[1]);
+      if(o[0]<Math.max(p[0],p[1])&&o[1]!=='length')return; // carrying the short side first is never easier
+      if(!best||sl>best.s)best={s:sl,how:'Lead with the '+o[1]+'; '+f(p[0])+' across the opening, '+f(p[1])+' tall'};});});
+    var doorRes=best,hookNote='';
+    if(doorRes.s<0&&A&&A<H){var diag=Math.sqrt(D*D+A*A);hookNote=' Tip for sofas: on end, the arm section ('+f(A)+') can sometimes be hooked round the frame — test with the door off; this tool does not model that curve.';}
+    out.appendChild(step(cls(doorRes.s),'1 · Doorway — '+(doorRes.s<0?'does not fit straight':'fits'),doorRes.how+'. Clearance: '+f(doorRes.s)+'.'+hookNote));
+    // Corner: choose the narrowest carrying cross-section that also clears the ceiling.
+    if(h1&&h2){
+      var opts=[{w:D,up:H,name:'upright, depth as the width'},{w:H,up:D,name:'on its back, height as the width'}];
+      var res=opts.map(function(o){var c=cornerSlack(L,o.w,h1,h2);return {o:o,c:c,ceil:ch?ch-o.up:1};});
+      // Standing it on end turns the corner using only its footprint, if the ceiling allows.
+      var endFoot=Math.max(D,H),endMin=Math.min(D,H),endC=cornerSlack(endFoot,endMin,h1,h2);
+      res.push({o:{w:endMin,up:L,len:endFoot,name:'stood on end, pivoting'},c:endC,ceil:ch?ch-L:-1});
+      res.forEach(function(r){r.s=Math.min(r.c.slack,r.ceil);});
+      res.sort(function(a,b){return b.s-a.s;});
+      var r=res[0];
+      out.appendChild(step(cls(r.s),'2 · Hallway corner — '+(r.s<0?'gets stuck':'turns'),'Best: carry it '+r.o.name+'. Tightest point at about '+Math.round(r.c.theta*180/Math.PI)+'° into the turn, slack '+f(r.c.slack)+(ch?', ceiling clearance '+f(r.ceil):'')+'.'+(r.s<0?' Longest piece of this cross-section that could turn here: '+f(L+r.c.slack)+'.':'')));
+      draw(r,h1,h2,r.o.len||L);
+      var verdict=Math.min(doorRes.s,r.s);
+      out.appendChild(step(cls(verdict),verdict<0?'Verdict: not without disassembly':verdict<m?'Verdict: possible, but tight':'Verdict: it should fit',verdict<0?'Options: remove legs/feet, take the door off its hinges, unbolt arms (many sofas allow it), or try a window. Re-measure the tightest spot.':'Measure twice; protect door frames.'));
+    }else{
+      var cg=$('cv').getContext&&$('cv').getContext('2d');if(cg)cg.clearRect(0,0,420,420);
+      out.appendChild(step(cls(doorRes.s),doorRes.s<0?'Verdict: not without disassembly':'Verdict: the doorway works','Add the hallway widths to check the corner too.'));
+    }
+  }
+  function draw(r,a,b,L){
+    var cv=$('cv'),g=cv.getContext&&cv.getContext('2d');if(!g)return;var W=420,sc=380/Math.max(a+L,b+L,1);g.clearRect(0,0,W,W);
+    var ox=20,oy=20;g.strokeStyle='#8fb0c4';g.lineWidth=2;g.beginPath();
+    // Corridor 1 runs horizontally (width a) along the bottom; corridor 2 goes up on the right (width b).
+    var by=W-20,inner={x:W-20-b*sc,y:by-a*sc};
+    g.moveTo(ox,by);g.lineTo(W-20,by);g.lineTo(W-20,oy);g.moveTo(ox,inner.y);g.lineTo(inner.x,inner.y);g.lineTo(inner.x,oy);g.stroke();
+    var t=r.c.theta,w=r.o.w*sc,len=L*sc,c=Math.cos(t),sn=Math.sin(t),ux=c,uy=-sn,nx=sn,ny=c;
+    var ox2=W-20,oy2=by,P0x=ox2-len*ux-w*nx,P0y=oy2;var m0=0;inner={x:ox2-len*ux-w*nx,y:oy2-w*ny-0};inner.y=oy2-w*ny+len*sn*0;
+    var A0=[ox2-len*c-w*sn,oy2-w*c],pts=[A0,[A0[0]+len*c,A0[1]-len*sn],[A0[0]+len*c+w*sn,A0[1]-len*sn+w*c],[A0[0]+w*sn,A0[1]+w*c]];
+    g.fillStyle=r.s<0?'rgba(255,107,107,.45)':'rgba(60,207,116,.45)';g.strokeStyle='#e9faff';g.beginPath();
+    pts.forEach(function(p,i){if(i)g.lineTo(p[0],p[1]);else g.moveTo(p[0],p[1]);});g.closePath();g.fill();g.stroke();
+    g.fillStyle='#a9bdcd';g.font='12px system-ui';g.fillText('corridor in: '+a,ox+4,by-6);g.save();g.translate(W-26,oy+10);g.rotate(Math.PI/2);g.fillText('corridor out: '+b,0,0);g.restore();
+  }
+  $('run').addEventListener('click',run);
+  root.querySelectorAll('input,select').forEach(function(el){el.addEventListener('change',run);});
+  run();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

@@ -9,7 +9,7 @@
       `tools-index.json`: filter box, category facets, sort, density, "show
       more", keyboard navigation. The catalogue is only in the DOM as far as
       the visitor has asked for it, which is why the homepage now opens in one
-      paint instead of mounting 1,368 tools.
+      paint instead of mounting 1,379 tools.
 
    2. `data-explore="static"` — tools.html and the category pages. The rows
       are already real links in the served HTML (crawlers and no-JS visitors
@@ -200,7 +200,7 @@
 
   /* ---------------------------------------------------- scroll affordance --
      The facet row is the one control on the site that is wider than the screen
-     at every size — 1,368 tools over 33 categories, in a strip that scrolls
+     at every size — 1,379 tools over 33 categories, in a strip that scrolls
      sideways. A row that just ends at the right edge reads as "that is all of
      them". So the row publishes where it is in its own scroll (data-overflow =
      start | middle | end) and the stylesheet fades whichever edge still has
@@ -821,7 +821,7 @@
     // The featured list, trending list and category grid stay on the page
     // while you filter. Hiding them made search feel like the whole site had
     // collapsed to one box — the shelves are how people discover the other
-    // 1,368 tools they did not type.
+    // 1,379 tools they did not type.
   }
 
   function focusInput() {

@@ -1,0 +1,103 @@
+<section id="invisible-character-detector" aria-labelledby="invisible-character-detector-title">
+<style>
+#invisible-character-detector{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#invisible-character-detector *{box-sizing:border-box}
+#invisible-character-detector h2{color:var(--accent,#22d3ee);margin-top:0}
+#invisible-character-detector label{display:block;font-size:.88rem;font-weight:600;margin:10px 0 5px}
+#invisible-character-detector textarea{display:block;width:100%;min-height:130px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:.88rem ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+#invisible-character-detector .icd-opts{display:flex;flex-wrap:wrap;gap:6px 16px;margin:10px 0}
+#invisible-character-detector .icd-opts label{display:flex;align-items:center;gap:6px;font-weight:400;margin:0;min-height:36px}
+#invisible-character-detector button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:0 10px 10px 0}
+#invisible-character-detector :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#invisible-character-detector .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#invisible-character-detector .icd-view{padding:12px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25);white-space:pre-wrap;overflow-wrap:anywhere;font:.88rem/1.8 ui-monospace,Menlo,Consolas,monospace;max-height:320px;overflow:auto}
+#invisible-character-detector .icd-mark{background:#e8a33d;color:#111;border-radius:3px;padding:0 3px;font-size:.72rem;font-weight:700}
+#invisible-character-detector .icd-glyph{background:rgba(255,120,120,.25);outline:1px dashed #ff8a80;border-radius:2px}
+#invisible-character-detector table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:10px}
+#invisible-character-detector th,#invisible-character-detector td{text-align:left;padding:6px;border-bottom:1px solid rgba(148,180,199,.25)}
+</style>
+<h2 id="invisible-character-detector-title">👻 Invisible Character &amp; Lookalike Detector</h2>
+<p id="invisible-character-detector-desc" class="small">Code that won’t compile, a password that “is definitely right”, a search that finds nothing, a spreadsheet match that fails: the culprit is often a character you cannot see. Reveals zero-width spaces, non-breaking spaces, bidi overrides, soft hyphens, Cyrillic or Greek lookalikes and smart quotes, then cleans them.</p>
+<label for="invisible-character-detector-in">Text to inspect</label>
+<textarea id="invisible-character-detector-in" spellcheck="false">Hello​ world — “quoted” pаypal.com  price: 10 000 €
+</textarea>
+<fieldset class="icd-opts"><legend class="small">When cleaning</legend>
+<label for="invisible-character-detector-o-zw"><input type="checkbox" id="invisible-character-detector-o-zw" checked> Remove invisible / control characters</label>
+<label for="invisible-character-detector-o-sp"><input type="checkbox" id="invisible-character-detector-o-sp" checked> Unusual spaces → normal space</label>
+<label for="invisible-character-detector-o-gl"><input type="checkbox" id="invisible-character-detector-o-gl" checked> Lookalike letters → Latin</label>
+<label for="invisible-character-detector-o-q"><input type="checkbox" id="invisible-character-detector-o-q"> Smart quotes &amp; dashes → ASCII</label>
+</fieldset>
+<button type="button" id="invisible-character-detector-clean">Clean text</button>
+<button type="button" id="invisible-character-detector-copy">Copy cleaned text</button>
+<p id="invisible-character-detector-status" class="small" role="status" aria-live="polite"></p>
+<h3>What’s really there</h3>
+<div id="invisible-character-detector-view" class="icd-view" aria-label="Text with hidden characters revealed"></div>
+<div id="invisible-character-detector-table"></div>
+<p class="small">Lookalike detection covers the common Cyrillic and Greek letters used in phishing domains and copy-paste accidents; it is not a complete Unicode confusables database. Nothing is sent anywhere.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('invisible-character-detector');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#invisible-character-detector-'+id);};
+  var NAMES={0x200B:'ZERO WIDTH SPACE',0x200C:'ZERO WIDTH NON-JOINER',0x200D:'ZERO WIDTH JOINER',0x2060:'WORD JOINER',0xFEFF:'BYTE ORDER MARK / ZWNBSP',0x00AD:'SOFT HYPHEN',0x200E:'LEFT-TO-RIGHT MARK',0x200F:'RIGHT-TO-LEFT MARK',0x202A:'LRE (bidi)',0x202B:'RLE (bidi)',0x202C:'PDF (bidi)',0x202D:'LRO (bidi override)',0x202E:'RLO (bidi override — reverses text)',0x2066:'LRI (bidi)',0x2067:'RLI (bidi)',0x2068:'FSI (bidi)',0x2069:'PDI (bidi)',0x180E:'MONGOLIAN VOWEL SEPARATOR',0x034F:'COMBINING GRAPHEME JOINER',0x115F:'HANGUL FILLER',0x3164:'HANGUL FILLER',
+    0x00A0:'NO-BREAK SPACE',0x202F:'NARROW NO-BREAK SPACE',0x2007:'FIGURE SPACE',0x2009:'THIN SPACE',0x200A:'HAIR SPACE',0x2002:'EN SPACE',0x2003:'EM SPACE',0x2004:'THREE-PER-EM SPACE',0x2005:'FOUR-PER-EM SPACE',0x2006:'SIX-PER-EM SPACE',0x2008:'PUNCTUATION SPACE',0x205F:'MEDIUM MATHEMATICAL SPACE',0x3000:'IDEOGRAPHIC SPACE',0x1680:'OGHAM SPACE',0x2028:'LINE SEPARATOR',0x2029:'PARAGRAPH SEPARATOR',
+    0x2018:'LEFT SINGLE QUOTE',0x2019:'RIGHT SINGLE QUOTE',0x201C:'LEFT DOUBLE QUOTE',0x201D:'RIGHT DOUBLE QUOTE',0x2013:'EN DASH',0x2014:'EM DASH',0x2212:'MINUS SIGN',0x2026:'ELLIPSIS',0x00AB:'LEFT GUILLEMET',0x00BB:'RIGHT GUILLEMET'};
+  var SPACES=[0x00A0,0x202F,0x2007,0x2009,0x200A,0x2002,0x2003,0x2004,0x2005,0x2006,0x2008,0x205F,0x3000,0x1680];
+  var QUOTES={0x2018:"'",0x2019:"'",0x201C:'"',0x201D:'"',0x2013:'-',0x2014:'-',0x2212:'-',0x2026:'...',0x00AB:'"',0x00BB:'"'};
+  var GLYPH={'а':'a','е':'e','о':'o','р':'p','с':'c','у':'y','х':'x','і':'i','ј':'j','ѕ':'s','ԁ':'d','ɡ':'g','һ':'h','ӏ':'l','ԛ':'q','ԝ':'w','А':'A','В':'B','Е':'E','К':'K','М':'M','Н':'H','О':'O','Р':'P','С':'C','Т':'T','Х':'X','І':'I','Ј':'J','Ѕ':'S','α':'a','ο':'o','ν':'v','ρ':'p','τ':'t','Α':'A','Β':'B','Ε':'E','Ζ':'Z','Η':'H','Ι':'I','Κ':'K','Μ':'M','Ν':'N','Ο':'O','Ρ':'P','Τ':'T','Υ':'Y','Χ':'X'};
+  function kind(ch){
+    var c=ch.codePointAt(0);
+    if(GLYPH[ch])return 'glyph';
+    if(SPACES.indexOf(c)>=0||c===0x2028||c===0x2029)return 'space';
+    if(QUOTES[c])return 'quote';
+    if(NAMES[c]||(c<32&&c!==9&&c!==10&&c!==13)||(c>=0x7F&&c<0xA0)||(c>=0xE0000&&c<=0xE007F)||(c>=0xFE00&&c<=0xFE0F))return 'invisible';
+    return null;
+  }
+  function name(ch){var c=ch.codePointAt(0);if(GLYPH[ch])return 'Lookalike of “'+GLYPH[ch]+'” ('+(c>=0x370&&c<0x400?'Greek':'Cyrillic')+')';if(c>=0xE0000&&c<=0xE007F)return 'TAG CHARACTER (hidden text)';if(c>=0xFE00&&c<=0xFE0F)return 'VARIATION SELECTOR';return NAMES[c]||'CONTROL CHARACTER';}
+  function hex(ch){return 'U+'+ch.codePointAt(0).toString(16).toUpperCase().padStart(4,'0');}
+  function analyse(){
+    var s=$('in').value,view=$('view'),counts={},order=[];view.textContent='';
+    Array.from(s).forEach(function(ch){
+      var k=kind(ch);
+      if(!k||k==='quote'&&!$('o-q').checked&&false){view.appendChild(document.createTextNode(ch));return;}
+      if(!k){view.appendChild(document.createTextNode(ch));return;}
+      var key=hex(ch);if(!counts[key]){counts[key]={n:0,ch:ch,k:k};order.push(key);}counts[key].n++;
+      if(k==='glyph'||k==='quote'){var g=document.createElement('span');g.className='icd-glyph';g.title=name(ch)+' '+key;g.textContent=ch;view.appendChild(g);}
+      else{var m=document.createElement('span');m.className='icd-mark';m.title=name(ch);m.textContent=key;view.appendChild(m);if(ch==='\u2028'||ch==='\u2029')view.appendChild(document.createTextNode('\n'));}
+    });
+    var box=$('table');box.textContent='';
+    var total=order.reduce(function(a,k){return a+counts[k].n;},0);
+    $('status').textContent=total?total+' hidden or lookalike character'+(total===1?'':'s')+' found ('+order.length+' kind'+(order.length===1?'':'s')+').':'Clean — no hidden or lookalike characters found.';
+    if(!total)return;
+    var t=document.createElement('table'),hr=document.createElement('tr');
+    ['Code','Name','Type','Count'].forEach(function(x){var th=document.createElement('th');th.scope='col';th.textContent=x;hr.appendChild(th);});t.appendChild(hr);
+    var label={invisible:'Invisible / control',space:'Unusual space',glyph:'Lookalike letter',quote:'Typographic punctuation'};
+    order.forEach(function(k){var tr=document.createElement('tr');[k,name(counts[k].ch),label[counts[k].k],String(counts[k].n)].forEach(function(v){var td=document.createElement('td');td.textContent=v;tr.appendChild(td);});t.appendChild(tr);});
+    box.appendChild(t);
+  }
+  function clean(){
+    var out=Array.from($('in').value).map(function(ch){
+      var k=kind(ch),c=ch.codePointAt(0);
+      if(k==='invisible'&&$('o-zw').checked)return '';
+      if(k==='space'&&$('o-sp').checked)return (c===0x2028||c===0x2029)?'\n':' ';
+      if(k==='glyph'&&$('o-gl').checked)return GLYPH[ch];
+      if(k==='quote'&&$('o-q').checked)return QUOTES[c];
+      return ch;
+    }).join('');
+    $('in').value=out;analyse();$('status').textContent='Cleaned. '+$('status').textContent;
+  }
+  $('in').addEventListener('input',analyse);
+  $('clean').addEventListener('click',clean);
+  $('copy').addEventListener('click',function(){navigator.clipboard.writeText($('in').value).then(function(){if(document.contains(root))$('status').textContent='Copied the current text.';},function(){if(document.contains(root))$('status').textContent='Clipboard unavailable.';});});
+  analyse();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

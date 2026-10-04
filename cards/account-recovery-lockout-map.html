@@ -1,0 +1,114 @@
+<section id="account-recovery-lockout-map" aria-labelledby="account-recovery-lockout-map-title">
+<style>
+#account-recovery-lockout-map{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#account-recovery-lockout-map *{box-sizing:border-box}
+#account-recovery-lockout-map h2{color:var(--accent,#22d3ee);margin-top:0}
+#account-recovery-lockout-map label{display:block;font-size:.86rem;font-weight:600;margin:8px 0 4px}
+#account-recovery-lockout-map textarea{display:block;width:100%;min-height:170px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:.84rem ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+#account-recovery-lockout-map fieldset{border:1px solid rgba(148,180,199,.3);border-radius:10px;padding:10px 12px;margin:12px 0}
+#account-recovery-lockout-map legend{padding:0 6px;font-weight:700}
+#account-recovery-lockout-map .arlm-checks{display:flex;flex-wrap:wrap;gap:4px 16px}
+#account-recovery-lockout-map .arlm-checks label{display:flex;align-items:center;gap:6px;font-weight:400;margin:0;min-height:36px}
+#account-recovery-lockout-map button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:6px 8px 0 0}
+#account-recovery-lockout-map :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#account-recovery-lockout-map .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#account-recovery-lockout-map code{font-family:ui-monospace,Menlo,Consolas,monospace}
+#account-recovery-lockout-map .arlm-box{padding:12px 14px;border-radius:10px;margin:10px 0;border-left:4px solid #587080;background:var(--surface,#101c25)}
+#account-recovery-lockout-map .arlm-red{border-left-color:#ff6b6b}
+#account-recovery-lockout-map .arlm-amber{border-left-color:#e8a33d}
+#account-recovery-lockout-map .arlm-green{border-left-color:#3ccf74}
+#account-recovery-lockout-map ul{margin:6px 0;padding-left:20px}
+</style>
+<h2 id="account-recovery-lockout-map-title">🔐 Account Recovery Lockout Map</h2>
+<p id="account-recovery-lockout-map-desc" class="small">“To get into my email I need a code sent to… my email.” Map what unlocks what, then simulate losing your phone, a house fire or a forgotten password. Finds circular recovery loops and single points of failure before they lock you out for good. Use labels only — never type real passwords or codes.</p>
+<label for="account-recovery-lockout-map-in">One account per line: <code>Account: way 1 | way 2</code> — join things needed together with <code>+</code></label>
+<textarea id="account-recovery-lockout-map-in" spellcheck="false">Main email: email password + Authenticator app | SMS to phone | Backup email
+Backup email: backup password + Main email
+Authenticator app: Phone
+Bank: bank password + SMS to phone
+Password manager: master password + Authenticator app
+SMS to phone: Phone | Mobile carrier
+Mobile carrier: ID document
+Cloud photos: Main email</textarea>
+<p class="small">Anything on the right that isn’t itself an account (a password you remember, a physical phone, an ID document, printed backup codes) is a <em>root factor</em> — the things you can actually lose.</p>
+<button type="button" id="account-recovery-lockout-map-run">Map it</button>
+<fieldset><legend>Disaster simulator — untick what you lose</legend>
+<div class="arlm-checks" id="account-recovery-lockout-map-roots"></div>
+<button type="button" id="account-recovery-lockout-map-fire">House fire (lose devices + paper)</button>
+<button type="button" id="account-recovery-lockout-map-phone">Phone lost / stolen</button>
+<button type="button" id="account-recovery-lockout-map-mem">Forget every password</button>
+<button type="button" id="account-recovery-lockout-map-all">Reset</button>
+</fieldset>
+<div id="account-recovery-lockout-map-out" aria-live="polite"></div>
+<p class="small">This models only what you type in; real providers may offer slower identity checks (ID upload, waiting periods) that aren’t listed. Nothing is saved or sent. Good fixes: printed backup codes kept away from home, a second security key, a trusted recovery contact, and not recovering an email account through itself.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('account-recovery-lockout-map');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#account-recovery-lockout-map-'+id);};
+  var model=null,lost={};
+  function parse(){
+    var acc={},order=[];
+    $('in').value.split(/\r?\n/).forEach(function(line){
+      var i=line.indexOf(':');if(i<1)return;var name=line.slice(0,i).trim();if(!name)return;
+      var ways=line.slice(i+1).split('|').map(function(w){return w.split('+').map(function(x){return x.trim();}).filter(Boolean);}).filter(function(w){return w.length;});
+      if(!acc[name])order.push(name);acc[name]=ways;
+    });
+    var roots=[];order.forEach(function(a){acc[a].forEach(function(w){w.forEach(function(x){if(!acc[x]&&roots.indexOf(x)<0)roots.push(x);});});});
+    return {acc:acc,order:order,roots:roots};
+  }
+  function reach(m,have){
+    var ok={};Object.keys(have).forEach(function(k){if(have[k])ok[k]=true;});
+    var changed=true;
+    while(changed){changed=false;m.order.forEach(function(a){if(ok[a])return;if(m.acc[a].some(function(w){return w.every(function(x){return ok[x];});})){ok[a]=true;changed=true;}});}
+    return ok;
+  }
+  function allRoots(m,except){var h={};m.roots.forEach(function(r){h[r]=!except||!except[r];});return h;}
+  function box(cls,title,items){var d=document.createElement('div');d.className='arlm-box '+cls;var s=document.createElement('strong');s.textContent=title;d.appendChild(s);if(items&&items.length){var ul=document.createElement('ul');items.forEach(function(t){var li=document.createElement('li');li.textContent=t;ul.appendChild(li);});d.appendChild(ul);}return d;}
+  function findCycle(m,a){
+    // A recovery path that only ever leads back to a itself.
+    var seen={},path=[];
+    function dfs(x){if(x===a&&path.length)return true;if(seen[x]||!m.acc[x])return false;seen[x]=1;
+      for(var i=0;i<m.acc[x].length;i++)for(var j=0;j<m.acc[x][i].length;j++){var n=m.acc[x][i][j];if(m.acc[n]){path.push(n);if(dfs(n))return true;path.pop();}}return false;}
+    return dfs(a)?[a].concat(path):null;
+  }
+  function render(){
+    var out=$('out');out.textContent='';if(!model||!model.order.length){out.appendChild(box('arlm-amber','Add some accounts first.'));return;}
+    var full=reach(model,allRoots(model));
+    var dead=model.order.filter(function(a){return !full[a];});
+    if(dead.length)out.appendChild(box('arlm-red','Unrecoverable even when you lose nothing',dead.map(function(a){return a+' — every route depends on something that depends back on it.';})));
+    var loops=[];model.order.forEach(function(a){var c=findCycle(model,a);if(c&&loops.every(function(l){return l.indexOf(a)<0;}))loops.push(c);});
+    if(loops.length)out.appendChild(box('arlm-amber','Circular recovery paths',loops.map(function(c){return c.join(' → ');})));
+    var spof=[];model.roots.forEach(function(r){var ex={};ex[r]=1;var ok=reach(model,allRoots(model,ex)),gone=model.order.filter(function(a){return full[a]&&!ok[a];});if(gone.length)spof.push({r:r,gone:gone});});
+    spof.sort(function(a,b){return b.gone.length-a.gone.length;});
+    out.appendChild(box(spof.length?'arlm-red':'arlm-green',spof.length?'Single points of failure (losing just one thing)':'No single point of failure — good.',spof.map(function(s){return 'Lose “'+s.r+'” → locked out of '+s.gone.length+': '+s.gone.join(', ');})));
+    var now=reach(model,allRoots(model,lost)),lostList=Object.keys(lost).filter(function(k){return lost[k];});
+    if(lostList.length){var locked=model.order.filter(function(a){return full[a]&&!now[a];});
+      out.appendChild(box(locked.length?'arlm-red':'arlm-green','Scenario: without '+lostList.join(', '),locked.length?locked.map(function(a){return '🔒 '+a;}).concat(['Still reachable: '+(model.order.filter(function(a){return now[a];}).join(', ')||'nothing')]):['Everything stays recoverable.']));}
+  }
+  function buildRoots(){
+    model=parse();var box=$('roots');box.textContent='';
+    Object.keys(lost).forEach(function(k){if(model.roots.indexOf(k)<0)delete lost[k];});
+    model.roots.forEach(function(r,i){var id='account-recovery-lockout-map-r'+i,l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.id=id;c.checked=!lost[r];l.htmlFor=id;
+      c.addEventListener('change',function(){lost[r]=!c.checked;render();});l.appendChild(c);l.appendChild(document.createTextNode(' '+r));box.appendChild(l);});
+    render();
+  }
+  function scenario(test){lost={};model.roots.forEach(function(r){if(test(r.toLowerCase()))lost[r]=true;});buildRoots();}
+  $('run').addEventListener('click',buildRoots);
+  $('in').addEventListener('change',buildRoots);
+  $('fire').addEventListener('click',function(){scenario(function(r){return /phone|laptop|computer|tablet|key|card|paper|printed|backup code|id doc|passport|licen|device|yubi|token/.test(r)&&!/password|pin$/.test(r);});});
+  $('phone').addEventListener('click',function(){scenario(function(r){return /^phone$|phone(?! pin)|sim|mobile device/.test(r)&&!/password/.test(r);});});
+  $('mem').addEventListener('click',function(){scenario(function(r){return /password|passphrase|pin|security question/.test(r);});});
+  $('all').addEventListener('click',function(){lost={};buildRoots();});
+  buildRoots();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

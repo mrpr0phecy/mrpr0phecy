@@ -1,0 +1,109 @@
+<section id="ambiguous-date-resolver" aria-labelledby="ambiguous-date-resolver-title">
+<style>
+#ambiguous-date-resolver{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#ambiguous-date-resolver *{box-sizing:border-box}
+#ambiguous-date-resolver h2{color:var(--accent,#22d3ee);margin-top:0}
+#ambiguous-date-resolver label{display:block;font-size:.86rem;font-weight:600;margin:8px 0 4px}
+#ambiguous-date-resolver textarea,#ambiguous-date-resolver select{display:block;width:100%;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#ambiguous-date-resolver textarea{min-height:150px;font:.86rem ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+#ambiguous-date-resolver .adr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+#ambiguous-date-resolver button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:10px 10px 0 0}
+#ambiguous-date-resolver :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#ambiguous-date-resolver .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#ambiguous-date-resolver .adr-verdict{padding:12px 14px;border-left:4px solid #3ccf74;background:var(--surface,#101c25);border-radius:6px;margin:12px 0}
+#ambiguous-date-resolver .adr-scroll{overflow-x:auto}
+#ambiguous-date-resolver table{width:100%;border-collapse:collapse;font-size:.85rem}
+#ambiguous-date-resolver th,#ambiguous-date-resolver td{text-align:left;padding:6px;border-bottom:1px solid rgba(148,180,199,.25)}
+#ambiguous-date-resolver .adr-amb{color:#ffd59a}
+#ambiguous-date-resolver .adr-bad{color:#ffb4a8}
+</style>
+<h2 id="ambiguous-date-resolver-title">📆 Ambiguous Date Resolver — Is 03/04 March or April?</h2>
+<p id="ambiguous-date-resolver-desc" class="small">A column of dates from an export, a bank statement or a colleague abroad: is it DD/MM or MM/DD? Looking at one date can’t tell you, but the whole column can. This tests every format against all values, uses impossible days (13+) and chronological order as evidence, and converts everything to unambiguous ISO 8601 (YYYY-MM-DD).</p>
+<label for="ambiguous-date-resolver-in">Dates, one per line (any separators: / . - space)</label>
+<textarea id="ambiguous-date-resolver-in" spellcheck="false">03/04/2025
+05/04/2025
+07/04/2025
+10/04/2025
+14/04/2025
+02/05/2025</textarea>
+<div class="adr-grid">
+<label for="ambiguous-date-resolver-sorted">Are these rows in date order?<select id="ambiguous-date-resolver-sorted"><option value="unknown">Don’t know</option><option value="asc">Yes — oldest first</option><option value="desc">Yes — newest first</option></select></label>
+<label for="ambiguous-date-resolver-pivot">Two-digit years: 00–<em></em>?<select id="ambiguous-date-resolver-pivot"><option value="50">00–49 → 2000s, 50–99 → 1900s</option><option value="30">00–29 → 2000s, 30–99 → 1900s</option><option value="100">Always 2000s</option></select></label>
+</div>
+<button type="button" id="ambiguous-date-resolver-run">Resolve</button>
+<button type="button" id="ambiguous-date-resolver-copy">Copy ISO dates</button>
+<p id="ambiguous-date-resolver-status" class="small" role="status" aria-live="polite"></p>
+<div id="ambiguous-date-resolver-verdict" class="adr-verdict" hidden></div>
+<div id="ambiguous-date-resolver-table" class="adr-scroll"></div>
+<p class="small">If every date has both numbers ≤ 12 and the list isn’t ordered, the format genuinely cannot be determined from the data — the tool says so instead of guessing. Ask the source, or look for another column (such as a weekday) to confirm.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('ambiguous-date-resolver');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#ambiguous-date-resolver-'+id);};
+  var FORMATS=[{k:'DMY',n:'DD/MM/YYYY (UK, Europe, most of the world)'},{k:'MDY',n:'MM/DD/YYYY (US)'},{k:'YMD',n:'YYYY/MM/DD (ISO, East Asia)'},{k:'YDM',n:'YYYY/DD/MM (rare)'}];
+  var iso=[];
+  function year(y,p){y=+y;if(String(y).length>2||y>=100)return y;return p===100||y<p?2000+y:1900+y;}
+  function valid(y,m,d){if(m<1||m>12||d<1)return false;return d<=new Date(Date.UTC(y,m,0)).getUTCDate();}
+  function build(fmt,parts,p){
+    var a=parts[0],b=parts[1],c=parts[2],y,m,d;
+    if(fmt==='DMY'){d=+a;m=+b;y=year(c,p);if(a.length===4)return null;}
+    if(fmt==='MDY'){m=+a;d=+b;y=year(c,p);if(a.length===4)return null;}
+    if(fmt==='YMD'){y=year(a,p);m=+b;d=+c;if(c.length===4)return null;}
+    if(fmt==='YDM'){y=year(a,p);d=+b;m=+c;if(c.length===4)return null;}
+    return valid(y,m,d)?Date.UTC(y,m-1,d):null;
+  }
+  function run(){
+    var p=+$('pivot').value,order=$('sorted').value;
+    var lines=$('in').value.split(/\r?\n/).map(function(s){return s.trim();}).filter(Boolean);
+    var rows=lines.map(function(s){var parts=s.split(/[^0-9]+/).filter(Boolean);return {s:s,parts:parts.length>=3?parts.slice(0,3):null};});
+    var scores=FORMATS.map(function(f){
+      var vals=rows.map(function(r){return r.parts?build(f.k,r.parts,p):null;}),okN=vals.filter(function(v){return v!==null;}).length,inv=0,ordered=0;
+      for(var i=1;i<vals.length;i++){if(vals[i]===null||vals[i-1]===null)continue;if(order==='asc'?vals[i]<vals[i-1]:vals[i]>vals[i-1])inv++;}
+      // Smaller gaps between consecutive rows = more plausible sequence (used only as a tiebreak).
+      var gaps=0,g=0;for(var j=1;j<vals.length;j++)if(vals[j]!==null&&vals[j-1]!==null){gaps+=Math.abs(vals[j]-vals[j-1]);g++;}
+      return {f:f,vals:vals,ok:okN,inv:order==='unknown'?0:inv,gap:g?gaps/g:0};
+    }).filter(function(s){return s.ok>0;});
+    scores.sort(function(a,b){return b.ok-a.ok||a.inv-b.inv||a.gap-b.gap;});
+    var v=$('verdict'),t=$('table');t.textContent='';v.hidden=false;v.textContent='';
+    if(!scores.length){v.textContent='No line parsed as a day/month/year date.';iso=[];return;}
+    var best=scores[0],tied=scores.filter(function(s){return s.ok===best.ok&&s.inv===best.inv;});
+    var clear=tied.length===1||(order==='unknown'&&tied.every(function(s){return s.vals.join()===best.vals.join();}));
+    var reasons=[];
+    var proof=rows.find(function(r,i){return r.parts&&best.vals[i]!==null&&scores.some(function(s){return s!==best&&s.vals[i]===null;});});
+    if(proof)reasons.push('“'+proof.s+'” is only a valid date as '+best.f.k+'.');
+    if(order!=='unknown'&&best.inv===0&&scores.some(function(s){return s.inv>0;}))reasons.push('Only '+best.f.k+' keeps the rows in the order you stated.');
+    var h=document.createElement('strong');
+    var ambiguousOnly=!clear&&order==='unknown';
+    h.textContent=clear?'Format: '+best.f.n:(ambiguousOnly?'Cannot be determined from these dates alone':'Most likely: '+best.f.n+' (low confidence)');
+    v.appendChild(h);var pr=document.createElement('p');pr.className='small';
+    pr.textContent=clear?(reasons.join(' ')||'All values fit only this format.')+' '+best.ok+' of '+rows.length+' lines valid.':(ambiguousOnly?'Every value is valid in '+tied.map(function(s){return s.f.k;}).join(' and ')+'. Tell the tool whether the rows are in date order, or confirm with the source.':'Several formats fit equally; the closest-spaced sequence was chosen.');
+    v.appendChild(pr);v.style.borderLeftColor=clear?'#3ccf74':'#e8a33d';
+    var table=document.createElement('table'),hr=document.createElement('tr');
+    ['Input','ISO 8601','Weekday','Other readings'].forEach(function(x){var th=document.createElement('th');th.scope='col';th.textContent=x;hr.appendChild(th);});table.appendChild(hr);
+    iso=[];
+    rows.forEach(function(r,i){
+      var tr=document.createElement('tr'),val=best.vals[i],alts=scores.slice(1).map(function(s){return s.vals[i]!==null&&s.vals[i]!==val?s.f.k+': '+new Date(s.vals[i]).toISOString().slice(0,10):null;}).filter(Boolean);
+      var isoS=val!==null?new Date(val).toISOString().slice(0,10):'— invalid';iso.push(val!==null?isoS:'');
+      [r.s,isoS,val!==null?new Date(val).toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'}):'',alts.join(' · ')||'unambiguous'].forEach(function(x,j){var td=document.createElement('td');td.textContent=x;if(j===1&&val===null)td.className='adr-bad';if(j===3&&alts.length)td.className='adr-amb';tr.appendChild(td);});
+      table.appendChild(tr);
+    });
+    t.appendChild(table);
+    $('status').textContent=rows.length+' lines checked.';
+  }
+  $('run').addEventListener('click',run);
+  $('in').addEventListener('input',run);
+  ['sorted','pivot'].forEach(function(k){$(k).addEventListener('change',run);});
+  $('copy').addEventListener('click',function(){navigator.clipboard.writeText(iso.join('\n')).then(function(){if(document.contains(root))$('status').textContent='Copied ISO dates (one per line, blank for invalid).';},function(){if(document.contains(root))$('status').textContent='Clipboard unavailable.';});});
+  run();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

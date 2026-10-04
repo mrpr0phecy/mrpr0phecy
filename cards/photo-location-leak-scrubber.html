@@ -1,0 +1,126 @@
+<section id="photo-location-leak-scrubber" aria-labelledby="photo-location-leak-scrubber-title">
+<style>
+#photo-location-leak-scrubber{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#photo-location-leak-scrubber *{box-sizing:border-box}
+#photo-location-leak-scrubber h2{color:var(--accent,#22d3ee);margin-top:0}
+#photo-location-leak-scrubber label{display:block;font-size:.88rem;font-weight:600;margin:10px 0 5px}
+#photo-location-leak-scrubber input[type=file]{display:block;width:100%;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px dashed #587080;border-radius:8px;font:inherit}
+#photo-location-leak-scrubber button{padding:8px 14px;min-height:40px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:6px 8px 0 0}
+#photo-location-leak-scrubber :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#photo-location-leak-scrubber .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#photo-location-leak-scrubber .plls-card{padding:12px 14px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25);margin:12px 0}
+#photo-location-leak-scrubber .plls-risk{color:#ffb4a8;font-weight:700}
+#photo-location-leak-scrubber .plls-safe{color:#9be7b0;font-weight:700}
+#photo-location-leak-scrubber ul{margin:6px 0;padding-left:20px}
+#photo-location-leak-scrubber li{overflow-wrap:anywhere}
+</style>
+<h2 id="photo-location-leak-scrubber-title">📍 Photo Location Leak Scrubber</h2>
+<p id="photo-location-leak-scrubber-desc" class="small">Before you sell something online or post a photo of your home: see whether the picture reveals where it was taken (GPS coordinates), when, and on which phone — then download a copy with that metadata cut out. The image pixels are not re-compressed, so quality is unchanged.</p>
+<label for="photo-location-leak-scrubber-file">Photos (JPEG / HEIC-converted JPG / PNG / WebP — read only in this browser)</label>
+<input id="photo-location-leak-scrubber-file" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+<p id="photo-location-leak-scrubber-status" class="small" role="status" aria-live="polite"></p>
+<div id="photo-location-leak-scrubber-list"></div>
+<p class="small">JPEG: APP1 (EXIF/XMP), APP13 (IPTC) and comment segments are removed byte-for-byte; the colour profile is kept. PNG: eXIf, tEXt/zTXt/iTXt chunks removed. WebP: EXIF and XMP chunks removed. Visual clues — street signs, windows, reflections — are not something metadata removal can fix. Many social networks strip GPS on upload; marketplaces, email, cloud links and messaging “send as file” often do not.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('photo-location-leak-scrubber');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#photo-location-leak-scrubber-'+id);};
+  var urls=[];
+  function readExif(view,start,len){
+    var info={};
+    if(view.getUint32(start)!==0x45786966)return info; // "Exif"
+    var t=start+6,le=view.getUint16(t)===0x4949;
+    var u16=function(o){return view.getUint16(o,le);},u32=function(o){return view.getUint32(o,le);};
+    var end=start+len;
+    function rational(o){var n=u32(o),d=u32(o+4);return d?n/d:0;}
+    function str(o,n){var s='';for(var i=0;i<n&&o+i<end;i++){var c=view.getUint8(o+i);if(!c)break;s+=String.fromCharCode(c);}return s.trim();}
+    function ifd(off,tags){
+      var p=t+off;if(p+2>end)return;var n=u16(p);
+      for(var i=0;i<n;i++){var e=p+2+i*12;if(e+12>end)break;var tag=u16(e),type=u16(e+2),cnt=u32(e+4),vo=e+8,size=({1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8})[type]||1;
+        var dataOff=cnt*size>4?t+u32(vo):vo;tags[tag]={type:type,cnt:cnt,off:dataOff};}
+    }
+    var main={};ifd(u32(t+4),main);
+    var get=function(tags,tag){var x=tags[tag];if(!x)return null;if(x.type===2)return str(x.off,x.cnt);if(x.type===3)return u16(x.off);if(x.type===4)return u32(x.off);if(x.type===5)return rational(x.off);return null;};
+    info.make=get(main,0x010F);info.model=get(main,0x0110);info.software=get(main,0x0131);info.artist=get(main,0x013B);
+    if(main[0x8769]){var ex={};ifd(u32(main[0x8769].off),ex);info.date=get(ex,0x9003);info.serial=get(ex,0xA431);info.owner=get(ex,0xA430);info.lens=get(ex,0xA434);}
+    if(main[0x8825]){var g={};ifd(u32(main[0x8825].off),g);
+      var tri=function(tag){var x=g[tag];if(!x)return null;return rational(x.off)+rational(x.off+8)/60+rational(x.off+16)/3600;};
+      var lat=tri(2),lon=tri(4);if(lat!==null&&lon!==null&&(lat||lon)){if(get(g,1)==='S')lat=-lat;if(get(g,3)==='W')lon=-lon;info.lat=lat;info.lon=lon;}
+      if(g[6])info.alt=rational(g[6].off);}
+    return info;
+  }
+  function scrubJpeg(buf){
+    var v=new DataView(buf),bytes=new Uint8Array(buf),keep=[bytes.subarray(0,2)],info={},removed=[],p=2;
+    if(v.getUint16(0)!==0xFFD8)throw new Error('Not a JPEG');
+    while(p+4<=bytes.length){
+      if(bytes[p]!==0xFF)throw new Error('Corrupt JPEG marker');
+      var marker=bytes[p+1];
+      if(marker===0xDA){keep.push(bytes.subarray(p));break;}
+      if(marker===0xD8||(marker>=0xD0&&marker<=0xD7)||marker===0x01){keep.push(bytes.subarray(p,p+2));p+=2;continue;}
+      var len=v.getUint16(p+2),seg=bytes.subarray(p,p+2+len);
+      if(marker===0xE1){if(v.getUint32(p+4)===0x45786966)Object.assign(info,readExif(v,p+4,len-2));removed.push(v.getUint32(p+4)===0x45786966?'EXIF':'XMP');}
+      else if(marker===0xED)removed.push('IPTC');
+      else if(marker===0xFE)removed.push('Comment');
+      else keep.push(seg);
+      p+=2+len;
+    }
+    return {blob:new Blob(keep,{type:'image/jpeg'}),info:info,removed:removed};
+  }
+  function scrubPng(buf){
+    var v=new DataView(buf),b=new Uint8Array(buf),keep=[b.subarray(0,8)],removed=[],p=8;
+    while(p+12<=b.length){var len=v.getUint32(p),type=String.fromCharCode(b[p+4],b[p+5],b[p+6],b[p+7]),end=p+12+len;
+      if(/^(eXIf|tEXt|zTXt|iTXt|tIME)$/.test(type))removed.push(type);else keep.push(b.subarray(p,end));p=end;if(type==='IEND')break;}
+    return {blob:new Blob(keep,{type:'image/png'}),info:{},removed:removed};
+  }
+  function scrubWebp(buf){
+    var v=new DataView(buf),b=new Uint8Array(buf),chunks=[],removed=[],p=12,info={};
+    while(p+8<=b.length){var type=String.fromCharCode(b[p],b[p+1],b[p+2],b[p+3]),len=v.getUint32(p+4,true),end=p+8+len+(len&1);
+      if(type==='EXIF'){var off=p+8;if(v.getUint32(off)!==0x45786966){var tmp=new Uint8Array(len+6);tmp.set([0x45,0x78,0x69,0x66,0,0]);tmp.set(b.subarray(off,off+len),6);Object.assign(info,readExif(new DataView(tmp.buffer),0,tmp.length));}else Object.assign(info,readExif(v,off,len));removed.push('EXIF');}
+      else if(type==='XMP ')removed.push('XMP');
+      else{var c=b.slice(p,end);if(type==='VP8X')c[8]&=~0x0C;chunks.push(c);}p=end;}
+    var size=4+chunks.reduce(function(a,c){return a+c.length;},0),hdr=new Uint8Array(12);hdr.set(b.subarray(0,12));new DataView(hdr.buffer).setUint32(4,size,true);
+    return {blob:new Blob([hdr].concat(chunks),{type:'image/webp'}),info:info,removed:removed};
+  }
+  function li(ul,text,cls){var l=document.createElement('li');l.textContent=text;if(cls)l.className=cls;ul.appendChild(l);}
+  function handle(file){
+    return file.arrayBuffer().then(function(buf){
+      if(!document.getElementById('photo-location-leak-scrubber'))return;
+      var b=new Uint8Array(buf),r;
+      if(b[0]===0xFF&&b[1]===0xD8)r=scrubJpeg(buf);else if(b[0]===0x89&&b[1]===0x50)r=scrubPng(buf);else if(b[8]===0x57&&b[9]===0x45)r=scrubWebp(buf);else throw new Error('Unsupported format');
+      var i=r.info,card=document.createElement('div');card.className='plls-card';
+      var h=document.createElement('strong');h.textContent=file.name;card.appendChild(h);
+      var ul=document.createElement('ul');
+      if(i.lat!==undefined)li(ul,'⚠ GPS location: '+i.lat.toFixed(6)+', '+i.lon.toFixed(6)+(i.alt?' (altitude '+Math.round(i.alt)+' m)':'')+' — precise enough to identify a house.','plls-risk');
+      else li(ul,'No GPS coordinates found.','plls-safe');
+      if(i.date)li(ul,'Taken: '+i.date);
+      if(i.make||i.model)li(ul,'Device: '+[i.make,i.model].filter(Boolean).join(' ')+(i.lens?' · '+i.lens:''));
+      if(i.serial)li(ul,'⚠ Camera serial number: '+i.serial+' (links photos to one device)','plls-risk');
+      if(i.owner||i.artist)li(ul,'⚠ Owner / artist name: '+(i.owner||i.artist),'plls-risk');
+      if(i.software)li(ul,'Software: '+i.software);
+      li(ul,r.removed.length?'Removed: '+r.removed.join(', ')+' — saved '+Math.max(0,file.size-r.blob.size).toLocaleString()+' bytes.':'No metadata blocks to remove — this file is already clean.');
+      card.appendChild(ul);
+      var url=URL.createObjectURL(r.blob);urls.push(url);
+      var a=document.createElement('a');a.href=url;a.download=file.name.replace(/(\.[^.]+)?$/,'-clean$1');a.textContent='⬇ Download clean copy';a.style.color='var(--accent,#22d3ee)';card.appendChild(a);
+      if(i.lat!==undefined){var t=document.createElement('p');t.className='small';t.textContent='Check on a map yourself (opens externally): openstreetmap.org/?mlat='+i.lat.toFixed(5)+'&mlon='+i.lon.toFixed(5);card.appendChild(t);}
+      $('list').appendChild(card);
+      return i.lat!==undefined;
+    }).catch(function(e){if(!document.getElementById('photo-location-leak-scrubber'))return;var d=document.createElement('div');d.className='plls-card';d.textContent=file.name+': '+e.message;$('list').appendChild(d);return false;});
+  }
+  $('file').addEventListener('change',function(){
+    urls.forEach(function(u){URL.revokeObjectURL(u);});urls=[];$('list').textContent='';
+    var files=Array.from(this.files||[]);if(!files.length)return;
+    $('status').textContent='Checking '+files.length+' photo'+(files.length===1?'':'s')+'…';
+    Promise.all(files.map(handle)).then(function(res){if(!document.getElementById('photo-location-leak-scrubber'))return;var n=res.filter(Boolean).length;$('status').textContent=n?n+' of '+files.length+' photo'+(files.length===1?'':'s')+' contained a GPS location. Download the clean copies before sharing.':'None of these photos contained GPS coordinates.';});
+  });
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

@@ -1,0 +1,158 @@
+<section id="mojibake-text-repair" aria-labelledby="mojibake-text-repair-title">
+<style>
+#mojibake-text-repair{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#mojibake-text-repair *{box-sizing:border-box}
+#mojibake-text-repair h2{color:var(--accent,#22d3ee);margin-top:0}
+#mojibake-text-repair label{display:block;font-size:.88rem;font-weight:600;margin:10px 0 5px}
+#mojibake-text-repair textarea,#mojibake-text-repair select,#mojibake-text-repair input[type=file]{display:block;width:100%;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:inherit}
+#mojibake-text-repair textarea{min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.86rem;resize:vertical}
+#mojibake-text-repair .mtr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+#mojibake-text-repair .mtr-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+#mojibake-text-repair button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer}
+#mojibake-text-repair :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#mojibake-text-repair .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#mojibake-text-repair .mtr-box{padding:12px 14px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25);margin:10px 0}
+#mojibake-text-repair table{width:100%;border-collapse:collapse;font-size:.85rem}
+#mojibake-text-repair th,#mojibake-text-repair td{text-align:left;padding:6px;border-bottom:1px solid rgba(148,180,199,.25);vertical-align:top;overflow-wrap:anywhere}
+#mojibake-text-repair td.mtr-mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+</style>
+<h2 id="mojibake-text-repair-title">🔤 Mojibake Repair — Fix Garbled Ã© â€™ Text</h2>
+<p id="mojibake-text-repair-desc" class="small">Turn “cafÃ©”, “donâ€™t” and “Ð¿Ñ€Ð¸Ð²ÐµÑ‚” back into real text. Reverses UTF-8 misread as Windows-1252 or Latin-1, even when it happened twice or only in parts of the text. Runs in your browser.</p>
+
+<div class="mtr-grid">
+  <div>
+    <label for="mojibake-text-repair-in">Garbled text</label>
+    <textarea id="mojibake-text-repair-in" spellcheck="false" placeholder="Paste text such as: Ãœber cafÃ© â€” donâ€™t">The cafÃ© said: â€œdonâ€™t panicâ€ â€” Ã¼ber naÃ¯ve rÃ©sumÃ© Â£20</textarea>
+  </div>
+  <div>
+    <label for="mojibake-text-repair-out">Repaired text</label>
+    <textarea id="mojibake-text-repair-out" readonly spellcheck="false"></textarea>
+  </div>
+</div>
+<div class="mtr-actions">
+  <button type="button" id="mojibake-text-repair-run">Repair text</button>
+  <button type="button" id="mojibake-text-repair-copy">Copy repaired text</button>
+</div>
+<p id="mojibake-text-repair-status" class="small" role="status" aria-live="polite"></p>
+<div id="mojibake-text-repair-report" class="mtr-box small"></div>
+
+<h3>Got the original file? Try every decoding</h3>
+<p class="small">Pasted text has already lost bytes when it shows ? or �. If you still have the .csv / .txt / .srt file, pick it here: each common encoding is tried on the raw bytes and ranked by how plausible the result looks.</p>
+<label for="mojibake-text-repair-file">Text file (read locally, never uploaded)</label>
+<input id="mojibake-text-repair-file" type="file" accept=".txt,.csv,.tsv,.srt,.vtt,.json,.xml,.html,.md,.log,text/*">
+<div id="mojibake-text-repair-files"></div>
+<p class="small">Limits: characters that were already replaced by “?” or “�” cannot be recovered from text alone. Encoding guesses are heuristics — read the preview before relying on a result.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('mojibake-text-repair');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#mojibake-text-repair-'+id);};
+  // Windows-1252 bytes 0x80–0x9F → Unicode. Undefined slots map to the C1 control of the same value.
+  var CP=[0x20AC,0x81,0x201A,0x0192,0x201E,0x2026,0x2020,0x2021,0x02C6,0x2030,0x0160,0x2039,0x0152,0x8D,0x017D,0x8F,0x90,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,0x02DC,0x2122,0x0161,0x203A,0x0153,0x9D,0x017E,0x0178];
+  var REV={};for(var i=0;i<32;i++)REV[CP[i]]=0x80+i;
+  function charToByte(c){var n=c.charCodeAt(0);if(n<0x80)return n;if(REV[n]!==undefined)return REV[n];if(n>=0xA0&&n<=0xFF)return n;if(n>=0x80&&n<=0x9F)return n;return -1;}
+  var dec=new TextDecoder('utf-8',{fatal:true});
+  function tryRun(run){
+    var bytes=new Uint8Array(run.length);
+    for(var i=0;i<run.length;i++){var b=charToByte(run[i]);if(b<0)return null;bytes[i]=b;}
+    try{return dec.decode(bytes);}catch(e){return null;}
+  }
+  // A run = maximal sequence of characters that a single-byte decoder could have produced from bytes ≥0x80.
+  var RUN=/[\u0080-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201A\u201C-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A\u20AC\u2122]+/g;
+  var MARK=/Ã.|Â.|â€|Ð.|Ñ.|Å.|Ä.|Ã|Â/g;
+  function badness(s){var m=s.match(MARK);return (m?m.length:0)+((s.match(/\uFFFD/g)||[]).length*3);}
+  function passOnce(s,log){
+    var changed=0;
+    var out=s.replace(RUN,function(run){
+      // A run can mix real accents with broken ones: try the whole run, then sliding sub-runs.
+      var whole=tryRun(run);
+      if(whole!==null&&whole!==run){changed++;log.push([run,whole]);return whole;}
+      var res='',i=0;
+      while(i<run.length){
+        var done=false;
+        for(var len=Math.min(4,run.length-i);len>=2;len--){
+          var piece=run.substr(i,len),d=tryRun(piece);
+          if(d!==null){res+=d;log.push([piece,d]);changed++;i+=len;done=true;break;}
+        }
+        if(!done){res+=run[i];i++;}
+      }
+      return res;
+    });
+    return {text:out,changed:changed};
+  }
+  function repair(s){
+    var log=[],passes=0,cur=s;
+    for(var p=0;p<4;p++){
+      var r=passOnce(cur,log);
+      if(!r.changed||badness(r.text)>badness(cur))break;
+      cur=r.text;passes++;
+    }
+    // ” is E2 80 9D; 0x9D has no Windows-1252 character, so it is often dropped, leaving a bare â€.
+    if(passes||/â€/.test(cur))cur=cur.replace(/â€(?![\u0080-\u00FF\u0152-\u2122])/g,function(m){log.push(['â€ (lost byte)','”']);return '”';});
+    if(log.length&&!passes)passes=1;
+    return {text:cur,passes:passes,log:log};
+  }
+  function td(text,mono){var c=document.createElement('td');c.textContent=text;if(mono)c.className='mtr-mono';return c;}
+  function run(){
+    var src=$('in').value,r=repair(src),rep=$('report');
+    $('out').value=r.text;rep.textContent='';
+    var p=document.createElement('p');
+    if(!src.trim()){p.textContent='Paste some text first.';rep.appendChild(p);return;}
+    if(!r.passes){p.textContent=badness(src)?'Found suspicious sequences, but none decode as valid UTF-8. The text may have been damaged differently (for example Cyrillic read as Windows-1251) — try the file decoder below if you have the original.':'No mojibake found — this text already looks correctly decoded.';rep.appendChild(p);return;}
+    p.textContent='Repaired '+r.log.length+' sequence'+(r.log.length===1?'':'s')+' in '+r.passes+' pass'+(r.passes===1?'':'es')+(r.passes>1?' — this text had been mis-decoded more than once.':'.')+' Remaining suspicious markers: '+badness(r.text)+'.';
+    rep.appendChild(p);
+    var seen={},rows=[];r.log.forEach(function(x){var k=x[0]+'\u0000'+x[1];if(!seen[k]){seen[k]=1;rows.push(x);}});
+    var t=document.createElement('table'),h=document.createElement('tr');
+    ['Garbled','Became'].forEach(function(x){var th=document.createElement('th');th.textContent=x;th.scope='col';h.appendChild(th);});
+    t.appendChild(h);
+    rows.slice(0,40).forEach(function(x){var tr=document.createElement('tr');tr.appendChild(td(x[0],true));tr.appendChild(td(x[1],true));t.appendChild(tr);});
+    rep.appendChild(t);
+  }
+  var ENCS=['utf-8','windows-1252','iso-8859-2','windows-1250','windows-1251','koi8-r','iso-8859-7','windows-1256','iso-8859-8','shift_jis','euc-jp','gbk','big5','euc-kr','utf-16le','utf-16be'];
+  function plausibility(s){
+    if(!s.length)return -1e9;
+    var n=Math.min(s.length,20000),bad=0,ctrl=0,letters=0;
+    for(var i=0;i<n;i++){var c=s.charCodeAt(i);if(c===0xFFFD)bad++;else if((c<32&&c!==9&&c!==10&&c!==13)||(c>=0x80&&c<0xA0))ctrl++;else if(/\p{L}/u.test(s[i]))letters++;}
+    return letters/n*100-bad*8/n*100-ctrl*8/n*100-badness(s.slice(0,n))*4/n*100;
+  }
+  function onFile(){
+    var f=$('file').files[0],box=$('files');box.textContent='';if(!f)return;
+    if(f.size>20*1024*1024){$('status').textContent='That file is over 20 MB — try a smaller excerpt.';return;}
+    f.arrayBuffer().then(function(buf){
+      if(!document.getElementById('mojibake-text-repair'))return;
+      var bytes=new Uint8Array(buf),results=[];
+      ENCS.forEach(function(e){try{var s=new TextDecoder(e).decode(bytes);results.push({e:e,s:s,score:plausibility(s)});}catch(err){}});
+      var fixed=repair(new TextDecoder('utf-8').decode(bytes));
+      if(fixed.passes)results.push({e:'utf-8 + mojibake repair',s:fixed.text,score:plausibility(fixed.text)+1});
+      results.sort(function(a,b){return b.score-a.score;});
+      var t=document.createElement('table'),h=document.createElement('tr');
+      ['Encoding','Plausibility','Preview',''].forEach(function(x){var th=document.createElement('th');th.textContent=x;th.scope='col';h.appendChild(th);});t.appendChild(h);
+      results.slice(0,8).forEach(function(r,i){
+        var tr=document.createElement('tr');tr.appendChild(td((i===0?'★ ':'')+r.e));tr.appendChild(td(r.score.toFixed(0)));
+        tr.appendChild(td(r.s.slice(0,160).replace(/\s+/g,' '),true));
+        var c=document.createElement('td'),b=document.createElement('button');b.type='button';b.textContent='Use';b.setAttribute('aria-label','Use '+r.e+' decoding');
+        b.addEventListener('click',function(){$('out').value=r.s;$('status').textContent='Loaded the '+r.e+' decoding into the repaired box. Copy it, or save it as UTF-8.';});
+        c.appendChild(b);tr.appendChild(c);t.appendChild(tr);
+      });
+      box.appendChild(t);
+    }).catch(function(){if(document.getElementById('mojibake-text-repair'))$('status').textContent='Could not read that file.';});
+  }
+  $('run').addEventListener('click',run);
+  $('in').addEventListener('input',run);
+  $('file').addEventListener('change',onFile);
+  $('copy').addEventListener('click',function(){
+    var v=$('out').value;if(!v){$('status').textContent='Nothing to copy yet.';return;}
+    navigator.clipboard.writeText(v).then(function(){if(document.contains(root))$('status').textContent='Copied.';},function(){if(document.contains(root))$('status').textContent='Clipboard unavailable — select the text and copy manually.';});
+  });
+  run();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

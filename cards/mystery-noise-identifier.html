@@ -1,0 +1,125 @@
+<section id="mystery-noise-identifier" aria-labelledby="mystery-noise-identifier-title">
+<style>
+#mystery-noise-identifier{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#mystery-noise-identifier *{box-sizing:border-box}
+#mystery-noise-identifier h2{color:var(--accent,#22d3ee);margin-top:0}
+#mystery-noise-identifier button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:6px 8px 6px 0}
+#mystery-noise-identifier :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#mystery-noise-identifier .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+#mystery-noise-identifier canvas{display:block;width:100%;height:200px;background:#071118;border:1px solid #587080;border-radius:10px;margin:10px 0}
+#mystery-noise-identifier .mni-peaks{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px}
+#mystery-noise-identifier .mni-card{padding:12px 14px;border:1px solid #587080;border-radius:10px;background:var(--surface,#101c25)}
+#mystery-noise-identifier .mni-hz{font-size:1.4rem;font-weight:800;color:var(--accent,#22d3ee)}
+#mystery-noise-identifier input[type=file]{display:block;width:100%;padding:8px;background:var(--surface,#101c25);color:inherit;border:1px dashed #587080;border-radius:8px;font:inherit}
+#mystery-noise-identifier label{display:block;font-size:.86rem;font-weight:600;margin:8px 0 4px}
+</style>
+<h2 id="mystery-noise-identifier-title">👂 Mystery Hum &amp; Whine Identifier</h2>
+<p id="mystery-noise-identifier-desc" class="small">That low hum at night, a whine from the walls, a buzz nobody else hears. Record it with your microphone and this finds the dominant pitches and matches them to likely sources: mains electricity (50/60 Hz and harmonics), transformers, fridge compressors, fans, coil whine, ultrasonic pest repellers and more — giving you something concrete to hunt for or report.</p>
+<button type="button" id="mystery-noise-identifier-start">🎙 Listen (10 seconds)</button>
+<button type="button" id="mystery-noise-identifier-stop" disabled>Stop</button>
+<label for="mystery-noise-identifier-file">…or analyse a recording (stays on this device)</label>
+<input id="mystery-noise-identifier-file" type="file" accept="audio/*,video/*">
+<p id="mystery-noise-identifier-status" class="small" role="status" aria-live="polite">Get close to where the sound seems loudest; keep still and quiet while it listens.</p>
+<canvas id="mystery-noise-identifier-cv" width="900" height="200" aria-label="Averaged frequency spectrum of the recording"></canvas>
+<div id="mystery-noise-identifier-peaks" class="mni-peaks" aria-live="polite"></div>
+<p class="small">Audio is analysed live in your browser and never recorded to a file or uploaded. Phone and laptop microphones roll off below ~40 Hz and above ~18 kHz, so very deep rumbles and true ultrasound may be invisible — absence of a peak isn’t proof of silence. A persistent low hum heard only by you can also be tinnitus; if no source is ever found, a hearing check is worthwhile.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('mystery-noise-identifier');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#mystery-noise-identifier-'+id);};
+  var ctx=null,stream=null,an=null,acc=null,frames=0,timer=null,raf=0,sr=48000;
+  function stop(){
+    if(timer){clearTimeout(timer);timer=null;}if(raf){cancelAnimationFrame(raf);raf=0;}
+    if(stream){stream.getTracks().forEach(function(t){t.stop();});stream=null;}
+    if(ctx){ctx.close().catch(function(){});ctx=null;}
+    if(document.getElementById('mystery-noise-identifier')){$('start').disabled=false;$('stop').disabled=true;}
+  }
+  function guess(f,all){
+    var near=function(x,t){return Math.abs(f-x)<=t;};var out=[];
+    var mains=[50,60].filter(function(m){var k=Math.round(f/m);return k>=1&&k<=12&&Math.abs(f-k*m)<=1.2;});
+    mains.forEach(function(m){var k=Math.round(f/m);
+      if(k===1)out.push('Mains frequency ('+m+' Hz grid) — electrical hum from wiring, a ground loop, or a buzzing light fitting.');
+      else if(k===2)out.push(m*2+' Hz = twice mains ('+m+' Hz grid) — the classic transformer / ballast / power-supply hum. Check plug-in adapters, doorbell transformers, LED drivers, fridges, substations.');
+      else out.push('Harmonic ×'+k+' of the '+m+' Hz mains — electrical equipment, dimmers, cheap LED drivers or audio ground loops.');});
+    if(f<40)out.push('Very low rumble — HVAC, heat-pump or ventilation fans, traffic, or distant industrial machinery. Felt as much as heard.');
+    else if(f<200&&!mains.length)out.push('Low hum not locked to mains — likely a motor: fridge/freezer compressor, pump (heating, pool, aquarium), extractor or fan.');
+    if(f>=200&&f<2000&&!mains.length)out.push('Mid tone — fan blades, a bearing starting to fail, a vibrating panel, or a water pipe resonance.');
+    if(f>=2000&&f<12000)out.push('High whine — “coil whine” from chargers, GPU/PC power supplies, TVs in standby, or switching power adapters. Unplug devices one at a time.');
+    if(f>=12000&&f<17000)out.push('Very high pitch — CRT/old TV line frequency (~15.6 kHz), smoke-alarm or electronics oscillators. Young people hear this; older adults often can’t.');
+    if(f>=17000)out.push('Near-ultrasonic — ultrasonic pest repellers, motion sensors, some alarm systems or door-sensor beacons.');
+    var fund=all.find(function(p){return p!==f&&Math.abs(f/p-Math.round(f/p))<0.02&&Math.round(f/p)>=2;});
+    if(fund&&!mains.length)out.push('Looks like harmonic ×'+Math.round(f/fund)+' of the '+fund.toFixed(1)+' Hz peak — same source.');
+    return out;
+  }
+  function analyse(spec,binHz){
+    var n=spec.length,cv=$('cv'),g=cv.getContext&&cv.getContext('2d'),W=cv.width,H=cv.height;
+    var min=Infinity,max=-Infinity;for(var i=2;i<n;i++){if(spec[i]<min)min=spec[i];if(spec[i]>max)max=spec[i];}
+    var lo=Math.log10(20),hi=Math.log10(Math.min(sr/2,22000));
+    if(g){g.clearRect(0,0,W,H);g.strokeStyle='#22d3ee';g.beginPath();
+    for(var x=0;x<W;x++){var f=Math.pow(10,lo+(hi-lo)*x/W),b=Math.min(n-1,Math.round(f/binHz)),y=H-(spec[b]-min)/(max-min||1)*(H-10);if(x)g.lineTo(x,y);else g.moveTo(x,y);}g.stroke();
+    g.fillStyle='#a9bdcd';g.font='12px system-ui';[50,100,500,1000,5000,10000,20000].forEach(function(f){var x=(Math.log10(f)-lo)/(hi-lo)*W;if(x>0&&x<W){g.fillText(f>=1000?f/1000+'k':String(f),x+2,12);g.fillRect(x,14,1,6);}});}
+    // Peak picking: local maxima that rise well above the median of their neighbourhood.
+    var peaks=[];
+    for(var k=3;k<n-3;k++){var fq=k*binHz;if(fq<25)continue;var v=spec[k];
+      if(v>spec[k-1]&&v>=spec[k+1]&&v>spec[k-2]&&v>=spec[k+2]){
+        var lo2=Math.max(1,k-40),hi2=Math.min(n,k+40),arr=[];for(var j=lo2;j<hi2;j++)arr.push(spec[j]);arr.sort(function(a,b){return a-b;});var med=arr[arr.length>>1];
+        var prom=v-med;if(prom>8){var a=spec[k-1],c=spec[k+1],off=0.5*(a-c)/(a-2*v+c||1);peaks.push({f:(k+off)*binHz,db:v,prom:prom});}}}
+    peaks.sort(function(a,b){return b.prom-a.prom;});
+    var top=[];peaks.forEach(function(p){if(top.length<5&&top.every(function(t){return Math.abs(t.f-p.f)>binHz*3;}))top.push(p);});
+    var box=$('peaks');box.textContent='';
+    if(!top.length){$('status').textContent='No clear tone stood out — the sound may be broadband (rushing air, traffic) or below what the mic can pick up.';return;}
+    var fs=top.map(function(t){return t.f;});
+    top.forEach(function(p,i){var c=document.createElement('div');c.className='mni-card';var hz=document.createElement('div');hz.className='mni-hz';hz.textContent=(p.f<1000?p.f.toFixed(1)+' Hz':(p.f/1000).toFixed(2)+' kHz');c.appendChild(hz);
+      var s=document.createElement('div');s.className='small';s.textContent='#'+(i+1)+' · stands '+p.prom.toFixed(0)+' dB above its surroundings';c.appendChild(s);
+      var ul=document.createElement('ul');guess(p.f,fs).forEach(function(t){var li=document.createElement('li');li.textContent=t;ul.appendChild(li);});c.appendChild(ul);box.appendChild(c);});
+    $('status').textContent='Found '+top.length+' distinct tone'+(top.length===1?'':'s')+'. Frequency resolution ±'+(binHz/2).toFixed(1)+' Hz. Tip: switch off breakers one at a time while it listens — the peak that disappears is your culprit.';
+  }
+  function setup(){
+    ctx=new (window.AudioContext||window.webkitAudioContext)();sr=ctx.sampleRate;an=ctx.createAnalyser();an.fftSize=32768;an.smoothingTimeConstant=0;an.minDecibels=-130;an.maxDecibels=0;acc=new Float64Array(an.frequencyBinCount);frames=0;
+  }
+  function loop(){
+    if(!document.getElementById('mystery-noise-identifier')){stop();return;}
+    var buf=new Float32Array(an.frequencyBinCount);an.getFloatFrequencyData(buf);
+    if(isFinite(buf[10])){for(var i=0;i<buf.length;i++)acc[i]+=buf[i];frames++;}
+    if(frames%10===0&&frames){var avg=new Float64Array(acc.length);for(var j=0;j<acc.length;j++)avg[j]=acc[j]/frames;analyse(avg,sr/an.fftSize);}
+    raf=requestAnimationFrame(loop);
+  }
+  function finish(){if(raf){cancelAnimationFrame(raf);raf=0;}if(frames&&document.getElementById('mystery-noise-identifier')){var avg=new Float64Array(acc.length);for(var j=0;j<acc.length;j++)avg[j]=acc[j]/frames;analyse(avg,sr/an.fftSize);}stop();}
+  $('start').addEventListener('click',function(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('status').textContent='Microphone access isn’t available in this browser — use the file option.';return;}
+    stop();$('peaks').textContent='';$('status').textContent='Requesting microphone…';
+    navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}).then(function(s){
+      if(!document.getElementById('mystery-noise-identifier')){s.getTracks().forEach(function(t){t.stop();});return;}
+      stream=s;setup();ctx.createMediaStreamSource(s).connect(an);$('start').disabled=true;$('stop').disabled=false;$('status').textContent='Listening… stay quiet.';
+      loop();timer=setTimeout(finish,10000);
+    }).catch(function(){if(document.getElementById('mystery-noise-identifier'))$('status').textContent='Microphone permission was refused or unavailable.';});
+  });
+  $('stop').addEventListener('click',finish);
+  $('file').addEventListener('change',function(){
+    var f=this.files[0];if(!f)return;stop();$('status').textContent='Decoding '+f.name+'…';$('peaks').textContent='';
+    f.arrayBuffer().then(function(buf){var C=window.AudioContext||window.webkitAudioContext,tmp=new C();return tmp.decodeAudioData(buf).then(function(ab){tmp.close();return ab;});}).then(function(ab){
+      if(!document.getElementById('mystery-noise-identifier'))return;
+      sr=ab.sampleRate;var N=32768,data=ab.getChannelData(0),spec=new Float64Array(N/2),count=0,re=new Float64Array(N),im=new Float64Array(N);
+      var step=N/2,maxBlocks=Math.min(80,Math.floor((data.length-N)/step)+1);
+      if(data.length<N){$('status').textContent='Recording is too short — use at least 1 second.';return;}
+      for(var b=0;b<maxBlocks;b++){var off=Math.floor(b*(data.length-N)/Math.max(1,maxBlocks-1));
+        for(var i=0;i<N;i++){re[i]=data[off+i]*(0.5-0.5*Math.cos(2*Math.PI*i/(N-1)));im[i]=0;}
+        fft(re,im);for(var k=0;k<N/2;k++)spec[k]+=re[k]*re[k]+im[k]*im[k];count++;}
+      for(var k2=0;k2<N/2;k2++)spec[k2]=10*Math.log10(spec[k2]/count+1e-20);
+      analyse(spec,sr/N);
+    }).catch(function(){if(document.getElementById('mystery-noise-identifier'))$('status').textContent='This browser could not decode that file. Try WAV, MP3 or M4A.';});
+  });
+  function fft(re,im){var n=re.length;for(var i=1,j=0;i<n;i++){var bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){var t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+    for(var len=2;len<=n;len<<=1){var ang=-2*Math.PI/len,wr=Math.cos(ang),wi=Math.sin(ang);for(var s=0;s<n;s+=len){var cr=1,ci=0;for(var k=0;k<len/2;k++){var a=s+k,b=a+len/2,xr=re[b]*cr-im[b]*ci,xi=re[b]*ci+im[b]*cr;re[b]=re[a]-xr;im[b]=im[a]-xi;re[a]+=xr;im[a]+=xi;var nr=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=nr;}}}}
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>

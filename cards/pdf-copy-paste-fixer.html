@@ -1,0 +1,109 @@
+<section id="pdf-copy-paste-fixer" aria-labelledby="pdf-copy-paste-fixer-title">
+<style>
+#pdf-copy-paste-fixer{color:var(--text,#eef2f8);font-family:var(--sans,system-ui,sans-serif);line-height:1.6}
+#pdf-copy-paste-fixer *{box-sizing:border-box}
+#pdf-copy-paste-fixer h2{color:var(--accent,#22d3ee);margin-top:0}
+#pdf-copy-paste-fixer label{display:block;font-size:.86rem;font-weight:600;margin:8px 0 4px}
+#pdf-copy-paste-fixer textarea{display:block;width:100%;min-height:170px;padding:10px;background:var(--surface,#101c25);color:inherit;border:1px solid #587080;border-radius:8px;font:.86rem/1.55 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+#pdf-copy-paste-fixer .pcf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+#pdf-copy-paste-fixer fieldset{border:1px solid rgba(148,180,199,.3);border-radius:10px;padding:8px 12px;margin:12px 0;display:flex;flex-wrap:wrap;gap:2px 16px}
+#pdf-copy-paste-fixer legend{padding:0 6px;font-weight:700}
+#pdf-copy-paste-fixer fieldset label{display:flex;align-items:center;gap:6px;font-weight:400;margin:0;min-height:36px}
+#pdf-copy-paste-fixer button{padding:10px 16px;min-height:44px;border:1px solid #55c8e0;border-radius:8px;background:#143442;color:#e9faff;font:inherit;cursor:pointer;margin:0 8px 8px 0}
+#pdf-copy-paste-fixer :focus-visible{outline:3px solid #22d3ee;outline-offset:3px}
+#pdf-copy-paste-fixer .small{font-size:.85rem;color:var(--muted,#a9bdcd)}
+</style>
+<h2 id="pdf-copy-paste-fixer-title">📄 PDF Copy-Paste Fixer</h2>
+<p id="pdf-copy-paste-fixer-desc" class="small">Copy text out of a PDF and you get a line break every few words, “docu- ment” split in two, ﬁ and ﬂ ligatures that break search, and page numbers and running headers in the middle of sentences. Paste it here to get clean paragraphs back — the paragraph breaks you actually want are kept.</p>
+<div class="pcf-grid">
+<div><label for="pdf-copy-paste-fixer-in">Pasted from PDF</label>
+<textarea id="pdf-copy-paste-fixer-in" spellcheck="false">Annual Report 2025                                   3
+The committee re-
+viewed the ﬁnancial
+statements and found
+no signiﬁcant issues.
+The audit was com-
+pleted in March.
+
+A second paragraph
+starts here and con-
+tinues onto the next
+page.
+Annual Report 2025                                   4
+It ends here with a well-
+known phrase.</textarea></div>
+<div><label for="pdf-copy-paste-fixer-out">Clean text</label>
+<textarea id="pdf-copy-paste-fixer-out" readonly spellcheck="false"></textarea></div>
+</div>
+<fieldset><legend>Fixes</legend>
+<label for="pdf-copy-paste-fixer-o-join"><input type="checkbox" id="pdf-copy-paste-fixer-o-join" checked> Join broken lines into paragraphs</label>
+<label for="pdf-copy-paste-fixer-o-hyph"><input type="checkbox" id="pdf-copy-paste-fixer-o-hyph" checked> Rejoin words split by hyphens</label>
+<label for="pdf-copy-paste-fixer-o-lig"><input type="checkbox" id="pdf-copy-paste-fixer-o-lig" checked> Expand ligatures (ﬁ ﬂ ﬀ)</label>
+<label for="pdf-copy-paste-fixer-o-hdr"><input type="checkbox" id="pdf-copy-paste-fixer-o-hdr" checked> Remove repeated headers / page numbers</label>
+<label for="pdf-copy-paste-fixer-o-ws"><input type="checkbox" id="pdf-copy-paste-fixer-o-ws" checked> Tidy spaces</label>
+<label for="pdf-copy-paste-fixer-o-list"><input type="checkbox" id="pdf-copy-paste-fixer-o-list" checked> Keep bullet / numbered lists</label>
+</fieldset>
+<button type="button" id="pdf-copy-paste-fixer-copy">Copy clean text</button>
+<p id="pdf-copy-paste-fixer-status" class="small" role="status" aria-live="polite"></p>
+<p class="small">Hyphen rule: a line-ending hyphen is removed when the next line starts in lowercase (“com- pleted” → “completed”); real compounds you can keep by unticking. Words like “well-known” split exactly at their own hyphen can’t be told apart from a broken word by text alone, so the tool keeps the hyphen after common compound prefixes (well-, self-, non-, half-…) and when the same pair appears hyphenated elsewhere in your text. Runs in your browser.</p>
+<script>
+(function(){
+'use strict';
+function init(){
+  var root=document.getElementById('pdf-copy-paste-fixer');
+  if(!root||root.dataset.ready)return;root.dataset.ready='1';
+  var $=function(id){return root.querySelector('#pdf-copy-paste-fixer-'+id);};
+  var LIG={'\uFB00':'ff','\uFB01':'fi','\uFB02':'fl','\uFB03':'ffi','\uFB04':'ffl','\uFB05':'st','\uFB06':'st'};
+  var KEEP=/^(self|well|ex|all|half|non|cross|so|much|ill|long|short|high|low|full|part|one|two|three|four|five)$/i;
+  var LIST=/^\s*([•▪◦·\-–*]|\(?\d{1,3}[.)]|\(?[a-z][.)]|[ivx]{1,5}[.)])\s+/i;
+  function fix(){
+    var src=$('in').value,o=function(k){return $('o-'+k).checked;},stats={lines:0,hyph:0,lig:0,hdr:0};
+    var text=src.replace(/\r\n?/g,'\n').replace(/\f/g,'\n');
+    if(o('lig'))text=text.replace(/[\uFB00-\uFB06]/g,function(c){stats.lig++;return LIG[c];});
+    var lines=text.split('\n');
+    if(o('hdr')){
+      // Lines that recur (ignoring digits) 2+ times are running headers/footers; bare numbers are page numbers.
+      var norm=function(l){return l.replace(/\d+/g,'#').replace(/\s+/g,' ').trim().toLowerCase();},count={};
+      lines.forEach(function(l){var n=norm(l);if(n.length>2)count[n]=(count[n]||0)+1;});
+      lines=lines.filter(function(l){var t=l.trim(),n=norm(l);
+        if(/^(page\s*)?\d{1,4}(\s*(of|\/)\s*\d{1,4})?$/i.test(t)||/^[-–—]\s*\d{1,4}\s*[-–—]$/.test(t)){stats.hdr++;return false;}
+        if(count[n]>=2&&t.length<90&&/#/.test(n)&&!/[.!?]$/.test(t)){stats.hdr++;return false;}
+        return true;});
+    }
+    var hyphenated={};text.replace(/-\n/g,'\u0000').replace(/\b([A-Za-z]+)-([A-Za-z]+)\b/g,function(m,a,b){hyphenated[(a+b).toLowerCase()]=1;return m;});
+    var out='',paras=[],cur='';
+    function flush(){if(cur.trim())paras.push(cur.trim());cur='';}
+    for(var i=0;i<lines.length;i++){
+      var l=o('ws')?lines[i].replace(/[ \t\u00A0]+/g,' ').trim():lines[i];
+      if(!l.trim()){flush();continue;}
+      if(!o('join')){paras.push(l);continue;}
+      if(o('list')&&LIST.test(l)){flush();cur=l;continue;}
+      if(!cur){cur=l;continue;}
+      stats.lines++;
+      var m=cur.match(/([A-Za-z\u00C0-\u024F]+)-$/);
+      if(o('hyph')&&m&&/^[a-z\u00DF-\u024F]/.test(l)){
+        var next=l.match(/^[A-Za-z\u00C0-\u024F]+/)[0];
+        if(hyphenated[(m[1]+next).toLowerCase()]||KEEP.test(m[1])){cur+=l;}
+        else{cur=cur.slice(0,-1)+l;stats.hyph++;}
+      }else if(/-$/.test(cur)){cur+=l;}
+      else cur+=' '+l;
+    }
+    flush();
+    out=paras.join(o('join')?'\n\n':'\n');
+    if(o('ws'))out=out.replace(/ +([,.;:!?])/g,'$1');
+    $('out').value=out;
+    $('status').textContent=src.trim()?'Joined '+stats.lines+' broken lines, rejoined '+stats.hyph+' hyphenated words, expanded '+stats.lig+' ligatures, removed '+stats.hdr+' header/page-number lines → '+paras.length+' paragraph'+(paras.length===1?'':'s')+'.':'';
+  }
+  $('in').addEventListener('input',fix);
+  root.querySelectorAll('fieldset input').forEach(function(c){c.addEventListener('change',fix);});
+  $('copy').addEventListener('click',function(){var v=$('out').value;if(!v){$('status').textContent='Nothing to copy yet.';return;}navigator.clipboard.writeText(v).then(function(){if(document.contains(root))$('status').textContent='Copied.';},function(){if(document.contains(root))$('status').textContent='Clipboard unavailable — select and copy manually.';});});
+  fix();
+}
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init,{once:true});
+}else{
+  init();
+}
+})();
+</script>
+</section>
