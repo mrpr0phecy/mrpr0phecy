@@ -235,6 +235,7 @@
      read reuses the layout the frame performs anyway. The fade is cosmetic,
      so one frame late is invisible. */
   var fadeQueued = false;
+  var fadeResizeObserver = null;
   function scheduleOverflowFades() {
     if (fadeQueued) return;
     fadeQueued = true;
@@ -244,10 +245,22 @@
   function syncOverflowFades() {
     markFloatingClearance();
     var rows = document.querySelectorAll(FADE_ROWS);
-    for (var i = 0; i < rows.length; i++) markOverflow(rows[i]);
+    for (var i = 0; i < rows.length; i++) {
+      markOverflow(rows[i]);
+      // A hidden recent-search row can become visible after this first pass.
+      // Re-measure it when its box appears; scroll/resize listeners then own
+      // the normal start/middle/end changes without another observer.
+      if (fadeResizeObserver) fadeResizeObserver.observe(rows[i]);
+    }
+    // The CSS fallback is only for disabled/broken JavaScript. From this pass
+    // onward, data-overflow owns the cue and also removes it when a row fits.
+    document.documentElement.classList.add('xp-overflow-cues-ready');
   }
 
   function watchOverflowFades() {
+    if ('ResizeObserver' in window) {
+      fadeResizeObserver = new ResizeObserver(scheduleOverflowFades);
+    }
     scheduleOverflowFades();
     // One capturing listener on the document, not one per row. Scroll events
     // do not bubble, but a capture-phase listener still receives them from

@@ -197,6 +197,23 @@ state.rows = rows;
     'Safari keyboard Search must flush the pending filter');
   assert(SOURCE.includes('data-xp-suggest'),
     'a zero-result search offers one-tap suggestions');
+
+  // Horizontal shelves expose start/middle/end state to one shared stylesheet.
+  // This keeps both edges honest as the visitor scrolls, and the ResizeObserver
+  // catches rows (such as recents) that become visible after the initial pass.
+  const fadeRows = SOURCE.match(/var FADE_ROWS = '([^']+)'/);
+  assert(fadeRows, 'the shared edge-fade row selector is present');
+  for (const selector of ['.popular-chips', '.hero-jumps', '#featured', '#trending']) {
+    assert(fadeRows[1].includes(selector), `${selector} uses the shared edge-fade state`);
+  }
+  assert(/fadeResizeObserver = new ResizeObserver\(scheduleOverflowFades\)/.test(SOURCE) &&
+         /fadeResizeObserver\.observe\(rows\[i\]\)/.test(SOURCE),
+    'a shelf revealed or resized after mount is remeasured');
+  assert(/classList\.add\('xp-overflow-cues-ready'\)/.test(SOURCE),
+    'live edge state replaces the static no-JavaScript fade fallback');
+  for (const edge of ['start', 'middle', 'end']) {
+    assert(STYLES.includes(`[data-overflow="${edge}"]`), `the ${edge} edge receives the matching fade`);
+  }
 }
 
 console.log('explore-list: filtering, sorting, escaping and the list contracts all hold');
