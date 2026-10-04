@@ -1,6 +1,6 @@
 # Trust — pointers #5 + #6 (YMYL, site-level signals)
 
-Pointer #5 is YMYL. About 119 of 1379 tools touch money or the body. If those
+Pointer #5 is YMYL. About 119 of 1389 tools touch money or the body. If those
 pages feel like a bash-mash of thin fragments with no accountable author,
 Google's quality raters (and users) are right to distrust the whole site.
 This doc is the checklist we hold every deep page and every card to.
@@ -274,3 +274,52 @@ this catalogue".
 * Delete thin tools to "improve average wordcount". CONSTRAINTS.md forbids
   URL deletion without owner sign-off; thin cards are not harmful, they are
   just not deep.
+
+## Community prosperity arithmetic worksheets (2026-10-05)
+
+The four financial worksheets below use only organiser-entered figures; they
+request no bank credentials, collect no money, and promise neither returns nor
+prosperity. All figures must use one agreed currency and at most two decimal
+places. They assume no government grant, subsidy or administration, but do not
+assess compliance with local tax, cooperative, fundraising or financial-services
+rules. Participants must agree decisions and verify obligations independently.
+All ten community worksheets retain inputs only in page memory. Explicitly
+copied/downloaded text reports contain aliases and results; review these for
+privacy before sharing. These are single-copy planning tools, not synchronised
+multi-user systems. **Last reviewed: 2026-10-05.**
+
+* `cards/cooperative-surplus-splitter.html`: an agreed reserve percentage is
+  rounded to cents and subtracted from lawful distributable surplus already
+  net of all obligations. Each payout share is equal-member percentage / member
+  count plus the remaining percentage times the member's non-negative weight /
+  total weight. Largest-remainder rounding preserves the exact payout total;
+  ties follow input order. Zero total weight is accepted only for 100% equal
+  allocation. Example: 1,000 surplus, 20% reserve, 50% equal share and weights
+  10/20/30 yields reserve 200 and payouts 200, 266.67, 333.33. It does not
+  determine member entitlements, calculate wages or taxes, or transfer funds.
+* `cards/solidarity-fund-runway.html`: end-of-month balance is previous balance
+  plus members × per-member dues × assumed collection rate (rounded to cents),
+  minus recurring support, costs and any selected one-off support. Reserve
+  breaches include the opening balance; negative balances explicitly signal
+  unfunded shortfalls, not borrowing. Break-even recurring contribution is the
+  cost of recurring support and running costs divided by members × collection
+  rate, rounded up to one cent. At zero collection no finite contribution is
+  shown. This excludes within-month cash timing, uncertainty, one-off funding
+  in the break-even calculation, inflation, interest and reserve growth. It is
+  neither insurance nor an entitlement or recommendation to start a fund.
+* `cards/community-project-budget-picker.html`: exhaustive subset enumeration
+  over at most 18 independent indivisible projects maximises summed entered
+  support scores subject to the available budget. Ties favour lower cost and
+  then deterministic search order. No votes are collected or verified; input
+  scores are organiser-supplied aggregates. This does not measure fairness,
+  authenticate ballots, resolve project dependencies, approve expenditure or
+  replace deliberation. Example: budget 10, A costs 10 with score 10, B and C
+  each cost 5 with score 6; B + C scores 12 and fits, beating A.
+* `cards/local-supplier-gap-finder.html`: recorded local/outside spending is
+  grouped by case-insensitive category for one organiser-defined sampling
+  period and geographic definition of local. Hypothetical additional local
+  revenue is outside spending × the visitor's chosen capture percentage.
+  Categories rank by recorded outside spending. This is not a representative
+  survey, market forecast, economic multiplier, profit estimate, procurement
+  advice or business recommendation. Quality, accessibility, costs and real
+  demand must be established separately. No household identifiers are required.

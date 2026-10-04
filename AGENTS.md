@@ -8,7 +8,7 @@ stay stable. Everything else is reference (§6).
 Static GitHub Pages — no runtime deps, no deploy build; `main` is live.
 Two products share the domain and must stay separate (§3 hard line 6).
 
-### Product A — the catalogue (1,379 tools)
+### Product A — the catalogue (1,389 tools)
 
 `cards/<slug>.html` fragments, mounted by `index.html` / `tool.html`.
 Manifest: `manifest.tools.json`. No ads, no analytics on cards.

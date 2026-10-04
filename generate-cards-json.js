@@ -267,6 +267,17 @@ const categoryMap = {
   'moving-average-forecaster': 'Mathematics',
   'continued-fraction-explorer': 'Mathematics',
   'penrose-tiling-studio': 'Mathematics',
+  // 2026-10-05 — ten consent-based community prosperity worksheets.
+  'community-skills-needs-matcher': 'Wellbeing & Community',
+  'community-tool-library-scheduler': 'Productivity & Lifestyle',
+  'repair-cafe-capacity-planner': 'Home & DIY',
+  'cooperative-surplus-splitter': 'Finance & Money',
+  'solidarity-fund-runway': 'Finance & Money',
+  'community-project-budget-picker': 'Finance & Money',
+  'local-supplier-gap-finder': 'Finance & Money',
+  'community-apprenticeship-planner': 'Wellbeing & Community',
+  'surplus-materials-exchange': 'Home & DIY',
+  'mutual-aid-shift-planner': 'Productivity & Lifestyle',
   // 2026-10-04 — ten fixes for common problems that lack a good free tool:
   // mojibake repair, Excel CSV auto-format damage, DST drift in recurring meetings,
   // invisible/lookalike characters, furniture route fitting, subtitle drift (two-point
