@@ -30,6 +30,7 @@
     styleId: 'fiord',
     live: false,
     liveStatus: 'waiting',
+    liveError: null,
     picked: null,
     markers: [],
     measure: [],
@@ -336,24 +337,32 @@
       updateStatusChips();
       return;
     }
+    state.liveStatus = 'waiting';
+    state.liveError = null;
+    updateStatusChips();
     MM.providers.loadStyle(state.styleId).then(function (style) {
       state.styleId = style.id;
       if (els.styleSelect) els.styleSelect.value = style.id;
       live = MM.livemap.create(els.wrap, {
         center: state.center,
         zoom: state.zoom,
+        // The provider already fetched and validated this style; hand the
+        // object to MapLibre so it does not issue a second style request.
+        style: style.style,
         styleUrl: style.url,
         units: state.units,
         globe: false,
         onReady: function () {
           state.live = true;
           state.liveStatus = 'live';
+          state.liveError = null;
           updateStatusChips();
           updateAttribution();
         },
-        onError: function () {
+        onError: function (reason) {
           state.liveStatus = 'failed';
           state.live = false;
+          state.liveError = reason ? String(reason).slice(0, 180) : 'Map tiles could not be loaded';
           updateStatusChips();
         },
         onMove: function () {
@@ -367,10 +376,31 @@
         },
         onClick: function (point) { onMapClick({ point: point, country: null }); },
       });
-    }).catch(function () {
+    }).catch(function (error) {
       state.liveStatus = 'failed';
+      state.liveError = error && error.message ? String(error.message).slice(0, 180) : 'Map styles are unavailable';
       updateStatusChips();
     });
+  }
+
+  /** Retry the live layer without disturbing the usable offline canvas. */
+  function retryLive() {
+    if (state.offline) {
+      state.liveStatus = 'offline';
+      updateStatusChips();
+      toast('Connect to the internet, then retry the live map');
+      return;
+    }
+    if (state.live || state.liveStatus === 'waiting') return;
+    if (live && typeof live.destroy === 'function') {
+      try { live.destroy(); } catch (error) { /* the offline canvas stays usable */ }
+    }
+    live = null;
+    state.live = false;
+    state.liveError = null;
+    state.liveStatus = 'waiting';
+    updateStatusChips();
+    startLive();
   }
 
   /**
@@ -1305,7 +1335,8 @@
       kvRow(dl, 'Daylight', fmtDuration(times.dayLengthMinutes));
       kvRow(dl, 'Golden hour', fmtTime(times.goldenHourEveningStart) + ' – ' + fmtTime(times.sunset));
     }
-    kvRow(dl, 'Moon', Math.round(MM.solar.moonPhase(new Date()) * 100) + '% lit');
+    var moon = MM.solar.moonPhase(new Date());
+    kvRow(dl, 'Moon', Math.round(moon.illumination * 100) + '% lit');
     container.appendChild(dl);
     container.appendChild(make('p', 'mm-muted', 'Computed on this device from the NOAA solar algorithm — no network needed.'));
   }
@@ -3486,6 +3517,15 @@
     liveChip.setAttribute('data-state', state.live ? 'ok' : (loadingLive || state.liveStatus === 'failed' ? 'warn' : 'fail'));
     liveChip.appendChild(make('span', 'mm-dot'));
     liveChip.appendChild(make('span', null, state.live ? 'Live map' : state.liveStatus === 'offline' ? 'Offline map' : state.liveStatus === 'failed' ? 'Offline map (tiles unavailable)' : state.liveStatus === 'no-webgl' ? 'Offline map (no WebGL)' : 'Getting live map…'));
+    if (state.liveError) liveChip.title = 'Live map unavailable: ' + state.liveError;
+    if (state.liveStatus === 'failed' && !state.offline) {
+      var retryButton = make('button', null, 'Retry');
+      retryButton.type = 'button';
+      retryButton.setAttribute('data-mm-retry-live', '');
+      retryButton.setAttribute('aria-label', 'Retry live map tiles');
+      retryButton.title = 'Try loading the live map again';
+      liveChip.appendChild(retryButton);
+    }
     box.appendChild(liveChip);
 
     var netChip = make('span', 'mm-chip');
@@ -3576,11 +3616,19 @@
   }
 
   function bindConnectivity() {
+    if (els.status) {
+      els.status.addEventListener('click', function (event) {
+        var button = event.target && event.target.closest ? event.target.closest('[data-mm-retry-live]') : null;
+        if (!button) return;
+        event.preventDefault();
+        retryLive();
+      });
+    }
     root.addEventListener('online', function () {
       state.offline = false;
       updateStatusChips();
       toast('Back online — the live map will load again');
-      if (!live) startLive();
+      if (!live || state.liveStatus === 'failed' || (live.getStatus && live.getStatus() === 'failed')) retryLive();
     });
     root.addEventListener('offline', function () {
       state.offline = true;

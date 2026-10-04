@@ -363,6 +363,11 @@ test('solar: phases of day and moon phase labels', () => {
   assert.ok(typeof phase.name === 'string' && phase.name.length > 3);
 });
 
+test('page: the sun panel renders the numeric moon illumination, not the phase object', () => {
+  const app = fs.readFileSync(path.join(ROOT, 'maps/app.js'), 'utf8');
+  assert.match(app, /var moon = MM\.solar\.moonPhase\(new Date\(\)\);\s*kvRow\(dl, 'Moon', Math\.round\(moon\.illumination \* 100\) \+ '% lit'\);/);
+});
+
 test('solar: sun along a path flags heading into a low sun', () => {
   const path = [{ lat: 51.5, lon: -0.1 }, { lat: 51.5, lon: 0.4 }]; // due east
   const evening = new Date(Date.UTC(2026, 5, 21, 19, 15));          // sun in the west

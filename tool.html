@@ -1533,12 +1533,11 @@
                 }
             }, LOADER_WATCHDOG_MS);
 
-            let allCards = [];
             let currentMeta = null;
             let title = cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             let category = 'General Tool';
             let riskNoticeAttached = false;
-            let catalogueSettled = false;
+            let metadataSettled = false;
             let relatedRenderStarted = false;
             // The mounted card, for the filled-link feature: its values, the
             // state it shipped with (so "changed" means the visitor changed
@@ -1674,47 +1673,59 @@
             const fragPromise = fetchWithTimeout(`cards/${cardName}.html`, 15000);
             applyToolMetadata();
 
-            // The compact catalogue only enriches the page (title/category,
-            // risk notice, related links). It runs alongside the card and is
-            // intentionally non-blocking: even a slow or unavailable catalogue
-            // must not leave the visitor staring at the loader for a working
-            // card. The full manifest remains a fallback only if the compact
-            // response arrived but could not identify this slug.
-            async function loadCatalogue() {
-                const catalogueSources = ['cards/cards-lite.json', 'cards/cards.json'];
-                for (const src of catalogueSources) {
-                    const jsonRes = await fetchWithTimeout(src, 10000);
-                    if (!jsonRes || !jsonRes.ok) return;
-                    let data;
+            // A per-tool machine spec supplies the title, category and risk
+            // metadata at about 1 KB compressed; the old path downloaded the
+            // 126 KB lite catalogue (about 36.6 KB compressed) on every view. The full lite
+            // file is retained only as a resilience fallback if this spec is
+            // missing or malformed. Neither request holds up the card.
+            async function loadMetadata() {
+                const specRes = await fetchWithTimeout(`api/tools/${encodeURIComponent(cardName)}.json`, 8000);
+                if (specRes && specRes.ok) {
                     try {
-                        data = await jsonRes.json();
-                    } catch (e) {
-                        console.warn(`Could not load ${src}:`, e);
-                        // A malformed compact response may still be repaired by
-                        // the full manifest; a timed-out body is not worth
-                        // spending a second request deadline on.
-                        if (e && e.message === 'Request timed out') return;
-                        continue;
-                    }
-                    if (!Array.isArray(data) || data.length === 0) continue;
-                    const cards = data[0].n
-                        ? data.map(d => ({ name: d.n, title: d.t, category: d.c, path: `cards/${d.n}.html`, description: '' }))
-                        : data;
-                    const match = cards.find(c => c.name === cardName || c.id === cardName || (c.file && c.file === `${cardName}.html`));
-                    if (cards.length) allCards = cards;
-                    if (match) {
-                        currentMeta = match;
-                        applyToolMetadata();
-                        return;
+                        const spec = await specRes.json();
+                        if (spec && spec.slug === cardName && spec.title && spec.categoryName) {
+                            currentMeta = {
+                                name: spec.slug,
+                                title: spec.title,
+                                category: spec.categoryName,
+                                description: spec.description || ''
+                            };
+                            applyToolMetadata();
+                            return;
+                        }
+                    } catch (error) {
+                        console.warn('Could not load the tool specification:', error);
                     }
                 }
+
+                // A broken or unavailable per-tool endpoint must not silently
+                // remove category or health/finance notices. The small lite
+                // catalogue is slower, but it is a safe fallback off the card's
+                // critical path.
+                const catalogueRes = await fetchWithTimeout('cards/cards-lite.json', 10000);
+                if (!catalogueRes || !catalogueRes.ok) return;
+                try {
+                    const data = await catalogueRes.json();
+                    if (!Array.isArray(data)) return;
+                    const match = data.find(entry => entry && (entry.n || entry.name || entry.id) === cardName);
+                    if (!match) return;
+                    currentMeta = {
+                        name: match.n || match.name || match.id,
+                        title: match.t || match.title || cardName,
+                        category: match.c || match.category || 'General Tool',
+                        description: match.description || ''
+                    };
+                    applyToolMetadata();
+                } catch (error) {
+                    console.warn('Could not load fallback tool metadata:', error);
+                }
             }
-            loadCatalogue().then(() => {
-                catalogueSettled = true;
+            loadMetadata().then(() => {
+                metadataSettled = true;
                 renderRelated();
-            }).catch(e => {
-                catalogueSettled = true;
-                console.warn('Could not load the tool catalogue:', e);
+            }).catch(error => {
+                metadataSettled = true;
+                console.warn('Could not load tool metadata:', error);
                 renderRelated();
             });
 
@@ -1749,10 +1760,10 @@
                 // and tool.html is the only surface that injects fragments — so
                 // without a .card ancestor here, those lookups return null and
                 // the cards' init and click handlers silently bail (the "card
-                // stalls when clicked" reports). .card has no styles anywhere
+                // stalls when clicked" reports). .card has no layout styling
                 // (card.css only defines .card-wrap; fragments scope .card
-                // rules under their own #*-root ids), so this is purely a JS
-                // scope hook with zero visual effect.
+                // rules under their own #*-root ids); it gets the shell's
+                // existing entrance animation but does not alter card geometry.
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'card';
                 while (doc.body.firstChild) {
@@ -1792,6 +1803,10 @@
                 // that differs from it later is something the visitor (or the
                 // link) chose. Prefill then fills, and only `run=1` runs.
                 toolLive.root = contentDiv;
+                // Metadata may have arrived before the card fragment. Retry
+                // the attach now that a real card root exists; applyToolMetadata
+                // covers the opposite (late metadata) ordering.
+                attachRiskNotice();
                 toolLive.snapshot = toolSnapshot(contentDiv);
                 const prefillReport = toolApplyPrefill(contentDiv, params);
                 const askedToRun = prefillReport.applied.length > 0 && params.get('run') === '1';
@@ -1850,45 +1865,40 @@
             // catalogue provides a more specific category later.
             updateResourcePanel();
 
-            // Render same-category suggestions as soon as the compact
-            // catalogue is ready. The 257 KB ranked map is an enhancement, not
-            // a prerequisite: load it only when the below-the-fold section is
-            // approaching the viewport, then replace the fallback order.
+            // The category link is enough to make this section useful. Ranked
+            // suggestions and their four small metadata files are fetched only
+            // as the below-the-fold section approaches view; they never require
+            // downloading the whole 36.6 KB compressed lite catalogue.
             function renderRelated() {
-                if (relatedRenderStarted || (!catalogueSettled && !currentMeta)) return;
+                if (relatedRenderStarted || !metadataSettled) return;
                 relatedRenderStarted = true;
-
-                const related = allCards.length > 0
-                    ? (category !== 'General Tool'
-                        ? allCards.filter(c => c.name !== cardName && c.category === category)
-                        : allCards.filter(c => c.name !== cardName)).slice(0, 4)
-                    : [];
-                if (!related.length) return;
+                if (embedMode || !currentMeta) return;
 
                 const grid = document.getElementById('relatedGrid');
                 const section = document.getElementById('relatedSection');
                 if (!grid || !section) return;
 
+                const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                 function paintRelated(items) {
-                    const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                    // DOM-built with textContent: catalogue titles/descriptions
-                    // are data and must never be parsed as markup.
+                    // DOM-built with textContent: public catalogue data must
+                    // never be parsed as markup.
                     grid.innerHTML = '';
-                    items.forEach(c => {
+                    items.forEach(item => {
                         const a = document.createElement('a');
-                        a.href = 'tool.html?card=' + encodeURIComponent(c.name);
+                        a.href = 'tool.html?card=' + encodeURIComponent(item.name);
                         a.className = 'related-card';
                         const titleDiv = document.createElement('div');
                         titleDiv.className = 'related-card-title';
-                        titleDiv.textContent = c.title;
+                        titleDiv.textContent = item.title;
                         const descDiv = document.createElement('div');
                         descDiv.className = 'related-card-desc';
-                        descDiv.textContent = c.description || 'Quick, free online calculator.';
+                        descDiv.textContent = item.description || 'Quick, free online tool.';
                         a.appendChild(titleDiv);
                         a.appendChild(descDiv);
                         grid.appendChild(a);
                     });
-                    if (currentMeta) {
+
+                    if (category !== 'General Tool') {
                         const catLink = document.createElement('a');
                         catLink.href = 'categories/' + catSlug + '.html';
                         catLink.className = 'related-card';
@@ -1908,11 +1918,9 @@
                     section.style.display = 'block';
                 }
 
-                // The non-ranked fallback appears immediately, even if the map
-                // is offline or the visitor never scrolls this far.
-                paintRelated(related);
-                if (!currentMeta) return;
-
+                // Show a working path immediately, even if the optional related
+                // index or an individual tool specification cannot be reached.
+                paintRelated([]);
                 let requested = false;
                 const loadRanked = () => {
                     if (requested) return;
@@ -1921,12 +1929,23 @@
                         .then(res => res && res.ok ? res.json() : null)
                         .then(data => {
                             const slugs = data && Array.isArray(data[cardName]) ? data[cardName].slice(0, 4) : [];
-                            const ranked = slugs.map(s => allCards.find(c => c.name === s)).filter(Boolean);
-                            if (!ranked.length) return;
-                            const seen = new Set(ranked.map(c => c.name));
-                            paintRelated(ranked.concat(related.filter(c => !seen.has(c.name))).slice(0, 4));
+                            if (!slugs.length) return;
+                            const fallback = slugs.map(slug => ({
+                                name: slug,
+                                title: slug.replace(/-/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase()),
+                                description: 'A related tool from ' + category + '.'
+                            }));
+                            paintRelated(fallback);
+                            return Promise.all(slugs.map(slug =>
+                                fetchWithTimeout('api/tools/' + encodeURIComponent(slug) + '.json', 8000)
+                                    .then(res => res && res.ok ? res.json() : null)
+                                    .then(spec => spec && spec.slug === slug
+                                        ? { name: spec.slug, title: spec.title, description: spec.description || '' }
+                                        : null)
+                                    .catch(() => null)
+                            )).then(items => paintRelated(items.map((item, index) => item || fallback[index])));
                         })
-                        .catch(() => { /* the same-category suggestions remain usable */ });
+                        .catch(() => { /* the category link remains usable */ });
                 };
 
                 if ('IntersectionObserver' in window) {
@@ -1966,9 +1985,10 @@
             const surpriseBtn = document.getElementById('surpriseBtn');
             if (surpriseBtn) {
                 surpriseBtn.onclick = () => {
-                    let candidates = allCards.length > 1
-                        ? allCards.map(c => c.name || c.n).filter(n => n && n !== cardName)
-                        : VIRAL_SLUGS.filter(s => s !== cardName);
+                    // Surprise stays a one-click action: choose from the
+                    // curated set instead of downloading the entire catalogue
+                    // merely to randomise a destination.
+                    let candidates = VIRAL_SLUGS.filter(s => s !== cardName);
                     if (!candidates.length) candidates = VIRAL_SLUGS;
                     const nextSlug = candidates[Math.floor(Math.random() * candidates.length)];
                     window.location.href = 'tool.html?card=' + encodeURIComponent(nextSlug) + '&surprise=1';

@@ -281,6 +281,7 @@
             return root.MM.livemap.create(instance.element, {
               center: instance.state.center,
               zoom: instance.state.zoom,
+              style: style.style,
               styleUrl: style.url,
               interactive: opts.interactive !== false,
               units: opts.units,
