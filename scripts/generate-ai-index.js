@@ -48,6 +48,7 @@ const CATEGORY_ORDER = [
   ['AI & Autonomous Agents', '🤖'],
   ['Astronomy & Space', '🔭'],
   ['Dogs & Canine Care', '🐕'],
+  ['Cats & Feline Care', '🐈'],
   ['Birdwatching & Ornithology', '🦅'],
   ['Natural Remedies & Herbs', '🌿'],
   ['Lucid Dreaming & Sleep', '🌙'],
@@ -70,6 +71,7 @@ const CATEGORY_ORDER = [
   ['Virtual Worlds & Gaming', '🎮'],
   ['Museum & Collection', '🏛️'],
   ['Trucking & Freight', '🚚'],
+  ['Legal & Professional', '⚖️'],
 ];
 
 // One-line hub descriptions for tools-index.html sections. Plain, honest,
@@ -81,6 +83,7 @@ const CAT_BLURB = {
   'AI & Autonomous Agents': 'Prompt builders, simulators and agent-pattern playgrounds.',
   'Astronomy & Space': 'Star charts, lunar phases, telescope maths and orbital toys.',
   'Dogs & Canine Care': 'Feeding, training and health planners for good dogs.',
+  'Cats & Feline Care': 'Feeding maths, life stages, poison triage and kitten timelines for cats.',
   'Birdwatching & Ornithology': 'Identification helpers, logs and migration trackers.',
   'Natural Remedies & Herbs': 'Herb references and remedy notes, with folklore flagged as folklore.',
   'Lucid Dreaming & Sleep': 'Dream journals, reality checks and sleep-cycle planners.',
@@ -103,6 +106,7 @@ const CAT_BLURB = {
   'Productivity & Lifestyle': 'Passwords, timers, comparators and everyday decision tools.',
   'Virtual Worlds & Gaming': 'Simulators, board games and tiny worlds to get lost in.',
   'Museum & Collection': 'Catalogue and curate anything you collect.',
+  'Legal & Professional': 'Limitation and CPR deadlines, court and tribunal fees, tribunal awards and Inheritance Tax — with the statute cited on every figure.',
 };
 
 const esc = s => String(s == null ? '' : s)

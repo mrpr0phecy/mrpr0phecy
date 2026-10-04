@@ -42,6 +42,7 @@ const CAT_BLURBS = {
   'MrProphecy Arcade': 'Interactive web games, rhythm taps, lyric scrambles, beat challenges, and musical puzzles straight from the studio of UK artist MrProphecy.',
   'AI & Autonomous Agents': 'Interactive prompt engineering sandboxes, agent pattern simulators, RAG calculators, and large language model token budgeters. 100% private in-browser AI experimentation.',
   'Astronomy & Space': 'Stargazing tools, telescope magnification calculators, lunar phase calendars, satellite pass predictors, and orbital mechanics simulators for astronomy enthusiasts.',
+  'Cats & Feline Care': 'Feline calorie and portion calculators, life-stage and age conversion, a searchable poison and household-hazard checker with UK helplines, queen pregnancy and kitten timelines, and a litter-tray planner built on the AAFP/ISFM n+1 and sizing rules.',
   'Dogs & Canine Care': 'Nutritional calculators, puppy weight estimators, exercise planners, toxic food checkers, and positive training helpers for responsible dog owners.',
   'Birdwatching & Ornithology': 'Field identification aids, binocular optics calculators, life list tallies, nest box sizing guides, and bird migration trackers for birders of all levels.',
   'Natural Remedies & Herbs': 'Evidence-informed herbal monographs, home remedy references, interaction guides, and preparation formulas with folklore clearly flagged as folklore.',
@@ -65,6 +66,7 @@ const CAT_BLURBS = {
   'Virtual Worlds & Gaming': 'Dice rollers, character stat sheets, procedural dungeon generators, virtual world coordinate converters, and retro gaming utilities.',
   'Museum & Collection': 'Collection inventory organizers, coin and stamp grade guides, artifact scale calculators, and archival reference tools for collectors.',
   'Trucking & Freight': 'Hours-of-service clocks, axle-weight and bridge-formula checks, tyre load and pressure, load plans, stopping distances, grade descent, cost per mile, load-offer maths, pre-trip walkarounds and roadside breakdown triage. Written for drivers on both sides of the Atlantic — every tool carries US and EU/UK units, limits and rule references.',
+  'Legal & Professional': 'Limitation and claim-deadline calculators, CPR service and response dates, current court and tribunal fees, employment tribunal award estimates and Inheritance Tax with probate — every figure sourced and dated.',
 };
 
 function esc(str) {
