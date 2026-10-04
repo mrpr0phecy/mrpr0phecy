@@ -1517,14 +1517,12 @@
             const cardName = /^[a-z0-9-]{1,80}$/.test(String(rawCard).toLowerCase()) ? String(rawCard).toLowerCase() : 'bmi';
             const embedMode = toolApplyEmbedMode(params.get('embed') === '1');
 
-            // Watchdog — the loader must never be the last thing standing.
-            // Every fetch below is bounded by fetchWithTimeout, but a response
-            // BODY can still stall after its headers arrive (await res.text()
-            // has no natural timeout), which is the "card hangs on the loader
-            // forever" report. If the loader is still in the box when this
-            // fires, swap it for the retry UI instead of an infinite waveform.
-            // 25 s: fragment fetch (15 s cap) runs in parallel with the
-            // catalogue walk (2 × 10 s), plus parse/render margin.
+            // Last-resort watchdog — the loader must never be the last thing
+            // standing. fetchWithTimeout also bounds response bodies; this
+            // catches an unexpected parse/initialisation stall. Catalogue and
+            // related-data delays never hold the card's critical path. The
+            // 25-second guard leaves margin beyond the fragment's 15-second
+            // total deadline for parsing and mounting the card.
             const LOADER_WATCHDOG_MS = 25000;
             const loaderWatchdog = setTimeout(() => {
                 const box = document.getElementById('toolContainer');
@@ -1535,64 +1533,74 @@
                 }
             }, LOADER_WATCHDOG_MS);
 
-            let allCards = [];
             let currentMeta = null;
+            let title = cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            let category = 'General Tool';
+            let riskNoticeAttached = false;
+            let metadataSettled = false;
+            let relatedRenderStarted = false;
             // The mounted card, for the filled-link feature: its values, the
             // state it shipped with (so "changed" means the visitor changed
             // it), and the tools that read and write links from it.
             const toolLive = { card: cardName, root: null, snapshot: null };
 
-            // Fetch with timeout helper — prevents hanging forever
+            // Keep the deadline alive through the response BODY, not just until
+            // fetch() receives its headers. A connection can deliver headers
+            // and then stop sending bytes; that used to leave response.json()
+            // / response.text() waiting until the loader watchdog fired. The
+            // same deadline also works in browsers without AbortController.
             async function fetchWithTimeout(url, ms = 10000) {
                 const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-                const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
-                try {
-                    const res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
-                    return res;
-                } catch (e) {
-                    return null;
-                } finally {
-                    if (timer) clearTimeout(timer);
-                }
-            }
-
-            // The fragment URL is deterministic — every cards.json entry maps
-            // name -> cards/<name>.html (verified: 0 non-standard paths) — so
-            // its fetch fires NOW and runs in parallel with the catalogue
-            // fetch below instead of after it. The old sequential waterfall
-            // (catalogue first, fragment second) stacked seconds of loader
-            // time on slow connections, which is what looked like cards
-            // stalling when clicked.
-            const fragPromise = fetchWithTimeout(`cards/${cardName}.html`, 15000);
-
-            // Try lite catalogue (110KB) then full (548KB) — faster, works offline
-            const catalogueSources = ['cards/cards-lite.json', 'cards/cards.json'];
-            for (const src of catalogueSources) {
-                try {
-                    const jsonRes = await fetchWithTimeout(src, 10000);
-                    if (jsonRes && jsonRes.ok) {
-                        const data = await jsonRes.json();
-                        if (Array.isArray(data) && data.length > 0) {
-                            if (data[0].n) {
-                                allCards = data.map(d => ({ name: d.n, title: d.t, category: d.c, path: `cards/${d.n}.html`, description: '' }));
-                            } else {
-                                allCards = data;
-                            }
-                            currentMeta = allCards.find(c => c.name === cardName || c.id === cardName || (c.file && c.file === `${cardName}.html`));
-                            if (currentMeta) break;
-                        }
+                let timer = null;
+                let cancelDeadline = null;
+                const deadline = new Promise((resolve, reject) => {
+                    cancelDeadline = () => resolve(null);
+                    timer = setTimeout(() => {
+                        if (ctrl) ctrl.abort();
+                        reject(new Error('Request timed out'));
+                    }, ms);
+                });
+                const clearDeadline = () => {
+                    if (timer !== null) {
+                        clearTimeout(timer);
+                        timer = null;
                     }
+                    if (cancelDeadline) {
+                        cancelDeadline();
+                        cancelDeadline = null;
+                    }
+                };
+                try {
+                    const res = await Promise.race([
+                        fetch(url, ctrl ? { signal: ctrl.signal } : undefined),
+                        deadline
+                    ]);
+                    if (!res || !res.ok) {
+                        clearDeadline();
+                        return res;
+                    }
+                    const consume = method => async () => {
+                        try {
+                            return await Promise.race([res[method](), deadline]);
+                        } finally {
+                            clearDeadline();
+                        }
+                    };
+                    return {
+                        ok: res.ok,
+                        status: res.status,
+                        headers: res.headers,
+                        text: consume('text'),
+                        json: consume('json')
+                    };
                 } catch (e) {
-                    console.warn(`Could not load ${src}:`, e);
+                    clearDeadline();
+                    return null;
                 }
             }
 
-            const toolUrl = currentMeta && currentMeta.path ? currentMeta.path : `cards/${cardName}.html`;
-            const title = currentMeta ? (currentMeta.title || cardName) : cardName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const category = currentMeta ? (currentMeta.category || 'General Tool') : 'General Tool';
-
-            document.title = `${title} · The Most Useful Site in the World`;
-            if (!embedMode) {
+            function rememberRecent() {
+                if (embedMode) return;
                 try {
                     var recents = JSON.parse(localStorage.getItem('__mp_recent') || '[]');
                     if (!Array.isArray(recents)) recents = [];
@@ -1601,22 +1609,128 @@
                     localStorage.setItem('__mp_recent', JSON.stringify(recents.slice(0, 8)));
                 } catch (e) {}
             }
-            const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-            const catBadgeEl = document.getElementById('categoryBadge');
-            catBadgeEl.textContent = category;
-            catBadgeEl.href = 'categories/' + catSlug + '.html';
-            if (currentMeta) {
-                toolUpdateMetadata(cardName, title, currentMeta);
+
+            function updateResourcePanel() {
+                const resTitle = document.getElementById('resourceTitle');
+                const resDesc = document.getElementById('resourceDesc');
+                const resBtns = document.getElementById('resourceButtons');
+                if (!resTitle || !resDesc || !resBtns) return;
+                if (category === 'Music & Audio') {
+                    resTitle.textContent = '🎵 Music & Audio tools';
+                    resDesc.textContent = 'Explore free browser-based tools for tempo, chords, and audio tasks.';
+                    resBtns.innerHTML = '';
+                } else if (category === 'Finance & Money') {
+                    resTitle.textContent = '💼 Looking to Maximize Your Savings & Wealth?';
+                    resDesc.textContent = 'Smart budgeting starts with clear calculations. Support server hosting so this remains free for everyone.';
+                    resBtns.innerHTML = `
+                        <a href="https://paypal.me/russellhead/10GBP" target="_blank" rel="noopener" class="nav-btn" style="background:rgba(255,215,0,0.15);border-color:#ffd700;color:#ffd700;">☕ Support with £10</a>
+                    `;
+                } else {
+                    resTitle.textContent = '⚡ Enjoying this free tool?';
+                    resDesc.textContent = 'Over 1348+ free utilities built without paywalls, trackers, or subscriptions. A small tip fuels the next batch of tools.';
+                    resBtns.innerHTML = `
+                        <a href="https://paypal.me/russellhead/3GBP" target="_blank" rel="noopener" class="nav-btn" style="background:rgba(255,215,0,0.15);border-color:#ffd700;color:#ffd700;">☕ Tip £5 on PayPal</a>
+                    `;
+                }
             }
 
-            try {
-                // The fragment fetch started before the catalogue loop, so this
-                // await usually resolves instantly. (If a future catalogue ever
-                // carries a non-standard path, fetch that URL instead.)
-                let res = await fragPromise;
-                if (toolUrl !== `cards/${cardName}.html`) {
-                    res = await fetchWithTimeout(toolUrl, 15000);
+            function attachRiskNotice() {
+                const container = document.getElementById('toolContainer');
+                if (!container || !toolLive.root || riskNoticeAttached || !window.SiteRiskNotices) return;
+                const notice = SiteRiskNotices.attach(container, {
+                    name: currentMeta ? currentMeta.name : cardName,
+                    category: category
+                });
+                if (notice) riskNoticeAttached = true;
+            }
+
+            function applyToolMetadata() {
+                title = currentMeta ? (currentMeta.title || title) : title;
+                category = currentMeta ? (currentMeta.category || 'General Tool') : category;
+                document.title = `${title} · The Most Useful Site in the World`;
+                rememberRecent();
+
+                const catBadgeEl = document.getElementById('categoryBadge');
+                if (catBadgeEl) {
+                    if (currentMeta) {
+                        const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                        catBadgeEl.textContent = category;
+                        catBadgeEl.href = 'categories/' + catSlug + '.html';
+                    } else {
+                        catBadgeEl.textContent = 'Browse all tools';
+                        catBadgeEl.href = 'tools-index.html';
+                    }
                 }
+                if (currentMeta) toolUpdateMetadata(cardName, title, currentMeta);
+                updateResourcePanel();
+                attachRiskNotice();
+            }
+
+            // The card fragment is the critical path. Its URL is deterministic
+            // (every catalogue entry maps name -> cards/<name>.html), so start
+            // that request FIRST and never make a working calculator wait for
+            // catalogue metadata, related suggestions, or their fallbacks.
+            const fragPromise = fetchWithTimeout(`cards/${cardName}.html`, 15000);
+            applyToolMetadata();
+
+            // A per-tool machine spec supplies the title, category and risk
+            // metadata at about 1 KB compressed; the old path downloaded the
+            // 126 KB lite catalogue (about 36.6 KB compressed) on every view. The full lite
+            // file is retained only as a resilience fallback if this spec is
+            // missing or malformed. Neither request holds up the card.
+            async function loadMetadata() {
+                const specRes = await fetchWithTimeout(`api/tools/${encodeURIComponent(cardName)}.json`, 8000);
+                if (specRes && specRes.ok) {
+                    try {
+                        const spec = await specRes.json();
+                        if (spec && spec.slug === cardName && spec.title && spec.categoryName) {
+                            currentMeta = {
+                                name: spec.slug,
+                                title: spec.title,
+                                category: spec.categoryName,
+                                description: spec.description || ''
+                            };
+                            applyToolMetadata();
+                            return;
+                        }
+                    } catch (error) {
+                        console.warn('Could not load the tool specification:', error);
+                    }
+                }
+
+                // A broken or unavailable per-tool endpoint must not silently
+                // remove category or health/finance notices. The small lite
+                // catalogue is slower, but it is a safe fallback off the card's
+                // critical path.
+                const catalogueRes = await fetchWithTimeout('cards/cards-lite.json', 10000);
+                if (!catalogueRes || !catalogueRes.ok) return;
+                try {
+                    const data = await catalogueRes.json();
+                    if (!Array.isArray(data)) return;
+                    const match = data.find(entry => entry && (entry.n || entry.name || entry.id) === cardName);
+                    if (!match) return;
+                    currentMeta = {
+                        name: match.n || match.name || match.id,
+                        title: match.t || match.title || cardName,
+                        category: match.c || match.category || 'General Tool',
+                        description: match.description || ''
+                    };
+                    applyToolMetadata();
+                } catch (error) {
+                    console.warn('Could not load fallback tool metadata:', error);
+                }
+            }
+            loadMetadata().then(() => {
+                metadataSettled = true;
+                renderRelated();
+            }).catch(error => {
+                metadataSettled = true;
+                console.warn('Could not load tool metadata:', error);
+                renderRelated();
+            });
+
+            try {
+                const res = await fragPromise;
                 if (!res || !res.ok) throw new Error(`HTTP ${res ? res.status : 'network error'}`);
                 const html = await res.text();
                 if (!html || html.trim().length === 0) throw new Error('Empty response');
@@ -1625,13 +1739,10 @@
                 container.innerHTML = '';
                 clearTimeout(loaderWatchdog);
 
-                // Shell-level risk notice (one shared mapping: risk-notices.js)
-                if (window.SiteRiskNotices) {
-                    SiteRiskNotices.attach(container, {
-                        name: currentMeta ? currentMeta.name : cardName,
-                        category: category
-                    });
-                }
+                // Risk notices may arrive after a cached card does. Attach
+                // once now, then attach from applyToolMetadata() if the
+                // catalogue resolves later with a risk-bearing category.
+                attachRiskNotice();
 
                 // Parse and inject
                 const parser = new DOMParser();
@@ -1649,10 +1760,10 @@
                 // and tool.html is the only surface that injects fragments — so
                 // without a .card ancestor here, those lookups return null and
                 // the cards' init and click handlers silently bail (the "card
-                // stalls when clicked" reports). .card has no styles anywhere
+                // stalls when clicked" reports). .card has no layout styling
                 // (card.css only defines .card-wrap; fragments scope .card
-                // rules under their own #*-root ids), so this is purely a JS
-                // scope hook with zero visual effect.
+                // rules under their own #*-root ids); it gets the shell's
+                // existing entrance animation but does not alter card geometry.
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'card';
                 while (doc.body.firstChild) {
@@ -1692,6 +1803,10 @@
                 // that differs from it later is something the visitor (or the
                 // link) chose. Prefill then fills, and only `run=1` runs.
                 toolLive.root = contentDiv;
+                // Metadata may have arrived before the card fragment. Retry
+                // the attach now that a real card root exists; applyToolMetadata
+                // covers the opposite (late metadata) ordering.
+                attachRiskNotice();
                 toolLive.snapshot = toolSnapshot(contentDiv);
                 const prefillReport = toolApplyPrefill(contentDiv, params);
                 const askedToRun = prefillReport.applied.length > 0 && params.get('run') === '1';
@@ -1745,103 +1860,110 @@
                 } catch (e) { /* observer unavailable — the initial report still fired */ }
             }
 
-            // Contextual Resource & Monetization Box
-            const resTitle = document.getElementById('resourceTitle');
-            const resDesc = document.getElementById('resourceDesc');
-            const resBtns = document.getElementById('resourceButtons');
+            // Contextual Resource & Monetization Box was set immediately with
+            // the fallback copy, and applyToolMetadata() refreshes it if the
+            // catalogue provides a more specific category later.
+            updateResourcePanel();
 
-            if (category === 'Music & Audio') {
-                resTitle.textContent = '🎵 Music & Audio tools';
-                resDesc.textContent = 'Explore free browser-based tools for tempo, chords, and audio tasks.';
-                resBtns.innerHTML = '';
-            } else if (category === 'Finance & Money') {
-                resTitle.textContent = '💼 Looking to Maximize Your Savings & Wealth?';
-                resDesc.textContent = 'Smart budgeting starts with clear calculations. Support server hosting so this remains free for everyone.';
-                resBtns.innerHTML = `
-                    <a href="https://paypal.me/russellhead/10GBP" target="_blank" rel="noopener" class="nav-btn" style="background:rgba(255,215,0,0.15);border-color:#ffd700;color:#ffd700;">☕ Support with £10</a>
-                `;
-            } else {
-                resTitle.textContent = '⚡ Enjoying this free tool?';
-                resDesc.textContent = 'Over 1348+ free utilities built without paywalls, trackers, or subscriptions. A small tip fuels the next batch of tools.';
-                resBtns.innerHTML = `
-                    <a href="https://paypal.me/russellhead/3GBP" target="_blank" rel="noopener" class="nav-btn" style="background:rgba(255,215,0,0.15);border-color:#ffd700;color:#ffd700;">☕ Tip £5 on PayPal</a>
-                `;
-            }
+            // The category link is enough to make this section useful. Ranked
+            // suggestions and their four small metadata files are fetched only
+            // as the below-the-fold section approaches view; they never require
+            // downloading the whole 36.6 KB compressed lite catalogue.
+            function renderRelated() {
+                if (relatedRenderStarted || !metadataSettled) return;
+                relatedRenderStarted = true;
+                if (embedMode || !currentMeta) return;
 
-            // Render Related Tools
-            // Use pre-computed related.json (ranked by build scripts)
-            // instead of loading the full cards.json and doing client-side
-            // keyword matching. The pre-computed version is faster (one targeted
-            // lookup vs scoring 1,249 candidates) and better (built from richer
-            // signals than word overlap).
-            async function renderRelated() {
-                let relatedSlugs = [];
-                // Only fetch related.json if we know which tool this is
-                if (currentMeta) {
-                    try {
-                        const relRes = await fetchWithTimeout('related.json', 8000);
-                        if (relRes && relRes.ok) {
-                            const relData = await relRes.json();
-                            relatedSlugs = (relData[cardName] || []).slice(0, 4);
-                        }
-                    } catch (e) { /* related.json unavailable — skip silently */ }
-                }
+                const grid = document.getElementById('relatedGrid');
+                const section = document.getElementById('relatedSection');
+                if (!grid || !section) return;
 
-                // Fall back to same-category tools from the lite catalogue if
-                // related.json has nothing for this tool (should not happen for
-                // any tool in the catalogue, but a custom slug could).
-                let related = [];
-                if (relatedSlugs.length > 0) {
-                    // Preserve the ranking order from related.json
-                    related = relatedSlugs
-                        .map(s => allCards.find(c => c.name === s))
-                        .filter(Boolean);
-                }
-                if (related.length === 0 && allCards.length > 0) {
-                    // No related.json match — same-category first, then any tools
-                    const same = category !== 'General Tool'
-                        ? allCards.filter(c => c.name !== cardName && c.category === category)
-                        : allCards.filter(c => c.name !== cardName);
-                    related = same.slice(0, 4);
-                }
-
-                if (related.length > 0) {
-                    const grid = document.getElementById('relatedGrid');
-                    const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                    // DOM-built with textContent: titles and descriptions come from
-                    // cards.json and must never touch innerHTML.
+                const catSlug = category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                function paintRelated(items) {
+                    // DOM-built with textContent: public catalogue data must
+                    // never be parsed as markup.
                     grid.innerHTML = '';
-                    related.forEach(c => {
+                    items.forEach(item => {
                         const a = document.createElement('a');
-                        a.href = 'tool.html?card=' + encodeURIComponent(c.name);
+                        a.href = 'tool.html?card=' + encodeURIComponent(item.name);
                         a.className = 'related-card';
                         const titleDiv = document.createElement('div');
                         titleDiv.className = 'related-card-title';
-                        titleDiv.textContent = c.title;
+                        titleDiv.textContent = item.title;
                         const descDiv = document.createElement('div');
                         descDiv.className = 'related-card-desc';
-                        descDiv.textContent = c.description || 'Quick, free online calculator.';
+                        descDiv.textContent = item.description || 'Quick, free online tool.';
                         a.appendChild(titleDiv);
                         a.appendChild(descDiv);
                         grid.appendChild(a);
                     });
-                    // Category exploration link
-                    const catLink = document.createElement('a');
-                    catLink.href = 'categories/' + catSlug + '.html';
-                    catLink.className = 'related-card';
-                    catLink.style.cssText = 'border-color:color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 6%, transparent);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;';
-                    const catTitle = document.createElement('div');
-                    catTitle.className = 'related-card-title';
-                    catTitle.style.color = 'var(--accent)';
-                    catTitle.textContent = '\uD83D\uDCC2 Explore Category';
-                    const catDesc = document.createElement('div');
-                    catDesc.className = 'related-card-desc';
-                    catDesc.style.color = 'var(--text)';
-                    catDesc.textContent = 'All free ' + category + ' tools \u2192';
-                    catLink.appendChild(catTitle);
-                    catLink.appendChild(catDesc);
-                    grid.appendChild(catLink);
-                    document.getElementById('relatedSection').style.display = 'block';
+
+                    if (category !== 'General Tool') {
+                        const catLink = document.createElement('a');
+                        catLink.href = 'categories/' + catSlug + '.html';
+                        catLink.className = 'related-card';
+                        catLink.style.cssText = 'border-color:color-mix(in srgb, var(--accent) 40%, transparent);background:color-mix(in srgb, var(--accent) 6%, transparent);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;';
+                        const catTitle = document.createElement('div');
+                        catTitle.className = 'related-card-title';
+                        catTitle.style.color = 'var(--accent)';
+                        catTitle.textContent = '\uD83D\uDCC2 Explore Category';
+                        const catDesc = document.createElement('div');
+                        catDesc.className = 'related-card-desc';
+                        catDesc.style.color = 'var(--text)';
+                        catDesc.textContent = 'All free ' + category + ' tools \u2192';
+                        catLink.appendChild(catTitle);
+                        catLink.appendChild(catDesc);
+                        grid.appendChild(catLink);
+                    }
+                    section.style.display = 'block';
+                }
+
+                // Show a working path immediately, even if the optional related
+                // index or an individual tool specification cannot be reached.
+                paintRelated([]);
+                let requested = false;
+                const loadRanked = () => {
+                    if (requested) return;
+                    requested = true;
+                    fetchWithTimeout('related.json', 8000)
+                        .then(res => res && res.ok ? res.json() : null)
+                        .then(data => {
+                            const slugs = data && Array.isArray(data[cardName]) ? data[cardName].slice(0, 4) : [];
+                            if (!slugs.length) return;
+                            const fallback = slugs.map(slug => ({
+                                name: slug,
+                                title: slug.replace(/-/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase()),
+                                description: 'A related tool from ' + category + '.'
+                            }));
+                            paintRelated(fallback);
+                            return Promise.all(slugs.map(slug =>
+                                fetchWithTimeout('api/tools/' + encodeURIComponent(slug) + '.json', 8000)
+                                    .then(res => res && res.ok ? res.json() : null)
+                                    .then(spec => spec && spec.slug === slug
+                                        ? { name: spec.slug, title: spec.title, description: spec.description || '' }
+                                        : null)
+                                    .catch(() => null)
+                            )).then(items => paintRelated(items.map((item, index) => item || fallback[index])));
+                        })
+                        .catch(() => { /* the category link remains usable */ });
+                };
+
+                if ('IntersectionObserver' in window) {
+                    try {
+                        const observer = new IntersectionObserver(entries => {
+                            if (!entries.some(entry => entry.isIntersecting)) return;
+                            observer.disconnect();
+                            loadRanked();
+                        }, { rootMargin: '240px 0px' });
+                        observer.observe(section);
+                    } catch (e) {
+                        if ('requestIdleCallback' in window) requestIdleCallback(loadRanked, { timeout: 5000 });
+                        else setTimeout(loadRanked, 1000);
+                    }
+                } else if ('requestIdleCallback' in window) {
+                    requestIdleCallback(loadRanked, { timeout: 5000 });
+                } else {
+                    setTimeout(loadRanked, 1000);
                 }
             }
 
@@ -1863,9 +1985,10 @@
             const surpriseBtn = document.getElementById('surpriseBtn');
             if (surpriseBtn) {
                 surpriseBtn.onclick = () => {
-                    let candidates = allCards.length > 1
-                        ? allCards.map(c => c.name || c.n).filter(n => n && n !== cardName)
-                        : VIRAL_SLUGS.filter(s => s !== cardName);
+                    // Surprise stays a one-click action: choose from the
+                    // curated set instead of downloading the entire catalogue
+                    // merely to randomise a destination.
+                    let candidates = VIRAL_SLUGS.filter(s => s !== cardName);
                     if (!candidates.length) candidates = VIRAL_SLUGS;
                     const nextSlug = candidates[Math.floor(Math.random() * candidates.length)];
                     window.location.href = 'tool.html?card=' + encodeURIComponent(nextSlug) + '&surprise=1';

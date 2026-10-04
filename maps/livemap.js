@@ -29,15 +29,32 @@
   })();
 
   var loadPromise = null;
+  var SCRIPT_TIMEOUT_MS = 8000;
+  var STYLESHEET_TIMEOUT_MS = 3000;
 
   function loadScript(url, attributes) {
     return new Promise(function (resolve, reject) {
       var script = root.document.createElement('script');
+      var settled = false;
+      var timer = root.setTimeout(function () {
+        finish(new Error('timed out loading ' + url));
+      }, SCRIPT_TIMEOUT_MS);
+      function finish(error) {
+        if (settled) return;
+        settled = true;
+        root.clearTimeout(timer);
+        if (error) {
+          try {
+            if (script.parentNode && script.parentNode.removeChild) script.parentNode.removeChild(script);
+          } catch (removeError) { /* a late bundle must not block the offline map */ }
+          reject(error);
+        } else resolve();
+      }
       script.src = url;
       script.async = true;
       if (attributes) Object.keys(attributes).forEach(function (k) { script.setAttribute(k, attributes[k]); });
-      script.onload = function () { resolve(); };
-      script.onerror = function () { reject(new Error('could not load ' + url)); };
+      script.onload = function () { finish(); };
+      script.onerror = function () { finish(new Error('could not load ' + url)); };
       root.document.head.appendChild(script);
     });
   }
@@ -46,11 +63,19 @@
     if (root.document.querySelector('link[data-mostusefulmaps="' + url + '"]')) return Promise.resolve();
     return new Promise(function (resolve) {
       var link = root.document.createElement('link');
+      var settled = false;
+      var timer = root.setTimeout(done, STYLESHEET_TIMEOUT_MS);
+      function done() {
+        if (settled) return;
+        settled = true;
+        root.clearTimeout(timer);
+        resolve();
+      }
       link.rel = 'stylesheet';
       link.href = url;
       link.setAttribute('data-mostusefulmaps', url);
-      link.onload = function () { resolve(); };
-      link.onerror = function () { resolve(); }; // CSS is cosmetic; carry on
+      link.onload = done;
+      link.onerror = done; // CSS is cosmetic; carry on
       root.document.head.appendChild(link);
     });
   }
@@ -65,6 +90,12 @@
     ]).then(function () {
       if (!root.maplibregl) throw new Error('MapLibre loaded but did not initialise');
       return root.maplibregl;
+    }).catch(function (error) {
+      // A transient asset error is not permanent: Retry and the browser's
+      // online event must be able to request a fresh script rather than reusing
+      // a cached rejected Promise forever.
+      loadPromise = null;
+      throw error;
     });
     return loadPromise;
   }
@@ -80,7 +111,7 @@
 
   /**
    * create(container, options) → handle
-   *   options: { center, zoom, styleUrl, interactive, onReady, onError,
+   *   options: { center, zoom, style, styleUrl, interactive, onReady, onError,
    *              onMove, nav, globe }
    *
    * The handle is *always* returned synchronously; the live map appears when
@@ -88,6 +119,7 @@
    */
   function create(container, options) {
     var opts = options || {};
+    var holder = null;
     var handle = {
       status: 'loading',
       map: null,
@@ -95,6 +127,12 @@
         handle.destroyed = true;
         try { if (handle.map) handle.map.remove(); } catch (error) { /* already gone */ }
         handle.map = null;
+        // MapLibre removes its canvas and controls, not the wrapper this module
+        // appended above the offline canvas. Leaving the empty, full-size layer
+        // in place would intercept map gestures after a tile failure.
+        try {
+          if (holder && holder.parentNode && holder.parentNode.removeChild) holder.parentNode.removeChild(holder);
+        } catch (error) { /* the offline map remains visible underneath */ }
       },
       setStyle: function (url) {
         if (!handle.map) { handle.pendingStyle = url; return; }
@@ -110,7 +148,7 @@
       return handle;
     }
 
-    var holder = root.document.createElement('div');
+    holder = root.document.createElement('div');
     holder.className = 'mm-live-layer';
     // Sits above the offline canvas; hidden until it has painted, so the
     // visitor never sees an empty grey rectangle.
@@ -125,7 +163,7 @@
         : [0, 20];
       var map = new maplibregl.Map({
         container: holder,
-        style: opts.styleUrl || 'https://tiles.openfreemap.org/styles/fiord',
+        style: opts.style || opts.styleUrl || 'https://tiles.openfreemap.org/styles/fiord',
         center: center,
         zoom: opts.zoom == null ? 2 : opts.zoom,
         attributionControl: opts.attribution === false ? false : { compact: true, customAttribution: opts.customAttribution },
@@ -208,8 +246,9 @@
       }, opts.timeoutMs || 12000);
     }).catch(function (error) {
       handle.status = 'failed';
-      handle.reason = error.message;
-      if (opts.onError) opts.onError(error.message);
+      handle.reason = error && error.message ? error.message : 'live map setup failed';
+      handle.destroy();
+      if (opts.onError) opts.onError(handle.reason);
     });
 
     return handle;
