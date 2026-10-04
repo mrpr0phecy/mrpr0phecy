@@ -11,7 +11,7 @@ ordering, `tools-index.json`) and all delimited by marker comments:
 
 1. `HOME-FEATURED`  (in `#featured`) — the twelve "start here" rows.
 2. `HOME-TRENDING`  (in `#trending`) — the eight most-used rows.
-3. `HOME-CATEGORIES` (in `#categories`) — all 29 category hubs as real links.
+3. `HOME-CATEGORIES` (in `#categories`) — every category hub as a real link.
 
 What it used to generate, and why that stopped (2026-09-21)
 -----------------------------------------------------------
@@ -144,7 +144,7 @@ def category_tiles(catalogue: dict[str, dict]) -> str:
     """The category hubs as real anchors, in the browse order the page uses.
 
     The home page reaches the crawlable catalogue through these links: a
-    crawler (or a no-JS visitor) arriving at `/` gets all 29 hubs and, one hop
+    crawler (or a no-JS visitor) arriving at `/` gets every hub and, one hop
     further, a page listing every tool in each. Before this block existed the
     hub links were rendered from tools-index.json after it landed, so the home
     page's route into the catalogue existed only for browsers running scripts.

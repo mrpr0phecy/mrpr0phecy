@@ -12,7 +12,7 @@ Contrast Checker uses (`cards/color-contrast-checker.html`,
 
 ## 1. What this document is for
 
-One person maintains 1,348 tools, 31 category pages, a music product, a
+One person maintains 1,368 tools, 33 category pages, a music product, a
 standalone AI and every generated surface between. Design drift at that scale
 is a maintenance cost, not a matter of taste: this file lets a new tool,
 contributor or agent see the visual rules in one place, records the brand

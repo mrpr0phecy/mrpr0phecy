@@ -1,0 +1,103 @@
+<div id="fpb-root" style="color:var(--text);">
+  <h2 id="fpb-title" style="margin-top:0;color:var(--accent);">🕯 Planchette Story Prop</h2>
+  <p id="fpb-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">
+    A screen-friendly letter board that spells one prewritten horror line at a time. Choose the mood and reveal pace; use it as a fictional prop for a consenting cast on a controlled set.
+  </p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(255,190,90,.23);border-radius:10px;background:rgba(255,190,90,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:#ffd18a;">STORY MODE · NO SPIRIT COMMUNICATION</strong><br>
+    The board selects a line from a built-in fiction deck. It does not listen, contact anyone, or answer questions. Nothing moves until you press Start.
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:13px;">
+    <div>
+      <label for="fpb-mood" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Scene mood</label>
+      <select id="fpb-mood" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);">
+        <option value="quiet">Quiet dread</option><option value="warning">A warning</option><option value="reveal">The reveal</option>
+      </select>
+    </div>
+    <div>
+      <label for="fpb-speed" style="display:block;color:var(--accent);font-size:.82rem;font-weight:700;margin-bottom:5px;">Reveal pace</label>
+      <select id="fpb-speed" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);">
+        <option value="780">Slow burn · 0.78 s per letter</option><option value="480" selected>Uneasy · 0.48 s per letter</option><option value="260">Faster take · 0.26 s per letter</option>
+      </select>
+    </div>
+  </div>
+  <div id="fpb-board" role="img" aria-label="Decorative letter board for a fictional horror story effect" style="display:grid;grid-template-columns:repeat(7,minmax(28px,1fr));gap:5px;padding:12px;border-radius:12px;background:radial-gradient(ellipse at center,rgba(112,34,47,.25),rgba(5,7,11,.96));border:1px solid rgba(255,255,255,.1);margin-bottom:14px;"></div>
+  <div style="min-height:68px;padding:13px 15px;border-radius:10px;background:rgba(0,0,0,.24);border-left:3px solid #9c2340;margin-bottom:12px;">
+    <div style="color:var(--text-secondary);font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px;">Fictional line</div>
+    <div id="fpb-line" aria-live="off" aria-atomic="true" style="font:800 clamp(1.1rem,5vw,1.7rem) ui-monospace,monospace;letter-spacing:.06em;color:#f4dce0;min-height:1.4em;">—</div>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:10px;">
+    <button id="fpb-start" type="button" style="padding:10px 14px;border:0;border-radius:8px;background:#9c2340;color:#fff;font-weight:800;cursor:pointer;">Start fictional take</button>
+    <button id="fpb-stop" type="button" disabled style="padding:10px 14px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:transparent;color:var(--text);font-weight:700;cursor:pointer;">Stop</button>
+  </div>
+  <div id="fpb-status" role="status" aria-live="polite" style="color:var(--text-secondary);font-size:.83rem;">Ready · nothing is listening or moving.</div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('fpb-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#fpb-' + key); };
+  var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  var cells = [];
+  var timeout = 0;
+  var line = '';
+  var position = 0;
+  var previous = '';
+  var banks = {
+    quiet: ['THE ROOM REMEMBERS', 'NOTHING WAS HERE', 'THE LAST VOICE WAS YOURS', 'SOMEONE MOVED THE CHAIR', 'THE TAPE IS STILL RUNNING', 'I WAS HERE FIRST'],
+    warning: ['DO NOT OPEN THAT DOOR', 'WAIT FOR THE FOOTSTEPS', 'LEAVE THE LIGHT ON', 'THE HALL IS NOT EMPTY', 'STAY WITH THE CAMERA', 'THE STAIRS CREAK TWICE'],
+    reveal: ['LOOK AT THE EMPTY CHAIR', 'THAT SHADOW IS YOURS', 'THE WINDOW WAS OPEN', 'YOU HEARD THE OPERATOR', 'THE VOICE CAME FROM THE MIC', 'THE ROOM WAS NEVER EMPTY']
+  };
+  letters.forEach(function (letter) {
+    var cell = document.createElement('span');
+    cell.textContent = letter;
+    cell.setAttribute('aria-hidden', 'true');
+    cell.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:34px;border-radius:6px;border:1px solid rgba(255,255,255,.08);color:rgba(235,220,220,.72);font:700 .85rem ui-monospace,monospace;transition:background .15s,color .15s;';
+    $('board').appendChild(cell);
+    cells.push(cell);
+  });
+  function clearBoard() { cells.forEach(function (cell) { cell.style.background = 'transparent'; cell.style.color = 'rgba(235,220,220,.72)'; cell.style.boxShadow = 'none'; }); }
+  function finish(message) {
+    if (timeout) window.clearTimeout(timeout);
+    timeout = 0;
+    $('start').disabled = false;
+    $('stop').disabled = true;
+    $('line').setAttribute('aria-live', 'polite');
+    $('status').textContent = message;
+  }
+  function step() {
+    if (position >= line.length) { finish('Fictional line complete · no communication occurred.'); return; }
+    var character = line.charAt(position);
+    $('line').textContent += character;
+    var idx = letters.indexOf(character);
+    if (idx >= 0) {
+      cells[idx].style.background = 'rgba(190,48,70,.28)';
+      cells[idx].style.color = '#fff';
+      cells[idx].style.boxShadow = '0 0 16px rgba(225,55,85,.48)';
+    }
+    position += 1;
+    timeout = window.setTimeout(step, Number($('speed').value));
+  }
+  $('start').addEventListener('click', function () {
+    if (timeout) return;
+    var bank = banks[$('mood').value] || banks.quiet;
+    var choices = bank.filter(function (phrase) { return phrase !== previous; });
+    line = choices[Math.floor(Math.random() * choices.length)] || bank[0];
+    previous = line;
+    position = 0;
+    clearBoard();
+    $('line').textContent = '';
+    $('line').setAttribute('aria-live', 'off');
+    $('start').disabled = true;
+    $('stop').disabled = false;
+    $('status').textContent = 'A prewritten fictional phrase is being displayed.';
+    step();
+  });
+  $('stop').addEventListener('click', function () { finish('Stopped · the partial line is fiction and is not a response.'); });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function () { if (!root.isConnected) { if (timeout) window.clearTimeout(timeout); observer.disconnect(); } });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+})();
+</script>

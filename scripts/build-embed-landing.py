@@ -61,7 +61,7 @@ FEATURED_SLUGS = [
 # Pricing must stay identical to embed.html (#pricing); check-finance.js
 # guards the prices there. If the owner reprices, change both — the diff will
 # make the change reviewable.
-PRICES = [("Free embed", "0", ["All 1149 tools, any site",
+PRICES = [("Free embed", "0", ["All {total} tools, any site",
                                 "Small credit line (required)",
                                 "No ads, no accounts, no paywalls"],
            "Copy a snippet above", "#top", True),
@@ -77,7 +77,7 @@ PRICES = [("Free embed", "0", ["All 1149 tools, any site",
                                "Statutory updates included"],
            "Enquire — £299/yr",
            "mailto:hello@themostusefulsiteintheworld.com?subject=Licence%20enquiry%20%E2%80%94%20Category%20%28%C2%A3299%2Fyr%29", False),
-          ("Full white-label", "899", ["All 1149 tools, unlimited sites",
+          ("Full white-label", "899", ["All {total} tools, unlimited sites",
                                        "Your branding throughout",
                                        "Self-host option",
                                        "Statutory updates + priority fixes"],

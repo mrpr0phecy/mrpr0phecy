@@ -183,6 +183,33 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-04 — ten local-first horror production tools: fictional creator props,
+  // offline audio/photo review, a real magnetometer readout, cue timing and a
+  // permission-first safety gate. All effects are labeled as staged; no card
+  // claims to detect or contact spirits.
+  'spirit-box-wordstream': 'Horror & Paranormal',
+  'evp-review-lab': 'Horror & Paranormal',
+  'magnetometer-field-log': 'Horror & Paranormal',
+  'sls-figure-composer': 'Horror & Paranormal',
+  'haunted-photo-fx-studio': 'Horror & Paranormal',
+  'haunt-atmosphere-generator': 'Horror & Paranormal',
+  'fictional-planchette-board': 'Horror & Paranormal',
+  'ghost-radar-prop': 'Horror & Paranormal',
+  'haunt-cue-sequencer': 'Horror & Paranormal',
+  'safe-night-shoot-planner': 'Horror & Paranormal',
+  // 2026-10-04 — evidence-first fieldwork for permitted investigations:
+  // controlled protocols, environmental baselines, time/location grids,
+  // independent listening, witness notes, equipment checks, hashes and reports.
+  'field-protocol-control-planner': 'Field Investigation & Evidence',
+  'environmental-baseline-survey': 'Field Investigation & Evidence',
+  'room-sweep-grid-mapper': 'Field Investigation & Evidence',
+  'investigation-timeline-logger': 'Field Investigation & Evidence',
+  'evp-blind-listening-worksheet': 'Field Investigation & Evidence',
+  'witness-statement-worksheet': 'Field Investigation & Evidence',
+  'equipment-reference-check-log': 'Field Investigation & Evidence',
+  'evidence-integrity-manifest': 'Field Investigation & Evidence',
+  'alternative-explanation-review': 'Field Investigation & Evidence',
+  'investigation-report-builder': 'Field Investigation & Evidence',
   // 2026-10-04 — the Cats & Feline Care shelf: feline calorie/portion maths,
   // life stages, a poison and household-hazard checker, queen-and-kitten
   // timelines, and litter-tray planning. First non-canine pet family with its

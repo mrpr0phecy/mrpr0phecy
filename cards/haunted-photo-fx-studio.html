@@ -1,0 +1,158 @@
+<div id="hfx-root" style="color:var(--text);">
+  <h2 id="hfx-title" style="margin-top:0;color:var(--accent);">📷 Haunted Photo FX Studio</h2>
+  <p id="hfx-desc" class="small" style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">
+    Build a still-frame look for a horror video: green night-vision-style grading, heat-map colors, noir or analog-tape texture, optional grain and an optional orb overlay. Import and export stay on this device.
+  </p>
+  <div role="note" style="padding:10px 12px;margin-bottom:14px;border:1px solid rgba(255,190,90,.23);border-radius:10px;background:rgba(255,190,90,.06);font-size:.84rem;line-height:1.55;color:var(--text-secondary);">
+    <strong style="color:#ffd18a;">COLOR EFFECTS ONLY · NOT A THERMAL CAMERA</strong><br>
+    Phone photos cannot be converted into real infrared or thermal measurements. Every filter and orb here is a fictional post-production effect, not a finding.
+  </div>
+  <label for="hfx-file" style="display:block;margin-bottom:6px;color:var(--accent);font-size:.85rem;font-weight:700;">Choose a still image (up to 20 MB)</label>
+  <input id="hfx-file" type="file" accept="image/*" style="display:block;width:100%;margin-bottom:12px;color:var(--text);">
+  <canvas id="hfx-canvas" width="720" height="405" role="img" aria-label="Preview of a fictional horror photo color grade" style="display:block;width:100%;height:auto;max-height:520px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:#05080b;margin-bottom:12px;"></canvas>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:12px;">
+    <div>
+      <label for="hfx-look" style="display:block;margin-bottom:5px;color:var(--accent);font-size:.8rem;font-weight:700;">Color grade</label>
+      <select id="hfx-look" style="width:100%;padding:9px;border-radius:7px;background:var(--bg-secondary,#141e28);color:var(--text);border:1px solid rgba(255,255,255,.12);">
+        <option value="night">Green night-vision look</option><option value="thermal">False-color heat map</option><option value="noir">Cold monochrome</option><option value="tape">Analog tape</option>
+      </select>
+    </div>
+    <div>
+      <label for="hfx-mix" style="display:block;margin-bottom:5px;color:var(--accent);font-size:.8rem;font-weight:700;">Effect strength: <output id="hfx-mix-out">75%</output></label>
+      <input id="hfx-mix" type="range" min="0" max="100" value="75" style="width:100%;accent-color:var(--accent);">
+    </div>
+    <div>
+      <label for="hfx-grain" style="display:block;margin-bottom:5px;color:var(--accent);font-size:.8rem;font-weight:700;">Film grain: <output id="hfx-grain-out">18%</output></label>
+      <input id="hfx-grain" type="range" min="0" max="55" value="18" style="width:100%;accent-color:var(--accent);">
+    </div>
+  </div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 13px;color:var(--text-secondary);font-size:.84rem;">
+    <label style="display:flex;align-items:center;gap:7px;"><input id="hfx-scanlines" type="checkbox" checked style="accent-color:var(--accent);"> Add soft scanlines</label>
+    <label style="display:flex;align-items:center;gap:7px;"><input id="hfx-orb" type="checkbox" style="accent-color:var(--accent);"> Add one staged orb overlay</label>
+    <label style="display:flex;align-items:center;gap:7px;"><input id="hfx-watermark" type="checkbox" checked style="accent-color:var(--accent);"> Mark export “FICTIONAL FX”</label>
+  </div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;">
+    <button id="hfx-export" type="button" disabled style="padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#071017;font-weight:800;cursor:pointer;">Export graded PNG</button>
+    <span id="hfx-status" role="status" aria-live="polite" style="color:var(--text-secondary);font-size:.83rem;">Choose a photo to begin.</span>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('hfx-root');
+  if (!root || root.dataset.ready === '1') return;
+  root.dataset.ready = '1';
+  var $ = function (key) { return root.querySelector('#hfx-' + key); };
+  var canvas = $('canvas');
+  var ctx = canvas.getContext('2d');
+  var image = null;
+  var imageUrl = '';
+  function status(text) { $('status').textContent = text; }
+  function applyPixels() {
+    var mode = $('look').value;
+    var mix = Number($('mix').value) / 100;
+    try {
+      var frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      var d = frame.data;
+      for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], g = d[i + 1], b = d[i + 2];
+        var l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        var nr = r, ng = g, nb = b;
+        if (mode === 'night') { nr = l * 0.12; ng = Math.min(255, l * 1.05 + 10); nb = l * 0.20; }
+        else if (mode === 'thermal') {
+          var n = l / 255, hr, hg, hb;
+          if (n < .25) { hr = Math.round(n * 152); hg = 0; hb = Math.round(90 + n * 600); }
+          else if (n < .5) { var a = (n - .25) * 4; hr = 0; hg = Math.round(a * 170); hb = 240 - Math.round(a * 230); }
+          else if (n < .76) { var b = (n - .5) / .26; hr = Math.round(255 * b); hg = Math.round(170 + 70 * b); hb = 10; }
+          else { var c = (n - .76) / .24; hr = 255; hg = Math.round(240 + 15 * c); hb = Math.round(10 + 180 * c); }
+          nr = hr; ng = hg; nb = hb;
+        }
+        else if (mode === 'noir') { nr = l * 0.82; ng = l * 0.91; nb = Math.min(255, l + 12); }
+        else if (mode === 'tape') { nr = Math.min(255, l * 1.05 + 7); ng = l * 0.85; nb = l * 0.92 + 6; }
+        d[i] = r + (nr - r) * mix;
+        d[i + 1] = g + (ng - g) * mix;
+        d[i + 2] = b + (nb - b) * mix;
+      }
+      ctx.putImageData(frame, 0, 0);
+    } catch (_) {
+      status('This browser could not process the image pixels. Try a smaller JPEG or PNG.');
+      return;
+    }
+    var grain = Number($('grain').value) / 100;
+    if (grain > 0) {
+      ctx.save();
+      for (var n = 0; n < 900; n += 1) {
+        var seed = Math.sin((n + 1) * 127.1) * 43758.5453;
+        var frac = seed - Math.floor(seed);
+        ctx.fillStyle = frac > 0.5 ? 'rgba(255,255,255,' + (grain * 0.38).toFixed(3) + ')' : 'rgba(0,0,0,' + (grain * 0.48).toFixed(3) + ')';
+        var gx = frac * canvas.width;
+        var gy = ((frac * 71.37) % 1) * canvas.height;
+        ctx.fillRect(gx, gy, frac > .8 ? 2 : 1, 1);
+      }
+      ctx.restore();
+    }
+    if ($('scanlines').checked) {
+      ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.12)';
+      for (var y = 1; y < canvas.height; y += 4) ctx.fillRect(0, y, canvas.width, 1);
+      ctx.restore();
+    }
+    if ($('orb').checked) {
+      var ox = canvas.width * .73, oy = canvas.height * .32, radius = Math.max(9, Math.min(canvas.width, canvas.height) * .055);
+      var glow = ctx.createRadialGradient(ox, oy, 1, ox, oy, radius);
+      glow.addColorStop(0, 'rgba(220,255,244,.9)'); glow.addColorStop(.2, 'rgba(155,255,231,.48)'); glow.addColorStop(1, 'rgba(90,220,220,0)');
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(ox, oy, radius, 0, Math.PI * 2); ctx.fill();
+    }
+    if ($('watermark').checked) {
+      ctx.save(); ctx.font = '700 12px ui-monospace, monospace'; ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(5,9,12,.72)'; ctx.fillRect(canvas.width - 155, canvas.height - 25, 145, 17);
+      ctx.fillStyle = '#fff'; ctx.fillText('FICTIONAL FX', canvas.width - 16, canvas.height - 12); ctx.restore();
+    }
+  }
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!image) {
+      ctx.fillStyle = '#8b9aa7'; ctx.font = '16px system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Choose a still image for a staged color grade', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    applyPixels();
+  }
+  $('file').addEventListener('change', function () {
+    var file = $('file').files && $('file').files[0];
+    if (!file) return;
+    if (file.type.indexOf('image/') !== 0 || file.size > 20 * 1024 * 1024) { status('Choose an image no larger than 20 MB.'); return; }
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    imageUrl = URL.createObjectURL(file);
+    var next = document.createElement('img');
+    next.onload = function () {
+      image = next;
+      var factor = Math.min(1, 960 / next.naturalWidth, 640 / next.naturalHeight);
+      canvas.width = Math.max(1, Math.round(next.naturalWidth * factor));
+      canvas.height = Math.max(1, Math.round(next.naturalHeight * factor));
+      $('export').disabled = false;
+      render();
+      status('Color grade rendered locally · no camera, thermal sensor or upload.');
+    };
+    next.onerror = function () { image = null; $('export').disabled = true; status('Could not open that image. Try a JPEG, PNG, or WebP photo.'); };
+    next.src = imageUrl;
+  });
+  ['look','mix','grain','scanlines','orb','watermark'].forEach(function (key) { $(key).addEventListener(key === 'look' ? 'change' : 'input', render); });
+  $('mix').addEventListener('input', function () { $('mix-out').textContent = $('mix').value + '%'; });
+  $('grain').addEventListener('input', function () { $('grain-out').textContent = $('grain').value + '%'; });
+  $('export').addEventListener('click', function () {
+    if (!image || !canvas.toBlob) { status('Load a photo first; this browser cannot export a PNG.'); return; }
+    canvas.toBlob(function (blob) {
+      if (!blob) { status('The image could not be exported.'); return; }
+      var url = URL.createObjectURL(blob); var link = document.createElement('a');
+      link.href = url; link.download = 'fictional-haunt-photo-fx.png'; link.click();
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      status('Edited still exported locally with the selected FX label.');
+    }, 'image/png');
+  });
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function () { if (!root.isConnected) { if (imageUrl) URL.revokeObjectURL(imageUrl); observer.disconnect(); } });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  render();
+})();
+</script>
