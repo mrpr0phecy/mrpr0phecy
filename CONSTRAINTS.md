@@ -153,8 +153,7 @@ Not a work queue; delete a line once it is answered.
 
 - **Language pages** — a thin machine-translated hreflang cluster: enrich with
   real localisation, or consolidate?
-- **Four unlinked CV files** (`CV.docx`, `CV.pdf`, `cv.pdf`, `latestcv.docx`) —
-  personal documents; they stay until the owner says ship or delete.
+
 - **LICENSE** — none chosen.
 - **Soft top-level JS collisions** — the check reports the count; clearing them
   means IIFE-wrapping many cards. Worth the large mechanical diff?
