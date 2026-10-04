@@ -58,7 +58,14 @@ console.log('== BMI (cards/bmi.html) — WHO classification');
   else fail('metric BMI formula not found');
   if (src.includes('/ 2.20462')) pass('pounds convert at 2.20462 kg/lb');
   else fail('lb->kg factor not found');
-  if (src.includes('18.5 * (heightM * heightM)') && src.includes('24.9 * (heightM * heightM)')) {
+  const directHealthyRange = src.includes('18.5 * (heightM * heightM)') &&
+    src.includes('24.9 * (heightM * heightM)');
+  // Factoring h² once is equivalent and avoids repeating the multiplication;
+  // accept it while still pinning both WHO cut-offs to the same height square.
+  const factoredHealthyRange = /const\s+h2\s*=\s*heightM\s*\*\s*heightM\s*;/.test(src) &&
+    /const\s+idealMinKg\s*=\s*18\.5\s*\*\s*h2\s*;/.test(src) &&
+    /const\s+idealMaxKg\s*=\s*24\.9\s*\*\s*h2\s*;/.test(src);
+  if (directHealthyRange || factoredHealthyRange) {
     pass('healthy-weight range derives from 18.5/24.9 bands');
   } else fail('healthy-range derivation not found');
 
