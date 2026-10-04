@@ -183,6 +183,24 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-04 — the Cats & Feline Care shelf: feline calorie/portion maths,
+  // life stages, a poison and household-hazard checker, queen-and-kitten
+  // timelines, and litter-tray planning. First non-canine pet family with its
+  // own shelf — cats have no other coverage in the catalogue.
+  'cat-calorie-portion-calculator': 'Cats & Feline Care',
+  'cat-age-life-stage-calculator': 'Cats & Feline Care',
+  'cat-poison-household-hazard-checker': 'Cats & Feline Care',
+  'cat-pregnancy-kitten-timeline': 'Cats & Feline Care',
+  'cat-litter-tray-planner': 'Cats & Feline Care',
+  // 2026-10-04 — five practitioner tools for UK lawyers: limitation and claim
+  // deadlines, CPR service/response dates, court and tribunal fees, employment
+  // tribunal awards, and Inheritance Tax with probate. These are the first
+  // entries in the Legal & Professional shelf.
+  'uk-limitation-period-calculator': 'Legal & Professional',
+  'cpr-service-deadline-calculator': 'Legal & Professional',
+  'uk-court-fee-calculator': 'Legal & Professional',
+  'uk-employment-tribunal-award-calculator': 'Legal & Professional',
+  'uk-inheritance-tax-estate-calculator': 'Legal & Professional',
   // 2026-10-02 — ten Mathematics gap-fills found by auditing all 64 maths cards: no card
   // SOLVES a general triangle (trigonometry only prints the sine/cosine rules), no shoelace
   // coordinate-area tool, no binomial EXPANSION (probability covers the distribution only),

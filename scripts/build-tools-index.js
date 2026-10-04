@@ -26,6 +26,7 @@ const CATEGORY_ORDER = [
   ['AI & Autonomous Agents', '🤖'],
   ['Astronomy & Space', '🔭'],
   ['Dogs & Canine Care', '🐕'],
+  ['Cats & Feline Care', '🐈'],
   ['Birdwatching & Ornithology', '🦅'],
   ['Natural Remedies & Herbs', '🌿'],
   ['Lucid Dreaming & Sleep', '🌙'],
@@ -48,6 +49,7 @@ const CATEGORY_ORDER = [
   ['Virtual Worlds & Gaming', '🎮'],
   ['Museum & Collection', '🏛️'],
   ['Trucking & Freight', '🚚'],
+  ['Legal & Professional', '⚖️'],
 ];
 
 const CAT_ICON_MAP = Object.fromEntries(CATEGORY_ORDER);

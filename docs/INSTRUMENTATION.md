@@ -1,6 +1,6 @@
 # Instrumentation — privacy-preserving, zero PII
 
-Most of the 1,338 tools are long-tail: nothing else tells us what people type
+Most of the 1,348 tools are long-tail: nothing else tells us what people type
 that *doesn't* match, which categories get used, or which cards get expanded and
 abandoned. The zero-result search log is deliberately the first and most
 valuable signal. New tracking, cookies or events require this file's rules and
