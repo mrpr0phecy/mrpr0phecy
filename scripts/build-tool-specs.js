@@ -26,7 +26,7 @@
  *    "description": "...",
  *    "category": "health-and-fitness",
  *    "categoryName": "Health & Fitness",
- *    "url": "https://www.themostusefulsiteintheworld.com/tool.html?card=bmi",
+ *    "url": "https://www.themostusefulsiteintheworld.com/tool/bmi.html",
  *    "embedUrl": "https://www.themostusefulsiteintheworld.com/tool.html?card=bmi&embed=1",
  *    "standaloneUrl": "https://www.themostusefulsiteintheworld.com/tools/bmi.html" | null,
  *    "inputs": [ {name, type, label, unit, min?, max?, step?, options?, default?} ],
@@ -80,7 +80,10 @@ function inferSpec(tool, cardEntry, standalonePaths) {
   const categoryName = tool.categoryName;
   const title = tool.title;
   const description = tool.description;
-  const url = `${BASE}/tool.html?card=${encodeURIComponent(slug)}`;
+  // The browse URL is the tool's own page (tool/<slug>.html, built by
+  // scripts/build-tool-fullpages.py); the shell keeps the value-carrying and
+  // chrome-free URLs.
+  const url = `${BASE}/tool/${encodeURIComponent(slug)}.html`;
   const embedUrl = `${BASE}/tool.html?card=${encodeURIComponent(slug)}&embed=1`;
   // The page path comes from scripts/tool-pages.json, never from the slug:
   // the compound-interest page is declared at `tools/compound-interest.html`
@@ -227,8 +230,11 @@ function inferSpec(tool, cardEntry, standalonePaths) {
   // card's own default values (never invented figures), and `runs` says
   // whether `&run=1` presses the tool's own action button. The engine caps a
   // filled link at 40 parameters / 512 chars per value / 1800 chars total.
+  // These URLs MUST use the stateful shell (tool.html?card=), not the full
+  // page above — a query string on a static .html URL lands nowhere.
+  const shellUrl = `${BASE}/tool.html?card=${encodeURIComponent(slug)}`;
   const prefill = {
-    urlTemplate: `${url}&<id>=<value>`,
+    urlTemplate: `${shellUrl}&<id>=<value>`,
     runs: !!runs,
   };
   const defaults = inputs
@@ -236,7 +242,7 @@ function inferSpec(tool, cardEntry, standalonePaths) {
     .slice(0, 6)
     .map(i => `${encodeURIComponent(i.name)}=${encodeURIComponent(i.default)}`);
   if (defaults.length) {
-    prefill.example = `${url}&${defaults.join('&')}${runs ? '&run=1' : ''}`;
+    prefill.example = `${shellUrl}&${defaults.join('&')}${runs ? '&run=1' : ''}`;
   }
 
   return {

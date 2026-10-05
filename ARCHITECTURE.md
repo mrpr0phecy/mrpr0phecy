@@ -104,11 +104,44 @@ The tiers (`cards/cards-lite.json`, `cards/cards.json`) still matter:
 `tool.html`'s shell and the toolbox's titles read the lite tier; generators read
 the full tier.
 
+### One page per tool — `tool/<slug>.html`
+
+Since 2026-10-05 the **browse URL for every tool is its own full page**,
+`tool/<slug>.html` — a real document, one per tool, built by
+`scripts/build-tool-fullpages.py` (deterministic, `--check`-ed in
+`verify.sh --deep`). Before the split, the only way to run a tool was the
+shared shell `tool.html?card=<slug>`: one long-lived document that swaps card
+fragments in and out. That had two costs — globals, listeners, timers and
+styles surviving one card into the next (the "Card traps" in CONSTRAINTS.md,
+which is why the shell carries a whole check fleet), and a query-param URL that
+reads as an empty JS shell to every crawler and AI index.
+
+The full page removes the second cost at once and shrinks the first: the card
+fragment is the single implementation and is **inlined verbatim** (no fetch, no
+iframe, no JavaScript needed for the tool to work), and a document that holds
+exactly one card has no "next card" to leak into. Around the card the page adds
+first-class navigation — breadcrumbs, previous/next in the category, a ranked
+related grid, the category hub — plus the site search (a plain form), the
+toolbox (`toolbox.js` + `toolbox.css`) and the YMYL risk notice
+(`risk-notices.js`), and a crawlable head (canonical, OG, JSON-LD).
+
+`tool.html` is **not** deleted: it stays the *stateful* shell. Anything that
+carries URL state — filled links (`&<control>=<value>&run=1`), multi-step jobs,
+and `&embed=1` (the documented chrome-free embed contract) — must use it,
+because a static page cannot answer a query string. Every filled-link surface
+(jobs.json, intents.json, the share panel) keeps pointing at the shell; every
+browse surface (the home list, `tools.html`, `tools-index.html`, category pages,
+`sitemap.xml`, `embed.html`, `api/tools.json`, `llms-full.txt`, popular/new/
+use-case) now points at the full page. `check-tool-graph.py` enforces the
+bijection — one `tool/<slug>.html` per catalogue slug, nothing else — because
+the page is the URL.
+
 ### The list layer
 
 | file | job |
 |---|---|
-| `explore.css` | row, toolbar, empty state, toolbox panel, sponsor slot — loaded by `index.html`, `tools.html`, `tools-index.html` and all category pages |
+| `explore.css` | row, toolbar, empty state, sponsor slot — loaded by `index.html`, `tools.html`, `tools-index.html` and all category pages |
+| `toolbox.css` | the toolbox panel, the ＋ buttons and the float toggle — loaded wherever `toolbox.js` runs, including the tool pages |
 | `explore.js` | filters, sorts, keyboard, URL state, "show more" (`PAGE_SIZE = 60`) |
 | `toolbox.js` | the saved list — add, remove, reorder, share, export/import — and the ＋ buttons |
 | `home-core.js` | home-page chrome: theme, panels, the search bridge, deep links, service worker |
@@ -143,7 +176,8 @@ Rules that keep it honest, each pinned by a test:
 - **No dead controls** — every ＋, ▸ and ↗ is added by JS at load, so a
   scripts-off page never shows a button that cannot work.
 - **`?card=<slug>` keeps working**: `home-core.js` forwards old home-page card
-  links to `tool.html?card=<slug>` with `location.replace`, so shared links live on.
+  links to the tool's own page (`tool/<slug>.html`) with `location.replace`,
+  so shared links live on.
 
 ### What was removed, and must not come back
 
@@ -188,7 +222,8 @@ drift. Everything below the fold is `[data-explore="json"]`, an empty container.
 |---|---|---|
 | `home.css` | about 49 KB | first paint — render-blocking on purpose |
 | `home-deferred.css` | about 7.5 KB | containers hidden at first paint; applied after it (13 KB gzip for the pair) |
-| `explore.css` | about 27 KB | the list layer, shared with four other page types |
+| `explore.css` | about 19 KB | the list layer, shared with four other page types |
+| `toolbox.css` | about 11 KB | the toolbox panel and its ＋ buttons — split out of explore.css so the tool pages can load the panel without the list layer |
 | `explore.js` | about 62 KB | list engine: fetch, filter, sort, reveal, keyboard, URL state |
 | `toolbox.js` | about 33 KB | saved list, ＋ buttons, panel; lite-tier fetch on intent |
 | `home-core.js` | about 37 KB | theme, panels, search bridge, deep links, service worker |

@@ -6,9 +6,11 @@
 
 Two directions, because both have broken in this repo:
 
-1. **No dead ends.** Every `tool.html?card=<slug>`, `cards/<slug>.html` and
-   `#cat-<slug>` reference in a shipped page must resolve to a tool that
-   exists. `case-studies.html` shipped nine links to tools that were renamed
+1. **No dead ends.** Every `tool.html?card=<slug>`, `tool/<slug>.html`,
+   `cards/<slug>.html` and `#cat-<slug>` reference in a shipped page must
+   resolve to a tool that exists, and `tool/` must hold exactly one page per
+   catalogue slug (the browse URL is the page, so the bijection is checked,
+   not sampled). `case-studies.html` shipped nine links to tools that were renamed
    or never existed (`?card=affordability`, `?card=stampduty`,
    `?card=compound-interest`…): the click landed on tool.html, which politely
    invented a title for a fragment that was not there and rendered an empty
@@ -61,8 +63,13 @@ SKIP_DIRS = {
 SKIP_FILES = {"changelog.html"}  # past-tense history; never rewritten
 SKIP_SUFFIXES = (".md", ".txt", ".py", ".sh", ".yml", ".yaml", ".docx", ".pdf")
 
+# The three shapes a shipped page may use to point at a tool: the stateful
+# shell (?card= / ?t=), the card fragment (cards/<slug>.html), and — since the
+# full-page split — the tool's own page (tool/<slug>.html). `tools/<slug>.html`
+# (the curated guide pages) is deliberately NOT a tool reference: it is a
+# different document, and `tool/` is not a substring of `tools/` anyway.
 TOOL_REF_RE = re.compile(
-    r"""(?:tool\.html\?(?:card|t)=|cards/)([a-z0-9][a-z0-9\-]{0,79}?)(?:\.html)?(?=["'\s)&<])"""
+    r"""(?:tool\.html\?(?:card|t)=|cards/|(?<!tools/)tool/)([a-z0-9][a-z0-9\-]{0,79}?)(?:\.html)?(?=["'\s)&<])"""
 )
 CAT_ANCHOR_RE = re.compile(r'tools\.html#cat-([a-z0-9\-]+)')
 CAT_PAGE_RE = re.compile(r'categories/([a-z0-9\-]+)\.html')
@@ -137,6 +144,20 @@ def main() -> int:
         if not os.path.exists(os.path.join(ROOT, tool.path)):
             fails.append(f"{tool.name}: path {tool.path} does not exist")
 
+    # Every tool's own page: one file per slug, nothing else. tool/<slug>.html
+    # is the browse URL now, so the bijection is load-bearing — a missing page
+    # is a 404 behind every browse link, and a stray page is a slug that
+    # resolves to a tool that does not exist.
+    tool_dir = os.path.join(ROOT, "tool")
+    if os.path.isdir(tool_dir):
+        page_slugs = {fn[:-5] for fn in os.listdir(tool_dir) if fn.endswith(".html")}
+        for slug in sorted(names - page_slugs):
+            fails.append(f"tool/{slug}.html is missing — run: python3 scripts/build-tool-fullpages.py")
+        for slug in sorted(page_slugs - names):
+            fails.append(f"tool/{slug}.html exists but {slug} is not in the catalogue — stale page")
+    else:
+        fails.append("tool/ directory is missing — run: python3 scripts/build-tool-fullpages.py")
+
     # Categories must agree between cards.json and the page each one links to.
     cat_slugs = {c.slug for c in catalogue.categories}
     for cat in catalogue.categories:
@@ -173,7 +194,7 @@ def main() -> int:
             if slug in ("cards-lite", "cards", "card"):  # cards/cards-lite.json
                 continue
             if slug not in names:
-                fails.append(f"{rel}: links tool.html?card={slug}, which is not in the catalogue")
+                fails.append(f"{rel}: references tool {slug}, which is not in the catalogue")
         for slug in set(CAT_ANCHOR_RE.findall(text)):
             if slug not in cat_slugs:
                 fails.append(f"{rel}: links tools.html#cat-{slug}, which is not a category")

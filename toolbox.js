@@ -204,8 +204,12 @@
       });
     return litePromise;
   }
+  // Saved-tool links are browse links (the panel stores slugs, never values),
+  // so they go to the tool's own page: base is `tool/` (or `../tool/` from a
+  // category page) and the slug gets the `.html` here. Value-carrying URLs
+  // stay on the tool.html?card= shell and never come from this function.
   function toolHref(slug, base) {
-    return base + encodeURIComponent(slug);
+    return base + encodeURIComponent(slug) + '.html';
   }
 
   /* --------------------------------------------------------- when to fetch it
@@ -258,7 +262,7 @@
     var explicit = panel && panel.getAttribute('data-tool-base');
     if (explicit) return explicit;
     return document.body.getAttribute('data-tool-base') ||
-      (location.pathname.indexOf('/categories/') !== -1 ? '../tool.html?card=' : 'tool.html?card=');
+      (location.pathname.indexOf('/categories/') !== -1 ? '../tool/' : 'tool/');
   }
 
   function paintCounts() {
@@ -421,7 +425,7 @@
       } else if (kind === 'copy') {
         var text = slugs.map(function (s) {
           var tool = byslug && byslug[s];
-          return '- ' + ((tool && tool.title) || s) + ' — ' + toolHref(s, 'https://www.themostusefulsiteintheworld.com/tool.html?card=');
+          return '- ' + ((tool && tool.title) || s) + ' — ' + toolHref(s, 'https://www.themostusefulsiteintheworld.com/tool/');
         }).join('\n');
         copyText(text, 'Toolbox copied as a list');
       } else if (kind === 'share') {
@@ -661,6 +665,13 @@
      on the site rather than one per page. */
   function ensureChrome() {
     if (document.getElementById(PANEL_ID)) return;
+
+    // toolbox.css gives the page 72 px of body clearance under the float
+    // button, scoped to html.xp-has-float; the CSS comments name this script
+    // as the place that sets the flag where it builds the button (explore.js
+    // keeps it on the list pages). Without it the 44 px button covers the
+    // footer's last links on narrow screens.
+    document.documentElement.classList.add('xp-has-float');
 
     var toggle = document.createElement('button');
     toggle.type = 'button';

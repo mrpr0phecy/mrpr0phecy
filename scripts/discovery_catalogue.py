@@ -70,8 +70,17 @@ class Tool:
 
     @property
     def url(self) -> str:
-        """The standalone-tool URL every static surface must link to."""
-        return f"tool.html?card={self.name}"
+        """The standalone-tool URL every static surface must link to.
+
+        Since 2026-10-05 that is the tool's OWN page (tool/<slug>.html,
+        built by scripts/build-tool-fullpages.py from the same card
+        fragment): a real URL, one document per tool, full navigation.
+        `tool.html?card=<slug>` is no longer a browse destination — it stays
+        the STATEFUL shell for filled links (`&<control>=<value>&run=1`,
+        jobs), `&embed=1` and the share panel, which carry URL state a
+        static page cannot answer. Filled-link surfaces must build that URL
+        themselves rather than use this property."""
+        return f"tool/{self.name}.html"
 
 
 @dataclass(frozen=True)

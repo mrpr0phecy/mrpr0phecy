@@ -242,7 +242,9 @@ test('related links hydrate only four per-tool specs after the section nears vie
       'related tool specifications should also remain deferred');
 
     enterRelated();
-    await waitFor(() => document.querySelector('#relatedGrid a[href*="card=bmr"]'),
+    // The related card is a browse link to the tool's own page (tool/<slug>.html),
+    // not the stateful shell.
+    await waitFor(() => document.querySelector('#relatedGrid a[href*="tool/bmr.html"]'),
       'nearby related results should render from the ranked slug list and small specs');
     assert.ok(document.querySelector('#relatedGrid .related-card-title')?.textContent.includes('BMR Calculator'));
     assert.ok(requests.includes('api/tools/bmr.json'));

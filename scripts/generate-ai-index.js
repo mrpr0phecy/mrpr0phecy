@@ -177,8 +177,10 @@ function main() {
 - Lantern — a standalone browser AI, deliberately separate from this catalogue (chat grounded in
   your own documents, memory that adapts to your ratings, real local tools, lessons, and an optional
   on-device model): ${SITE}/ai.html
-- Any tool, focused standalone page: ${SITE}/tool.html?card=<tool-slug>
-- Any tool with values already filled in:
+- Any tool, on its own full page (a real URL — one document per tool, with
+  previous/next and related navigation): ${SITE}/tool/<tool-slug>.html
+- Any tool with values already filled in (the stateful shell — use this, not
+  the full page, whenever the URL carries values):
   ${SITE}/tool.html?card=<tool-slug>&<control-id>=<value>&run=1
   (ids are the spec's \`inputs[].name\`; add &run=1 only when \`prefill.runs\` is true.
   A filled link is a plain shareable GET and the values are set in the visitor's
@@ -202,9 +204,10 @@ ${deepPagesLines}
 
 1. Fetch ${SITE}/cards/cards.json.
 2. Match the user's need against category / title / description.
-3. Give or open ${SITE}/tool.html?card=<name> — the tool is interactive and
-   private (nothing leaves the browser). Tools that need no interaction from
-   you can simply be linked; everything is a plain GET, no auth, CORS-open.
+3. Give or open ${SITE}/tool/<name>.html — the tool on its own full page;
+   interactive and private (nothing leaves the browser). Tools that need no
+   interaction from you can simply be linked; everything is a plain GET, no
+   auth, CORS-open.
    If you already know the numbers (the user told you their height and weight,
    say), hand back a filled link instead: read the tool's api/tools/<slug>.json
    and put each \`inputs[].name\` in the query string. The visitor lands on the
@@ -229,7 +232,7 @@ one-line description, grouped by category.
   // ---------- 2. llms-full.txt ----------
   const sections = ordered.map(cat => {
     const lines = byCat.get(cat).map(c => {
-      const url = `${SITE}/tool.html?card=${encodeURIComponent(c.name)}`;
+      const url = `${SITE}/tool/${encodeURIComponent(c.name)}.html`;
       const desc = (c.description || 'Free browser tool.').replace(/\s+/g, ' ').trim();
       return `- [${c.title || c.name}](${url}): ${desc}`;
     });
@@ -239,7 +242,8 @@ one-line description, grouped by category.
 
 > ${total} free browser tools, all client-side, no sign-ups. Start index:
 > ${SITE}/llms.txt · manifest: ${SITE}/cards/cards.json · homepage: ${SITE}/
-> Tool URL pattern: ${SITE}/tool.html?card=<tool-slug>
+> Tool URL pattern: ${SITE}/tool/<tool-slug>.html
+> (filled links with values: ${SITE}/tool.html?card=<tool-slug>&<control-id>=<value>&run=1)
 
 ${sections.join('\n\n')}
 `;
@@ -276,8 +280,8 @@ ${sections.join('\n\n')}
   ).join('\n');
   const sectionsHtml = ordered.map(cat => {
     const items = byCat.get(cat).map(c => {
-      const url = `tool.html?card=${encodeURIComponent(c.name)}`;
-      return `        <li class="xp-row" data-slug="${esc(c.name)}">` +
+      const url = `tool/${encodeURIComponent(c.name)}.html`;
+      return `        <li class="xp-row" data-slug="${esc(c.name)}" data-toolbox-row="${esc(c.name)}">` +
         `<a class="xp-open" href="${url}"><span class="xp-title">${esc(c.title || c.name)}</span></a>` +
         `<p class="xp-desc">${esc((c.description || 'Free browser tool.').replace(/\s+/g, ' ').trim())}</p>` +
         `</li>`;
@@ -386,6 +390,7 @@ ${sections.join('\n\n')}
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   </style>  </style>
   <link rel="stylesheet" href="explore.css?v=${assetVersion}">
+  <link rel="stylesheet" href="toolbox.css?v=${assetVersion}">
   <script defer src="toolbox.js?v=${assetVersion}"></script>
   <script defer src="explore.js?v=${assetVersion}"></script>
 </head>
@@ -419,7 +424,8 @@ ${sectionsHtml}
       <a href="llms-full.txt">llms-full.txt</a>. See <a href="agents.html">the machine-usage guide</a>;
       the standalone AI (<strong>Lantern</strong>) lives at <a href="ai.html">ai.html</a> — a separate
       product that reads no catalogue data.
-      Any tool: <code>tool.html?card=&lt;tool-slug&gt;</code>
+      Any tool on its own page: <code>tool/&lt;tool-slug&gt;.html</code> · with
+      values filled in: <code>tool.html?card=&lt;tool-slug&gt;&amp;&lt;field&gt;=&lt;value&gt;&amp;run=1</code>
     </div>
 
     <p class="back"><a href="index.html">← Back to the full interactive site</a></p>

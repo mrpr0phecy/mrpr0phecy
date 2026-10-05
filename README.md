@@ -4,7 +4,7 @@
 
 Live: **<https://www.themostusefulsiteintheworld.com>** — one static domain, two deliberately separate products that never cross-promote.
 
-- **The Most Useful Site in the World** — 1,389 self-contained tools across **33 categories** (calculators, converters, generators, health, finance, STEM, productivity …). Every tool is a fragment in [`cards/`](cards/) that runs offline in the page; the catalogue at [`index.html`](index.html) → `tool.html?card=` is the entry point. Also [`ai.html`](ai.html) **Lantern** — private, on-device AI that answers from *your* documents and memory, with an optional WebGPU model. Nothing leaves the browser.
+- **The Most Useful Site in the World** — 1,389 self-contained tools across **33 categories** (calculators, converters, generators, health, finance, STEM, productivity …). Every tool is a fragment in [`cards/`](cards/) that runs offline in the page, and has its own full page at `tool/<slug>.html`; the catalogue at [`index.html`](index.html) is the entry point. Also [`ai.html`](ai.html) **Lantern** — private, on-device AI that answers from *your* documents and memory, with an optional WebGPU model. Nothing leaves the browser.
 - **MrProphecy** — UK hip hop and animated soundscapes from **Luton** — 233 videos, 1,360+ subscribers. Entry point: [`listen.html`](listen.html) → `radio.html` / `youtubepromo.html`.
 
 Zero framework, zero build step in production, zero runtime dependencies. `main` *is* the deploy — GitHub Pages serves it in ~60 s. The repo is mature and stable: tool count is derived from `cards/cards.json`, not a growth target.

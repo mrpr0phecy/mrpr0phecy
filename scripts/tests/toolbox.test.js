@@ -198,7 +198,9 @@ function makeSandbox(opts) {
   T.add('another');
   const html = content.innerHTML;
   assert(!/<img/i.test(html), 'a slug is escaped before it reaches the panel: ' + html.slice(0, 120));
-  assert(html.includes('tool.html?card='), 'each saved tool links to its own page');
+  // Since the full-page split the panel links to the tool's own page
+  // (tool/<slug>.html), not the stateful shell.
+  assert(html.includes('tool/ok-slug.html'), 'each saved tool links to its own page');
 }
 
 /* ------------------------------------------------------- 3. the share link */

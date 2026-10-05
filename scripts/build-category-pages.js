@@ -369,6 +369,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     }
   </style>
   <link rel="stylesheet" href="../explore.css?v=${ASSET_VERSION}">
+  <link rel="stylesheet" href="../toolbox.css?v=${ASSET_VERSION}">
   <script defer src="../toolbox.js?v=${ASSET_VERSION}"></script>
   <script defer src="../explore.js?v=${ASSET_VERSION}"></script>
 </head>

@@ -253,8 +253,11 @@ def render(page: dict, count: int) -> str:
 
     steps = "\n".join(f"  <li>{frag(F(s))}</li>" for s in page["steps"])
     limits = "\n".join(f"  <li>{frag(F(s))}</li>" for s in page["limits"])
+    # The related grid is browse links, so each one goes to the tool's own
+    # page (tool/<slug>.html); only the embedded iframe above keeps the
+    # documented &embed=1 shell URL.
     related = "\n".join(
-        '    <a class="gtool" href="../tool.html?card={slug}"><div class="gt-emoji">{emoji}</div>'
+        '    <a class="gtool" href="../tool/{slug}.html"><div class="gt-emoji">{emoji}</div>'
         '<div class="gt-name">{name}</div><div class="gt-desc">{desc}</div></a>'.format(
             slug=esc(r["slug"]), emoji=esc(r["emoji"]), name=esc(r["name"]), desc=esc(r["desc"]))
         for r in page["related"]

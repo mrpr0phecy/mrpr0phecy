@@ -77,15 +77,24 @@ def version_head(head: str) -> str:
         head = head.replace(
             "</head>",
             f'  <link rel="stylesheet" href="explore.css?v={version}">\n'
+            f'  <link rel="stylesheet" href="toolbox.css?v={version}">\n'
             f'  <script defer src="toolbox.js?v={version}"></script>\n'
             f'  <script defer src="explore.js?v={version}"></script>\n'
             "</head>",
         )
-    for asset in ("explore.css", "toolbox.js", "explore.js"):
+    for asset in ("explore.css", "toolbox.css", "toolbox.js", "explore.js"):
         head = re.sub(
             rf'({re.escape(asset)})\?v=\d+',
             rf"\g<1>?v={version}",
             head,
+        )
+    # A page written before the toolbox split has explore.css but no
+    # toolbox.css: add it, versioned, directly under the list layer.
+    if "toolbox.css" not in head:
+        head = head.replace(
+            f'<link rel="stylesheet" href="explore.css?v={version}">',
+            f'<link rel="stylesheet" href="explore.css?v={version}">\n'
+            f'  <link rel="stylesheet" href="toolbox.css?v={version}">',
         )
     return head
 
@@ -172,7 +181,7 @@ def render_main(categories) -> str:
         )
         lines.append('<ul class="xp-list">')
         for tool in cat.tools:
-            slug = tool.url.split("card=")[-1]
+            slug = tool.name
             # Only the slug is repeated per row: the category is on the
             # enclosing section, and a title attribute would duplicate the
             # visible title 1,205 times for no reader's benefit.
@@ -284,7 +293,7 @@ def main() -> int:
                 f"{len(catalogue.categories)} categories are linked"
             )
             return 0
-        linked = set(re.findall(r"tool\.html\?card=([a-z0-9\-]+)", current))
+        linked = set(re.findall(r"(?<!tools/)tool/([a-z0-9\-]+)\.html", current))
         missing = sorted(catalogue.names - linked)
         print(
             f"tools.html DRIFT — links {len(linked & catalogue.names)} of "

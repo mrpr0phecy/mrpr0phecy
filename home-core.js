@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 39;
+  const APP_VERSION = 40;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -529,7 +529,9 @@
     rec.forEach(function (x) {
       var a = document.createElement('a');
       a.className = 'popular-chip recent-chip';
-      a.href = 'tool.html?card=' + encodeURIComponent(x.slug);
+      // The tool's own page (tool/<slug>.html) — the browse destination since
+      // the full-page split. tool.html?card= is only for stateful URLs.
+      a.href = 'tool/' + encodeURIComponent(x.slug) + '.html';
       a.textContent = String(x.title || x.slug).slice(0, 32);
       host.appendChild(a);
     });
@@ -568,7 +570,7 @@
     if (typeof window.gtag === 'function') {
       window.gtag('event', 'surprise_me_click', { tool: slug });
     }
-    location.href = 'tool.html?card=' + encodeURIComponent(slug) + '&surprise=1';
+    location.href = 'tool/' + encodeURIComponent(slug) + '.html';
   }
 
   function setupSurpriseButtons() {
@@ -690,7 +692,8 @@
   // Every share link ever posted points at the home page's old live view:
   // ?card=slug, ?t=slug, ?tool=slug (the PWA protocol handler) or #card=slug.
   // They still have to work, so the slug alone is forwarded to the tool's own
-  // page; anything else in the URL belongs to this page, not the tool.
+  // page (tool/<slug>.html since the full-page split); anything else in the
+  // URL belongs to this page, not the tool.
   function forwardDeepLinks() {
     var params = new URLSearchParams(location.search);
     var raw = params.get('card') || params.get('t') || params.get('tool') ||
@@ -700,7 +703,7 @@
     // has no separators, so taking the last segment is a no-op for it.
     var slug = decodeURIComponent(String(raw)).split(/[:/?#]/).pop().replace(/[^a-z0-9-]/gi, '');
     if (!slug) return false;
-    location.replace('tool.html?card=' + encodeURIComponent(slug));
+    location.replace('tool/' + encodeURIComponent(slug) + '.html');
     return true;
   }
 

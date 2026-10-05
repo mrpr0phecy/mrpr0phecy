@@ -123,15 +123,20 @@ test('the manifest and the per-tool files are the same document', () => {
 test('the spec names the same URL the catalogue does, and the fields an agent needs to call it', () => {
   const problems = [];
   for (const spec of MANIFEST.tools) {
-    if (spec.url !== `https://www.themostusefulsiteintheworld.com/tool.html?card=${spec.slug}`) {
+    // Since the full-page split the browse URL is the tool's own page; the
+    // stateful shell (tool.html?card=) is what filled links are built on, so
+    // the prefill URLs extend the shell, never spec.url — a query string on a
+    // static .html URL lands nowhere.
+    if (spec.url !== `https://www.themostusefulsiteintheworld.com/tool/${spec.slug}.html`) {
       problems.push(`${spec.slug}: url is ${spec.url}`);
     }
     if (!spec.prefill || typeof spec.prefill.urlTemplate !== 'string') {
       problems.push(`${spec.slug}: no prefill.urlTemplate`);
       continue;
     }
-    if (!spec.prefill.urlTemplate.startsWith(spec.url + '&')) {
-      problems.push(`${spec.slug}: urlTemplate does not extend its own url`);
+    const shell = `https://www.themostusefulsiteintheworld.com/tool.html?card=${spec.slug}`;
+    if (!spec.prefill.urlTemplate.startsWith(shell + '&')) {
+      problems.push(`${spec.slug}: urlTemplate does not extend the shell URL (${shell})`);
     }
     for (const input of spec.inputs || []) {
       for (const key of ['name', 'type', 'label']) {
