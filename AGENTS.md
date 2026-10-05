@@ -73,7 +73,7 @@ Ask before deleting any: `supaviewer.html`, `sonicfansite.html`, `riley.html`,
 
 Do not re-index or edit content: `byte-realistic.html`, `byte-realistic-v4.html`,
 `local-ai.html` (→ ai.html), `licence-admin.html` (owner console, offline),
-`slideshowtest.html`, `supadupaman.html`.
+`slideshowtest.html`, `supadupaman.html`, `sw-check.html` (worker self-check, linked from nowhere).
 
 ### Infrastructure
 
@@ -84,6 +84,7 @@ Do not re-index or edit content: `byte-realistic.html`, `byte-realistic-v4.html`
 | `manifest.tools.json` | catalogue PWA manifest (Product A only) |
 | `robots.txt` | allow all + sitemap reference |
 | `sw.js` | service worker — registered by `home-core.js` |
+| `sw-check.html` | noindex self-check for the cached layer: drives a click-through and reads `mp:stats` from `sw.js` |
 
 Make the smallest complete change; batch edits before checking; search before
 reading large or generated files; no unrelated cleanup. Decide routine details
@@ -100,7 +101,7 @@ approval. No plans, ledgers or extra docs.
 | Shared loaders, generators, `sw.js`, cross-card, check infra | tests → `npm run verify:deep`; build if generated output changes |
 | Visible UI | also 360 & 1440 px (§5) |
 
-`build` regenerates derived surfaces · `verify` 7 checks (~5 s) · `verify:deep`
+`build` regenerates derived surfaces · `verify` 8 checks (~6 s) · `verify:deep`
 adds audits and product tests (~75 s) · `test` runs the product suite
 (`node --test scripts/tests/<name>.test.js` for one file). Extra checks only
 when impact is uncertain. CI: fast gate on PRs and pushes, `--deep` on `main`

@@ -11,6 +11,9 @@
      cleared when the visitor navigates. A request nobody awaits is aborted, not
      abandoned — see the network section below for why that mattered.
    - Every store is capped, and no cache call may fail a navigation.
+   - And if it does go wrong: it says so at the URL you clicked, counts its own
+     fallbacks, and stands down after three of them. These three are the
+     properties scripts/check-sw-discipline.py enforces in the gate.
    - Offline fallback; module and classic registration; Navigation Preload when
      available.
 */
@@ -145,6 +148,19 @@
 // only ever grew. Document requests that are not navigations (the hover
 // prefetches the speculation rules ask for) are passed straight back to the
 // browser, which prioritises and cancels them properly.
+// Still v39: three permanent guarantees, because this report had been raised and
+// "documented as fixed" three times before it actually was. (1) The rules the
+// handler must obey are machine-checked: scripts/check-sw-discipline.py runs in
+// `verify.sh`'s fast gate and CI, and the deployed worker failed 31 of them.
+// (2) The behaviour is checked by driving a session, not one request at a time:
+// scripts/tests/service-worker-session.test.js clicks through twelve page views
+// against a congested origin and fails on orphaned requests, on a cache hit that
+// costs bandwidth, and on any view that renders something other than the page it
+// asked for. (3) The worker cannot be the reason a page fails even when all of
+// that is wrong: routing runs inside a try, an unanswerable navigation gets an
+// honest 504 at its own URL rather than another page, and after STUCK_LIMIT
+// fallbacks it cool-off unregisters itself. `mp:stats` reports what it did;
+// sw-check.html shows it to a human, no devtools needed.
 const CACHE_VERSION = 'v39-2026-10-04';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
@@ -261,6 +277,7 @@ self.addEventListener('activate', (event) => {
                         .map(k => caches.delete(k).catch(() => {}))
                 );
             } catch (e) { /* no old stores to drop */ }
+            await readCooloff();
             try { await self.clients.claim(); } catch (e) { /* already claimed */ }
         })()
     );
@@ -272,6 +289,28 @@ self.addEventListener('activate', (event) => {
 // prevent.
 self.addEventListener('message', (event) => {
     if (!event.data) return;
+    // The one read-only window into what the worker is doing, for
+    // sw-check.html. Nothing is stored and nothing leaves the page.
+    if (event.data.type === 'mp:stats') {
+        const report = async () => {
+            const sizes = {};
+            try {
+                for (const name of [STATIC_CACHE, CARDS_CACHE, RUNTIME_CACHE]) {
+                    const c = await openCache(name);
+                    sizes[name] = c ? (await c.keys()).length : -1;
+                }
+            } catch (e) { /* a store we cannot read is not worth reporting */ }
+            return Object.assign({
+                cacheVersion: CACHE_VERSION,
+                disarmedUntil: cooloffUntil,
+                disarmedMs: cooloffUntil ? Math.max(0, cooloffUntil - Date.now()) : 0
+            }, stats, { sizes });
+        };
+        report().then((data) => {
+            try { if (event.source) event.source.postMessage({ type: 'mp:stats', data }); } catch (e) {}
+        });
+        return;
+    }
     if (event.data.type === 'WARM_CACHE' && Array.isArray(event.data.urls)) {
         for (const url of event.data.urls) {
             try {
@@ -281,8 +320,24 @@ self.addEventListener('message', (event) => {
     }
 });
 
-// Fetch strategy
+// Fetch strategy.
+//
+// `route()` is wrapped, not called bare, because of what an exception in a
+// fetch handler costs: `respondWith()` rejecting (or never being answered) is
+// rendered by Chromium as a failed navigation — the visitor gets an error page
+// for a URL that a browser with no service worker at all would have loaded
+// fine. A worker that throws must cost a cache hit and nothing else, so any
+// failure here passes the request through untouched instead.
 self.addEventListener('fetch', (event) => {
+    if (Date.now() < cooloffUntil) return;         // disarmed: stay out of the way
+    try {
+        route(event);
+    } catch (e) {
+        try { console.warn('[sw] routing error, passing through:', e); } catch (e2) {}
+    }
+});
+
+function route(event) {
     const req = event.request;
     const url = new URL(req.url);
 
@@ -364,7 +419,74 @@ self.addEventListener('fetch', (event) => {
 
     // Default: stale-while-revalidate
     event.respondWith(staleWhileRevalidate(req, RUNTIME_CACHE, event));
-});
+}
+
+// ------------------------------------------------------------ never a cause
+// Two promises this worker is not allowed to break, both earned from the same
+// report ("the site stalls, then shows me a different page, every time I click
+// around"):
+//
+//   1. it must never answer a navigation with a page the visitor did not ask
+//      for while they are online — a fallback that silently lands someone on
+//      the home page looks exactly like a broken site;
+//   2. it must never be the REASON a page fails. If this worker cannot get out
+//      of its own way, it should stop intercepting: a static site with no
+//      service worker still works, and that is the floor we are defending.
+//
+// So after a few navigations that the worker could only answer with a fallback,
+// it disarms itself for COOLOFF_MS: every request passes straight through to the
+// browser, the caches stop being touched, and the next page view is a plain
+// fetch. It re-arms on its own when the window passes (a transient network, a CDN
+// blip, a proxy on hotel Wi-Fi), and the marker survives termination and
+// re-registration, so a visitor is never left stuck behind a worker that is
+// failing for them.
+const STUCK_LIMIT = 3;
+const COOLOFF_MS = 10 * 60 * 1000;
+const COOLOFF_KEY = './mp-worker-disarmed';
+let cooloffUntil = 0;
+let stuckRuns = 0;
+
+// What the worker did this session, for sw-check.html to read. Integers only: a
+// diagnostics counter that grows a list is its own leak.
+const stats = { cacheHits: 0, network: 0, refreshes: 0, aborted: 0, fallbacks: 0, disarmed: 0 };
+
+async function armCooloff() {
+    cooloffUntil = Date.now() + COOLOFF_MS;
+    stats.disarmed++;
+    const cache = await openCache(STATIC_CACHE);
+    if (cache) {
+        try {
+            await cache.put(new Request(COOLOFF_KEY, { method: 'GET' }),
+                new Response(String(cooloffUntil), { status: 200 }));
+        } catch (e) { /* nothing to persist: the in-memory window still applies */ }
+    }
+    // Give the pages back to the browser outright. home-core.js registers the
+    // worker again on the next load, and activate() re-reads this marker, so a
+    // re-registration cannot undo the disarm.
+    try { if (self.registration && self.registration.unregister) await self.registration.unregister(); } catch (e) {}
+}
+
+// Read at activate(): a worker that restarts mid-cooloff stays out of the way.
+async function readCooloff() {
+    const cache = await openCache(STATIC_CACHE);
+    if (!cache) return;
+    let hit = null;
+    try { hit = await cache.match(new Request(COOLOFF_KEY, { method: 'GET' })); } catch (e) { return; }
+    if (!hit) return;
+    let until = 0;
+    try { until = Number(await hit.text()) || 0; } catch (e) { return; }
+    if (until > Date.now()) { cooloffUntil = until; stats.disarmed++; return; }
+    try { await cache.delete(new Request(COOLOFF_KEY, { method: 'GET' })); } catch (e) {}
+}
+
+// A navigation the visitor could not be given the page for. Fallbacks are not
+// free: they are the sound of the worker guessing, so three in a row means the
+// guessing is what is going wrong.
+function markStuckNavigation() {
+    stats.fallbacks++;
+    stuckRuns++;
+    if (stuckRuns >= STUCK_LIMIT) { stuckRuns = 0; void armCooloff(); }
+}
 
 // ---------------------------------------------------------------- the network
 // Everything above hands a request to one of the helpers below, and every one
@@ -425,6 +547,7 @@ function abort(ctl) {
 function startBackground(request, cacheName) {
     const url = request && request.url;
     if (!url || backgroundRunning.has(url)) return;
+    stats.refreshes++;
     for (let i = 0; i < backgroundQueue.length; i++) {
         if (backgroundQueue[i].url === url) return;
     }
@@ -582,7 +705,8 @@ async function foreground(request, ms, cacheName, event, adopt) {
             if (event) { try { event.waitUntil(saved); } catch (e3) { /* event over */ } }
         }
         return res || null;
-    }, () => { settled = true; return null; });
+    }, () => { settled = true; stats.aborted++; return null; });
+    stats.network++;
     const winner = await Promise.race([p, after(ms).then(() => STALLED)]);
     if (winner === STALLED) {
         if (!settled) {
@@ -661,16 +785,23 @@ async function navigateFast(request, preload, event) {
 
     if (!cached) {
         const first = await bounded(network, UNCACHED_PATIENCE_MS);
-        if (first && first !== STALLED) return first;
+        if (first && first !== STALLED) { stuckRuns = 0; return first; }
         if (first === STALLED) {
             // Nothing answered in time. That is a stalled socket, not a dead
             // origin — abandon it (holding it is what made the next click worse)
             // and ask once more on a clean connection.
             abort(ctl);
             const again = await foreground(request, UNCACHED_PATIENCE_MS, RUNTIME_CACHE, event);
-            if (again) return again;
+            if (again) { stuckRuns = 0; return again; }
         }
-        return cachedIndex();
+        // Nothing can be fetched for this URL. Offline, the cached index is a
+        // real service: the visitor keeps what they already have. Online,
+        // substituting it is the bug being reported — a page they never asked
+        // for, at an address that does not match it. Fail honestly at the URL
+        // they clicked, with their own retry one tap away.
+        markStuckNavigation();
+        if (self.navigator && self.navigator.onLine === false) return cachedIndex();
+        return stallPage();
     }
 
     const winner = await bounded(network, NETWORK_PATIENCE_MS);
@@ -679,9 +810,29 @@ async function navigateFast(request, preload, event) {
         // only if the budget has room for it — that copy is what makes their
         // back-and-forth trip instant instead of another patience wait.
         if (!adoptRefresh(request, ctl, network)) abort(ctl);
+        stuckRuns = 0;                     // they got their page: the streak is broken
         return cached;
     }
+    if (winner) stuckRuns = 0;
     return winner || cached;
+}
+
+// The online-failure page: rendered at the URL that was asked for, so the
+// address bar, the back button and "Try again" all still mean what they usually
+// mean. Fixed markup only — the requested path is deliberately NOT put into it
+// (nothing visitor-controlled is ever interpolated into a response body).
+function stallPage() {
+    return new Response(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        + '<title>This did not load \u2014 try again</title></head>'
+        + '<body style="font:16px/1.6 system-ui,sans-serif;margin:24px">'
+        + '<p><strong>This page did not load, and it is not your connection.</strong></p>'
+        + '<p>The request timed out twice. Everything already opened here still works.</p>'
+        + '<p><a href="">Try again</a> &middot; <a href="./">Go to the front page</a></p>'
+        + '</body></html>',
+        { status: 504, statusText: 'Gateway Timeout',
+          headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
 
 // The offline navigation fallback: the cached index the visitor can actually
@@ -732,7 +883,7 @@ function ageWithin(response, maxAge) {
 async function freshFast(request, cacheName, event) {
     const cache = await openCache(cacheName);
     const cached = await matchQuietly(cache, request);
-    if (cached && ageOf(cached) < FRESH_WINDOW_MS) return cached;
+    if (cached && ageOf(cached) < FRESH_WINDOW_MS) { stats.cacheHits++; return cached; }
 
     const net = await foreground(request, cached ? NETWORK_PATIENCE_MS : UNCACHED_PATIENCE_MS,
                                  cacheName, event, !!cached);
@@ -745,6 +896,7 @@ async function staleWhileRevalidate(request, cacheName, event) {
     const cache = await openCache(cacheName);
     const cached = await matchQuietly(cache, request);
     if (cached) {
+        stats.cacheHits++;
         // Refresh for next time, in the queue — not beside the page that is
         // loading now.
         startBackground(request, cacheName);

@@ -98,6 +98,7 @@ function makeWorker() {
     },
     self: {
       location: { origin: ORIGIN },
+      navigator: { onLine: true },
       registration: { scope: ORIGIN + '/', navigationPreload: { enable: async () => {} } },
       addEventListener: (type, fn) => { listeners[type] = fn; },
       skipWaiting: () => {},
@@ -140,11 +141,12 @@ function makeWorker() {
   };
 
   return {
-    sandbox, stores, networkCalls, signals, dispatch, put,
+    sandbox, stores, networkCalls, signals, dispatch, put, listeners,
     // Settle every cache write the worker handed to the browser.
     drained: async () => { const p = waits.splice(0, waits.length); await Promise.all(p); },
     setNetwork: (fn) => { network = fn; },
     breakCaches: () => { cachesBroken = true; },
+    setOnline: (v) => { sandbox.self.navigator.onLine = v; },
   };
 }
 
@@ -249,17 +251,30 @@ const body = (res) => res.text();
       'a stalled network hung a plain navigation instead of serving the cached page');
     console.log('  ok   second click: plain navigations are bounded the same way');
 
-    // Offline (network rejects, nothing cached): the cached index is the
-    // fallback so the visitor still has somewhere to be — never a bare 503.
-    // (The install handler asks for './index.html', which the Cache API
+    // Offline (no network at all, nothing cached for that URL): the cached index
+    // is the fallback so the visitor still has somewhere to be — never a bare
+    // 503. (The install handler asks for './index.html', which the Cache API
     // resolves against the worker URL and stores as '/index.html'.)
     const w3 = makeWorker();
     await w3.put(STATIC, '/index.html', 'OFFLINE INDEX', STALE_MS);
+    w3.setOnline(false);
     w3.setNetwork(() => Promise.reject(new Error('offline')));
     const res3 = await w3.dispatch('/tool.html?card=never-seen', { mode: 'navigate' });
     assert.strictEqual(await body(res3), 'OFFLINE INDEX',
       'an offline, uncached tool URL must fall back to the cached index');
     console.log('  ok   offline navigation: the cached index answers');
+
+    // A *failed* request while the browser says it is online is not "offline":
+    // it is a proxy, a reset, a blocked origin. Swapping in the home page for
+    // that is the substitution this whole file exists to stop, so the visitor
+    // keeps their URL and gets a retry instead.
+    const w3b = makeWorker();
+    await w3b.put(STATIC, '/index.html', 'OFFLINE INDEX', STALE_MS);
+    w3b.setNetwork(() => Promise.reject(new Error('connection reset')));
+    const res3b = await w3b.dispatch('/tool.html?card=never-seen', { mode: 'navigate' });
+    assert.strictEqual(res3b.status, 504,
+      'a failed-but-online navigation answered with a different page');
+    console.log('  ok   failed navigation while online: its own URL, not the home page');
   }
 
   // ------------------------------------------------------------- routing 2c
@@ -278,29 +293,45 @@ const body = (res) => res.text();
   // treated as unreachable. Both attempts hanging is therefore the case this
   // block describes.
   {
-    // Uncached navigation + a network that never settles, twice: the cached
-    // index answers (the same fallback an offline visit gets), so the tab
-    // resolves to a page the visitor can navigate rather than a white screen.
+    // Online, a stalled first visit gets an honest failure AT THE URL THAT WAS
+    // CLICKED. Serving the cached index here is what turned "the tab stalls"
+    // into "the tab stalls and then shows me a page I never asked for" — the
+    // 2026-10 stall report, twice 'fixed' by making this substitution more
+    // eager. A page the visitor did not request is never an acceptable answer
+    // for a network that is merely slow; it is only an answer for no network.
     const w = makeWorker();
     await w.put(STATIC, '/index.html', 'OFFLINE INDEX', STALE_MS);
     w.setNetwork(() => new Promise(() => {}));            // never settles: the hang
     const raced = await Promise.race([
-      w.dispatch('/tool.html?card=brand-new-tool', { mode: 'navigate' }).then((r) => r.text()),
+      w.dispatch('/tool.html?card=brand-new-tool', { mode: 'navigate' }).then((r) => r.status),
       new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
     ]);
-    assert.strictEqual(raced, 'OFFLINE INDEX',
-      'a stalled first visit to a tool URL hung instead of falling back to the cached index');
-    console.log('  ok   stalled first visit: the cached index answers');
+    assert.strictEqual(raced, 504,
+      'a stalled first visit while online either hung, or answered with the home page instead');
+    console.log('  ok   stalled first visit, online: fails at its own URL, never the wrong page');
 
-    // ...and with no cached index either, the navigation still settles (503)
-    // rather than hanging the tab.
+    // Offline, the same visitor gets the cached index — the page they can
+    // actually read — which is what the fallback was originally written for.
+    const wOff = makeWorker();
+    await wOff.put(STATIC, '/index.html', 'OFFLINE INDEX', STALE_MS);
+    wOff.setOnline(false);
+    wOff.setNetwork(() => Promise.reject(new Error('offline')));
+    const off = await Promise.race([
+      wOff.dispatch('/tool.html?card=brand-new-tool', { mode: 'navigate' }).then((r) => r.text()),
+      new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
+    ]);
+    assert.strictEqual(off, 'OFFLINE INDEX', 'an offline visit lost its cached-index fallback');
+    console.log('  ok   offline first visit: the cached index still answers');
+
+    // ...and with no cached index either, the navigation still SETTLES (a 504
+    // page the visitor can read and retry) rather than hanging the tab.
     const w2 = makeWorker();
     w2.setNetwork(() => new Promise(() => {}));
     const raced2 = await Promise.race([
       w2.dispatch('/tool.html?card=brand-new-tool', { mode: 'navigate' }).then((r) => r.status),
       new Promise((resolve) => setTimeout(() => resolve('STILL HANGING'), 400)),
     ]);
-    assert.strictEqual(raced2, 503,
+    assert.strictEqual(raced2, 504,
       'a stalled first visit with nothing cached must fail fast, not hang');
     console.log('  ok   stalled first visit, nothing cached: fails fast');
 
@@ -579,6 +610,55 @@ const body = (res) => res.text();
         `${u} is precached but served from RUNTIME_CACHE/CARDS_CACHE — remove it or route it here`);
     }
     console.log(`  ok   precache holds only what STATIC_CACHE serves (${urls.length} URLs)`);
+  }
+
+  // ── the diagnostics contract (sw-check.html reads these exact fields) ──────
+  // A self-serve check page is only trustworthy if the numbers it prints cannot
+  // silently become zeros: a diagnostics page that reports PASS because the
+  // message shape drifted is worse than no page at all, so the shape is pinned
+  // here against the real worker.
+  {
+    const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+    const w = makeWorker();
+    let reply = null;
+    w.listeners.message({ data: { type: 'mp:stats' }, source: { postMessage: (m) => { reply = m; } } });
+    await tick(20);
+    assert.ok(reply && reply.type === 'mp:stats', 'the worker did not answer mp:stats');
+    const d = reply.data;
+    for (const k of ['cacheVersion', 'cacheHits', 'network', 'refreshes', 'aborted', 'fallbacks',
+                     'disarmed', 'disarmedUntil', 'sizes']) {
+      assert.ok(k in d, `mp:stats replies without "${k}" — sw-check.html reads it and would show zeros as a pass`);
+    }
+    assert.equal(typeof d.cacheHits, 'number');
+    assert.equal(typeof d.sizes, 'object');
+    const stores = Object.keys(d.sizes);
+    for (const name of ['static', 'cards', 'runtime']) {
+      assert.ok(stores.some((k) => k.startsWith(name + '-')), `mp:stats does not report the ${name} store`);
+    }
+    assert.equal(d.fallbacks, 0, 'a clean start should report no fallbacks');
+
+    // …and the counter has to move when the worker really does fall back, or the
+    // page's one meaningful number measures nothing.
+    w.setNetwork(() => new Promise(() => {}));            // nothing ever answers
+    for (let i = 0; i < 3; i++) { await w.dispatch('/categories/survival-and-emergency-readiness.html', { mode: 'navigate' }); }
+    reply = null;
+    w.listeners.message({ data: { type: 'mp:stats' }, source: { postMessage: (m) => { reply = m; } } });
+    await tick(20);
+    assert.ok(reply.data.fallbacks >= 3,
+      `three stuck navigations reported ${reply.data.fallbacks} fallback(s) — the counter the page shows is not the fallback path`);
+    assert.ok(reply.data.disarmedUntil > Date.now(),
+      'after three fallbacks the worker must report its cool-off, or the page cannot say it stood down');
+    console.log(`  ok   mp:stats answers with the fields sw-check.html reads (${d.cacheVersion}), and counts fallbacks`);
+
+    // A message that is not ours must be ignored without throwing (a page can
+    // post anything; an exception here is an unhandled rejection in the worker).
+    let threw = null;
+    try {
+      w.listeners.message({ data: { type: 'something-else' }, source: null });
+      w.listeners.message({ data: null, source: null });
+      w.listeners.message({ source: null });
+    } catch (e) { threw = e; }
+    assert.equal(threw, null, `an unrelated message took the worker down: ${threw && threw.message}`);
   }
 
   // ------------------------------------------------------------- discipline

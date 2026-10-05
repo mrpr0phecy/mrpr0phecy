@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="robots" content="noindex">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <title>Is the service worker behaving?</title>
+  <meta name="description" content="Internal check page: drives the cached navigation layer through a real click-through and reports whether it stalls or substitutes a page.">
+  <link rel="canonical" href="https://www.themostusefulsiteintheworld.com/sw-check.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Most Useful Site in the World">
+  <meta property="og:title" content="Is the service worker behaving?">
+  <meta property="og:description" content="Internal check page: drives the cached navigation layer through a real click-through and reports whether it stalls or substitutes a page.">
+  <meta property="og:url" content="https://www.themostusefulsiteintheworld.com/sw-check.html">
+  <meta name="theme-color" content="#f1f1f1">
+  <style>
+    body { font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #f1f1f1; color: #14161a; }
+    main { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p.lede { margin: 0 0 20px; color: #4a5160; }
+    .card { background: #fff; border: 1px solid #dfe2e8; border-radius: 10px; padding: 16px; margin: 0 0 14px; }
+    #verdict { font-size: 19px; font-weight: 600; padding: 18px 16px; border-radius: 10px; border: 1px solid #dfe2e8; background: #fff; }
+    #verdict[data-s="ok"] { border-color: #1c7a3c; background: #eef8f1; color: #14562b; }
+    #verdict[data-s="bad"] { border-color: #a8231f; background: #fdefee; color: #7a1714; }
+    #verdict[data-s="wait"] { border-color: #b88a1b; background: #fdf7e6; color: #6b5110; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid #eef0f4; font-size: 14px; vertical-align: top; }
+    th { color: #4a5160; font-weight: 600; width: 44%; }
+    code { font: 13px ui-monospace, Menlo, Consolas, monospace; background: #f4f5f8; padding: 1px 4px; border-radius: 4px; }
+    button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #c9cdd6; background: #fff; cursor: pointer; }
+    button:hover { background: #f4f5f8; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    small { color: #4a5160; }
+    .bad { color: #7a1714; }
+    .ok { color: #14562b; }
+    iframe { position: absolute; left: -9999px; width: 1200px; height: 800px; visibility: hidden; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Is the service worker behaving?</h1>
+  <p class="lede">This page drives the site's cached navigation layer the way a visitor does — a
+    run of real page loads, one after another — and says plainly whether it stalls, or shows a page
+    you did not ask for. Nothing is sent anywhere: every number below is read from this browser.</p>
+
+  <div id="verdict" data-s="wait" role="status">Checking…</div>
+
+  <div class="card">
+    <div class="row">
+      <button type="button" id="again">Run the click-through again</button>
+      <button type="button" id="standdown">Take the worker out for this visit</button>
+      <button type="button" id="rearm" hidden>Put it back</button>
+    </div>
+    <p><small>The first button is the test. The second switches the worker off (and clears the
+      cache) so you can see whether the site is fine without it — which is the quickest way to
+      settle where a problem lives. Nothing here needs a redeploy.</small></p>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 8px">What the worker did during the run</h2>
+    <table id="stats"><tbody><tr><th>waiting…</th><td></td></tr></tbody></table>
+    <p><small><strong>Fallbacks</strong> is the number that matters: it counts page views the worker
+      could not serve properly. It should stay <strong>0</strong>. If it ever reaches 3 in a row the
+      worker gets out of the way for ten minutes by itself, so a bug in it cannot be the reason the
+      site is slow.</small></p>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 8px">Each page load</h2>
+    <table id="log"><tbody><tr><th>waiting…</th><td></td></tr></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 8px">What each row means</h2>
+    <p><small>
+      <strong>slow</strong> — answered, but over 2.5 s; usually a busy origin, not the worker.<br>
+      <strong>wrong page</strong> — the address in the frame and the page it rendered disagree.
+      This is the failure that was reported, and it is a bug in the worker, full stop.<br>
+      <strong>did not load</strong> — the origin never answered twice. The worker shows an honest
+      failure at the URL you clicked rather than substituting another page.<br>
+      <strong>no reply</strong> — the frame never finished. Treat this as a stall and say so.
+    </small></p>
+  </div>
+</main>
+
+<script>
+// Kept deliberately plain: inline script, no modules, no shared code, so that a
+// failure here is either the worker or the network — never this page. Text is
+// written with textContent only; nothing on this page interpolates a URL into
+// markup.
+(function () {
+    'use strict';
+    var SLOW_MS = 2500;
+    var DEADLINE_MS = 8000;
+    var LAPS = 3;
+    // The reported shape of the bug was several clicks ACROSS pages, so the
+    // probe repeats a short loop of page types rather than loading one page twice.
+    var PAGES = ['/', '/tools.html', '/categories/survival-and-emergency-readiness.html', '/tool.html?card=age-calculator'];
+
+    var verdict = document.getElementById('verdict');
+    var statsEl = document.getElementById('stats');
+    var logEl = document.getElementById('log');
+    var rearmBtn = document.getElementById('rearm');
+
+    function say(state, text) { verdict.setAttribute('data-s', state); verdict.textContent = text; }
+    function rows(tbody, list) {
+        while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+        list.forEach(function (pair) {
+            var tr = document.createElement('tr');
+            var th = document.createElement('th'); th.textContent = pair[0];
+            var td = document.createElement('td'); td.textContent = pair[1];
+            if (pair[2]) td.className = pair[2];
+            tr.appendChild(th); tr.appendChild(td); tbody.appendChild(tr);
+        });
+    }
+    function ms(n) { return (n >= 1000 ? (n / 1000).toFixed(2) + ' s' : Math.round(n) + ' ms'); }
+    function clean(u) {
+        try { var p = new URL(u, location.href); return (p.pathname + p.search).replace(/\/index\.html$/, '/'); }
+        catch (e) { return String(u); }
+    }
+
+    // ── the worker's own counters, asked over postMessage ─────────────────────
+    function askStats() {
+        return new Promise(function (resolve) {
+            var ctl = navigator.serviceWorker && navigator.serviceWorker.controller;
+            if (!ctl) return resolve(null);
+            var done = false;
+            function on(e) {
+                if (!e.data || e.data.type !== 'mp:stats' || done) return;
+                done = true;
+                window.removeEventListener('message', on);
+                clearTimeout(timer);
+                resolve(e.data.data);
+            }
+            var timer = setTimeout(function () { if (!done) { done = true; window.removeEventListener('message', on); resolve(null); } }, 3000);
+            window.addEventListener('message', on);
+            try { ctl.postMessage({ type: 'mp:stats' }); } catch (e) { resolve(null); }
+        });
+    }
+
+    function renderStats(before, after) {
+        var d = {};
+        var keys = ['cacheHits', 'network', 'refreshes', 'aborted', 'fallbacks', 'disarmed'];
+        keys.forEach(function (k) { d[k] = (after && after[k] || 0) - (before && before[k] || 0); });
+        if (!after) { rows(statsEl.tBodies[0], [['worker', 'not answering mp:stats — reload this page once and run again']]); return d; }
+        rows(statsEl.tBodies[0], [
+            ['worker version', String(after.cacheVersion || 'unknown')],
+            ['page views served from cache', String(d.cacheHits), d.fallbacks ? '' : 'ok'],
+            ['page views that went to the origin', String(d.network)],
+            ['background refreshes started', String(d.refreshes)],
+            ['requests cancelled', String(d.aborted)],
+            ['fallbacks (must be 0)', String(d.fallbacks), d.fallbacks ? 'bad' : 'ok'],
+            ['entries stored', Object.keys(after.sizes || {}).map(function (k) { return k.replace(/^[a-z]+-/, '') + ': ' + after.sizes[k]; }).join(' · ') || 'n/a'],
+            ['standing down until', after.disarmedUntil ? new Date(after.disarmedUntil).toLocaleTimeString() : 'no — it is working normally', after.disarmedUntil ? 'bad' : '']
+        ]);
+        return d;
+    }
+
+    // ── one real navigation, through the worker, in a frame ──────────────────
+    function loadOne(url) {
+        return new Promise(function (resolve) {
+            var frame = document.createElement('iframe');
+            var t0 = performance.now();
+            var settled = false;
+            function finish(rec) {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                setTimeout(function () { if (frame.parentNode) frame.parentNode.removeChild(frame); }, 0);
+                rec.ms = performance.now() - t0;
+                resolve(rec);
+            }
+            var timer = setTimeout(function () { finish({ url: url, kind: 'no reply' }); }, DEADLINE_MS);
+            frame.addEventListener('load', function () {
+                var out = { url: url, kind: 'ok' };
+                try {
+                    var w = frame.contentWindow;
+                    var doc = frame.contentDocument;
+                    out.finalUrl = w.location.pathname + w.location.search;
+                    out.title = doc && doc.title ? doc.title : '';
+                    var want = clean(url);
+                    var got = clean(out.finalUrl);
+                    if (got !== want) {
+                        out.kind = 'wrong page';
+                        out.got = got; out.want = want;
+                    } else if (/did not load/.test(out.title)) {
+                        out.kind = 'did not load';
+                    } else if (out.ms > SLOW_MS) {
+                        out.kind = 'slow';
+                    }
+                } catch (e) {
+                    out.kind = 'unreadable';
+                    out.error = String(e && e.message || e);
+                }
+                finish(out);
+            });
+            frame.setAttribute('aria-hidden', 'true');
+            frame.setAttribute('tabindex', '-1');
+            document.body.appendChild(frame);
+            frame.src = url;
+        });
+    }
+
+    function renderLog(list) {
+        rows(logEl.tBodies[0], list.map(function (r) {
+            var cls = r.kind === 'ok' ? 'ok' : 'bad';
+            var note = r.kind === 'wrong page' ? 'asked for ' + r.want + ', got ' + r.got
+                : r.kind === 'no reply' ? 'no document after ' + ms(DEADLINE_MS)
+                : r.title ? r.title : '';
+            return [clean(r.url) + ' — ' + ms(r.ms), r.kind + (note ? ' · ' + note : ''), cls];
+        }));
+    }
+
+    var again = document.getElementById('again');
+
+    async function run() {
+        again.disabled = true;
+        say('wait', 'Running: ' + (PAGES.length * LAPS) + ' page loads in a row…');
+        rows(logEl.tBodies[0], [['waiting…', '']]);
+        var before = await askStats();
+        var list = [];
+        var worst = 0, problems = [];
+        for (var lap = 0; lap < LAPS; lap++) {
+            for (var i = 0; i < PAGES.length; i++) {
+                var rec = await loadOne(PAGES[i]);
+                list.push(rec);
+                worst = Math.max(worst, rec.ms);
+                if (rec.kind !== 'ok' && rec.kind !== 'slow') problems.push(clean(rec.url) + ' → ' + rec.kind);
+                renderLog(list);
+                say('wait', 'Running: ' + list.length + ' of ' + (PAGES.length * LAPS) +
+                    ' page loads done' + (problems.length ? ' — ' + problems.length + ' problem(s) so far' : ''));
+            }
+        }
+        var after = await askStats();
+        var delta = renderStats(before, after);
+        var ctl = navigator.serviceWorker && navigator.serviceWorker.controller;
+        if (!ctl) {
+            say('wait', 'No worker in control of this page — nothing to test. Reload once, then run again.');
+        } else if (problems.length) {
+            say('bad', 'FAIL — ' + problems.length + ' of ' + list.length + ' page loads were wrong: ' + problems.join('; ') +
+                '. Slowest was ' + ms(worst) + '. This is the reported bug; the fix is not holding.');
+        } else if (delta.fallbacks) {
+            say('bad', 'FAIL — every page came back, but the worker fell back ' + delta.fallbacks +
+                ' time(s), which means it guessed at least once. Slowest was ' + ms(worst) + '.');
+        } else {
+            say('ok', 'PASS — ' + list.length + ' page loads across ' + LAPS + ' laps, none stalled, none substituted' +
+                '. Slowest ' + ms(worst) + '; ' + delta.cacheHits + ' served from cache, ' + delta.network + ' from the origin.');
+        }
+        again.disabled = false;
+    }
+
+    // ── stand down / re-arm ──────────────────────────────────────────────────
+    document.getElementById('standdown').addEventListener('click', function () {
+        Promise.resolve()
+            .then(function () { return navigator.serviceWorker.getRegistration(); })
+            .then(function (reg) { if (reg) return reg.unregister(); })
+            .then(function () { return caches.keys(); })
+            .then(function (names) { return Promise.all(names.map(function (n) { return caches.delete(n); })); })
+            .then(function () { location.reload(); });
+    });
+
+    rearmBtn.addEventListener('click', function () {
+        Promise.resolve()
+            .then(function () { return askStats(); })
+            .then(function () { return navigator.serviceWorker.register('sw.js'); })
+            .then(function () { location.reload(); });
+    });
+
+    again.addEventListener('click', run);
+
+    // Report registration state before anything else, then drive the pages.
+    (async function boot() {
+        if (!('serviceWorker' in navigator)) { say('bad', 'This browser has no service worker support, so the cached layer cannot be tested here.'); return; }
+        var reg = await navigator.serviceWorker.getRegistration();
+        if (!reg) {
+            say('wait', 'No service worker is registered in this browser — the site is running without the cached layer, so nothing here can stall it. Open the front page once (which registers it), then come back.');
+            rows(statsEl.tBodies[0], [['worker', 'not registered']]);
+            rearmBtn.hidden = false;
+            return;
+        }
+        if (reg.waiting) rearmBtn.hidden = false;
+        run();
+    })();
+})();
+</script>
+</body>
+</html>

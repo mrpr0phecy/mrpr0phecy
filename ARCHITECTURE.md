@@ -66,6 +66,7 @@ experiments (ask before deleting): sonicfansite, beachsimulator, citysimulator,
                         supaviewer.html is a standalone virtual-world viewer (supaviewer/)
 manifest.json           PWA manifest            robots.txt  allow all + sitemap
 sw.js                   service worker — registered by home-core.js (§7)
+sw-check.html           noindex self-check for that layer: a real click-through + mp:stats (§7)
 sitemap.xml             generated (§6); noindex redirect stubs excluded
 brand/                  mark.py (geometry/palette/SVG), gen_assets.py, check-mark.py,
                         spec.py, measure.py — see brand/README.md
@@ -597,6 +598,21 @@ every list page (§2). Its rules:
   page" report came from: the worker queued a revalidation per intercepted
   request and abandoned every one it timed out on, so each click left more
   traffic in front of the next.
+- **The worker may stall a page, never cause it** — enforced in three places, so
+  a regression has to fail on purpose rather than by accident:
+  `scripts/check-sw-discipline.py` (in the fast gate; nine textual rules — every
+  `fetch()` carries a signal, no cache call may reject `respondWith()`, no wait
+  bound is infinite, the cached index is an *offline* fallback only, all
+  `respondWith()` calls sit inside the guarded `route()`) — the deployed worker
+  violated 31 of them; `scripts/tests/sw-discipline.test.js` keeps the guard
+  honest by breaking one rule at a time; and
+  `scripts/tests/service-worker-session.test.js`, which drives a 12-click
+  session against a congested origin and asserts the two things a visitor
+  notices — the right page, and nothing left running behind it.
+  `sw.js` also bows out: after `STUCK_LIMIT` fallbacks it cool-offs for ten
+  minutes and unregisters itself, and any exception while routing hands the
+  request back to the browser. `sw-check.html` is the same check from the
+  visitor's side — its one meaningful number is `fallbacks`, which must be 0.
 - **Precache only what the fetch handler reads from that cache** — entries are
   fetched with `cache: 'reload'`, so a URL served from another cache is
   downloaded twice per install.

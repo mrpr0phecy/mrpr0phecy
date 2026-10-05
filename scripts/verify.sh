@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify.sh — would this change break the site?
 #
-#   bash scripts/verify.sh          # the gate: 7 checks, ~5 s
+#   bash scripts/verify.sh          # the gate: 8 checks, ~6 s
 #   bash scripts/verify.sh --deep   # gate + the slow audits, ~75 s with jsdom
 #   bash scripts/verify.sh --live   # gate + ask the deployed site what it serves
 #
@@ -70,6 +70,20 @@ check() {
 # ---------------------------------------------------------------------------
 # The gate
 # ---------------------------------------------------------------------------
+
+sw_discipline() {
+  # Nine rules, each one a shape the network layer had to keep after the
+  # "stalls after five clicks, then shows the wrong page" report. The script's
+  # docstring says what each rule costs when it is dropped; the behavioural half
+  # (timing, which no static rule can see) is pinned by the session soak in
+  # scripts/tests/, which npm test and this gate's --deep product suite run.
+  expect "service worker obeys the nine discipline rules" \
+         "sw.js drifted from the rules that stop it stalling a page — each violation names the rule and the user-visible failure it causes" \
+         python3 scripts/check-sw-discipline.py
+  if ! git diff --quiet HEAD -- sw.js 2>/dev/null; then
+    note "sw.js changed — run the behavioural half too: node scripts/tests/service-worker.test.js scripts/tests/service-worker-session.test.js (npm test covers both)"
+  fi
+}
 
 hygiene() {
   # Patterns are assembled at runtime so this script does not match itself.
@@ -380,7 +394,7 @@ live() {
 # ---------------------------------------------------------------------------
 
 T_START=$(now_ms)
-printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 7-check gate")"
+printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 8-check gate")"
 
 check "hygiene: secrets, placeholders, rel=noopener" hygiene
 check "catalogue consistency"                      catalogue
@@ -389,6 +403,7 @@ check "internal links"                             links
 check "published tool counts"                      counts
 check "top-level SEO"                              seo
 check "Lantern engine contracts"                   lantern
+check "service worker discipline"                  sw_discipline
 
 if [ "$DEEP" = "1" ]; then
   check "card safety audits (egress, a11y, collisions, CSS leaks)" deep_card_safety
