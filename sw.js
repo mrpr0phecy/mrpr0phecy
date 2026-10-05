@@ -1,9 +1,18 @@
-/* Service Worker — modern caching for The Most Useful Site in the World
-   - Cache-first for cards.json, card HTML fragments, and static assets
-   - Stale-while-revalidate for tools-index, sitemap, etc.
-   - Offline fallback
-   - Supports module type (type: 'module' registration) and classic
-   - Uses Cache API + Navigation Preload if available
+/* Service Worker — caching for The Most Useful Site in the World
+   - Catalogue, card fragments and first-party code: freshFast() — a cached copy
+     answers with NO request while it is inside the origin's own freshness
+     window; after that the network decides, with the cache as the safety net.
+   - Binaries (fonts, images): cache-first. Everything else: cached copy now,
+     one bounded refresh queued for next time.
+   - Navigations: network-first, a cached copy of THAT url after NETWORK_PATIENCE,
+     one retry on a fresh request when a stall has nothing cached, and the cached
+     index only for a network that genuinely failed (offline).
+   - Background work is bounded: one queue, two requests at a time, one per URL,
+     cleared when the visitor navigates. A request nobody awaits is aborted, not
+     abandoned — see the network section below for why that mattered.
+   - Every store is capped, and no cache call may fail a navigation.
+   - Offline fallback; module and classic registration; Navigation Preload when
+     available.
 */
 
 // v3: Inter self-hosted (fonts/ in the precache); precache trimmed —
@@ -114,7 +123,29 @@
 // v36: narrow horizontal shelves hint at their continuation with a trailing fade.
 // v37: align homepage and design-brief category counts with the 31-category catalogue.
 // v38: remeasure shared shelf fades when a previously hidden row becomes visible.
-const CACHE_VERSION = 'v38-2026-10-04';
+// v39: the stall that ends on the wrong page. "After five or six clicks the tab
+// stops and then shows me a different page" had been patched twice (v19, v21) by
+// putting a timeout on the worker's network waits — which is how the wrong page
+// got there: past the patience the handler hands over the CACHED INDEX for a
+// navigation whose fetch was merely slow. The timeouts were treating a queue the
+// worker had filled itself. Every intercepted request started a revalidation
+// BEFORE the freshness window was consulted, so a page view that answered 15
+// assets out of cache still put 15 downloads into the origin's queue, and
+// `bounded()` left each one running after its page was gone — nothing counted,
+// deduped, capped or aborted them. Clicking around is what builds that queue,
+// and each click added to it, so the session got worse the faster it went and a
+// reload made it look fine. A fresh-enough cached copy now costs no request at
+// all; a refresh nobody waits for goes through one bounded, per-URL-deduped
+// queue that a navigation clears before it starts; a timed-out request is aborted
+// instead of abandoned; an uncached navigation that stalls is retried once on a
+// fresh connection, and the cached index is reserved for a network that actually
+// failed. Cache access can no longer fail a navigation either — open/match/put
+// are guarded (a quota error used to reject respondWith and render an error
+// page), and every store is capped, because 1,389 fragments plus a page per tool
+// only ever grew. Document requests that are not navigations (the hover
+// prefetches the speculation rules ask for) are passed straight back to the
+// browser, which prioritises and cancels them properly.
+const CACHE_VERSION = 'v39-2026-10-04';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -170,17 +201,29 @@ const FRESH_WINDOW_MS = 10 * 60 * 1000;
 const NETWORK_PATIENCE_MS = 2500;
 // The bound for fetches with NO cached copy to fall back on. Longer than the
 // one above, because a first visit has no alternative worth racing toward and
-// a slow origin still gets its chance — but it exists: past it, a navigation
-// falls back to the cached index (the same page an offline visit gets) and a
-// subresource fails fast (503) so the page renders its error UI and its retry
-// instead of hanging. Nothing in this worker awaits the network forever.
+// a slow origin still gets its chance. Past it a stalled socket is aborted and
+// a navigation gets ONE more attempt on a fresh connection; only if that fails
+// too does a navigation fall back to the cached index (the same page an offline
+// visit gets) and a subresource fail fast (503) so the page renders its error UI
+// and its retry. Nothing awaits the network forever, and nothing keeps a
+// connection after the wait is over.
 const UNCACHED_PATIENCE_MS = 8000;
 
 // Install — precache critical assets
 self.addEventListener('install', (event) => {
     event.waitUntil(
         (async () => {
-            const cache = await caches.open(STATIC_CACHE);
+            // Free the previous deploy's stores before adding to this one: a
+            // device near its quota otherwise fails install, which leaves the
+            // whole caching layer missing rather than merely cold.
+            try {
+                const names = await caches.keys();
+                await Promise.all(names
+                    .filter(k => ![STATIC_CACHE, CARDS_CACHE, RUNTIME_CACHE].includes(k))
+                    .map(k => caches.delete(k).catch(() => {})));
+            } catch (e) { /* nothing to clean */ }
+            const cache = await caches.open(STATIC_CACHE).catch(() => null);
+            if (!cache) { self.skipWaiting(); return; }   // no store: run uncached
             try {
                 // Use cache: reload to bypass http cache for fresh install
                 await cache.addAll(PRECACHE_URLS.map(u => new Request(u, { cache: 'reload' })));
@@ -205,36 +248,36 @@ self.addEventListener('install', (event) => {
     );
 });
 
-// Activate — clean old caches
+// Activate — clean old caches. Nothing here may reject: an activate that throws
+// leaves the worker inactive, which silently removes the cache layer for every
+// visit until the next deploy.
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         (async () => {
-            const keys = await caches.keys();
-            await Promise.all(
-                keys.filter(k => ![STATIC_CACHE, CARDS_CACHE, RUNTIME_CACHE].includes(k))
-                    .map(k => caches.delete(k))
-            );
-            await self.clients.claim();
+            try {
+                const keys = await caches.keys();
+                await Promise.all(
+                    keys.filter(k => ![STATIC_CACHE, CARDS_CACHE, RUNTIME_CACHE].includes(k))
+                        .map(k => caches.delete(k).catch(() => {}))
+                );
+            } catch (e) { /* no old stores to drop */ }
+            try { await self.clients.claim(); } catch (e) { /* already claimed */ }
         })()
     );
 });
 
-// Message handler — warm cache on demand
+// Message handler — warm cache on demand. It has no caller today; it goes
+// through the background queue anyway, because a list of URLs fetched as fast
+// as the loop can run is precisely the pile-up the rest of this file exists to
+// prevent.
 self.addEventListener('message', (event) => {
     if (!event.data) return;
     if (event.data.type === 'WARM_CACHE' && Array.isArray(event.data.urls)) {
-        event.waitUntil(
-            (async () => {
-                const cache = await caches.open(RUNTIME_CACHE);
-                for (const url of event.data.urls) {
-                    try {
-                        const req = new Request(url, { credentials: 'same-origin' });
-                        const res = await fetch(req);
-                        if (res.ok) await cache.put(req, res.clone());
-                    } catch {}
-                }
-            })()
-        );
+        for (const url of event.data.urls) {
+            try {
+                startBackground(new Request(url, { credentials: 'same-origin' }), RUNTIME_CACHE);
+            } catch (e) { /* a URL the Request constructor rejects is not worth warming */ }
+        }
     }
 });
 
@@ -246,6 +289,17 @@ self.addEventListener('fetch', (event) => {
     // Only handle same-origin GET
     if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
+    // Speculation-rule prefetches — and any other document request that is not
+    // an actual navigation — are left to the browser. It already gives them
+    // idle priority and cancels them when the visitor commits somewhere else;
+    // the worker could not, and intercepting them was its own version of the
+    // bug: every hover across the catalogue asked for a 124 KB tool page, and
+    // each of those requests outlived the hover, because the worker outlives
+    // the page. Passing them straight through still warms the HTTP cache, which
+    // is what makes the eventual click instant, and the navigation that follows
+    // is cached here like any other.
+    if (req.mode !== 'navigate' && req.destination === 'document') return;
+
     // Catalogue tiers (lite = grid, full = search) and the per-tool machine
     // specs (api/tools/*.json — pointer #4). These decide which tools exist,
     // so they must never be answered from a copy that predates the deploy:
@@ -253,14 +307,14 @@ self.addEventListener('fetch', (event) => {
     // freshness window.
     if (url.pathname.endsWith('cards/cards-lite.json') || url.pathname.endsWith('cards/cards.json')
         || url.pathname === '/api/tools.json' || url.pathname.startsWith('/api/tools/')) {
-        event.respondWith(freshFast(req, STATIC_CACHE));
+        event.respondWith(freshFast(req, STATIC_CACHE, event));
         return;
     }
 
     // Card fragments: cards/*.html — same policy, so a fixed tool is the one
     // the visitor actually sees rather than the one before the fix.
     if (url.pathname.includes('/cards/') && url.pathname.endsWith('.html')) {
-        event.respondWith(freshFast(req, CARDS_CACHE));
+        event.respondWith(freshFast(req, CARDS_CACHE, event));
         return;
     }
 
@@ -279,7 +333,7 @@ self.addEventListener('fetch', (event) => {
     // cached index. tool.html therefore no longer needs its own branch.
     if (req.mode === 'navigate') {
         const preload = event.preloadResponse ? event.preloadResponse.catch(() => null) : null;
-        event.respondWith(navigateFast(req, preload));
+        event.respondWith(navigateFast(req, preload, event));
         return;
     }
 
@@ -288,7 +342,7 @@ self.addEventListener('fetch', (event) => {
     // fetched them (first visit, before it controlled anything) answers an
     // offline navigation with a styled, script-less page.
     if (PAGE_ASSET_PATHS.includes(url.pathname)) {
-        event.respondWith(freshFast(req, STATIC_CACHE));
+        event.respondWith(freshFast(req, STATIC_CACHE, event));
         return;
     }
 
@@ -298,103 +352,335 @@ self.addEventListener('fetch', (event) => {
     // still costs no request at all; explore.js, toolbox.js and
     // risk-notices.js are small enough that revalidating them is noise.
     if (/\.(js|css|json)$/.test(url.pathname)) {
-        event.respondWith(freshFast(req, RUNTIME_CACHE));
+        event.respondWith(freshFast(req, RUNTIME_CACHE, event));
         return;
     }
 
     // Immutable-ish binaries: images and fonts — cache-first.
     if (/\.(png|jpg|jpeg|webp|svg|ico|woff2?)$/.test(url.pathname)) {
-        event.respondWith(cacheFirst(req, RUNTIME_CACHE));
+        event.respondWith(cacheFirst(req, RUNTIME_CACHE, undefined, event));
         return;
     }
 
     // Default: stale-while-revalidate
-    event.respondWith(staleWhileRevalidate(req, RUNTIME_CACHE));
+    event.respondWith(staleWhileRevalidate(req, RUNTIME_CACHE, event));
 });
 
-async function cacheFirst(request, cacheName, maxAge) {
-    const cache = await caches.open(cacheName);
-    const cached = await cache.match(request);
-    if (cached) {
-        if (maxAge) {
-            const date = cached.headers.get('date');
-            if (date) {
-                const age = Date.now() - new Date(date).getTime();
-                if (age < maxAge) return cached;
-            } else {
-                // If no date, still return but revalidate in background
-                eventRevalidate(request, cache);
-                return cached;
-            }
-        } else {
-            return cached;
-        }
-    }
+// ---------------------------------------------------------------- the network
+// Everything above hands a request to one of the helpers below, and every one
+// of them used to assume the browser cancels a fetch once the page that needed
+// it goes away. It does not: a request started by the worker belongs to the
+// worker, and the worker outlives every page of the session. `bounded()` only
+// decided what the RESPONSE waited for — the fetch it raced kept running, and
+// nothing counted, deduped or cancelled it.
+//
+// So a page view that answered almost everything from cache still queued a
+// background revalidation for every request it intercepted — 15 on the home
+// page (the 1 MB tools-index.json, the catalogue, four scripts, two
+// stylesheets, a font, the notices) — and each of them sat in the same origin
+// queue as the click the visitor was actually waiting for. Four or five clicks
+// in, the queue held more work than a normal connection can drain, the
+// downloads nobody wanted any more kept the slots, and the navigation that
+// mattered timed out: a hard stall, then the patience fallback handing over a
+// page the visitor did not ask for. Reloading "fixed" it, because the queue
+// starts empty. Browsing fast is exactly what builds the queue, which is why
+// it only ever showed up while someone was clicking through the site.
+//
+// Four rules make that structure impossible:
+//   1. a cached copy that is still inside the freshness window is served with
+//      NO request at all — a cache hit must not cost bandwidth;
+//   2. a revalidation nobody is waiting for goes through one bounded queue
+//      (BACKGROUND_LIMIT at a time, one per URL, the backlog capped) instead of
+//      running straight away beside the page;
+//   3. a request the worker timed out on is ABORTED, not abandoned — the
+//      connection it holds is the resource the next click needs, and the page it
+//      was fetching is one the visitor has already left;
+//   4. a navigation cancels that backlog first: the visitor outranks the cache.
+//
+// And the failure it was hiding, now fixed at the source: nothing in this
+// worker may leave a connection held by nobody, and a stall is retried once on
+// a fresh request before it is treated as offline — so the patience fallback is
+// the last resort it was meant to be, not the normal end of a fast browse.
+const BACKGROUND_LIMIT = 2;
+const BACKGROUND_BACKLOG = 24;
+const backgroundQueue = [];          // {url, request, cacheName}
+const backgroundRunning = new Map(); // url -> ctl: one refresh per URL at a time
+let refreshSlots = BACKGROUND_LIMIT; // shared by queued refreshes and adopted ones
+
+function newAbort() {
     try {
-        // Uncached and stalled is the same hang as everywhere else: bound it.
-        // A settled response — even a 404 — still passes through untouched.
-        const net = await bounded(fetch(request), UNCACHED_PATIENCE_MS);
-        if (net && net.ok) cache.put(request, net.clone());
-        return net || new Response('Offline', { status: 503 });
-    } catch {
-        return cached || new Response('Offline', { status: 503 });
+        return typeof AbortController === 'function' ? new AbortController() : null;
+    } catch (e) {
+        return null;
     }
 }
 
-// A promise that resolves (with null) after ms. The work it races is NOT
-// cancelled: a slow fetch still lands in the cache for the visit after this
-// one — the bound only decides what THIS response waits for.
+function abort(ctl) {
+    if (!ctl) return;
+    try { ctl.abort(); } catch (e) { /* already settled */ }
+}
+
+// Queue a refresh of one URL for the next look. Dropped when that URL is already
+// being refreshed, and when a navigation has made the whole backlog pointless.
+function startBackground(request, cacheName) {
+    const url = request && request.url;
+    if (!url || backgroundRunning.has(url)) return;
+    for (let i = 0; i < backgroundQueue.length; i++) {
+        if (backgroundQueue[i].url === url) return;
+    }
+    backgroundQueue.push({ url, request, cacheName });
+    // A queue nobody drains while the visitor keeps clicking must stay short:
+    // the oldest entries are for pages that are already gone.
+    while (backgroundQueue.length > BACKGROUND_BACKLOG) backgroundQueue.shift();
+    pumpBackground();
+}
+
+function pumpBackground() {
+    while (refreshSlots > 0 && backgroundQueue.length) {
+        const job = backgroundQueue.shift();
+        refreshSlots--;
+        const ctl = newAbort();
+        const finish = () => {
+            refreshSlots++;
+            backgroundRunning.delete(job.url);
+            pumpBackground();
+        };
+        backgroundRunning.set(job.url, ctl);
+        let work;
+        try {
+            work = ctl ? fetch(job.request, { signal: ctl.signal }) : fetch(job.request);
+        } catch (e) {
+            finish();
+            continue;
+        }
+        Promise.resolve(work).then((res) => {
+            // This body belongs to nobody, so it goes straight into the store.
+            if (res && res.status === 200) return store(job.cacheName, job.request, res);
+            return null;
+        }).then(finish, finish);
+    }
+}
+
+// A refresh the visitor stopped waiting for. Letting it finish is worth exactly
+// as much as it costs: one slot of the same budget, so at most BACKGROUND_LIMIT
+// requests outlive their page, and the entry they update is what makes the next
+// view answer instantly instead of waiting out the patience again. With no slot
+// free the work is abandoned instead — the bound is the point.
+function adoptRefresh(request, ctl, promise) {
+    const url = request && request.url;
+    if (!url || refreshSlots <= 0) {
+        abort(ctl);
+        return false;
+    }
+    refreshSlots--;
+    backgroundRunning.set(url, ctl);
+    Promise.resolve(promise).then(() => {
+        refreshSlots++;
+        backgroundRunning.delete(url);
+        pumpBackground();
+    }, () => {
+        refreshSlots++;
+        backgroundRunning.delete(url);
+        pumpBackground();
+    });
+    return true;
+}
+
+// A navigation is the visitor, waiting. Everything still QUEUED belongs to a
+// page they have left, so it hands the origin's budget back before this click
+// starts competing with it. Work already in flight is not cancelled here: it is
+// inside the same two-slot budget, it is nearly free to finish, and it is what
+// keeps the next page view off the network.
+function clearBacklog() {
+    backgroundQueue.length = 0;
+}
+
+// The one safe way into a cache: a rejected `open()`/`match()`/`put()` used to
+// reject respondWith() with it, and Chromium renders that as an error page for
+// the URL the visitor clicked — with no cache layer at all for the rest of the
+// session, because a failed activate left the worker uninstalled. Quota and
+// disk errors are ordinary on a phone, so they are handled, not propagated.
+async function openCache(name) {
+    try {
+        return await caches.open(name);
+    } catch (e) {
+        return null;
+    }
+}
+
+async function matchQuietly(cache, request) {
+    if (!cache) return undefined;
+    try {
+        return await cache.match(request);
+    } catch (e) {
+        return undefined;
+    }
+}
+
+// How many entries a store may hold. Every distinct URL this site serves is a
+// permanent entry — 1,389 card fragments, a tool page per card, an index per
+// visit — and with no ceiling the stores only ever grew, which is how the
+// quota errors above started happening in the first place. Oldest first: the
+// Cache API iterates in insertion order, so the front of the list is the page
+// from the start of the session.
+const MAX_ENTRIES = 420;
+const PRUNE_EVERY = 32;
+const storedSincePrune = new Map();
+
+async function store(cacheName, request, response) {
+    if (!request || !response || response.status !== 200) return;
+    const cache = await openCache(cacheName);
+    if (!cache) return;
+    try {
+        await cache.put(request, response);
+    } catch (e) {
+        return;      // quota or a body the store cannot hold: keep serving, uncached
+    }
+    const n = (storedSincePrune.get(cacheName) || 0) + 1;
+    storedSincePrune.set(cacheName, n);
+    if (n < PRUNE_EVERY) return;
+    storedSincePrune.set(cacheName, 0);
+    try {
+        const keys = await cache.keys();
+        if (!keys || keys.length <= MAX_ENTRIES) return;
+        const excess = keys.length - MAX_ENTRIES;
+        for (let i = 0; i < excess; i++) {
+            const entry = keys[i];
+            await cache.delete(Array.isArray(entry) ? entry[0] : entry);
+        }
+    } catch (e) { /* the ceiling is a safety valve, not a requirement */ }
+}
+
+// The request a page is waiting for, with a bound on the wait AND an abort when
+// the bound wins. `null` means "the network did not answer": a settled response
+// — including a 404 — always passes through untouched, because substituting a
+// different page for a page that exists is its own bug.
+const STALLED = { stalled: true };
+
+// `adopt` is for the caller that has a usable cached copy in hand: the fetch is
+// worth letting finish for the NEXT view (bounded by the refresh budget), and
+// the response it downloads is not needed by anyone now.
+async function foreground(request, ms, cacheName, event, adopt) {
+    const ctl = newAbort();
+    let settled = false;
+    let work;
+    try {
+        work = ctl ? fetch(request, { signal: ctl.signal }) : fetch(request);
+    } catch (e) {
+        return null;
+    }
+    const p = Promise.resolve(work).then((res) => {
+        settled = true;
+        if (res && res.status === 200 && cacheName) {
+            let copy = null;
+            try { copy = res.clone(); } catch (e2) { copy = null; }
+            // waitUntil() is what lets the write finish after the response has
+            // been delivered: fire-and-forget here meant the browser could kill
+            // the worker mid-put, so the entry was still missing next visit and
+            // the same download ran again.
+            const saved = store(cacheName, request, copy);
+            if (event) { try { event.waitUntil(saved); } catch (e3) { /* event over */ } }
+        }
+        return res || null;
+    }, () => { settled = true; return null; });
+    const winner = await Promise.race([p, after(ms).then(() => STALLED)]);
+    if (winner === STALLED) {
+        if (!settled) {
+            if (!adopt || !adoptRefresh(request, ctl, p)) abort(ctl);
+        }
+        return null;
+    }
+    return winner;
+}
+
+async function cacheFirst(request, cacheName, maxAge, event) {
+    const cache = await openCache(cacheName);
+    const cached = await matchQuietly(cache, request);
+    if (cached) {
+        // Immutable-ish binaries: a copy inside the caller's maxAge is the
+        // answer, and asking the origin about it is pure queue pressure.
+        if (!maxAge || ageWithin(cached, maxAge)) return cached;
+        startBackground(request, cacheName);
+        return cached;
+    }
+    const net = await foreground(request, UNCACHED_PATIENCE_MS, cacheName, event);
+    return net || new Response('Offline', { status: 503, statusText: 'Offline' });
+}
+
+// A promise that resolves (with null) after ms. Unlike `foreground()` this is
+// for callers that own the fetch and decide for themselves what to do with it.
 function after(ms) {
     return new Promise((resolve) => setTimeout(() => resolve(null), ms));
 }
 function bounded(promise, ms) {
-    return Promise.race([promise, after(ms)]);
+    return Promise.race([promise, after(ms).then(() => STALLED)]);
 }
 
-// Navigations: network-first with the catalogue's patience. The browser's
-// navigation-preload response (when the worker has one) is preferred as the
-// network source — it is already in flight when the event fires — and the
-// cache is allowed to answer only after NETWORK_PATIENCE_MS, or instantly
-// when the network has already failed. Either way the in-flight fetch keeps
-// running so the stored copy is fresh for the visit after this one.
+// Navigations: network-first with the catalogue's patience, and the requested
+// page in preference to anything else.
 //
-// The unbounded version of this handler is what hung the second click on a
-// tool (see the v19 note at the top): with a cached copy available, a stalled
-// socket now costs 2.5 seconds, not the rest of the session. v21 bounds the
-// uncached path the same way (see below): a stalled first visit falls back to
-// the cached index instead of hanging the tab on a white screen.
-async function navigateFast(request, preload) {
-    const cache = await caches.open(RUNTIME_CACHE);
-    const cached = await cache.match(request);
+// Two bugs lived here, both reported the same way — a few clicks, a stall, and
+// a page that is not the one that was asked for.
+//
+// * v19/v21 bounded the wait, but a bound on a saturated queue is the
+//   visitor's problem, not the worker's: the first answer this handler produced
+//   for a merely SLOW (not failed) fetch was the cached index. Now a stall gets
+//   one retry on a fresh request — the origin answers that, almost always,
+//   because it is the queued traffic of the previous clicks that was blocking
+//   the socket, and that traffic is gone (see clearBacklog and `foreground`).
+// * falling back to the index is kept for the case it was written for: a
+//   navigation that cannot be answered at all (offline, or a network that failed
+//   twice). The visitor gets a page they can navigate instead of a white tab.
+async function navigateFast(request, preload, event) {
+    clearBacklog();
+    const cache = await openCache(RUNTIME_CACHE);
+    const cached = await matchQuietly(cache, request);
+
     // Navigation preload normally settles first and saves a round trip — but
-    // the fetch below must never wait on it forever. If the preload has not
-    // answered within the usual patience, skip it and fetch directly; in the
-    // pathological case that costs one duplicate request, and everywhere else
-    // it costs nothing because the preload already won the race.
+    // the fetch below must never wait on it forever. If it has not answered
+    // within the usual patience, skip it and fetch directly: in the pathological
+    // case that costs one duplicate request, and everywhere else it costs
+    // nothing because the preload already won the race.
     const PRELOAD_SKIP = 'mp-preload-skip';
+    const ctl = newAbort();
+    const start = () => (ctl ? fetch(request, { signal: ctl.signal }) : fetch(request));
     const network = Promise.race([preload || Promise.resolve(null), after(NETWORK_PATIENCE_MS).then(() => PRELOAD_SKIP)])
-        .then((p) => (p === PRELOAD_SKIP || !p ? fetch(request) : p))
+        .then((p) => (p === PRELOAD_SKIP || !p ? start() : p))
         .then((res) => {
-            if (res && res.ok) cache.put(request, res.clone()).catch(() => {});
+            if (res && res.ok) {
+                let copy = null;
+                try { copy = res.clone(); } catch (e2) { copy = null; }
+                if (copy) {
+                    const saved = store(RUNTIME_CACHE, request, copy);
+                    try { if (event) event.waitUntil(saved); } catch (e3) { /* event over */ }
+                }
+            }
             return res || null;
         })
         .catch(() => null);
 
     if (!cached) {
-        // Nothing cached: the network is the honest answer (a 404 must pass
-        // through untouched — falling back to the index for a settled 404
-        // would show the home page at a dead URL). But it is not allowed
-        // forever: every new tool.html?card=* leg of a back-and-forth browse
-        // arrives here, and one stalled socket used to hold the tab hostage
-        // with a white screen. Past UNCACHED_PATIENCE_MS the stall is treated
-        // like offline, and the visitor gets the cached index they can
-        // navigate instead of a navigation that never resolves.
-        const net = await bounded(network, UNCACHED_PATIENCE_MS);
-        if (net) return net;
+        const first = await bounded(network, UNCACHED_PATIENCE_MS);
+        if (first && first !== STALLED) return first;
+        if (first === STALLED) {
+            // Nothing answered in time. That is a stalled socket, not a dead
+            // origin — abandon it (holding it is what made the next click worse)
+            // and ask once more on a clean connection.
+            abort(ctl);
+            const again = await foreground(request, UNCACHED_PATIENCE_MS, RUNTIME_CACHE, event);
+            if (again) return again;
+        }
         return cachedIndex();
     }
 
     const winner = await bounded(network, NETWORK_PATIENCE_MS);
+    if (winner === STALLED) {
+        // The visitor gets the copy we already have, and the refresh is kept
+        // only if the budget has room for it — that copy is what makes their
+        // back-and-forth trip instant instead of another patience wait.
+        if (!adoptRefresh(request, ctl, network)) abort(ctl);
+        return cached;
+    }
     return winner || cached;
 }
 
@@ -404,10 +690,14 @@ async function navigateFast(request, preload) {
 // URL — '/index.html'. Try the absolute form first, then the literal ones,
 // then '/'.
 async function cachedIndex() {
-    const staticCache = await caches.open(STATIC_CACHE);
-    const index = await staticCache.match('/index.html')
-        || await staticCache.match('./index.html')
-        || await staticCache.match('/');
+    const staticCache = await openCache(STATIC_CACHE);
+    if (!staticCache) return new Response('Offline', { status: 503, statusText: 'Offline' });
+    let index = null;
+    try {
+        index = await staticCache.match('/index.html')
+            || await staticCache.match('./index.html')
+            || await staticCache.match('/');
+    } catch (e) { index = null; }
     return index || new Response('Offline', { status: 503, statusText: 'Offline' });
 }
 
@@ -421,61 +711,45 @@ function ageOf(response) {
     return Math.max(0, Date.now() - date - age * 1000);
 }
 
-// Network-first, with the cache allowed to answer instantly only while the
-// stored copy is inside GitHub Pages' own freshness window (max-age=600).
-// After that the network decides; if it is slower than NETWORK_PATIENCE_MS or
-// fails, the cached copy is served and the fetch keeps running to refresh the
-// cache for next time.
+function ageWithin(response, maxAge) {
+    return ageOf(response) < maxAge;
+}
+
+// Network-first, with the cache allowed to answer instantly while the stored
+// copy is still inside GitHub Pages' own freshness window (max-age=600). After
+// that the network decides; if it is slower than NETWORK_PATIENCE_MS or fails,
+// the cached copy is served and a refresh is queued for the next look.
 //
 // This replaces stale-while-revalidate for the catalogue, the card fragments
-// and first-party code. SWR always handed over the cached copy first, so a
+// and first-party code: SWR always handed over the cached copy first, so a
 // returning visitor rebuilt the grid from the catalogue that predated the
 // deploy — every tool added since their last visit was missing until they
 // happened to load the page a second time.
-async function freshFast(request, cacheName) {
-    const cache = await caches.open(cacheName);
-    const cached = await cache.match(request);
-    const network = fetch(request)
-        .then((res) => {
-            // 200 only: a 206 or an opaque response cannot be stored, and
-            // cache.put() would reject.
-            if (res && res.status === 200) cache.put(request, res.clone()).catch(() => {});
-            return res;
-        })
-        .catch(() => null);
+//
+// The window path issues NO request. That is the whole point of the window, and
+// it used to be the whole source of the stall: the fetch was started before the
+// window was consulted, so every "cached" answer also spent a slot.
+async function freshFast(request, cacheName, event) {
+    const cache = await openCache(cacheName);
+    const cached = await matchQuietly(cache, request);
+    if (cached && ageOf(cached) < FRESH_WINDOW_MS) return cached;
 
-    if (!cached) {
-        // No copy at all: the network must answer, but — as with navigations
-        // above — it is not allowed forever. A stall here used to hang the
-        // page's own fetch with it: explore.js waited on tools-index.json with
-        // no timeout of its own, so the home list sat on "Searching the
-        // catalogue…" until the tab was reloaded. Failing fast lets the page
-        // render its error UI (and its retry) instead.
-        const net = await bounded(network, UNCACHED_PATIENCE_MS);
-        return net || new Response('Offline', { status: 503, statusText: 'Offline' });
+    const net = await foreground(request, cached ? NETWORK_PATIENCE_MS : UNCACHED_PATIENCE_MS,
+                                 cacheName, event, !!cached);
+    if (net) return net;
+    if (cached) return cached;
+    return new Response('Offline', { status: 503, statusText: 'Offline' });
+}
+
+async function staleWhileRevalidate(request, cacheName, event) {
+    const cache = await openCache(cacheName);
+    const cached = await matchQuietly(cache, request);
+    if (cached) {
+        // Refresh for next time, in the queue — not beside the page that is
+        // loading now.
+        startBackground(request, cacheName);
+        return cached;
     }
-    if (ageOf(cached) < FRESH_WINDOW_MS) return cached;
-
-    const winner = await bounded(network, NETWORK_PATIENCE_MS);
-    return winner || cached;
-}
-
-async function staleWhileRevalidate(request, cacheName) {
-    const cache = await caches.open(cacheName);
-    const cached = await cache.match(request);
-    // A cached hit returns immediately (the revalidation dangles harmlessly);
-    // with nothing cached, the fetch gets the same bound as every other
-    // uncached fetch rather than hanging the response forever.
-    const fetchPromise = bounded(fetch(request).then(net => {
-        if (net.ok) cache.put(request, net.clone());
-        return net;
-    }).catch(() => null), UNCACHED_PATIENCE_MS);
-    return cached || (await fetchPromise) || new Response('Offline', { status: 503 });
-}
-
-function eventRevalidate(request, cache) {
-    // Fire-and-forget revalidation
-    fetch(request).then(res => {
-        if (res.ok) cache.put(request, res);
-    }).catch(()=>{});
+    const net = await foreground(request, UNCACHED_PATIENCE_MS, cacheName, event);
+    return net || new Response('Offline', { status: 503, statusText: 'Offline' });
 }
