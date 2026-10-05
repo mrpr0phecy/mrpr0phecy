@@ -81,7 +81,7 @@ def block_for(card: dict) -> str:
         f'<div class="ec-title">{title}</div>\n'
         f'<div class="ec-desc">{desc_of(card["description"])}</div>\n'
         f'<div class="ec-actions">\n'
-        f'<a class="ec-btn ec-open" href="tool.html?card={slug}" target="_blank" rel="noopener">Open ↗</a>\n'
+        f'<a class="ec-btn ec-open" href="tool/{slug}.html" target="_blank" rel="noopener">Open ↗</a>\n'
         f'<button class="ec-btn ec-copy" data-slug="{slug}" data-title="{dt}">Copy iframe</button>\n'
         f'</div>\n'
         f'<div class="ec-code"></div>\n'

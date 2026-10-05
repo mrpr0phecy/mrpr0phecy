@@ -387,7 +387,7 @@
       pop: t.popularity || 0,
       updated: t.updated || '',
       featured: !!t.featured,
-      url: t.url || ('tool.html?card=' + encodeURIComponent(t.slug))
+      url: t.url || ('tool/' + encodeURIComponent(t.slug) + '.html')
     };
     row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
     return row;

@@ -282,7 +282,7 @@ def main() -> int:
 
     if args.check:
         failed = False
-        linked = set(re.findall(r"tool\.html\?card=([a-z0-9\-]+)", current))
+        linked = set(re.findall(r"(?<!tools/)tool/([a-z0-9\-]+)\.html", current))
         missing = sorted(catalogue.names - linked)
         phantom = sorted(linked - catalogue.names)
         if missing:

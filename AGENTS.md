@@ -10,13 +10,16 @@ Two products share the domain and must stay separate (§3 hard line 6).
 
 ### Product A — the catalogue (1,389 tools)
 
-`cards/<slug>.html` fragments, mounted by `index.html` / `tool.html`.
-Manifest: `manifest.tools.json`. No ads, no analytics on cards.
+`cards/<slug>.html` fragments — the single implementation of each tool,
+inlined verbatim into its own full page at `tool/<slug>.html` (the browse
+URL) and still mountable in `index.html` / `tool.html`. Manifest:
+`manifest.tools.json`. No ads, no analytics on cards.
 
 | Page | Role |
 |---|---|
 | `index.html` | catalogue home |
-| `tool.html` | shared DOM shell — runs one card at a time |
+| `tool/<slug>.html` | the tool's own full page — one document per tool (generated, 1,389 of them) |
+| `tool.html` | stateful shell — filled links (`&field=value&run=1`), jobs, `&embed=1`; browse links no longer use it |
 | `tools.html` | interactive catalogue directory |
 | `tools-index.html` | plain no-JS directory (what `llms.txt` links) |
 | `embed.html` | embed catalogue + licensing funnel |
@@ -139,9 +142,11 @@ a protection.
 ## 4. Common tasks — read the block that matches the task
 
 **Add a tool:** `cards/<slug>.html` + its category in `generate-cards-json.js`,
-then build and validate (§1); check `tool.html?card=<slug>` and `&embed=1`;
-health/finance also `docs/TRUST.md`. `scripts/add-tool.sh` commits and pushes
-(`--no-push` still commits) — only when those actions are wanted.
+then build and validate (§1); check `tool/<slug>.html` (the browse page — the
+build makes it from the fragment, so a broken fragment breaks a real URL now)
+and `tool.html?card=<slug>&embed=1`; health/finance also `docs/TRUST.md`.
+`scripts/add-tool.sh` commits and pushes (`--no-push` still commits) — only
+when those actions are wanted.
 
 **Write a card:** fragment only; slug-prefixed ids, IIFE, CSS scoped to the
 card root; init when loading *and* when already loaded; appended UI stays in
@@ -155,7 +160,9 @@ translation rewrite). Home CSS/JS: `?v=` (`index.html`), `APP_VERSION`
 
 **Generated surfaces:** `npm run build` owns `cards/cards*.json`, sitemaps,
 `tools*.html`, `tools-index.*`, `categories/`, `related.json`, `embed.html`,
-`api/tools*.json`, `api/tools/*.json`, `tools/*.html`, `llms*.txt`,
+`api/tools*.json`, `api/tools/*.json`, `tools/*.html`, `tool/*.html` (the full
+pages — `git add tool/` before the first build, or the sitemap's
+`git ls-files` never sees them), `llms*.txt`,
 `index.html`'s `HOME-*` blocks and
 published counts. Fix the source, then regenerate. `embed-finance.html` →
 `scripts/build-embed-landing.py`; brand assets → `brand/gen_assets.py`
@@ -164,7 +171,7 @@ published counts. Fix the source, then regenerate. `embed-finance.html` →
 ## 5. Finish
 
 Visible UI: inspect at 360 & 1440 px and exercise the interaction — screenshots
-don't prove behaviour (`node scripts/screenshot.mjs "tool.html?card=bmi"` writes
+don't prove behaviour (`node scripts/screenshot.mjs "tool/bmi.html"` writes
 /tmp/shots PNGs). No screenshots for docs or non-visual code. Summary: what
 changed, what ran, failures and unverified behaviour — never invent
 measurements or hide a failure. No PR ritual.

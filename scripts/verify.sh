@@ -282,6 +282,9 @@ deep_generated() {
   expect "tools/ deep pages match scripts/tool-pages.json" \
          "tools/ pages drifted — run: python3 scripts/build-tool-pages.py" \
          python3 scripts/build-tool-pages.py --check
+  expect "tool/ full pages match the catalogue (one deterministic page per tool)" \
+         "tool/ pages drifted — run: python3 scripts/build-tool-fullpages.py" \
+         python3 scripts/build-tool-fullpages.py --check
   expect "machine indexes (tools-index, categories, llms.txt) match the catalogue" \
          "discovery indexes stale — run: npm run build" \
          node scripts/build-tools-index.js --check

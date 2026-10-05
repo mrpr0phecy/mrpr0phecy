@@ -161,7 +161,15 @@
 // honest 504 at its own URL rather than another page, and after STUCK_LIMIT
 // fallbacks it cool-off unregisters itself. `mp:stats` reports what it did;
 // sw-check.html shows it to a human, no devtools needed.
-const CACHE_VERSION = 'v39-2026-10-04';
+// v40: the full-page split. Every tool now has its own page (tool/<slug>.html,
+// built by scripts/build-tool-fullpages.py) and the browse surfaces link there
+// instead of tool.html?card=; the toolbox panel's styles moved out of
+// explore.css into toolbox.css, which the tool pages load WITHOUT the list
+// layer — so toolbox.css gets its own precache entry and ?v=, and the edited
+// home-core.js / toolbox.js / explore.css must ship at the same version as
+// always. tool.html is unchanged: it stays the stateful shell for filled
+// links, jobs and &embed=1.
+const CACHE_VERSION = 'v40-2026-10-05';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -201,13 +209,14 @@ const PRECACHE_ASSETS = [
     `./home-deferred.css?v=${PAGE_VERSION}`,
     `./risk-notices.js?v=${PAGE_VERSION}`,
     `./explore.css?v=${PAGE_VERSION}`,
+    `./toolbox.css?v=${PAGE_VERSION}`,
     `./explore.js?v=${PAGE_VERSION}`,
     `./toolbox.js?v=${PAGE_VERSION}`,
     `./home-core.js?v=${PAGE_VERSION}`
 ];
 // Pathnames the handler must serve from STATIC_CACHE, where they are precached.
 const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/risk-notices.js',
-                          '/explore.css', '/explore.js', '/toolbox.js', '/home-core.js'];
+                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js', '/home-core.js'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.

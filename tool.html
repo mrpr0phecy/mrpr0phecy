@@ -23,8 +23,12 @@
     <!-- Inter is self-hosted (fonts/, SIL OFL 1.1), exactly as on the home page.
          The old Google-Fonts stylesheet was render-blocking on every tool view:
          a slow fonts.gstatic.com left visitors staring at a blank page — no
-         loader, no content — until the font chain resolved or timed out. -->
-    <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+         loader, no content — until the font chain resolved or timed out.
+         No <link rel="preload"> for the font: the @font-face below is inline in
+         this same head, so the download starts at parse time anyway, and the
+         preload buys a few milliseconds at the cost of the "preloaded … was
+         not used within a few seconds" console warning on every cached repeat
+         visit (a cached font load does not register against the preload job). -->
     <style>
     @font-face {
         font-family: 'Inter';
@@ -1885,7 +1889,8 @@
                     grid.innerHTML = '';
                     items.forEach(item => {
                         const a = document.createElement('a');
-                        a.href = 'tool.html?card=' + encodeURIComponent(item.name);
+                        // Browse link: the related tool's own page.
+                        a.href = 'tool/' + encodeURIComponent(item.name) + '.html';
                         a.className = 'related-card';
                         const titleDiv = document.createElement('div');
                         titleDiv.className = 'related-card-title';
@@ -2039,7 +2044,9 @@
             // Share button: native share sheet where it exists, intent links
             // otherwise. All user-initiated — no trackers are added to this
             // page, which stays clean by design (see CONSTRAINTS.md).
-            const shareUrl = () => window.location.origin + '/tool.html?card=' + encodeURIComponent(cardName);
+            // The full page (tool/<slug>.html) is the shareable URL — the
+            // stateful shell stays for filled links and embeds.
+            const shareUrl = () => window.location.origin + '/tool/' + encodeURIComponent(cardName) + '.html';
             const shareText = title + ' — free, runs in your browser';
             const openIntent = (base) => window.open(base, '_blank', 'noopener,noreferrer');
             document.getElementById('shareBtn').onclick = () => {
@@ -2104,7 +2111,7 @@
             const sharePostFmt = document.getElementById('sharePostFmt');
             if (sharePostFmt) {
                 sharePostFmt.onclick = () => {
-                    const postText = `⚡ ${title} — 100% free browser tool with no ads or sign-ups:\nhttps://www.themostusefulsiteintheworld.com/tool.html?card=${encodeURIComponent(cardName)}`;
+                    const postText = `⚡ ${title} — 100% free browser tool with no ads or sign-ups:\nhttps://www.themostusefulsiteintheworld.com/tool/${encodeURIComponent(cardName)}.html`;
                     navigator.clipboard.writeText(postText).then(() => {
                         showToast('✓ Formatted post copied!');
                         document.getElementById('sharePanel').classList.remove('open');
@@ -2121,7 +2128,7 @@
             // embed.html#activate verifies and removes that node (see
             // scripts/licence-keys.mjs).
             const embedCode = `<iframe src="${window.location.origin}/tool.html?card=${encodeURIComponent(cardName)}&embed=1" width="100%" height="520" style="border:none;border-radius:12px;" title="${title}"></iframe>
-<div data-mus-credit style="margin:6px 2px 0;text-align:right;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#667085;">${title} · via <a href="https://www.themostusefulsiteintheworld.com/tool.html?card=${encodeURIComponent(cardName)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">The Most Useful Site in the World</a></div>`;
+<div data-mus-credit style="margin:6px 2px 0;text-align:right;font:12px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#667085;">${title} · via <a href="https://www.themostusefulsiteintheworld.com/tool/${encodeURIComponent(cardName)}.html" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">The Most Useful Site in the World</a></div>`;
 
             const embedPanel = document.getElementById('embedPanel');
             const embedSnippet = document.getElementById('embedSnippetText');

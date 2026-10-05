@@ -37,7 +37,9 @@ for (const [page, slug] of Object.entries(PAGES)) {
     page + ': must embed tool.html?card=' + slug + '&embed=1');
   assert(h.includes("d.card === '" + slug + "'") && h.includes('tmusitw:height'),
     page + ': must listen for the embed height postMessage for its own card');
-  assert(h.includes('tool.html?card=' + slug + '">Open the standalone tool'),
+  // The fallback is a browse link, so it goes to the tool's own page
+  // (the embed iframe above it keeps the documented &embed=1 shell URL).
+  assert(h.includes('tool/' + slug + '.html">Open the standalone tool'),
     page + ': needs a no-JS fallback link to the standalone tool');
 
   // Crawlable metadata.

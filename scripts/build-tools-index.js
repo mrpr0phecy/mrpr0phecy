@@ -17,7 +17,6 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const CARDS_JSON = path.join(ROOT, 'cards', 'cards.json');
 const OUTPUT_JSON = path.join(ROOT, 'tools-index.json');
-const TOOLS_DIR = path.join(ROOT, 'tools');
 
 const CATEGORY_ORDER = [
   ['Home & DIY', '🔨'],
@@ -147,14 +146,6 @@ function computePopularity(slug, index, total) {
 
 function build() {
   const rawCards = JSON.parse(fs.readFileSync(CARDS_JSON, 'utf8'));
-  const staticTools = new Set();
-  if (fs.existsSync(TOOLS_DIR)) {
-    fs.readdirSync(TOOLS_DIR).forEach(f => {
-      if (f.endsWith('.html')) {
-        staticTools.add(f.replace('.html', ''));
-      }
-    });
-  }
 
   // Group by category
   const catMap = new Map();
@@ -199,7 +190,15 @@ function build() {
     const tags = extractTags(slug, c.title || '', c.description || '', catName);
     const popularity = computePopularity(slug, idx, rawCards.length);
     const featured = FEATURED_SLUGS.has(slug);
-    const url = staticTools.has(slug) ? `tools/${slug}.html` : `tool.html?card=${encodeURIComponent(slug)}`;
+    // Every tool's browse URL is its own full page (tool/<slug>.html, built
+    // by scripts/build-tool-fullpages.py before this script runs — the order
+    // in package.json is load-bearing). The curated tools/<slug>.html guide
+    // pages stay reachable from the cards' own "explained" links and the
+    // sitemap; the browse surfaces all point at one shape of URL, so a tool
+    // opens the same kind of page no matter where it is clicked.
+    // tool.html?card=<slug> is kept only for STATEFUL URLs (filled links,
+    // &embed=1, jobs) that carry values a static page cannot answer.
+    const url = `tool/${slug}.html`;
 
     return {
       slug: slug,
