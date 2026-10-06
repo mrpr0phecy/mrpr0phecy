@@ -390,7 +390,7 @@ ${sections.join('\n\n')}
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
   </style>  </style>
   <link rel="stylesheet" href="explore.css?v=${assetVersion}">
-  <link rel="stylesheet" href="toolbox.css?v=${assetVersion}">
+  <link rel="stylesheet" href="toolbox.css?v=${assetVersion}" media="print" onload="this.media='all';this.onload=null">
   <script defer src="toolbox.js?v=${assetVersion}"></script>
   <script defer src="explore.js?v=${assetVersion}"></script>
 </head>

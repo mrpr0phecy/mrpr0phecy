@@ -66,6 +66,14 @@ def asset_version() -> str:
     return match.group(1)
 
 
+# toolbox.css styles only chrome that toolbox.js injects (＋ buttons, toast, the
+# floating panel), so it takes the same print/onload swap index.html gives
+# home-deferred.css rather than blocking the first paint. It lives in a constant
+# because the single quotes inside onload would end a '-quoted f-string.
+TOOLBOX_CSS_LINK = ('<link rel="stylesheet" href="toolbox.css?v={v}" media="print" '
+                    "onload=\"this.media='all';this.onload=null\">")
+
+
 def version_head(head: str) -> str:
     """Point the head's list-layer links at the current version.
 
@@ -77,7 +85,7 @@ def version_head(head: str) -> str:
         head = head.replace(
             "</head>",
             f'  <link rel="stylesheet" href="explore.css?v={version}">\n'
-            f'  <link rel="stylesheet" href="toolbox.css?v={version}">\n'
+            f'  {TOOLBOX_CSS_LINK.format(v=version)}\n'
             f'  <script defer src="toolbox.js?v={version}"></script>\n'
             f'  <script defer src="explore.js?v={version}"></script>\n'
             "</head>",
@@ -88,13 +96,21 @@ def version_head(head: str) -> str:
             rf"\g<1>?v={version}",
             head,
         )
+    # tools.html's head is carried forward from the previous build, so a link
+    # written before toolbox.css went non-blocking would stay blocking forever.
+    # Normalise whatever shape it arrives in.
+    head = re.sub(
+        r'<link rel="stylesheet" href="toolbox\.css\?v=\d+"[^>]*>',
+        lambda _m: TOOLBOX_CSS_LINK.format(v=version),
+        head,
+    )
     # A page written before the toolbox split has explore.css but no
     # toolbox.css: add it, versioned, directly under the list layer.
     if "toolbox.css" not in head:
         head = head.replace(
             f'<link rel="stylesheet" href="explore.css?v={version}">',
             f'<link rel="stylesheet" href="explore.css?v={version}">\n'
-            f'  <link rel="stylesheet" href="toolbox.css?v={version}">',
+            f'  {TOOLBOX_CSS_LINK.format(v=version)}',
         )
     return head
 
