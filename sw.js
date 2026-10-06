@@ -169,7 +169,27 @@
 // home-core.js / toolbox.js / explore.css must ship at the same version as
 // always. tool.html is unchanged: it stays the stateful shell for filled
 // links, jobs and &embed=1.
-const CACHE_VERSION = 'v40-2026-10-05';
+// v41: the two pages the v40 split left behind, plus two CSS corrections.
+// new.html and popular.html were still pinned at v30 and never received
+// toolbox.css when the panel's chrome moved there, so the ＋ buttons
+// toolbox.js builds for them (and the toast) rendered as browser defaults —
+// explore.css's own comment states the invariant they broke: every page that
+// loads toolbox.js loads toolbox.css. home.css's shelf cards lost their
+// :last-child selectors, which added no declaration but enough specificity to
+// beat the prefers-reduced-motion override on the last card of each shelf; and
+// the @supports test in explore.css / toolbox.css now accepts
+// -webkit-backdrop-filter as well, because Safari honoured only the prefix
+// until 18 — those visitors were blurring behind a surface that never thinned.
+// v42: phones and first paint. cards/card.css stopped padding the body — its
+// 24 px stacked on the tool page frame's own insets and left a ~224 px card
+// column on a 360 px screen — and now sizes text fields at 16 px on small
+// screens, so iOS Safari stops zooming the page on focus; the generated tool
+// pages step their frame back under 600 px and let the below-fold related grid
+// and footer skip layout until approached (content-visibility); toolbox.css,
+// which styles only chrome toolbox.js injects, loads non-blocking on every
+// surface — one less render-blocking request per page; and card.css finally
+// carries a ?v= of its own, like every other asset on the site.
+const CACHE_VERSION = 'v42-2026-10-06';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

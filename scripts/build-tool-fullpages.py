@@ -239,7 +239,7 @@ CHROME_CSS = """
 :root{--tp-accent:#2dd4ff;--tp-gold:#ffd700;--tp-text:#e6faff;--tp-muted:rgba(230,250,255,.62);--tp-line:rgba(255,255,255,.09);--tp-surface:#141e28}
 *{box-sizing:border-box}
 html{color-scheme:dark;-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-body{margin:0;background-color:#0a0f14;background:linear-gradient(135deg,var(--mp-bg1,#0a0f14),var(--mp-bg2,#141e28)) fixed;color:var(--tp-text);font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+body{margin:0;padding:0;background-color:#0a0f14;background:linear-gradient(135deg,var(--mp-bg1,#0a0f14),var(--mp-bg2,#141e28)) fixed;color:var(--tp-text);font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 ::selection{background:rgba(45,212,255,.3);color:#fff}
 :focus-visible{outline:2px solid var(--tp-accent);outline-offset:2px;border-radius:4px}
 a{color:inherit}
@@ -273,13 +273,25 @@ a{color:inherit}
 .tp-tool{background:var(--tp-surface);border:1px solid var(--tp-line);border-radius:14px;padding:28px;box-shadow:0 16px 40px rgba(0,0,0,.4);margin-bottom:28px;min-width:0}
 .tp-tool>*{min-width:0;max-width:100%}
 .tp-pn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 32px}
-@media (max-width:600px){.tp-pn{grid-template-columns:1fr}}
+/* A phone is not a narrow desktop: the frame's three stacked insets (body,
+   .tp-main, .tp-tool) left a ~224 px column for the card on a 360 px screen.
+   The card owns its own breathing room; the frame steps back. */
+@media (max-width:600px){
+  .tp-pn{grid-template-columns:1fr}
+  .tp-main{padding:14px 10px 28px}
+  .tp-tool{padding:16px 14px;border-radius:12px}
+  .tp-crumbs{margin-bottom:12px}
+}
 .tp-pn-a{display:flex;flex-direction:column;gap:3px;padding:12px 14px;background:rgba(255,255,255,.03);border:1px solid var(--tp-line);border-radius:12px;text-decoration:none;min-width:0;transition:border-color .15s,transform .15s,background .15s}
 .tp-pn-a:hover{border-color:var(--tp-accent);background:rgba(45,212,255,.05);transform:translateY(-1px);text-decoration:none}
 .tp-pn-a.tp-pn-r{text-align:right;align-items:flex-end}
 .tp-pn-k{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tp-accent)}
 .tp-pn-t{font-size:.9rem;font-weight:600;color:var(--tp-text);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
-.tp-rel{border-top:1px solid var(--tp-line);padding-top:24px}
+/* Both sit far below the fold on every viewport that matters, so their style
+   and layout wait until the visitor approaches — contain-intrinsic-size keeps
+   the scrollbar honest meanwhile (the `auto` prefix remembers the real height
+   once rendered, exactly as explore.css does for rows). */
+.tp-rel{border-top:1px solid var(--tp-line);padding-top:24px;content-visibility:auto;contain-intrinsic-size:auto 340px}
 .tp-rel h2{font-size:1.05rem;font-weight:800;color:#fff;margin:0 0 12px}
 .tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .tp-gwrap{display:flex;min-width:0}
@@ -291,7 +303,7 @@ a{color:inherit}
 .tp-more{margin:14px 0 0;font-size:.88rem}
 .tp-more a{color:var(--tp-accent);text-decoration:none;font-weight:600}
 .tp-more a:hover{text-decoration:underline}
-.tp-foot{border-top:1px solid var(--tp-line);margin-top:auto;padding:22px 16px 30px;text-align:center;font-size:.82rem;color:var(--tp-muted)}
+.tp-foot{border-top:1px solid var(--tp-line);margin-top:auto;padding:22px 16px 30px;text-align:center;font-size:.82rem;color:var(--tp-muted);content-visibility:auto;contain-intrinsic-size:auto 130px}
 .tp-foot-links{margin:0 0 8px;line-height:2.1}
 .tp-foot-links a{color:var(--tp-text);text-decoration:none;margin:0 6px}
 .tp-foot-links a:hover{color:var(--tp-accent)}
@@ -469,8 +481,11 @@ def render_page(tool: dict, fragment: str, ctx: dict) -> str:
 <script type="application/ld+json">{ld(crumbs)}</script>
 {FONTS}
 {THEMES_BOOTSTRAP}
-<link rel="stylesheet" href="../cards/card.css">
-<link rel="stylesheet" href="../toolbox.css?v={v}">
+<link rel="stylesheet" href="../cards/card.css?v={v}">
+<!-- toolbox.css only styles chrome toolbox.js injects (＋ buttons, toast, the
+     floating panel), so it must not block the card's first paint: the same
+     print/onload swap index.html uses for home-deferred.css. -->
+<link rel="stylesheet" href="../toolbox.css?v={v}" media="print" onload="this.media='all';this.onload=null">
 <style>
 {CHROME_CSS.strip()}
 </style>
