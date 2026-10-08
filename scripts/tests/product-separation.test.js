@@ -8,9 +8,9 @@ const test = require('node:test');
 const ROOT = path.resolve(__dirname, '../..');
 const SITE_ORIGIN = 'https://www.themostusefulsiteintheworld.com';
 
-// Product B's public music pages, language landings, artist microsites, and the
-// deliberately retained token page. Keep this list explicit so adding a new
-// cross-product route requires a conscious boundary decision.
+// Product B's public music pages, language landings and artist microsites.
+// Keep this list explicit so adding a new cross-product route requires a
+// conscious boundary decision.
 const PRODUCT_B_PAGES = new Set([
   'animation.html',
   'bengali.html',
@@ -33,7 +33,6 @@ const PRODUCT_B_PAGES = new Set([
   'sync.html',
   'thai.html',
   'thisorthat.html',
-  'token.html',
   'youtubepromo.html',
   'youtubepromo1.html',
   'youtubepromo2.html',

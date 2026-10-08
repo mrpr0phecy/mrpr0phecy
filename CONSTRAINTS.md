@@ -47,7 +47,10 @@ so in the summary instead of acting on it.
   request and push; `verify.sh --deep` on `main` (the deploy) and nightly, jsdom
   installed outside the tree. The fast job must stay named "Repo checks" —
   branch protection resolves it. Don't add heavyweight CI or slow the local gate.
-- **`token.html` is kept deliberately** — but no crypto promotion.
+- **Token page deleted** (2026-10-09, owner decision): `token.html` and its
+  "Estimated Bag Value" projector, plus its sitemap entry. It was a UK
+  financial-promotion risk (FINANCE.md § 3). Don't recreate a token page or
+  link to one.
 
 ## Card traps
 
