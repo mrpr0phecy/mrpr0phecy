@@ -121,7 +121,7 @@ var AMB = (function () {
     var header = {};
     if (cut < 0) return { ok: false, header: header, message: '', errors: ['no blank line between the header and the message'] };
     var lines = text.slice(0, cut).split('\n');
-    var message = text.slice(cut + 2).replace(/^\s+|\s+$/g, '');
+    var message = text.slice(cut + 2).replace(/^[ \t\n]+|[ \t\n]+$/g, '');
     lines.forEach(function (line) {
       var m = /^([A-Za-z-]+):[ \t]*(.*?)[ \t]*$/.exec(line);
       if (!m) { errors.push('header line is not "key: value"'); return; }
