@@ -718,14 +718,23 @@
   }
 
   /* -------------------------------------------------------------- url state */
+  // Only what the visitor changed goes in the address. The default sort ('az')
+  // is always set, so writing it turned every plain visit to / into /?sort=az:
+  // reloading that address made wantsNow() true, which fetched and parsed the
+  // 1 MB catalogue before first paint instead of at idle, and it was a
+  // different navigation URL from / for the worker's cache.
+  var DEFAULT_SORT = 'az';
   var pushState = debounce(function () {
     try {
       var params = new URLSearchParams(location.search);
       ['q', 'cat', 'sort'].forEach(function (k) {
-        if (state[k]) params.set(k, state[k]); else params.delete(k);
+        var v = state[k];
+        if (k === 'sort' && v === DEFAULT_SORT) v = '';
+        if (v) params.set(k, v); else params.delete(k);
       });
       var qs = params.toString();
-      history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+      var next = location.pathname + (qs ? '?' + qs : '') + location.hash;
+      if (next !== location.pathname + location.search + location.hash) history.replaceState(null, '', next);
     } catch (e) {}
   }, 350);
 

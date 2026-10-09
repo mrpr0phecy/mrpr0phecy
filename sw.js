@@ -189,7 +189,16 @@
 // which styles only chrome toolbox.js injects, loads non-blocking on every
 // surface — one less render-blocking request per page; and card.css finally
 // carries a ?v= of its own, like every other asset on the site.
-const CACHE_VERSION = 'v42-2026-10-06';
+// v43: repeated home visits. The v39 prefetch guard never matched a real
+// prefetch — Chromium sends speculation-rule prefetches to the worker as
+// mode:'navigate' with Sec-Purpose: prefetch — so each hover still became a
+// worker-owned navigation the browser could not cancel; route() now checks the
+// header (isSpeculative). explore.js stopped writing the default sort into the
+// address, which had turned every visit to / into /?sort=az and made the
+// reload fetch the 1 MB catalogue before first paint; and home-core.js skips
+// the cross-document view transition for destinations that do not opt in,
+// which threw an uncaught InvalidStateError on every tool page opened from home.
+const CACHE_VERSION = 'v43-2026-10-09';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -366,6 +375,17 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
+// A prefetch or prerender, whatever mode the browser gave it. Sec-Purpose is
+// the standard header ('prefetch', or 'prefetch;prerender'); Purpose is the
+// older spelling some engines still send for <link rel=prefetch>.
+function isSpeculative(req) {
+    let purpose = '';
+    try {
+        purpose = req.headers.get('Sec-Purpose') || req.headers.get('Purpose') || '';
+    } catch (e) { /* no headers on this request */ }
+    return /\b(prefetch|prerender)\b/i.test(purpose);
+}
+
 function route(event) {
     const req = event.request;
     const url = new URL(req.url);
@@ -383,6 +403,16 @@ function route(event) {
     // is what makes the eventual click instant, and the navigation that follows
     // is cached here like any other.
     if (req.mode !== 'navigate' && req.destination === 'document') return;
+
+    // v43: that guard alone never caught them. Chromium hands a speculation-
+    // rule prefetch (and a prerender) to the worker as mode:'navigate',
+    // destination:'document' — indistinguishable from a click except for its
+    // Sec-Purpose header — so every hover over a catalogue row still ran
+    // navigateFast(): a worker-owned 124 KB download the browser could neither
+    // deprioritise nor cancel, a clearBacklog(), a RUNTIME_CACHE entry, and a
+    // stall that counted towards disarming the worker. Measured on the live
+    // site, eight hovers made eight worker fetches with the header stripped.
+    if (isSpeculative(req)) return;
 
     // Catalogue tiers (lite = grid, full = search) and the per-tool machine
     // specs (api/tools/*.json — pointer #4). These decide which tools exist,
