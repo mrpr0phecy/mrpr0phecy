@@ -207,7 +207,7 @@ Recorded so nobody adds them later thinking they were forgotten.
   month at current traffic while destroying the one thing that differentiates
   it. Bad trade.
 - **Paywalling tools or music.** Same reason. "All free" is the positioning.
-- **Crypto/token monetisation.** `token.html` exists in the repo. Promoting a
+- **Crypto/token monetisation.** `token.html` was deleted on 2026-10-09. Promoting a
   token as an income route risks legal exposure under UK financial promotion
   rules and would wreck trust. Left alone, not amplified.
 - **View-bots, engagement pods, fake supporter counts, fake urgency.** These

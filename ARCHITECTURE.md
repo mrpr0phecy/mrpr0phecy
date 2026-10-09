@@ -750,12 +750,15 @@ for shared infrastructure. CI runs the fast gate on PRs and pushes, and the deep
 gate on `main` (the deploy) and nightly. Local validation: AGENTS.md §1.
 
 **Do not delete or rename:** `CNAME`, `sw.js` (live service worker), the CV
-files, `opensourcenews.html`, `token.html`, or any tool in `cards/`. Adding is
+files, `opensourcenews.html`, or any tool in `cards/`. Adding is
 free; retiring is an owner decision.
 
 Deleted 2026-09-20 with owner approval, after confirming no page, sitemap entry
 or robots rule referenced them: `indexbeta.html`, `hokidea.html`, `guide.txt`,
-`substitutions/`, `system/`, `digitaldetoxcardshtml/` (in git history). This
+`substitutions/`, `system/`, `digitaldetoxcardshtml/` (in git history).
+Deleted 2026-10-09 with owner approval: `token.html`, the $MRPROPHECY token
+page with its "Estimated Bag Value" projector, and its sitemap entry (FINANCE.md
+§ 3). No page linked to it by then. This
 section used to be a 725-line dated changelog; `git log` is the changelog now —
 this file describes the site as it is.
 

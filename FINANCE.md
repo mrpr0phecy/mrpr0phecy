@@ -371,6 +371,12 @@ Late-filing penalties start at £100 **even when no tax is owed**, then £10/day
 calculator bugs it cannot be fixed by an agent unilaterally. It needs a
 decision from the owner.**
 
+> **Resolved 2026-10-09 — option A.** The owner chose to remove the page.
+> `token.html` (with the "Estimated Bag Value" projector) and its sitemap entry
+> are deleted; the inbound links had already gone. The analysis below is kept
+> as the record of why. Don't recreate a token page without taking advice
+> (option C).
+
 ### The situation
 
 `token.html` promotes `$MRPROPHECY`, a Solana token. It is not a dormant file:
@@ -483,7 +489,7 @@ Not done, deliberately, with reasons.
 
 | Item | Why not done |
 |---|---|
-| **`token.html` decision** | Owner's call — see § 3. The one genuinely urgent item. |
+| `token.html` decision | **Done 2026-10-09.** Owner chose option A; the page and its sitemap entry are deleted. See § 3. |
 | **Check YouTube watch hours** | Only visible to the account owner, and there is a 1 Feb 2027 deadline. See `INCOME.md`. |
 | Audit the remaining finance tools | **Complete.** All 27 finance tools swept across three passes; ten defects found and fixed. `investment.html` and `creditcard.html` were the last two. |
 | `networth.html` and `roi.html` currency | Both hard-code `$` like the FIRE planner did. Lower stakes (no statutory content) but the same UK-site mismatch. |
