@@ -287,6 +287,15 @@ SHARE_ONE_DOM = re.compile(
     r"(?<![\d.,])(all\s+|every\s+card\s+|every\s+tool\s+)?(\d{3,4})(?=\s+(?:share|shares|sharing)\s+one\s+DOM\b)",
     re.IGNORECASE,
 )
+# agents.html quotes the head of tools-index.json — `"version": "YYYY-MM-DD",`
+# then `"count": N,` — and check-agents-docs.py holds that sample to the real
+# file. The number has no noun after it, so CLAIM never saw it, and every new
+# card failed `verify.sh --deep` until someone edited the sample by hand. The
+# version line just above anchors the rule to that one sample (index_sample_repl
+# checks it); the category counts beside it are two digits and the
+# plausibility guard ignores them anyway.
+INDEX_SAMPLE_COUNT = re.compile(r'^(\s*"count"\s*:\s*)(\d{3,4})(?=\s*,)', re.MULTILINE)
+INDEX_SAMPLE_VERSION = re.compile(r'"version"\s*:\s*"\d{4}-\d{2}-\d{2}"\s*,\s*$')
 
 
 def true_category_count() -> int:
@@ -420,6 +429,18 @@ def fix_text(text: str, n: int, cats: int) -> tuple[str, list[str]]:  # noqa: C9
         prefix = m.group(1) or ""
         return prefix + str(n) + m.group(0)[len(prefix) + len(m.group(2)):]
 
+    def index_sample_repl(m: re.Match) -> str:
+        # Not _is_exempt: the line above carries a date by design.
+        prev_end = m.start()
+        prev_start = text.rfind("\n", 0, max(prev_end - 1, 0)) + 1
+        if not INDEX_SAMPLE_VERSION.search(text[prev_start:prev_end].rstrip("\n")):
+            return m.group(0)
+        found = m.group(2)
+        if found == str(n) or not _plausible(int(found)):
+            return m.group(0)
+        changes.append(f"{m.group(0).strip()!r} -> {n}")
+        return m.group(1) + str(n)
+
     # Apply each pattern in turn. Order matters: CLAIM may match a span
     # that JSONLD_NO would otherwise rewrite (it doesn't here, but be safe
     # and run them independently).
@@ -432,6 +453,7 @@ def fix_text(text: str, n: int, cats: int) -> tuple[str, list[str]]:  # noqa: C9
         (OF_THEM, of_them_repl),
         (ALONGSIDE_OTHER, alongside_repl),
         (SHARE_ONE_DOM, share_dom_repl),
+        (INDEX_SAMPLE_COUNT, index_sample_repl),
     ):
         new = pat.sub(repl, new)
     return new, changes

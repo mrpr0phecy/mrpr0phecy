@@ -54,6 +54,12 @@ print('desc   :', e['description'][:120])
 #    thirteen generators, which left tools.html, sitemap.html, related.json,
 #    embed.html, api/tools*.json and llms.txt stale — and `verify.sh --deep`
 #    failing on drift the moment anybody ran it.
+#    The sitemap is built from `git ls-files`, so the new card and the full
+#    page the first build creates must be tracked, then the build run again,
+#    or neither URL reaches sitemap.xml.
+git add "$FILE"
+npm run build
+git add "tool/$SLUG.html"
 npm run build
 
 # 4. smoke test

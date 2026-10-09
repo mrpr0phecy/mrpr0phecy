@@ -8,7 +8,7 @@ stay stable. Everything else is reference (§6).
 Static GitHub Pages — no runtime deps, no deploy build; `main` is live.
 Two products share the domain and must stay separate (§3 hard line 6).
 
-### Product A — the catalogue (1,389 tools)
+### Product A — the catalogue (1,390 tools)
 
 `cards/<slug>.html` fragments — the single implementation of each tool,
 inlined verbatim into its own full page at `tool/<slug>.html` (the browse
@@ -103,8 +103,8 @@ approval. No plans, ledgers or extra docs.
 | Shared loaders, generators, `sw.js`, cross-card, check infra | tests → `npm run verify:deep`; build if generated output changes |
 | Visible UI | also 360 & 1440 px (§5) |
 
-`build` regenerates derived surfaces · `verify` 8 checks (~6 s) · `verify:deep`
-adds audits and product tests (~75 s) · `test` runs the product suite
+`build` regenerates derived surfaces · `verify` 8 checks (~20 s) · `verify:deep`
+adds audits and product tests (~105 s) · `test` runs the product suite
 (`node --test scripts/tests/<name>.test.js` for one file). Extra checks only
 when impact is uncertain. CI: fast gate on PRs and pushes, `--deep` on `main`
 and nightly. Never disable a check; docs that feed generated output still need
@@ -141,8 +141,11 @@ a protection.
 ## 4. Common tasks — read the block that matches the task
 
 **Add a tool:** `cards/<slug>.html` + its category in `generate-cards-json.js`,
-then build and validate (§1); check `tool/<slug>.html` (the browse page — the
-build makes it from the fragment, so a broken fragment breaks a real URL now)
+then build and validate (§1). The sitemap lists only tracked files, so a new
+tool needs `git add cards/<slug>.html`, a build, `git add tool/<slug>.html`
+(the build creates it), then a second build. Check `tool/<slug>.html` (the
+browse page — the build makes it from the fragment, so a broken fragment
+breaks a real URL now)
 and `tool.html?card=<slug>&embed=1`; health/finance also `docs/TRUST.md`.
 `scripts/add-tool.sh` commits and pushes (`--no-push` still commits) — only
 when those actions are wanted.
@@ -160,8 +163,8 @@ translation rewrite). Home CSS/JS: `?v=` (`index.html`), `APP_VERSION`
 **Generated surfaces:** `npm run build` owns `cards/cards*.json`, sitemaps,
 `tools*.html`, `tools-index.*`, `categories/`, `related.json`, `embed.html`,
 `api/tools*.json`, `api/tools/*.json`, `tools/*.html`, `tool/*.html` (the full
-pages — `git add tool/` before the first build, or the sitemap's
-`git ls-files` never sees them), `llms*.txt`,
+pages — the sitemap reads `git ls-files`, so an untracked new page is left
+out until it is added and the build runs again), `llms*.txt`,
 `index.html`'s `HOME-*` blocks and
 published counts. Fix the source, then regenerate. `embed-finance.html` →
 `scripts/build-embed-landing.py`; brand assets → `brand/gen_assets.py`
