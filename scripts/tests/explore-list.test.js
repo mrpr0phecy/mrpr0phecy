@@ -177,6 +177,13 @@ state.rows = rows;
   assert(/URLSearchParams/.test(SOURCE) && /history\.replaceState/.test(SOURCE),
     'filters live in the URL, so a filtered list can be linked and reloaded');
   assert(/'cat'/.test(SOURCE) && /'sort'/.test(SOURCE), 'category and sort survive a reload too');
+  // ...but only what the visitor chose. The default sort is always set, and
+  // writing it turned every visit to / into /?sort=az — whose reload made
+  // wantsNow() true and pulled the 1 MB catalogue in before first paint.
+  assert(/var DEFAULT_SORT = 'az';/.test(SOURCE) && /k === 'sort' && v === DEFAULT_SORT/.test(SOURCE),
+    'the default sort is left out of the address, so / stays /');
+  assert(/if \(next !== location\.pathname \+ location\.search \+ location\.hash\) history\.replaceState/.test(SOURCE),
+    'replaceState is skipped when the address would not change');
 
   // The catalogue fetch is bounded and recoverable. A stalled download once
   // wedged the home list on "Searching the catalogue…" with no timeout and no

@@ -60,9 +60,14 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
+function isSpeculative(req) {
+    return /prefetch|prerender/i.test(req.headers.get('Sec-Purpose') || '');
+}
+
 function route(event) {
     const req = event.request;
     if (req.mode !== 'navigate' && req.destination === 'document') return;
+    if (isSpeculative(req)) return;
     if (/\\.json$/.test(req.url)) { event.respondWith(freshFast(req, RUNTIME_CACHE, event)); return; }
     event.respondWith(navigateFast(req, null, event));
 }
@@ -161,6 +166,7 @@ const CASES = [
         '    const cache = await openCache(RUNTIME_CACHE);')],
     ['escape-hatch', (t) => t.replace('    try { await self.registration.unregister(); } catch (e) {}', '')],
     ['prefetch-through', (t) => t.replace("    if (req.mode !== 'navigate' && req.destination === 'document') return;", '')],
+    ['prefetch-through', (t) => t.replace('    if (isSpeculative(req)) return;', '')],
     ['store-200', (t) => t.replace('    if (!request || !response || response.status !== 200) return;',
         '    if (!request || !response) return;')],
 ];
