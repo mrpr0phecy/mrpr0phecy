@@ -1,0 +1,331 @@
+<section id="csp-header-builder-root" aria-labelledby="csp-header-builder-title">
+<style>
+#csp-header-builder-root{color:var(--text,#e6faff);font-family:var(--font-sans,system-ui,sans-serif);line-height:1.55}
+#csp-header-builder-root *{box-sizing:border-box}
+#csp-header-builder-root h2{margin:0 0 8px;color:var(--accent,#2dd4ff)}
+#csp-header-builder-root h3{margin:18px 0 6px;font-size:.95rem;font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace);text-transform:uppercase;letter-spacing:.04em;color:var(--accent,#2dd4ff)}
+#csp-header-builder-root .csp-header-builder-muted{color:var(--text-secondary,rgba(230,250,255,.68));font-size:.88rem}
+#csp-header-builder-root label{display:block;font-size:.83rem;font-weight:600;margin:10px 0 4px}
+#csp-header-builder-root input[type=text],#csp-header-builder-root textarea,#csp-header-builder-root select{width:100%;padding:8px 10px;border:1px solid rgba(148,180,199,.35);border-radius:8px;background:var(--surface,#101c25);color:inherit;font:inherit;font-size:.84rem}
+#csp-header-builder-root textarea,#csp-header-builder-root input[type=text]{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+#csp-header-builder-root textarea{resize:vertical}
+#csp-header-builder-root :focus-visible{outline:3px solid var(--accent,#2dd4ff);outline-offset:2px}
+#csp-header-builder-root .csp-header-builder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 16px}
+#csp-header-builder-root .csp-header-builder-grid label code{font-weight:700}
+#csp-header-builder-root .csp-header-builder-check{display:flex;align-items:flex-start;gap:8px;font-weight:400;font-size:.83rem}
+#csp-header-builder-root .csp-header-builder-check input{margin-top:4px;accent-color:var(--accent,#2dd4ff)}
+#csp-header-builder-root .csp-header-builder-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+#csp-header-builder-root button{min-height:42px;padding:9px 14px;border:1px solid rgba(45,212,255,.42);border-radius:8px;background:rgba(45,212,255,.12);color:var(--accent,#2dd4ff);font:inherit;font-size:.84rem;font-weight:700;cursor:pointer}
+#csp-header-builder-root button.csp-header-builder-secondary{border-color:rgba(148,180,199,.3);background:rgba(255,255,255,.04);color:inherit}
+#csp-header-builder-root .csp-header-builder-status{min-height:1.5em;color:var(--text-secondary,rgba(230,250,255,.68));font-size:.83rem}
+#csp-header-builder-root .csp-header-builder-findings{list-style:none;margin:8px 0;padding:0}
+#csp-header-builder-root .csp-header-builder-findings li{padding:8px 10px;margin:6px 0;border-left:3px solid rgba(148,180,199,.5);background:rgba(255,255,255,.03);border-radius:4px;font-size:.84rem;overflow-wrap:anywhere}
+#csp-header-builder-root .csp-header-builder-findings li[data-level=high]{border-left-color:#f87171}
+#csp-header-builder-root .csp-header-builder-findings li[data-level=medium]{border-left-color:#e8a33d}
+#csp-header-builder-root .csp-header-builder-findings li[data-level=low]{border-left-color:#facc15}
+#csp-header-builder-root .csp-header-builder-findings li[data-level=ok]{border-left-color:#34d399}
+#csp-header-builder-root .csp-header-builder-tag{display:inline-block;min-width:64px;margin-right:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.72rem;text-transform:uppercase}
+#csp-header-builder-root .csp-header-builder-note{padding:10px 12px;border-left:3px solid #e8a33d;background:rgba(232,163,61,.08);border-radius:4px;font-size:.82rem}
+@media(max-width:620px){#csp-header-builder-root .csp-header-builder-grid{grid-template-columns:1fr}}
+</style>
+<h2 id="csp-header-builder-title">🛡️ Content-Security-Policy Builder &amp; Checker</h2>
+<p id="csp-header-builder-desc" class="csp-header-builder-muted">Build a Content-Security-Policy header from plain fields, or paste an existing policy to find quoting mistakes and common weaknesses. Nothing is fetched or sent.</p>
+
+<h3>1 · Build a policy</h3>
+<label for="csp-header-builder-preset">Start from</label>
+<select id="csp-header-builder-preset">
+  <option value="strict">Locked-down static site (self only)</option>
+  <option value="cdn">Static site that uses a font/script CDN</option>
+  <option value="blank">Blank — fill every field yourself</option>
+</select>
+<div class="csp-header-builder-grid" id="csp-header-builder-fields"></div>
+<div class="csp-header-builder-grid">
+  <label class="csp-header-builder-check"><input type="checkbox" id="csp-header-builder-upgrade"><span>Add <code>upgrade-insecure-requests</code> (rewrite http:// sub-requests to https://)</span></label>
+  <label class="csp-header-builder-check"><input type="checkbox" id="csp-header-builder-reportonly"><span>Report-only mode (<code>Content-Security-Policy-Report-Only</code>: logs violations, blocks nothing)</span></label>
+</div>
+<label for="csp-header-builder-format">Output format</label>
+<select id="csp-header-builder-format">
+  <option value="header">Raw HTTP header</option>
+  <option value="meta">HTML &lt;meta&gt; tag</option>
+  <option value="nginx">nginx add_header</option>
+  <option value="apache">Apache Header directive</option>
+  <option value="netlify">Netlify / Cloudflare Pages _headers file</option>
+</select>
+<div class="csp-header-builder-actions">
+  <button type="button" id="csp-header-builder-build">Build policy</button>
+  <button type="button" id="csp-header-builder-copy" class="csp-header-builder-secondary">Copy output</button>
+  <button type="button" id="csp-header-builder-tocheck" class="csp-header-builder-secondary">Check this policy</button>
+</div>
+<label for="csp-header-builder-output">Output</label>
+<textarea id="csp-header-builder-output" rows="4" readonly spellcheck="false"></textarea>
+<p id="csp-header-builder-buildnote" class="csp-header-builder-status" role="status" aria-live="polite"></p>
+
+<h3>2 · Check a policy</h3>
+<label for="csp-header-builder-input">Paste a policy (with or without the header name)</label>
+<textarea id="csp-header-builder-input" rows="4" maxlength="20000" spellcheck="false" placeholder="Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'"></textarea>
+<div class="csp-header-builder-actions">
+  <button type="button" id="csp-header-builder-check">Check policy</button>
+  <button type="button" id="csp-header-builder-load" class="csp-header-builder-secondary">Load into builder</button>
+</div>
+<p id="csp-header-builder-summary" class="csp-header-builder-status" role="status" aria-live="polite">Paste a policy and press Check policy.</p>
+<ul id="csp-header-builder-findings" class="csp-header-builder-findings" aria-label="Policy findings"></ul>
+
+<p class="csp-header-builder-note"><strong>Test before you enforce.</strong> A policy that is too strict breaks scripts, styles, fonts or embeds the page really needs. Ship it in report-only mode first, watch the browser console for violations, then switch to enforcing. This checker reads the policy text only; it cannot see which resources your pages load.</p>
+
+<script>
+(function () {
+  'use strict';
+  function start() {
+    var root = document.getElementById('csp-header-builder-root');
+    if (!root) return;
+    var P = 'csp-header-builder-';
+    var $ = function (id) { return root.querySelector('#' + P + id); };
+    function live() { return document.getElementById(P + 'root') === root; }
+
+    var FETCH = ['default-src', 'script-src', 'style-src', 'img-src', 'connect-src', 'font-src', 'media-src', 'object-src', 'frame-src', 'worker-src', 'manifest-src', 'child-src', 'script-src-elem', 'script-src-attr', 'style-src-elem', 'style-src-attr', 'prefetch-src'];
+    var OTHER = ['base-uri', 'form-action', 'frame-ancestors', 'sandbox', 'upgrade-insecure-requests', 'block-all-mixed-content', 'report-uri', 'report-to', 'require-trusted-types-for', 'trusted-types', 'plugin-types', 'navigate-to'];
+    var DEPRECATED = { 'block-all-mixed-content': 'is deprecated; upgrade-insecure-requests is the maintained way to handle http:// sub-resources.', 'plugin-types': 'is deprecated and ignored by current browsers; use object-src \'none\' instead.', 'prefetch-src': 'is deprecated and ignored by current browsers.', 'navigate-to': 'was removed from the specification and no browser enforces it.' };
+    var KEYWORDS = ['self', 'none', 'unsafe-inline', 'unsafe-eval', 'strict-dynamic', 'unsafe-hashes', 'report-sample', 'wasm-unsafe-eval', 'inline-speculation-rules'];
+    var BUILD_FIELDS = [
+      ['default-src', 'Fallback for every fetch directive below that is left empty'],
+      ['script-src', 'JavaScript'],
+      ['style-src', 'Stylesheets'],
+      ['img-src', 'Images and favicons'],
+      ['font-src', 'Web fonts'],
+      ['connect-src', 'fetch, XHR, WebSocket, EventSource'],
+      ['media-src', 'Audio and video'],
+      ['frame-src', 'Pages you embed in iframes'],
+      ['worker-src', 'Web, shared and service workers'],
+      ['object-src', 'Plugins (object, embed)'],
+      ['base-uri', 'Allowed <base href> values'],
+      ['form-action', 'Where forms may submit'],
+      ['frame-ancestors', 'Who may embed this page (clickjacking)']
+    ];
+    var PRESETS = {
+      strict: { 'default-src': "'self'", 'object-src': "'none'", 'base-uri': "'self'", 'form-action': "'self'", 'frame-ancestors': "'none'", 'img-src': "'self' data:" },
+      cdn: { 'default-src': "'self'", 'script-src': "'self' https://cdn.example.com", 'style-src': "'self' https://fonts.example.com", 'font-src': "'self' https://fonts.example.net", 'img-src': "'self' data:", 'object-src': "'none'", 'base-uri': "'self'", 'form-action': "'self'", 'frame-ancestors': "'self'" },
+      blank: {}
+    };
+
+    var fieldsBox = $('fields');
+    BUILD_FIELDS.forEach(function (f) {
+      var wrap = document.createElement('div');
+      var label = document.createElement('label');
+      label.setAttribute('for', P + 'f-' + f[0]);
+      var code = document.createElement('code');
+      code.textContent = f[0];
+      label.appendChild(code);
+      label.appendChild(document.createTextNode(' — ' + f[1]));
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.id = P + 'f-' + f[0];
+      input.spellcheck = false;
+      input.autocomplete = 'off';
+      input.setAttribute('data-directive', f[0]);
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      fieldsBox.appendChild(wrap);
+    });
+
+    function applyPreset(name) {
+      var preset = PRESETS[name] || {};
+      BUILD_FIELDS.forEach(function (f) { $('f-' + f[0]).value = preset[f[0]] || ''; });
+      $('upgrade').checked = name !== 'blank';
+    }
+
+    // Bare keywords are the most common hand-written mistake: `self` without
+    // quotes is read by the browser as a host called "self".
+    function normaliseSources(text) {
+      return text.trim().split(/\s+/).filter(Boolean).map(function (tok) {
+        var bare = tok.replace(/^['"]|['"]$/g, '');
+        if (KEYWORDS.indexOf(bare.toLowerCase()) !== -1) return "'" + bare.toLowerCase() + "'";
+        if (/^(nonce|sha256|sha384|sha512)-/i.test(bare)) return "'" + bare + "'";
+        return tok;
+      });
+    }
+
+    function buildPolicy() {
+      var parts = [];
+      BUILD_FIELDS.forEach(function (f) {
+        var srcs = normaliseSources($('f-' + f[0]).value);
+        if (srcs.length) parts.push(f[0] + ' ' + srcs.join(' '));
+      });
+      if ($('upgrade').checked) parts.push('upgrade-insecure-requests');
+      return parts.join('; ');
+    }
+
+    function formatOutput(policy, format, reportOnly) {
+      var name = reportOnly ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
+      var notes = [];
+      var out;
+      if (format === 'meta') {
+        var metaPolicy = policy.split(/;\s*/).filter(function (d) { return !/^(frame-ancestors|report-uri|report-to|sandbox)\b/i.test(d); }).join('; ');
+        if (metaPolicy !== policy) notes.push('frame-ancestors, report-uri, report-to and sandbox are ignored in a <meta> tag, so they were left out — send them as a real header.');
+        if (reportOnly) notes.push('Report-only mode only works as an HTTP header; a <meta> tag always enforces.');
+        out = '<meta http-equiv="Content-Security-Policy" content="' + metaPolicy.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '">';
+      } else if (format === 'nginx') {
+        out = 'add_header ' + name + ' "' + policy.replace(/"/g, '\\"') + '" always;';
+      } else if (format === 'apache') {
+        out = 'Header always set ' + name + ' "' + policy.replace(/"/g, '\\"') + '"';
+      } else if (format === 'netlify') {
+        out = '/*\n  ' + name + ': ' + policy;
+      } else {
+        out = name + ': ' + policy;
+      }
+      return { text: out, notes: notes };
+    }
+
+    function build() {
+      var policy = buildPolicy();
+      if (!policy) {
+        $('output').value = '';
+        $('buildnote').textContent = 'Every field is empty — add at least default-src.';
+        return '';
+      }
+      var res = formatOutput(policy, $('format').value, $('reportonly').checked);
+      $('output').value = res.text;
+      $('buildnote').textContent = (res.notes.length ? res.notes.join(' ') + ' ' : '') + 'Policy is ' + policy.length + ' characters.';
+      return policy;
+    }
+
+    // ---- checker -----------------------------------------------------------
+    function parsePolicy(raw) {
+      var text = String(raw || '').replace(/\r?\n/g, ' ').trim();
+      var meta = text.match(/content\s*=\s*"([^"]*)"/i) || text.match(/content\s*=\s*'([^']*)'/i);
+      if (meta) text = meta[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+      text = text.replace(/^\s*content-security-policy(-report-only)?\s*:\s*/i, '');
+      var directives = [];
+      text.split(';').forEach(function (chunk) {
+        var toks = chunk.trim().split(/\s+/).filter(Boolean);
+        if (!toks.length) return;
+        directives.push({ name: toks[0].toLowerCase(), sources: toks.slice(1) });
+      });
+      return directives;
+    }
+
+    function analyse(raw) {
+      var dirs = parsePolicy(raw);
+      var findings = [];
+      function add(level, text) { findings.push({ level: level, text: text }); }
+      if (!dirs.length) { add('high', 'No directives found.'); return { findings: findings, map: {} }; }
+      var map = {};
+      dirs.forEach(function (d) {
+        if (map[d.name]) { add('medium', 'Directive "' + d.name + '" appears more than once. Browsers use the first one and ignore the rest.'); return; }
+        map[d.name] = d.sources;
+        if (FETCH.indexOf(d.name) === -1 && OTHER.indexOf(d.name) === -1) add('low', 'Unknown directive "' + d.name + '" — check the spelling; browsers ignore directives they do not recognise.');
+        if (DEPRECATED[d.name]) add('low', '"' + d.name + '" ' + DEPRECATED[d.name]);
+        d.sources.forEach(function (s) {
+          var low = s.toLowerCase();
+          if (KEYWORDS.indexOf(low) !== -1) add('high', d.name + ': "' + s + '" needs single quotes (\'' + low + '\'). Without them the browser treats it as a host name.');
+          if (/^(nonce|sha256|sha384|sha512)-/i.test(s)) add('high', d.name + ': "' + s.slice(0, 24) + '…" needs single quotes, or the nonce/hash is ignored.');
+          if (/^"/.test(s) || /"$/.test(s)) add('medium', d.name + ': source ' + s + ' uses double quotes; CSP keywords use single quotes.');
+          if (/^http:\/\//i.test(s) || low === 'http:') add('medium', d.name + ': ' + s + ' allows unencrypted http:// loads.');
+        });
+        if (d.sources.length > 1 && d.sources.some(function (s) { return s.toLowerCase() === "'none'"; })) add('medium', d.name + ": 'none' is combined with other sources, so 'none' is ignored.");
+      });
+
+      var scriptName = map['script-src'] ? 'script-src' : (map['default-src'] ? 'default-src' : null);
+      var script = scriptName ? map[scriptName].map(function (s) { return s.toLowerCase(); }) : null;
+      if (!script) {
+        add('high', 'No script-src or default-src: scripts may load from anywhere.');
+      } else {
+        var hasNonceOrHash = script.some(function (s) { return /^'(nonce|sha256|sha384|sha512)-/.test(s); });
+        var strictDynamic = script.indexOf("'strict-dynamic'") !== -1;
+        if (script.indexOf("'unsafe-inline'") !== -1) {
+          if (hasNonceOrHash) add('low', scriptName + ": 'unsafe-inline' is ignored by browsers that support nonces/hashes (it is only a fallback for very old ones).");
+          else add('high', scriptName + ": 'unsafe-inline' allows inline scripts and event handlers, which removes most of CSP's protection against cross-site scripting. Prefer nonces or hashes.");
+        }
+        if (script.indexOf("'unsafe-eval'") !== -1) add('medium', scriptName + ": 'unsafe-eval' allows eval() and new Function().");
+        ['*', 'https:', 'http:', 'data:', 'blob:'].forEach(function (w) {
+          if (script.indexOf(w) !== -1) {
+            if (strictDynamic && hasNonceOrHash && (w === 'https:' || w === 'http:' || w === '*')) add('low', scriptName + ': "' + w + "\" is ignored when 'strict-dynamic' is used with a nonce or hash (kept as a fallback for older browsers).");
+            else add('high', scriptName + ': "' + w + '" lets scripts load from ' + (w === 'data:' || w === 'blob:' ? w + ' URLs, which an attacker can create.' : 'almost any site.'));
+          }
+        });
+        if (strictDynamic && !hasNonceOrHash) add('medium', scriptName + ": 'strict-dynamic' has no effect without a nonce or hash to trust first.");
+      }
+      if (!map['object-src'] && !(map['default-src'] && map['default-src'].join(' ').toLowerCase() === "'none'")) add('medium', "No object-src. Plugins fall back to default-src; object-src 'none' is the usual recommendation.");
+      else if (map['object-src'] && map['object-src'].join(' ').toLowerCase() !== "'none'") add('low', "object-src allows plugin content; 'none' is the usual recommendation unless you really embed plugins.");
+      if (!map['base-uri']) add('medium', "No base-uri. An injected <base> tag could redirect relative script URLs; base-uri 'self' or 'none' closes that. (base-uri does not fall back to default-src.)");
+      if (!map['frame-ancestors']) add('low', 'No frame-ancestors, so any site may frame this page (clickjacking). Add frame-ancestors \'none\' or \'self\' unless embedding is intended. (frame-ancestors does not fall back to default-src.)');
+      if (!map['form-action']) add('low', 'No form-action, so forms may submit anywhere. (form-action does not fall back to default-src.)');
+      if (!map['default-src']) add('low', 'No default-src fallback: any fetch type you did not list (fonts, media, frames…) is unrestricted.');
+      var def = map['default-src'] ? map['default-src'].map(function (s) { return s.toLowerCase(); }) : [];
+      if (def.indexOf('*') !== -1) add('medium', 'default-src includes *, so the fallback allows almost any origin.');
+      if (map['report-uri'] && !map['report-to']) add('low', 'report-uri works but is deprecated in the specification; add report-to (with a Reporting-Endpoints header) alongside it.');
+      var high = findings.filter(function (f) { return f.level === 'high'; }).length;
+      var med = findings.filter(function (f) { return f.level === 'medium'; }).length;
+      if (!findings.length) add('ok', 'No problems found among the checks this tool runs.');
+      return { findings: findings, map: map, high: high, medium: med, count: dirs.length };
+    }
+
+    function check() {
+      var res = analyse($('input').value);
+      var list = $('findings');
+      while (list.firstChild) list.removeChild(list.firstChild);
+      var order = { high: 0, medium: 1, low: 2, ok: 3 };
+      res.findings.slice().sort(function (a, b) { return order[a.level] - order[b.level]; }).forEach(function (f) {
+        var li = document.createElement('li');
+        li.setAttribute('data-level', f.level);
+        var tag = document.createElement('span');
+        tag.className = P + 'tag';
+        tag.textContent = f.level === 'ok' ? 'ok' : f.level;
+        li.appendChild(tag);
+        li.appendChild(document.createTextNode(' ' + f.text));
+        list.appendChild(li);
+      });
+      var lows = res.findings.filter(function (f) { return f.level === 'low'; }).length;
+      $('summary').textContent = (res.count || 0) + ' directive' + (res.count === 1 ? '' : 's') + ' read · ' + (res.high || 0) + ' high · ' + (res.medium || 0) + ' medium · ' + lows + ' low.';
+      return res;
+    }
+
+    function loadIntoBuilder() {
+      var dirs = parsePolicy($('input').value);
+      if (!dirs.length) { $('summary').textContent = 'Nothing to load — paste a policy first.'; return; }
+      BUILD_FIELDS.forEach(function (f) { $('f-' + f[0]).value = ''; });
+      var skipped = [];
+      $('upgrade').checked = false;
+      dirs.forEach(function (d) {
+        if (d.name === 'upgrade-insecure-requests') { $('upgrade').checked = true; return; }
+        var field = $('f-' + d.name);
+        if (field && BUILD_FIELDS.some(function (f) { return f[0] === d.name; })) { if (!field.value) field.value = d.sources.join(' '); }
+        else skipped.push(d.name);
+      });
+      build();
+      $('summary').textContent = 'Loaded into the builder.' + (skipped.length ? ' Not in the builder, so left out: ' + skipped.join(', ') + '.' : '');
+    }
+
+    function copyOut() {
+      var text = $('output').value;
+      if (!text) { $('buildnote').textContent = 'Build a policy first.'; return; }
+      var done = function () { if (live()) $('buildnote').textContent = 'Copied.'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { if (live()) { $('output').select(); $('buildnote').textContent = 'Copy blocked — the output is selected, press Ctrl+C / Cmd+C.'; } });
+      } else { $('output').select(); $('buildnote').textContent = 'The output is selected — press Ctrl+C / Cmd+C.'; }
+    }
+
+    $('preset').addEventListener('change', function () { applyPreset($('preset').value); build(); });
+    $('build').addEventListener('click', build);
+    $('format').addEventListener('change', build);
+    $('reportonly').addEventListener('change', build);
+    $('upgrade').addEventListener('change', build);
+    $('copy').addEventListener('click', copyOut);
+    $('tocheck').addEventListener('click', function () {
+      var policy = build();
+      if (!policy) return;
+      $('input').value = policy;
+      check();
+    });
+    $('check').addEventListener('click', check);
+    $('load').addEventListener('click', loadIntoBuilder);
+    applyPreset('strict');
+    build();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+})();
+</script>
+</section>
