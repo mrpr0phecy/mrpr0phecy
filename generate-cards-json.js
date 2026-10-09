@@ -151,8 +151,7 @@ const writingList = [
   'story-dice-plot-twister',
   'markdown-to-html-printer',
   'llm-prompt-token-counter',
-  'regex-replace-string-transform',
-  'spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'seo-helper', 'spelling-check', 'summary-generator', 'translation-helper', 'vocabulary-trainer'];
+  'spanish-verb-master', 'french-pronunciation-verbs', 'chinese-tones-pinyin', 'german-cases-gender', 'korean-hangul-trainer', 'multilingual-phrase-matrix', 'japanese-kana-trainer', 'japanese-romaji-converter', 'japanese-numbers-counters', 'japanese-particles-master', 'japanese-jlpt-vocabulary', 'japanese-verb-conjugator', 'japanese-keigo-politeness', 'markdown-live-editor', 'morse-code-translator', 'cognitive-bias-detector', 'business-writing', 'citation', 'cover-letter', 'creative-writing', 'email-templates', 'essay-templates', 'essay', 'kanji-helper', 'languages', 'literature-analysis', 'literature', 'meme-translation', 'plagiarism-check', 'proofreading', 'public-speaking', 'punctuation-guide', 'readability-score', 'readingtime', 'spelling-check', 'summary-generator', 'translation-helper', 'vocabulary-trainer'];
 
 const animeList = [
   'anime-binge-watch-calculator',
@@ -688,7 +687,6 @@ const saasKillerList = [
   'social-media-image-resizer-cropper',
   'b2b-cold-email-sequence-generator',
   'saas-metrics-ltv-cac-calculator',
-  'seo-meta-tag-social-previewer',
   'social-proof-testimonial-card-generator',
   // 2026-09-05 — ten browser replacements for paid SaaS products
   'csv-data-studio',
@@ -1015,7 +1013,6 @@ const imported05a89Map = {
   'linux-command-cheatsheet': 'Algorithms & Computer Science',
   'linux-disk-analyzer': 'Algorithms & Computer Science',
   'linux-log-analyzer': 'Algorithms & Computer Science',
-  'linux-regex-tester': 'Algorithms & Computer Science',
   'linux-signal-reference': 'Algorithms & Computer Science',
   'linux-ssh-generator': 'Algorithms & Computer Science',
   'linux-systemd-generator': 'Algorithms & Computer Science',
@@ -1034,7 +1031,6 @@ const imported05a89Map = {
   'reality-universe-timeline': 'Science & Engineering',
   'reality-what-is-consciousness': 'Science & Engineering',
   'reality-why-something-rather-than-nothing': 'Science & Engineering',
-  'regex-cheat-sheet': 'Algorithms & Computer Science',
   'riley-goblin-smasher': 'Mind-Blowing Demos',
   'scientific-calculator': 'Mathematics',
   'screen-ruler': 'Productivity & Lifestyle',

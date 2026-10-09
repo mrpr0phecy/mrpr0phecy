@@ -8,7 +8,7 @@ stay stable. Everything else is reference (§6).
 Static GitHub Pages — no runtime deps, no deploy build; `main` is live.
 Two products share the domain and must stay separate (§3 hard line 6).
 
-### Product A — the catalogue (1,395 tools)
+### Product A — the catalogue (1,390 tools)
 
 `cards/<slug>.html` fragments — the single implementation of each tool,
 inlined verbatim into its own full page at `tool/<slug>.html` (the browse
@@ -149,6 +149,12 @@ breaks a real URL now)
 and `tool.html?card=<slug>&embed=1`; health/finance also `docs/TRUST.md`.
 `scripts/add-tool.sh` commits and pushes (`--no-push` still commits) — only
 when those actions are wanted.
+
+**Retire or merge a tool (owner approval, §3):** delete `cards/<slug>.html`
+and its `api/tools/<slug>.json`, add `old → new` to `scripts/tool-redirects.json`
+and `tool.html`'s `RETIRED_CARDS` (a test compares them), drop its `embed.html`
+block and hand-written links, then build — `tool/<old>.html` becomes a noindex
+redirect.
 
 **Write a card:** fragment only; slug-prefixed ids, IIFE, CSS scoped to the
 card root; init when loading *and* when already loaded; appended UI stays in

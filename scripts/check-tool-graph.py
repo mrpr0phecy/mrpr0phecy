@@ -153,7 +153,14 @@ def main() -> int:
         page_slugs = {fn[:-5] for fn in os.listdir(tool_dir) if fn.endswith(".html")}
         for slug in sorted(names - page_slugs):
             fails.append(f"tool/{slug}.html is missing — run: python3 scripts/build-tool-fullpages.py")
+        # A retired tool's page is a redirect stub (scripts/tool-redirects.json),
+        # legitimate only while it points at a live tool.
+        retired = {}
+        if os.path.exists(os.path.join(ROOT, "scripts", "tool-redirects.json")):
+            retired = json.loads(read("scripts/tool-redirects.json")).get("redirects", {})
         for slug in sorted(page_slugs - names):
+            if slug in retired and retired[slug] in names:
+                continue
             fails.append(f"tool/{slug}.html exists but {slug} is not in the catalogue — stale page")
     else:
         fails.append("tool/ directory is missing — run: python3 scripts/build-tool-fullpages.py")
