@@ -43,7 +43,7 @@ so in the summary instead of acting on it.
 - **Staff facility deleted** (2026-09-20): the AI-developer workflow,
   `scripts/ai-staff.json`, the scoreboard, the claims ledger, the audit engine —
   governance about governance. Don't rebuild it.
-- **CI tiers are fixed.** `agent-guardrails.yml`: the 7-check gate on every pull
+- **CI tiers are fixed.** `agent-guardrails.yml`: the 8-check gate on every pull
   request and push; `verify.sh --deep` on `main` (the deploy) and nightly, jsdom
   installed outside the tree. The fast job must stay named "Repo checks" —
   branch protection resolves it. Don't add heavyweight CI or slow the local gate.
@@ -157,7 +157,6 @@ Not a work queue; delete a line once it is answered.
 - **Language pages** — a thin machine-translated hreflang cluster: enrich with
   real localisation, or consolidate?
 
-- **LICENSE** — none chosen.
 - **Soft top-level JS collisions** — the check reports the count; clearing them
   means IIFE-wrapping many cards. Worth the large mechanical diff?
 - **The music app's icon** — `manifest.json` points at the catalogue's icons;
