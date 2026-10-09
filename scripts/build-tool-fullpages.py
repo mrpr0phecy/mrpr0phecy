@@ -602,6 +602,52 @@ def load_inputs() -> list[dict]:
     return tools
 
 
+REDIRECTS_PATH = os.path.join(ROOT, "scripts", "tool-redirects.json")
+
+
+def load_redirects(tools: list) -> dict:
+    """Retired slug -> replacement slug (scripts/tool-redirects.json).
+
+    A retired tool's old URL must keep working (AGENTS.md §3 line 3), so its
+    tool/<old>.html is generated as a noindex stub that forwards to the tool
+    that replaced it. The map is validated here: a retired slug may not still
+    be a live tool, and the replacement must be one."""
+    if not os.path.exists(REDIRECTS_PATH):
+        return {}
+    with open(REDIRECTS_PATH, encoding="utf-8") as fh:
+        data = json.load(fh).get("redirects", {})
+    live = {t["name"] for t in tools}
+    for old, new in data.items():
+        if old in live:
+            raise SystemExit(f"tool-redirects.json: {old} is retired but still a live tool")
+        if new not in live:
+            raise SystemExit(f"tool-redirects.json: {old} points at {new}, which is not a live tool")
+    return dict(sorted(data.items()))
+
+
+def render_redirect(old: str, new_tool: dict) -> str:
+    new = new_tool["name"]
+    title = new_tool.get("title") or new
+    url = f"{SITE}/tool/{new}.html"
+    return (
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n"
+        "<meta charset=\"utf-8\">\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        "<meta name=\"robots\" content=\"noindex\">\n"
+        f"<title>Moved to {esc(title)}</title>\n"
+        f"<link rel=\"canonical\" href=\"{esc(url)}\">\n"
+        f"<meta http-equiv=\"refresh\" content=\"0; url={esc(new)}.html\">\n"
+        f"<script>location.replace({json.dumps(new + '.html')} + location.search + location.hash);</script>\n"
+        "<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:flex;align-items:center;"
+        "justify-content:center;background:#0a0f14;color:#e8eaf2;font-family:system-ui,sans-serif;padding:16px}"
+        "a{color:#7cc4ff}</style>\n"
+        "</head>\n<body>\n<main>\n"
+        f"<h1>This tool has moved</h1>\n"
+        f"<p>It is now part of <a href=\"{esc(new)}.html\">{esc(title)}</a>, which does everything it did and more.</p>\n"
+        "</main>\n</body>\n</html>\n"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true",
@@ -633,8 +679,22 @@ def main() -> int:
                 fh.write(out)
             written += 1
 
+    by_name = {t["name"]: t for t in tools}
+    redirects = load_redirects(tools)
+    for old, new in redirects.items():
+        out = render_redirect(old, by_name[new])
+        target = os.path.join(OUT_DIR, old + ".html")
+        if args.check:
+            if not os.path.exists(target):
+                missing.append(old)
+            elif open(target, encoding="utf-8").read() != out:
+                drifted.append(f"tool/{old}.html")
+        else:
+            with open(target, "w", encoding="utf-8") as fh:
+                fh.write(out)
+
     on_disk = {f[:-5] for f in os.listdir(OUT_DIR) if f.endswith(".html")}
-    declared = {t["name"] for t in tools}
+    declared = {t["name"] for t in tools} | set(redirects)
     orphans = sorted(on_disk - declared)
 
     if missing:
