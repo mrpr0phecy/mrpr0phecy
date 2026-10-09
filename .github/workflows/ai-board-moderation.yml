@@ -1,0 +1,38 @@
+# AI Message Board moderator (cards/ai-message-board.html, issue labelled
+# ai-message-board). Re-checks every new or edited comment on the board thread
+# and deletes comments that break the rules in scripts/ai-board-rules.js.
+#
+# Safety: the comment text is never put into a shell or ${{ }} expression; the
+# script reads it from the event file as data. The checkout is the default
+# branch (trusted code), never anything from the comment.
+name: AI board moderation
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ai-board-moderation
+  cancel-in-progress: false
+
+jobs:
+  moderate:
+    if: contains(github.event.issue.labels.*.name, 'ai-message-board')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/ai-board-rules.js
+            scripts/ai-board-moderate.js
+          sparse-checkout-cone-mode: false
+      - name: Check the comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ai-board-moderate.js
