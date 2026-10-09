@@ -174,7 +174,8 @@ Visible UI: inspect at 360 & 1440 px and exercise the interaction — screenshot
 don't prove behaviour (`node scripts/screenshot.mjs "tool/bmi.html"` writes
 /tmp/shots PNGs). No screenshots for docs or non-visual code. Summary: what
 changed, what ran, failures and unverified behaviour — never invent
-measurements or hide a failure. No PR ritual.
+measurements or hide a failure. No PR ritual. Pushing and PRs: §7; say which
+§7 level you reached (local, pushed, PR, merged, live).
 
 ## 6. Reference — only when needed
 
@@ -187,3 +188,66 @@ deploy and incidents.
 Use git/GitHub for history. Don't rebuild the removed site brain, staff
 facility, task board or decision ledger. Outside agents use the public
 catalogue indexes; repo agents need not.
+
+## 7. GitHub access and publishing
+
+The repo is public, so anyone can clone, build and check it; only the owner
+(`mrpr0phecy`) and what the owner authorises can write. `main` is the deploy
+and has no branch protection (the API answered "Branch protection has been
+disabled" on 2026-10-09), so a push to `main` goes live in 30–60 s with only
+the post-push deep check and production monitor behind it. Agents push a topic
+branch and open a PR; the owner merges. Never push or force-push `main` unless
+the owner asks for that exact push (rollback: `docs/OPERATIONS.md` §6).
+
+**Check before you claim.** Each level proves only itself: a local commit or a
+green `verify` is not a push, a pushed branch is not a PR, a merge is not live.
+
+| Level | Proof | Allows |
+|---|---|---|
+| Read | `git ls-remote https://github.com/mrpr0phecy/mrpr0phecy main` answers with no login | clone, build, test, commit locally |
+| Write | `gh auth status` names `mrpr0phecy` and `gh api repos/mrpr0phecy/mrpr0phecy --jq .permissions.push` prints `true` | push a branch, open a PR |
+| Pushed / PR | `git ls-remote origin refs/heads/<branch>` returns your sha; `gh pr view <branch>` shows the PR | owner review |
+| Live | merged, Pages run green, `node scripts/check-production.js` exits 0 | — |
+
+**Ways in** (none is a hidden feature; each needs the owner's own approval):
+
+- **GitHub CLI device login** — how the Sesame assistant first got write
+  access (2026-10-09), after plain pushes were refused. An agent with a shell
+  and `gh` runs
+  `gh auth login --hostname github.com --git-protocol https --web`, which prints
+  a one-time code; the owner, signed in to GitHub, enters it at
+  <https://github.com/login/device> and approves. The token belongs to the
+  owner's account (scopes `repo`, `workflow`, `gist`, `read:org`) and `gh`
+  stores it in `~/.config/gh/hosts.yml` on the agent's machine, in plain text.
+  `gh pr create` uses it directly; for `git push` use
+  `git -c credential.helper= -c credential.helper='!gh auth git-credential' push`
+  (or `gh auth setup-git` on a machine you own). Revoke it on GitHub under
+  Settings → Applications → Authorized OAuth Apps → GitHub CLI.
+- **A GitHub App coding agent** the owner connected — the
+  `arena/<id>-mrpr0phecy` branches behind 159 merged PRs (#3–#188), opened and
+  merged either by `app/arena-ai-coding-agent` or under the owner's account,
+  with `arena-ai-coding-agent[bot]` and "Arena Agent" commits. That grant
+  belongs to that app; other agents don't inherit it.
+- **A session on the owner's machine** (for example Claude Code started
+  remotely on the owner's Mac) uses that machine's git login. Two such
+  sessions on 2026-10-08 ended without reporting or pushing anything; confirm
+  the branch with `git ls-remote` before saying it was pushed.
+
+**No write access?** Finish locally and hand over a bundle or patch, saying it
+is unpublished: `git bundle create <topic>.bundle origin/main..<topic>` (owner:
+`git fetch <file> <topic>:<topic>`, then push) or `git format-patch -1`
+(owner: `git am <file>`). Don't ask the owner for a password or token in chat.
+
+**Publish:**
+
+    git fetch origin && git switch -c <topic> origin/main
+    # change, validate (§1), commit
+    git push -u origin <topic>          # with the credential helper above if needed
+    gh pr create --repo mrpr0phecy/mrpr0phecy --base main --head <topic> \
+      --title "<what changed>" --body-file /tmp/pr-body.md
+
+The PR runs "Repo checks"; the deep check runs after merge. Parallel agents:
+one branch each from `origin/main`, touch different sections of shared docs
+(`AGENTS.md`, `CONSTRAINTS.md`), and `git ls-remote origin 'refs/heads/*'` to
+see what is already pushed. Tokens, `gh auth token` output and auth logs never
+go in commits, PR text, remote URLs or logs (§3 hard line 5).
