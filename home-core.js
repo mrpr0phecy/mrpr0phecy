@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 42;
+  const APP_VERSION = 43;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -770,6 +770,31 @@
     else window.addEventListener('load', function () { setTimeout(doRegister, 1500); });
   }
 
+  /* ------------------------------------------------ cross-page transitions */
+  // home.css opts every navigation in to a cross-document view transition, but
+  // only the home page and tool.html opt back in; the 1,389 tool/*.html pages
+  // do not. Chromium still snapshots the home page for each of those clicks,
+  // then aborts the transition on arrival and throws an uncaught
+  // "InvalidStateError: ViewTransition opt-in disabled" on the tool page — one
+  // per click, measured on the live site. Skip the transition up front when the
+  // destination cannot take part, and settle its promises either way.
+  function setupPageSwap() {
+    window.addEventListener('pageswap', function (e) {
+      var vt = e.viewTransition;
+      if (!vt) return;
+      var quiet = function () {};
+      try { vt.ready.catch(quiet); vt.finished.catch(quiet); vt.updateCallbackDone.catch(quiet); } catch (err) {}
+      var to = '', base = '/';
+      try {
+        base = new URL('./', location.href).pathname;
+        to = new URL(e.activation.entry.url, location.href).pathname;
+      } catch (err) {}
+      if (to !== base && to !== base + 'index.html' && to !== base + 'tool.html') {
+        try { vt.skipTransition(); } catch (err) {}
+      }
+    });
+  }
+
   // Each feature is isolated: one that throws (a browser quirk, an extension
   // rewriting the DOM, a missing element) must not take the search box, the
   // panels or offline support down with it. The first versions of this file
@@ -793,6 +818,7 @@
     safely('popover fallback', popoverFallback);
     safely('reveal', setupReveal);
     safely('app entry', handleAppEntry);
+    safely('page swap', setupPageSwap);
     safely('service worker', registerServiceWorker);
   }
 

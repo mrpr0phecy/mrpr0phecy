@@ -45,8 +45,12 @@ review. Run with:
                         stop being the problem without a deploy.
   8. prefetch-through   hover prefetches of documents are passed to the browser
                         (req.mode !== 'navigate' && req.destination ===
-                        'document'); intercepting them doubles the traffic a
-                        hover-prefetching page generates.
+                        'document'), and so are requests whose Sec-Purpose
+                        names prefetch or prerender — Chromium sends
+                        speculation-rule prefetches as mode:'navigate', so the
+                        mode test alone never matches them. Intercepting them
+                        doubles the traffic a hover-prefetching page generates
+                        and hands the worker downloads nobody can cancel.
   9. store-200          only status 200 is written to a cache, so an error page
                         cannot be stored and replayed as "content".
 """
@@ -308,6 +312,13 @@ def check(src):
         bad((1, "prefetch-through",
              "no passthrough for non-navigation document requests (hover prefetches): "
              "intercepting them doubles the traffic a prefetching page generates"))
+    rt = function_span(text, "route")
+    if not (rt and re.search(r"if\s*\(\s*isSpeculative\(\s*\w+\s*\)\s*\)\s*return\s*;", text[rt[0]: rt[1]])
+            and re.search(r"Sec-Purpose", text, re.I)):
+        bad((num(rt[0]) if rt else 1, "prefetch-through",
+             "route() must return early for isSpeculative(req) (Sec-Purpose: prefetch / "
+             "prerender): Chromium sends speculation-rule prefetches as mode:'navigate', "
+             "so the mode test alone lets every hover become a worker-owned navigation"))
 
     # 9 ─ never cache an error page ────────────────────────────────────────────
     st = function_span(text, "store")

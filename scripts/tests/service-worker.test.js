@@ -109,7 +109,7 @@ function makeWorker() {
   vm.createContext(sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'sw.js' });
 
-  const dispatch = (url, { mode = 'no-cors', preload, destination, expectResponse = true } = {}) => {
+  const dispatch = (url, { mode = 'no-cors', preload, destination, headers, expectResponse = true } = {}) => {
     // Node's Request constructor rejects mode:'navigate' (script cannot mint
     // navigation requests) — but that is exactly the mode every real page
     // navigation arrives in, so navigations are dispatched as the plain
@@ -117,9 +117,13 @@ function makeWorker() {
     // `destination` has to be set on a plain object: it is a read-like getter on
     // a real Request, and a speculation-rules prefetch arrives as
     // mode:'no-cors' + destination:'document'.
+    // Chromium's real speculation-rules prefetch, measured on the live site, is
+    // mode:'navigate' + destination:'document' + Sec-Purpose: prefetch — the
+    // header is the only thing that tells it apart from a click.
     const request = (mode === 'navigate' || destination !== undefined)
-      ? { url: ORIGIN + url, method: 'GET', mode, destination: destination || 'document' }
-      : new Request(ORIGIN + url, { method: 'GET', mode });
+      ? { url: ORIGIN + url, method: 'GET', mode, destination: destination || 'document',
+          headers: new Headers(headers || {}) }
+      : new Request(ORIGIN + url, { method: 'GET', mode, headers });
     let responded = null;
     listeners.fetch({
       request,
@@ -527,6 +531,26 @@ const body = (res) => res.text();
     assert.strictEqual(await body(res), 'SHOULD NOT BE FETCHED BY THE WORKER',
       'a navigation must still be handled, prefetch or not');
     console.log('  ok   hover prefetches are left to the browser, navigations are not');
+  }
+
+  {
+    // The shape Chromium actually sends. The guard above never matched it, so
+    // every hover still ran navigateFast(): a worker-owned download the browser
+    // could not cancel. Prefetch and prerender are both left to the browser.
+    for (const purpose of ['prefetch', 'prefetch;prerender']) {
+      const w = makeWorker();
+      w.setNetwork(() => new Response('SHOULD NOT BE FETCHED BY THE WORKER', { status: 200 }));
+      const responded = w.dispatch('/tool/bmi.html',
+        { mode: 'navigate', headers: { 'Sec-Purpose': purpose }, expectResponse: false });
+      assert.strictEqual(responded, null,
+        `the worker intercepted a mode:'navigate' request with Sec-Purpose: ${purpose}`);
+      assert.deepStrictEqual(w.networkCalls, [], `a passed-through ${purpose} still cost the worker a request`);
+    }
+    const w = makeWorker();
+    w.setNetwork(() => new Response('PAGE', { status: 200 }));
+    const res = await w.dispatch('/tool/bmi.html', { mode: 'navigate', headers: {} });
+    assert.strictEqual(await body(res), 'PAGE', 'a navigation without Sec-Purpose must still be handled');
+    console.log("  ok   Chromium's real prefetch shape (navigate + Sec-Purpose) is left to the browser");
   }
 
   // ------------------------------------------------------------- routing 3
