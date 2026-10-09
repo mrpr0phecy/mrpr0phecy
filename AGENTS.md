@@ -8,7 +8,7 @@ stay stable. Everything else is reference (§6).
 Static GitHub Pages — no runtime deps, no deploy build; `main` is live.
 Two products share the domain and must stay separate (§3 hard line 6).
 
-### Product A — the catalogue (1,389 tools)
+### Product A — the catalogue (1,390 tools)
 
 `cards/<slug>.html` fragments — the single implementation of each tool,
 inlined verbatim into its own full page at `tool/<slug>.html` (the browse

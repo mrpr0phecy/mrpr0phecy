@@ -183,6 +183,7 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  'page-privacy-audit': 'Algorithms & Computer Science',
   // 2026-10-04 — ten local-first horror production tools: fictional creator props,
   // offline audio/photo review, a real magnetometer readout, cue timing and a
   // permission-first safety gate. All effects are labeled as staged; no card
