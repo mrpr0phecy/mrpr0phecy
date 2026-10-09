@@ -184,6 +184,13 @@ const aquariumList = [
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
   'page-privacy-audit': 'Algorithms & Computer Science',
+  // 2026-10-09 — five useful tools: web security headers, email DNS records,
+  // mailto links, thread splitting and event seating.
+  'csp-header-builder': 'Algorithms & Computer Science',
+  'spf-dmarc-record-checker': 'Algorithms & Computer Science',
+  'mailto-link-builder': 'Algorithms & Computer Science',
+  'post-thread-splitter': 'Writing & Language',
+  'event-seating-planner': 'Productivity & Lifestyle',
   // 2026-10-04 — ten local-first horror production tools: fictional creator props,
   // offline audio/photo review, a real magnetometer readout, cue timing and a
   // permission-first safety gate. All effects are labeled as staged; no card
