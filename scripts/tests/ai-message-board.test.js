@@ -8,9 +8,14 @@
 //   - valid posts pass and each broken rule is caught
 //   - rate limits and duplicates count only accepted posts
 //   - the moderator ignores other issues, keeps valid posts, deletes the rest
-//   - the manifest, skill.md and the workflow match the rules
+//   - the manifest, skill.md and the workflow match the rules, and both point
+//     at the hostname the site's CNAME actually serves
 //   - the card renders untrusted text as text and the workflow never puts
 //     comment text into a shell
+//   - the card's reader behaviour, driven in jsdom against a stubbed thread:
+//     hidden vs shown, per-post anchors and reply links, the stats matching
+//     what is on screen, the one-minute cache, and a corrupt cache that cannot
+//     blank the board
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
@@ -196,4 +201,252 @@ test('the card shows untrusted text as text and is classified as live data', () 
   assert.match(read('llms.txt'), /AI Message Board/, 'llms.txt points agents at the board');
   assert.match(read('scripts/check-egress.py'), /"ai-message-board": "C"/);
   assert.match(read('generate-cards-json.js'), /'ai-message-board': 'AI & Autonomous Agents'/);
+});
+
+// ---------------------------------------------------------------------------
+// Character counting (Arena review: an agent that measures the way skill.md and
+// Python do had a legal post rejected, because '😀'.length is 2 in JS).
+// ---------------------------------------------------------------------------
+
+test('limits count Unicode code points, the way skill.md documents them', () => {
+  assert.strictEqual(AMB.charLen('abc'), 3);
+  assert.strictEqual(AMB.charLen('😀'), 1);
+  assert.strictEqual(AMB.charLen('👨‍👩‍👧'), 5, 'ZWJ sequences are separate code points');
+  assert.strictEqual(AMB.charLen('café'), 4);
+  assert.strictEqual(AMB.charLen(''), 0);
+  assert.strictEqual(AMB.charLen('😀'.repeat(2000)), 2000);
+
+  const atTheCap = '😀' + 'a'.repeat(1999);                 // 2000 code points, 2001 UTF-16 units
+  assert.strictEqual(atTheCap.length, 2001, 'the message really does cross the old unit boundary');
+  const ok = AMB.checkPost({ body: makePost('robo-writer', 'Robo', atTheCap, TS), login: 'robo-writer', createdAt: AT });
+  assert.ok(ok.valid, ok.reasons.join('; '));
+  const over = AMB.checkPost({ body: makePost('robo-writer', 'Robo', atTheCap + 'b', TS), login: 'robo-writer', createdAt: AT });
+  assert.match(over.reasons.join(), /2000 characters/);
+
+  const name = '🤖'.repeat(64);
+  assert.ok(AMB.checkPost({ body: makePost('robo-writer', name, 'hi', TS), login: 'robo-writer', createdAt: AT }).valid,
+    'a 64-code-point agent name is legal however astral it is');
+  assert.match(AMB.checkPost({ body: makePost('robo-writer', '🤖'.repeat(65), 'hi', TS), login: 'robo-writer', createdAt: AT }).reasons.join(), /64 characters/);
+});
+
+// ---------------------------------------------------------------------------
+// Discovery: an agent that follows a hostname the site does not serve never
+// reaches the instructions at all. The canonical host is `CNAME`, not a copy.
+// ---------------------------------------------------------------------------
+
+test('every machine-facing board URL uses the hostname the CNAME serves', () => {
+  const canonical = read('CNAME').trim();
+  assert.match(canonical, /^www\./, 'the site is served on a www host');
+  const m = JSON.parse(read('.well-known/ai-message-board.json'));
+  const skill = read('ai-message-board/skill.md');
+  const card = read('cards/ai-message-board.html');
+  const bare = 'https://themostusefulsiteintheworld.com';
+  for (const [label, text] of [['manifest', JSON.stringify(m)], ['skill.md', skill], ['card', card]]) {
+    assert.ok(!text.includes(bare), `${label} still links the bare apex host an agent cannot resolve`);
+  }
+  for (const url of [m.site, m.human_url, m.instructions, m.thread.link, m.thread.post_anchor]) {
+    assert.ok(url.startsWith(`https://${canonical}`), `manifest URL ${url} is not on ${canonical}`);
+  }
+  assert.match(skill, new RegExp('homepage: https://' + canonical + '/tool/ai-message-board\\.html'));
+  assert.match(skill, new RegExp('manifest: https://' + canonical + '/\\.well-known/ai-message-board\\.json'));
+  // The card's copyable instruction is a real link, not bare text an agent has
+  // to reconstruct, and it is the same URL the link points at.
+  const link = /<a href="(\/ai-message-board\/skill\.md)">([^<]+)<\/a>/.exec(card);
+  assert.ok(link, 'the card links skill.md instead of printing a bare URL');
+  assert.strictEqual(link[2], `https://${canonical}/ai-message-board/skill.md`);
+});
+
+test('skill.md and the manifest tell an agent how to read the moderator verdict', () => {
+  const m = JSON.parse(read('.well-known/ai-message-board.json'));
+  const skill = read('ai-message-board/skill.md');
+  const runs = 'https://api.github.com/repos/mrpr0phecy/mrpr0phecy/actions/workflows/ai-board-moderation.yml/runs';
+  assert.ok(m.thread.moderation_runs.includes(runs), 'the manifest names the runs endpoint');
+  assert.ok(skill.includes(runs), 'skill.md names the runs endpoint');
+  assert.ok(m.limits.character_counting.includes('code point'), 'the manifest states how characters are counted');
+  assert.match(skill, /Python's `len\(\)`/, 'skill.md says which way the count works');
+  assert.match(skill, /ai-message-board-post-/, 'skill.md documents the per-post link');
+  assert.ok(m.thread.post_anchor.includes('#ai-message-board-post-'), 'the manifest carries the anchor form');
+  assert.match(skill, /do not "repair" a post by editing|Do not "repair" a post by editing/, 'editing is documented as a trap');
+});
+
+// ---------------------------------------------------------------------------
+// The reader, driven for real. The card is mounted the way tool.html and the
+// generated page mount it, against a stubbed GitHub that answers with fixture
+// comments, so what a visitor sees is asserted rather than eyeballed.
+// ---------------------------------------------------------------------------
+
+let JSDOM = null;
+try { ({ JSDOM } = require('/tmp/tenv/node_modules/jsdom')); }
+catch (_) { try { ({ JSDOM } = require('jsdom')); } catch (__) { JSDOM = null; } }
+
+const CARD_HTML = read('cards/ai-message-board.html');
+const COMMENT_URL = 'https://github.com/mrpr0phecy/mrpr0phecy/issues/195#issuecomment-';
+
+function fixtureComments() {
+  const replyBody = makePost('other-bot', 'Other', 'Replying to you.', TS, 'reply-to: 9001\n');
+  const orphanBody = makePost('third-bot', 'Third', 'Answering something older than this window.', TS, 'reply-to: 424242\n');
+  return [
+    { id: 9001, body: makePost('robo-writer', 'Robo', 'Hello, board. 👨‍👩‍👧 What is everyone building?', TS, 'model: test-model\n'), login: 'Robo-Writer' },
+    { id: 9002, body: replyBody, login: 'other-bot' },
+    { id: 9003, body: orphanBody, login: 'third-bot' },
+    { id: 9004, body: 'a human reply with no header at all', login: 'someone' }
+  ].map((c) => ({ id: c.id, body: c.body, user: { login: c.login }, created_at: AT, html_url: COMMENT_URL + c.id }));
+}
+
+async function mountCard({ comments, cached, hash, failStatus } = {}) {
+  const dom = new JSDOM('<!doctype html><html><body><div class="card" id="host"></div></body></html>', {
+    runScripts: 'outside-only',
+    pretendToBeVisual: true,
+    url: 'https://www.themostusefulsiteintheworld.com/tool/ai-message-board.html' + (hash || '')
+  });
+  const { window } = dom;
+  const document = window.document;
+  const errors = [];
+  window.addEventListener('error', (e) => errors.push(String(e.message)));
+  const calls = [];
+  if (cached !== undefined) window.sessionStorage.setItem('ai-message-board-cache-v1', cached);
+  window.fetch = (url) => {
+    calls.push(String(url));
+    if (failStatus) {
+      return Promise.resolve({ ok: false, status: failStatus, headers: { get: (h) => (h === 'x-ratelimit-remaining' ? '0' : h === 'x-ratelimit-reset' ? '1760000000' : null) } });
+    }
+    if (/\/issues\/195$/.test(String(url))) {
+      return Promise.resolve({ ok: true, headers: { get: () => null }, json: () => Promise.resolve({ comments: (comments || []).length }) });
+    }
+    const page = Number((/[?&]page=(\d+)/.exec(String(url)) || [])[1] || 1);
+    return Promise.resolve({ ok: true, headers: { get: () => null }, json: () => Promise.resolve(page === 1 ? (comments || []) : []) });
+  };
+  const parsed = new window.DOMParser().parseFromString(CARD_HTML, 'text/html');
+  const scripts = Array.from(parsed.querySelectorAll('script'));
+  scripts.forEach((s) => s.remove());
+  const wrapper = document.createElement('div');
+  wrapper.className = 'card';
+  while (parsed.body.firstChild) wrapper.appendChild(parsed.body.firstChild);
+  document.getElementById('host').appendChild(wrapper);
+  scripts.forEach((s) => window.eval(s.textContent));
+  for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0));
+  const $ = (id) => document.getElementById('ai-message-board-' + id);
+  return { window, document, $, calls, errors, posts: () => Array.from(document.querySelectorAll('.amb-post')) };
+}
+
+const needsJsdom = !JSDOM && 'jsdom is not installed (see AGENTS.md §2)';
+
+test('the reader lists accepted posts, anchors each one and links replies to their parent', { skip: needsJsdom }, async () => {
+  const t = await mountCard({ comments: fixtureComments() });
+  try {
+    assert.deepStrictEqual(t.errors, [], 'the card threw while reading the thread');
+    const posts = t.posts();
+    assert.strictEqual(posts.length, 3, 'the headerless comment is hidden, the three that pass are listed');
+    assert.strictEqual(t.$('status').textContent.indexOf('Checked 4 comments in your browser'), 0);
+    assert.strictEqual(t.$('count').textContent, '3', 'posts shown counts what is on the screen');
+    assert.strictEqual(t.$('hiddencount').textContent, '1');
+    assert.strictEqual(t.$('agents').textContent, '3');
+
+    const parent = t.document.getElementById('ai-message-board-post-9001');
+    const child = t.document.getElementById('ai-message-board-post-9002');
+    assert.ok(parent && child, 'every listed post carries a #ai-message-board-post-<id> anchor');
+    assert.match(parent.textContent, /1 reply/, 'the parent says it has a reply');
+    assert.strictEqual(child.querySelector('.amb-reply a').getAttribute('href'), '#ai-message-board-post-9001');
+    const orphan = t.document.getElementById('ai-message-board-post-9003');
+    assert.ok(!orphan.querySelector('.amb-reply a'), 'a reply to an unloaded post is not a dead link');
+    assert.match(orphan.querySelector('.amb-reply').textContent, /outside the posts this page has loaded/);
+    assert.ok(parent.querySelector('.amb-body').textContent.includes('👨‍👩‍👧'), 'the message is shown as written');
+    assert.ok(parent.querySelector('time[datetime]').textContent, 'the byline carries a real <time> element');
+    assert.strictEqual(parent.querySelectorAll('a').length, 2, 'a permalink and the GitHub link, no more');
+  } finally { t.window.close(); }
+});
+
+test('the stats follow the filter, and hidden posts appear only when asked for', { skip: needsJsdom }, async () => {
+  const t = await mountCard({ comments: fixtureComments() });
+  try {
+    t.$('filter').value = 'zzz-nothing-matches';
+    t.$('filter').dispatchEvent(new t.window.Event('input'));
+    assert.strictEqual(t.posts().length, 0, 'every post row is filtered out');
+    assert.match(t.$('posts').textContent, /No posts match/);
+    assert.strictEqual(t.$('count').textContent, '0', 'the counter must not claim posts nobody can see');
+    assert.strictEqual(t.$('countlabel').textContent, 'posts matching the filter');
+
+    t.$('filter').value = '';
+    t.$('filter').dispatchEvent(new t.window.Event('input'));
+    assert.strictEqual(t.$('countlabel').textContent, 'posts shown');
+    assert.strictEqual(t.posts().length, 3);
+    t.$('showhidden').checked = true;
+    t.$('showhidden').dispatchEvent(new t.window.Event('change'));
+    assert.strictEqual(t.posts().length, 4);
+    const hidden = t.posts().find((p) => p.getAttribute('data-hidden') === '1');
+    assert.match(hidden.textContent, /no blank line between the header and the message/);
+    assert.ok(!/no header at all/.test(hidden.textContent), 'a hidden post shows its reasons, never its text');
+    assert.ok(!hidden.id, 'a row that failed the checks gets no anchor to share');
+  } finally { t.window.close(); }
+});
+
+test('a shared #post link focuses the post, and a stale one says so', { skip: needsJsdom }, async () => {
+  const t = await mountCard({ comments: fixtureComments(), hash: '#ai-message-board-post-9002' });
+  try {
+    const child = t.document.getElementById('ai-message-board-post-9002');
+    assert.strictEqual(child.getAttribute('data-flash'), '1', 'the linked post is highlighted');
+    assert.strictEqual(t.document.activeElement, child, 'and it takes focus, so keyboard and AT users land on it');
+    assert.ok(child.querySelector('.amb-body'), 'the post itself is intact');
+  } finally { t.window.close(); }
+
+  const other = await mountCard({ comments: fixtureComments(), hash: '#ai-message-board-post-777' });
+  try {
+    assert.strictEqual(other.document.querySelectorAll('[data-flash="1"]').length, 0);
+    assert.strictEqual(other.posts().length, 3, 'an unknown anchor leaves the board alone');
+  } finally { other.window.close(); }
+});
+
+test('the one-minute cache is used, and a corrupt cache cannot blank the board', { skip: needsJsdom }, async () => {
+  const rows = [
+    { id: '9001', body: makePost('robo-writer', 'Robo', 'From the cache.', TS), login: 'robo-writer', createdAt: AT, url: COMMENT_URL + '9001' }
+  ];
+  const good = await mountCard({ comments: fixtureComments(), cached: JSON.stringify({ at: Date.now(), rows, firstPage: 1 }) });
+  try {
+    assert.deepStrictEqual(good.calls, [], 'a load inside the cache window asks GitHub for nothing');
+    assert.strictEqual(good.posts().length, 1);
+    assert.strictEqual(good.$('count').textContent, '1');
+    assert.match(good.$('status').textContent, /the copy from the last minute/);
+  } finally { good.window.close(); }
+
+  const broken = await mountCard({ comments: fixtureComments(), cached: JSON.stringify({ at: Date.now(), rows: [{ nonsense: true }], firstPage: 1 }) });
+  try {
+    assert.deepStrictEqual(broken.errors, [], 'a malformed cached row must not throw the reader');
+    assert.ok(broken.calls.length >= 2, 'it falls back to reading the thread');
+    assert.strictEqual(broken.posts().length, 3, 'and the board still renders');
+  } finally { broken.window.close(); }
+});
+
+test('a rate-limited read tells the reader to wait rather than pretending to be offline', { skip: needsJsdom }, async () => {
+  const t = await mountCard({ comments: fixtureComments(), failStatus: 403 });
+  try {
+    assert.match(t.$('status').textContent, /60 times an hour/);
+    assert.match(t.$('status').textContent, /allowance is used up/);
+    assert.strictEqual(t.$('refresh').disabled, false, 'the button is usable again after a failure');
+  } finally { t.window.close(); }
+});
+
+test('the card keeps its own lifecycle rules (interval, harness, no egress beyond the thread)', () => {
+  const card = read('cards/ai-message-board.html');
+  assert.match(card, /if \(!alive\(\)\) \{ clearInterval\(ticker\); ticker = null; return; \}/,
+    'the per-minute re-render stops itself once the card is gone (CONSTRAINTS "card traps")');
+  assert.match(card, /document\.addEventListener\('hashchange', function \(\) \{\s*\n\s*if \(!alive\(\)\) return;/,
+    'the hashchange listener bails out when the card is gone');
+  assert.strictEqual((card.match(/setInterval\(/g) || []).length, 1, 'the card owns exactly one timer');
+  assert.match(card, /clearInterval\(ticker\)/, 'and it clears that timer');
+  assert.match(card, /role="group" aria-label="Thread summary"/, 'the stats row is a real group for AT');
+  assert.match(card, /font-size:16px/, 'form fields reach 16px on small screens so iOS does not zoom');
+  // The production harness mounts the card the way tool.html and the generated
+  // page do, fast-forwards timers and reports a swallowed throw.
+  const out = execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'test-card.js'), 'cards/ai-message-board.html'],
+    { cwd: ROOT, encoding: 'utf8' });
+  assert.match(out, /ALL PASSED \(1 card\)/);
+});
+
+test('the generated page carries the same card the source has', () => {
+  // tool/ai-message-board.html is generated: if it drifts, the live board is
+  // not the card that was tested. `--check` compares every page; run it here so
+  // a card edit that forgot `npm run build` fails in the board's own suite too.
+  const out = execFileSync('python3', [path.join(ROOT, 'scripts', 'build-tool-fullpages.py'), '--check'],
+    { cwd: ROOT, encoding: 'utf8' });
+  assert.match(out, /page\(s\) match the cards/);
 });

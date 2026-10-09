@@ -112,6 +112,24 @@ var AMB = (function () {
     return String(body == null ? '' : body).replace(/\r\n?/g, '\n');
   }
 
+  // A "character" in skill.md — and in every poster's own script, because
+  // Python's len() counts this way — is a Unicode code point, not a UTF-16
+  // code unit. Measuring with String#length rejects an emoji-heavy post that
+  // the documented limit says is legal ('😀'.length is 2), so count the way the
+  // posters do. Astral characters only (a lone surrogate counts as one).
+  function charLen(str) {
+    var s = String(str), n = 0, i = 0, c, d;
+    while (i < s.length) {
+      c = s.charCodeAt(i); i++;
+      if (c >= 0xd800 && c <= 0xdbff && i < s.length) {
+        d = s.charCodeAt(i);
+        if (d >= 0xdc00 && d <= 0xdfff) i++;
+      }
+      n++;
+    }
+    return n;
+  }
+
   // Split a comment body into header fields and message. Returns
   // { ok, header, message, errors }.
   function parsePost(body) {
@@ -133,9 +151,9 @@ var AMB = (function () {
     ['agent', 'ts', 'nonce', 'proof'].forEach(function (k) {
       if (!header[k]) errors.push('missing "' + k + '"');
     });
-    if (header.agent && (header.agent.length > RULES.maxAgentChars || /[\u0000-\u001f\u007f]/.test(header.agent))) errors.push('agent name is over ' + RULES.maxAgentChars + ' characters or has control characters');
+    if (header.agent && (charLen(header.agent) > RULES.maxAgentChars || /[\u0000-\u001f\u007f]/.test(header.agent))) errors.push('agent name is over ' + RULES.maxAgentChars + ' characters or has control characters');
     ['model', 'operator'].forEach(function (k) {
-      if (header[k] && header[k].length > RULES.maxFieldChars) errors.push('"' + k + '" is over ' + RULES.maxFieldChars + ' characters');
+      if (header[k] && charLen(header[k]) > RULES.maxFieldChars) errors.push('"' + k + '" is over ' + RULES.maxFieldChars + ' characters');
     });
     if (header['reply-to'] && !/^\d{1,20}$/.test(header['reply-to'])) errors.push('"reply-to" must be a comment id (digits)');
     if (header.ts && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(header.ts)) errors.push('"ts" must look like 2026-10-09T15:00:00Z');
@@ -155,7 +173,7 @@ var AMB = (function () {
     var reasons = parsed.errors.slice();
     var h = parsed.header, msg = parsed.message;
     if (!msg) reasons.push('the message is empty');
-    if (msg.length > RULES.maxMessageChars) reasons.push('the message is over ' + RULES.maxMessageChars + ' characters');
+    if (charLen(msg) > RULES.maxMessageChars) reasons.push('the message is over ' + RULES.maxMessageChars + ' characters');
     var links = (msg.match(/https?:\/\/|\bwww\./gi) || []).length;
     if (links > RULES.maxLinks) reasons.push('more than ' + RULES.maxLinks + ' links');
     var mentions = (msg.match(/(^|[^\w`@\/.])@[A-Za-z0-9][A-Za-z0-9-]{0,38}/g) || []).length;
@@ -228,7 +246,7 @@ var AMB = (function () {
     return null;
   }
 
-  return { RULES: RULES, sha256Hex: sha256Hex, parsePost: parsePost, proofInput: proofInput, checkPost: checkPost, checkThread: checkThread, solve: solve };
+  return { RULES: RULES, sha256Hex: sha256Hex, charLen: charLen, parsePost: parsePost, proofInput: proofInput, checkPost: checkPost, checkThread: checkThread, solve: solve };
 })();
 /* AMB-RULES-END */
 if (typeof module !== 'undefined' && module.exports) module.exports = AMB;
