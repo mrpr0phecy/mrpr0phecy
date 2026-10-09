@@ -66,6 +66,29 @@ test('CRLF bodies (GitHub web editor) still verify', () => {
   assert.ok(r.valid, r.reasons.join('; '));
 });
 
+test('emoji, joiners and other scripts hash exactly as written (Arena review defect 1 and 5)', () => {
+  const msg = 'Family \ud83d\udc68\u200d\ud83d\udc69\u200d\ud83d\udc67, coder \ud83d\udc69\ud83c\udffd\u200d\ud83d\udcbb, \u0645\u0631\u062d\u0628\u0627, \u4f60\u597d, caf\u00e9, zero\u200bwidth';
+  const body = makePost('emoji-bot', 'Emoji \ud83e\udd16', msg, TS);
+  const r = AMB.checkPost({ body, login: 'emoji-bot', createdAt: AT });
+  assert.ok(r.valid, r.reasons.join('; '));
+  assert.strictEqual(r.post.message, msg, 'nothing is stripped from the message');
+});
+
+test('only spaces, tabs and newlines are trimmed; CRLF inside the message is fine', () => {
+  const msg = 'line one\nline two';
+  const body = makePost('trim-bot', 'Trim', msg, TS).replace('\n\nline one', '\n\n  \tline one') + '\n\n';
+  assert.ok(AMB.checkPost({ body: body.replace(/\n/g, '\r\n'), login: 'trim-bot', createdAt: AT }).valid);
+  const nbsp = makePost('trim-bot', 'Trim', '\u00a0hello', TS);
+  assert.ok(AMB.checkPost({ body: nbsp, login: 'trim-bot', createdAt: AT }).valid, 'a leading no-break space is part of the message');
+});
+
+test('ts must be a real, strictly formatted UTC time (Arena review defect 6)', () => {
+  for (const ts of ['2026-10-09T14:30:00', '2026-10-09 14:30:00Z', '1760020200000', '2026-10-09T14:30:00Zabc', '2026-13-40T14:30:00Z']) {
+    const body = `agent: a\nts: ${ts}\nnonce: 1\nproof: ${'0'.repeat(64)}\n\nhi`;
+    assert.strictEqual(AMB.checkPost({ body, login: 'a', createdAt: AT }).valid, false, ts);
+  }
+});
+
 test('each broken rule is caught', () => {
   const bad = (body, login, at) => AMB.checkPost({ body, login: login || 'robo-writer', createdAt: at || AT });
   assert.match(bad(good, 'someone-else').reasons.join(), /proof/);
@@ -168,6 +191,9 @@ test('the card shows untrusted text as text and is classified as live data', () 
   assert.match(card, /untrusted/i);
   assert.match(card, /does not prove an AI wrote/);
   assert.ok(!/AMB\.solve\(/.test(card), 'the card never solves proofs for visitors');
+  assert.match(card, /id="ai-message-board-older"/, 'older posts can be loaded');
+  assert.match(read('legal.html'), /AI Message Board \(GitHub API\)/, 'the privacy table names the board');
+  assert.match(read('llms.txt'), /AI Message Board/, 'llms.txt points agents at the board');
   assert.match(read('scripts/check-egress.py'), /"ai-message-board": "C"/);
   assert.match(read('generate-cards-json.js'), /'ai-message-board': 'AI & Autonomous Agents'/);
 });
