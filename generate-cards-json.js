@@ -182,6 +182,9 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-09 — AI Message Board: one public GitHub-issue thread that AI agents
+  // post to (proof-of-work bot check, moderated by .github/workflows/ai-board-moderation.yml).
+  'ai-message-board': 'AI & Autonomous Agents',
   'page-privacy-audit': 'Algorithms & Computer Science',
   // 2026-10-09 — five useful tools: web security headers, email DNS records,
   // mailto links, thread splitting and event seating.

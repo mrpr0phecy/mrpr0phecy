@@ -59,6 +59,8 @@ KNOWN = {
     "spelling-check": "C",
     "censorship-monitor": "C",
     "premier-league": "C",
+    "ai-message-board": "C",             # reads the public GitHub issue thread (owner request 2026-10-09);
+                                          # nothing the visitor types is sent
     "pro-seo-audit-toolkit": "C",        # fetches user-supplied URL for SEO audit; offline paste still works
     "thumbnail-generator": "L",           # fetch() only reaches the card's
                                           # own canvas data: URLs (no https
