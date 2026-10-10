@@ -53,8 +53,15 @@
     if (u === 'week') end.setDate(end.getDate() + n * 7 - 1);
     else if (u === 'day') end.setDate(end.getDate() + n - 1);
     else {
-      end.setMonth(end.getMonth() + n);
+      // Corresponding-date rule from the day before the start, with month-end clamping:
+      // 31 Jan → 28 Feb (never 2 March), 1 Oct → 31 Oct, 31 Mar → 30 Apr.
       end.setDate(end.getDate() - 1);
+      var day = end.getDate();
+      var wasLast = day === new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+      end.setDate(1);
+      end.setMonth(end.getMonth() + n);
+      var last = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+      end.setDate(wasLast ? last : Math.min(day, last));
     }
     function cell(k, v) {
       return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;font-size:.9rem;">' + v + '</div></div>';
@@ -62,7 +69,7 @@
     $('ntce-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">' +
       cell('Notice starts', pretty(start)) +
       cell('Last day (inclusive)', pretty(end)) +
-      cell('First day free', pretty(new Date(end.getTime() + 86400000))) +
+      cell('First day free', pretty(new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1))) +
       '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Garden leave, payment in lieu and “to the end of the month” clauses override this. Put the date in writing.</p>';
   }
   ['ntce-given', 'ntce-n', 'ntce-u', 'ntce-inc'].forEach(function (id) {

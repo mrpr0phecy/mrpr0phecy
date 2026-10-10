@@ -224,8 +224,11 @@ a{color:inherit}
 
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function num(v, dp) {
-    var r = Number(v).toFixed(dp === undefined ? 4 : dp);
-    return r.replace(/\.?0+$/, '');
+    var n = Number(v), d = dp === undefined ? 4 : dp;
+    if (n !== 0 && Math.abs(n) < Math.pow(10, -d)) return n.toPrecision(4).replace(/\.?0+e/, 'e');
+    var r = n.toFixed(d);
+    r = r.indexOf('.') !== -1 ? r.replace(/\.?0+$/, '') : r;
+    return r === '-0' ? '0' : r;
   }
   function sign(n) { return n < 0 ? '−' : '+'; }
   function signed(n, dp) { var s = num(Math.abs(n), dp); return (n < 0 ? '−' : '+') + s; }
@@ -240,7 +243,10 @@ a{color:inherit}
     var tag = '';
     if (disc > 0) {
       var sq = Math.sqrt(disc);
-      var x1 = (-b + sq) / denom, x2 = (-b - sq) / denom;
+      // Stable form: avoids cancellation when |b| >> |4ac| (e.g. b = 1e8)
+      var qq = -0.5 * (b + (b >= 0 ? sq : -sq));
+      var x1 = c / qq, x2 = qq / a;
+      if (x1 < x2) { var tmp = x1; x1 = x2; x2 = tmp; }
       tag = '<span class="tag">two real roots (discriminant &gt; 0)</span>';
       html =
         '<div class="roots">x₁ = ' + num(x1) + '&nbsp;&nbsp;·&nbsp;&nbsp;x₂ = ' + num(x2) + '</div>' +
@@ -260,7 +266,7 @@ a{color:inherit}
     var steps =
       '<div class="steps">' +
       'Discriminant: b² − 4ac = (' + num(b, 2) + ')² − 4·' + num(a, 2) + '·' + num(c, 2) + ' = ' + num(disc, 2) + '<br>' +
-      'x = (−b ± √' + num(disc, 2) + ') ÷ (2·' + num(a, 2) + ') = (−' + num(b, 2) + ' ± ' + (disc >= 0 ? '√' + num(disc, 2) : '√' + num(-disc, 2) + 'i') + ') ÷ ' + num(denom, 2) +
+      'x = (−b ± √' + num(disc, 2) + ') ÷ (2·' + num(a, 2) + ') = (' + num(-b, 2) + ' ± ' + (disc >= 0 ? '√' + num(disc, 2) : '√' + num(-disc, 2) + 'i') + ') ÷ ' + num(denom, 2) +
       '</div>';
     out.innerHTML = tag + html + steps;
   }
