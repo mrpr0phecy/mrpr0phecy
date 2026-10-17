@@ -373,16 +373,24 @@ function olSolveOhmsLaw(values) {
 }
 
 function olGetInputValues() {
+    // Values the calculator filled in itself (data-auto) are not inputs: after a
+    // first answer all four boxes are full, and treating the filled ones as known
+    // left stale, contradictory results when the visitor changed one value.
+    const read = (id) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.auto === '1') return null;
+        return parseFloat(el.value) || null;
+    };
     return {
-        v: parseFloat(document.getElementById('ol-voltage').value) || null,
-        i: parseFloat(document.getElementById('ol-current').value) || null,
-        r: parseFloat(document.getElementById('ol-resistance').value) || null,
-        p: parseFloat(document.getElementById('ol-power').value) || null
+        v: read('ol-voltage'),
+        i: read('ol-current'),
+        r: read('ol-resistance'),
+        p: read('ol-power')
     };
 }
 
 function olUpdateResults(values) {
-    const format = (val) => val === null ? '–' : val.toFixed(2);
+    const format = (val) => val === null ? '–' : olFormatNumber(val);
     
     document.getElementById('ol-result-voltage').textContent = format(values.v);
     document.getElementById('ol-result-current').textContent = format(values.i);
@@ -400,10 +408,29 @@ function olUpdateInputs(values) {
     
     Object.entries(inputs).forEach(([id, value]) => {
         const input = document.getElementById(id);
-        if (input && input.value === '' && value !== null) {
-            input.value = value.toFixed(2);
+        if (input && (input.value === '' || input.dataset.auto === '1') && value !== null) {
+            input.value = olFormatNumber(value);
+            input.dataset.auto = '1';
         }
     });
+}
+
+// Two decimals for everyday values; significant figures for milliamps,
+// megohms and the like, which toFixed(2) showed as 0.00.
+function olFormatNumber(val) {
+    const a = Math.abs(val);
+    if (a === 0) return '0';
+    if (a >= 0.01 && a < 1e6) return val.toFixed(2);
+    return String(Number(val.toPrecision(4)));
+}
+
+// Typing in a box makes it the visitor's value again.
+if (!window.__olAutoTrack) {
+    window.__olAutoTrack = true;
+    document.addEventListener('input', (e) => {
+        const t = e.target;
+        if (t && t.classList && t.classList.contains('ol-input')) delete t.dataset.auto;
+    }, true);
 }
 
 function olResetResults() {
@@ -429,6 +456,11 @@ function olLoadExample(type) {
     document.getElementById('ol-current').value = example.i;
     document.getElementById('ol-resistance').value = example.r;
     document.getElementById('ol-power').value = example.p;
+    // Voltage and resistance are the example's inputs; current and power are answers.
+    document.getElementById('ol-voltage').removeAttribute('data-auto');
+    document.getElementById('ol-resistance').removeAttribute('data-auto');
+    document.getElementById('ol-current').dataset.auto = '1';
+    document.getElementById('ol-power').dataset.auto = '1';
     
     // Calculate immediately
     olState.values = example;
@@ -439,7 +471,7 @@ function olLoadExample(type) {
 
 // ===== UTILITIES =====
 function olReset() {
-    document.querySelectorAll('.ol-input').forEach(input => input.value = '');
+    document.querySelectorAll('.ol-input').forEach(input => { input.value = ''; input.removeAttribute('data-auto'); });
     olResetResults();
     olState.values = { v: null, i: null, r: null, p: null };
     olState.exampleUsed = false;

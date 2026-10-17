@@ -126,7 +126,7 @@
                 </div>
                 
                 <div id="sc-uk-auto-note" style="margin-top:12px;font-size:12px;color:#39ff14;">
-                    🇬🇧 UK (England, Wales &amp; N. Ireland — Scottish bands are modelled in the Tax Estimator): income tax uses 2026/27 rUK bands with taper, National Insurance uses 8% / 2% bands, and student loan uses your plan threshold. The manual % boxes apply to other countries.
+                    🇬🇧 UK (England, Wales &amp; N. Ireland — Scottish bands are modelled in the Tax Estimator): income tax uses 2026/27 rUK bands with taper, National Insurance uses 8% / 2% bands, student loan uses your plan threshold, and pension contributions get income tax relief (net pay arrangement). The manual % boxes apply to other countries.
                 </div>
 
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-top:12px;">
@@ -573,12 +573,18 @@ function scCalculate() {
     
     // UK income tax uses the tested statutory bands (with the £100k PA
     // taper); other countries use the illustrative bracket tables below.
+    // UK workplace pensions get income tax relief: under a net pay arrangement the
+    // contribution comes off pay before tax (relief at source gives the same
+    // take-home for basic-rate payers). It does not reduce National Insurance.
+    // Taxing the full gross overstated tax by 20-45% of the contribution.
+    const pension = grossAnnual * pensionRate;
+    const taxableIncome = country === 'uk' ? Math.max(0, grossAnnual - pension) : grossAnnual;
     let brackets = scTaxBrackets[country] || scTaxBrackets.uk;
     if (country === 'uk') {
-        brackets = scUkTaxBrackets(grossAnnual);
+        brackets = scUkTaxBrackets(taxableIncome);
     }
     let totalTax = 0;
-    let remainingIncome = grossAnnual;
+    let remainingIncome = taxableIncome;
     
     const taxBreakdown = [];
     for (const bracket of brackets) {
@@ -610,7 +616,6 @@ function scCalculate() {
     const nationalInsurance = country === 'uk'
         ? Math.round(scUkNationalInsurance(grossAnnual))
         : grossAnnual * niRate;
-    const pension = grossAnnual * pensionRate;
     const studentLoan = country === 'uk'
         ? Math.round(scStudentLoan(grossAnnual, loanPlan))
         : grossAnnual * studentLoanRate;
