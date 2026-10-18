@@ -37,15 +37,27 @@
     var dayMl = feed * n;
     var dayScoops = scoops * n;
     var dayG = dayScoops * g;
+    // Never round scoops against a fixed water volume: that changes the strength of the feed.
+    // When the feed is not a whole number of scoops, offer the nearest whole-scoop bottles instead.
+    var whole = Math.abs(scoops - Math.round(scoops)) < 1e-9;
+    var lo = Math.floor(scoops), hi = Math.ceil(scoops);
+    var bottle, powder;
+    if (whole) {
+      bottle = Math.round(scoops) + ' scoops + ' + feed + ' ml water';
+      powder = (Math.round(scoops) * g).toFixed(1) + ' g';
+    } else {
+      bottle = (lo > 0 ? lo + ' scoops + ' + (lo * ratio) + ' ml, or ' : '') + hi + ' scoops + ' + (hi * ratio) + ' ml water';
+      powder = (lo > 0 ? (lo * g).toFixed(1) + ' g or ' : '') + (hi * g).toFixed(1) + ' g';
+    }
     function cell(k, v) {
       return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
     }
     $('bfmx-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
-      cell('This bottle', Math.round(scoops) + ' scoops + ' + feed + ' ml water') +
-      cell('Powder this bottle', (scoops * g).toFixed(1) + ' g') +
+      cell('This bottle', bottle) +
+      cell('Powder this bottle', powder) +
       cell('Per day', dayMl + ' ml · ' + dayScoops.toFixed(0) + ' scoops') +
       cell('Tin use / day', dayG.toFixed(0) + ' g  (~' + (800 / dayG).toFixed(1) + ' days from an 800 g tin)') +
-      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Level scoops, do not pack. Made-up formula is perishable. If the scoop-to-ml ratio on your tin is not 30, change the box — over-concentrating is dangerous.</p>';
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">' + (whole ? '' : feed + ' ml is not a whole number of scoops on this tin, so make the nearest whole-scoop bottle; never add part of a scoop or round the powder. ') + 'Level scoops, do not pack. Made-up formula is perishable. If the scoop-to-ml ratio on your tin is not 30, change the box — over-concentrating is dangerous.</p>';
   }
   ['bfmx-feed', 'bfmx-n', 'bfmx-ratio', 'bfmx-g'].forEach(function (id) { $(id).addEventListener('input', run); });
   run();

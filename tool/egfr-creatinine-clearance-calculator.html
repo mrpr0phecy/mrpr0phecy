@@ -371,12 +371,19 @@ a{color:inherit}
     // Renal dosing bands. These are the thresholds most SPCs and formularies key off;
     // they are a prompt to check the SPC, never a dose.
     var bands = [
-      ['≥ 60', 'No adjustment for most renally cleared drugs', egfr >= 60],
-      ['45–59', 'Check the SPC — many agents start needing a review here', egfr >= 45 && egfr < 60],
-      ['30–44', 'Dose reduction or interval extension common (e.g. most DOACs, metformin review)', egfr >= 30 && egfr < 45],
-      ['15–29', 'Significant reduction usually required; avoid some agents entirely', egfr >= 15 && egfr < 30],
-      ['< 15', 'Dialysis-level impairment — specialist advice, dose by level and timing', egfr < 15]
-    ];
+      ['≥ 60', 'No adjustment for most renally cleared drugs', 60, Infinity],
+      ['45–59', 'Check the SPC — many agents start needing a review here', 45, 60],
+      ['30–44', 'Dose reduction or interval extension common (e.g. most DOACs, metformin review)', 30, 45],
+      ['15–29', 'Significant reduction usually required; avoid some agents entirely', 15, 30],
+      ['< 15', 'Dialysis-level impairment — specialist advice, dose by level and timing', -Infinity, 15]
+    ].map(function (b) {
+      // Mark eGFR and Cockcroft-Gault CrCl separately: many SPCs (e.g. DOACs) key off CrCl,
+      // which can sit a whole band lower than eGFR in older or lighter patients.
+      var hits = [];
+      if (egfr >= b[2] && egfr < b[3]) hits.push('eGFR');
+      if (crcl >= b[2] && crcl < b[3]) hits.push('CrCl');
+      return [b[0], b[1], hits.length ? hits : null];
+    });
     var tbl = el('table');
     var thead = el('thead'); var htr = el('tr');
     htr.appendChild(el('th', null, 'CrCl / eGFR band'));
@@ -386,7 +393,7 @@ a{color:inherit}
     bands.forEach(function (b) {
       var tr = el('tr', b[2] ? 'egfrx-hit' : null);
       tr.appendChild(el('td', null, b[0]));
-      tr.appendChild(el('td', null, b[1] + (b[2] ? '  ← this patient' : '')));
+      tr.appendChild(el('td', null, b[1] + (b[2] ? '  ← this patient (' + b[2].join(' and ') + ')' : '')));
       tb.appendChild(tr);
     });
     tbl.appendChild(tb);

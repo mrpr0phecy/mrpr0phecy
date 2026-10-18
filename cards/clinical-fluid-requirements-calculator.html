@@ -70,6 +70,10 @@
       <label for="clinfluid-since" style="display:block;font-size:.78rem;color:rgba(230,250,255,0.65);margin-bottom:5px;">Hours since the burn</label>
       <input id="clinfluid-since" type="number" step="any" min="0" max="24" value="0" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
     </div>
+    <div>
+      <label for="clinfluid-given" style="display:block;font-size:.78rem;color:rgba(230,250,255,0.65);margin-bottom:5px;">Fluid already given (mL)</label>
+      <input id="clinfluid-given" type="number" step="any" min="0" value="0" inputmode="decimal" style="width:100%;padding:10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);">
+    </div>
   </div>
 
   <div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);">
@@ -108,9 +112,12 @@
     <strong>3 mL/kg/%TBSA</strong> in children, and <strong>4 mL/kg/%TBSA</strong> for electrical injury; the classic
     Parkland formula is 4 mL/kg/%TBSA and is still widely quoted. All three are offered here rather than one being
     presented as "the" formula. The 8-hour clock runs from the moment of injury, not from arrival: enter the hours
-    already elapsed and the tool divides the first half by the time actually left. A 70 kg adult with 40 %TBSA on the
-    2 mL formula needs 5600 mL in 24 hours, 2800 mL in the first 8 hours at 350 mL/h — but if 3 hours have already
-    gone, the same 2800 mL has to run in 5 hours at 560 mL/h.</p>
+    already elapsed, and any fluid given before arrival, and the tool divides what is left of the first half by the
+    time actually left. A 70 kg adult with 40 %TBSA on the 2 mL formula needs 5600 mL in 24 hours, 2800 mL in the
+    first 8 hours at 350 mL/h — but if 3 hours have already gone, the same 2800 mL has to run in 5 hours at 560 mL/h.
+    The catch-up rate shown is never more than twice the standard first-8-hour rate: very late arrivals get a capped
+    rate and a warning, not a bolus instruction. From 8 hours on there is no catch-up at all; the tool shows the
+    8–24 hour rate and the shortfall, to be titrated to urine output with a burns centre.</p>
 
   <p><strong>What these formulas miss.</strong> Every one of them is a <em>starting rate</em>, not a prescription.
     Maintenance is derived from healthy children's caloric expenditure and is a poor guide to a septic, febrile,
@@ -294,29 +301,62 @@
     var mult = parseFloat($('clinfluid-mult').value);
     var tbsa = parseFloat($('clinfluid-tbsa').value);
     var since = parseFloat($('clinfluid-since').value);
+    var given = parseFloat($('clinfluid-given').value);
     if (!(wt > 0) || !(tbsa > 0)) { out.appendChild(el('p', 'clinfluid-err', 'Enter a weight and a %TBSA above zero.')); return; }
     if (tbsa > 100) { out.appendChild(el('p', 'clinfluid-err', '%TBSA cannot exceed 100.')); return; }
     if (!(since >= 0)) since = 0;
-    if (since >= 8) since = 8;
+    if (since >= 24) { out.appendChild(el('p', 'clinfluid-err', 'These formulas cover the first 24 hours after the burn only. Beyond that, fluids are prescribed by the burns team.')); return; }
+    if (!(given >= 0)) given = 0;
 
     var total = mult * wt * tbsa;
     var firstHalf = total / 2;
-    var leftHours = Math.max(0.25, 8 - since);
+    var stdRate = firstHalf / 8;                 // standard first-8-hour rate
+    var secondRate = firstHalf / 16;             // standard 8-24 hour rate
+    var cap = 2 * stdRate;                       // display safety limit for any catch-up rate
+    var urine = wt < 30 ? '1 mL/kg/h = ' + wt.toFixed(0) + ' mL/h' : '0.5 mL/kg/h = ' + Math.round(wt * 0.5) + ' mL/h';
+    var plural = function (h) { return h + ' hour' + (h === 1 ? '' : 's'); };
 
     var g = grid();
     g.appendChild(cell('First 24 h volume', Math.round(total) + ' mL', mult + ' mL × ' + wt + ' kg × ' + tbsa + '%'));
     g.appendChild(cell('First 8 h (from injury)', Math.round(firstHalf) + ' mL', 'half the total'));
-    g.appendChild(cell('Start rate', since > 0 ? Math.round(firstHalf / leftHours) + ' mL/hour' : Math.round(firstHalf / 8) + ' mL/hour',
-      since > 0 ? firstHalf + ' mL in the ' + leftHours.toFixed(2) + ' h left of the window' : firstHalf + ' mL over 8 h'));
-    g.appendChild(cell('Next 16 h', Math.round(firstHalf / 16) + ' mL/hour', 'the remaining ' + Math.round(firstHalf) + ' mL'));
-    g.appendChild(cell('Urine output target', wt < 30 ? '1 mL/kg/h = ' + wt.toFixed(0) + ' mL/h' : '0.5 mL/kg/h = ' + Math.round(wt * 0.5) + ' mL/h', 'titrate to this, not to the formula'));
-    out.appendChild(g);
 
-    if (since > 0) {
+    if (since < 8) {
+      var leftHours = 8 - since;
+      var remaining = Math.max(0, firstHalf - given);
+      var needed = remaining / leftHours;
+      var capped = needed > cap;
+      var rate = capped ? cap : needed;
+      var sub;
+      if (since === 0 && given === 0) sub = Math.round(firstHalf) + ' mL over 8 h';
+      else sub = Math.round(remaining) + ' mL still due in the ' + leftHours.toFixed(2).replace(/\.?0+$/, '') + ' h left of the window' +
+        (capped ? ' — capped at twice the standard rate' : '');
+      g.appendChild(cell('Start rate', Math.round(rate) + ' mL/hour', sub));
+      g.appendChild(cell('Next 16 h', Math.round(secondRate) + ' mL/hour', 'the remaining ' + Math.round(firstHalf) + ' mL'));
+      g.appendChild(cell('Urine output target', urine, 'titrate to this, not to the formula'));
+      out.appendChild(g);
+      if (since > 0 && !capped) {
+        out.appendChild(el('p', 'clinfluid-warn',
+          'The clock started at the injury, not at arrival: ' + plural(since) + ' have gone, ' +
+          'so what is left of the first half now has to run in ' + leftHours.toFixed(2).replace(/\.?0+$/, '') + ' hours. A late presentation is the usual ' +
+          'reason a burn patient ends up under-resuscitated.'));
+      }
+      if (capped) {
+        out.appendChild(el('p', 'clinfluid-warn',
+          'Late presentation: giving the full ' + Math.round(remaining) + ' mL in ' + leftHours.toFixed(2).replace(/\.?0+$/, '') +
+          ' h would need ' + Math.round(needed) + ' mL/hour, more than twice the standard rate. The rate shown is capped at ' +
+          Math.round(cap) + ' mL/hour; do not bolus to catch up. Contact a burns centre now and titrate hourly to urine output.'));
+      }
+    } else {
+      var hoursLeft = 24 - since;
+      var shortfall = Math.max(0, firstHalf - given);
+      g.appendChild(cell('Rate now (8–24 h phase)', Math.round(secondRate) + ' mL/hour', 'second-half rate; no catch-up past 8 hours'));
+      g.appendChild(cell('First-half shortfall', Math.round(shortfall) + ' mL', given > 0 ? Math.round(given) + ' mL given so far' : 'enter fluid already given'));
+      g.appendChild(cell('Urine output target', urine, 'titrate to this, not to the formula'));
+      out.appendChild(g);
       out.appendChild(el('p', 'clinfluid-warn',
-        'The clock started at the injury, not at arrival: ' + since + ' hour' + (since === 1 ? '' : 's') + ' have gone, ' +
-        'so the first half now has to run in ' + leftHours.toFixed(2) + ' hours. A late presentation is the usual ' +
-        'reason a burn patient ends up under-resuscitated.'));
+        plural(since) + ' since the burn: the first 8-hour window has passed, so no catch-up rate is given. ' +
+        'Start at the 8–24 hour rate for the ' + plural(hoursLeft) + ' left, contact a burns centre now, and titrate hourly ' +
+        'to urine output and clinical response. Any shortfall is made up only on the burns team\'s advice.'));
     }
     out.appendChild(el('p', 'clinfluid-note',
       'Use Hartmann\'s / Ringer\'s lactate. Add dextrose-containing maintenance fluid for children under about 30 kg. ' +

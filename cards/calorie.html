@@ -254,14 +254,27 @@
       
       // Calculate TDEE
       const maintenance = bmr * activity;
-      const target = maintenance + goal;
+      let target = maintenance + goal;
+      // Floor for weight-loss targets: below about 1,200 kcal (women) or 1,500 kcal (men)
+      // needs medical supervision, so hold the target there (or at maintenance if lower).
+      const floor = gender === 'male' ? 1500 : 1200;
+      let floored = false;
+      if (goal < 0 && target < floor) {
+        target = Math.min(floor, maintenance);
+        floored = true;
+      }
+      const change = target - maintenance;
       
       // Calculate weekly change
-      const weeklyChangeKgs = (goal * 7) / 7700;
+      const weeklyChangeKgs = (change * 7) / 7700;
       const weeklyChangeLbs = (weeklyChangeKgs * 2.20462).toFixed(2);
       
       // Update results
-      updateResults(bmr, maintenance, target, goal, weeklyChangeKgs, weeklyChangeLbs);
+      updateResults(bmr, maintenance, target, floored && change === 0 ? 0 : goal, weeklyChangeKgs, weeklyChangeLbs);
+      if (floored) {
+        card.querySelector('#calorie-weekly-desc').textContent =
+          'Target held at ' + Math.round(target).toLocaleString() + ' kcal: going lower needs a GP or dietitian';
+      }
       
       // Calculate and show macros
       calculateMacronutrients(target, weight, goal);
@@ -371,7 +384,7 @@
     const fatGrams = Math.round(fatCalories / 9);
     
     // Calculate carbs from remaining calories
-    const carbCalories = targetCalories - proteinCalories - fatCalories;
+    const carbCalories = Math.max(0, targetCalories - proteinCalories - fatCalories);
     const carbGrams = Math.round(carbCalories / 4);
     
     // Update displays

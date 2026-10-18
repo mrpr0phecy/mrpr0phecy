@@ -210,16 +210,23 @@ a{color:inherit}
   var host = document.currentScript.parentNode;
   var $ = function (id) { return host.querySelector('#' + id); };
   var E24 = [1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1];
-  function nearestE24(r) {
+  // Smallest E24 value at or above r, so the LED never gets more than the chosen current.
+  // 10 is included so values such as 97 Ω round up to 100 Ω, not down to 91 Ω.
+  function e24AtOrAbove(r) {
     if (!(r > 0)) return NaN;
     var exp = Math.floor(Math.log(r) / Math.log(10));
     var mant = r / Math.pow(10, exp);
-    var best = E24[0], d = 1e9;
-    E24.forEach(function (v) {
-      var x = Math.abs(v - mant);
-      if (x < d) { d = x; best = v; }
-    });
-    return best * Math.pow(10, exp);
+    var list = E24.concat([10]);
+    for (var k = 0; k < list.length; k++) {
+      if (list[k] >= mant - 1e-9) return Number((list[k] * Math.pow(10, exp)).toPrecision(3));
+    }
+    return 10 * Math.pow(10, exp);
+  }
+  // Standard resistor power ratings; choose one at least twice the dissipation.
+  var RATINGS = [0.125, 0.25, 0.5, 1, 2, 3, 5, 10, 25, 50];
+  function ratingFor(p) {
+    for (var k = 0; k < RATINGS.length; k++) if (RATINGS[k] >= 2 * p) return RATINGS[k] + ' W';
+    return (2 * p).toFixed(0) + ' W or more';
   }
   function run() {
     var vs = Number($('ledr-vs').value), vf = Number($('ledr-vf').value);
@@ -233,14 +240,14 @@ a{color:inherit}
     var i = ma / 1000;
     var r = drop / i;
     var p = drop * i;
-    var e24 = nearestE24(r);
+    var e24 = e24AtOrAbove(r);
     function cell(k, v) {
       return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
     }
     $('ledr-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
       cell('Resistor', Math.round(r) + ' Ω') +
-      cell('Nearest E24', (e24 >= 1000 ? (e24 / 1000).toFixed(2) + ' kΩ' : Math.round(e24) + ' Ω')) +
-      cell('Resistor power', (p * 1000).toFixed(0) + ' mW  (use ≥ ' + (p > 0.125 ? '0.5' : '0.25') + ' W)') +
+      cell('Nearest E24 (at or above)', (e24 >= 1000 ? Number((e24 / 1000).toFixed(2)) + ' kΩ' : Number(e24.toPrecision(3)) + ' Ω')) +
+      cell('Resistor power', (p * 1000).toFixed(0) + ' mW  (use ≥ ' + ratingFor(p) + ')') +
       cell('Voltage across R', drop.toFixed(2) + ' V') +
       '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">20 mA is a classic indicator current; many modern LEDs are happy at 5–10 mA and last longer. Check the datasheet.</p>';
   }

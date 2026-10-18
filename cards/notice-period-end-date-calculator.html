@@ -53,8 +53,17 @@
     if (u === 'week') end.setDate(end.getDate() + n * 7 - 1);
     else if (u === 'day') end.setDate(end.getDate() + n - 1);
     else {
-      end.setMonth(end.getMonth() + n);
-      end.setDate(end.getDate() - 1);
+      // Corresponding-date rule (Dodds v Walker [1981]): no "last day of the month" shortcut.
+      // Starting the day after notice: ends on the same date n months on (28 Feb → 28 Mar,
+      // 30 Sep → 30 Oct); if that date doesn't exist, the month's last day (31 Jan → 28 Feb).
+      // Including the day of notice: ends the day before that date (1 Oct → 31 Oct), or the
+      // month's last day when it doesn't exist (31 Jan → 28 Feb, 31 Mar → 30 Apr).
+      var g0 = new Date(given + 'T00:00:00');
+      var day = g0.getDate();
+      end = new Date(g0.getFullYear(), g0.getMonth() + n, 1);
+      var last = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+      if (day > last) end.setDate(last);
+      else { end.setDate(day); if ($('ntce-inc').value === 'same') end.setDate(day - 1); }
     }
     function cell(k, v) {
       return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;font-size:.9rem;">' + v + '</div></div>';
@@ -62,8 +71,8 @@
     $('ntce-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;">' +
       cell('Notice starts', pretty(start)) +
       cell('Last day (inclusive)', pretty(end)) +
-      cell('First day free', pretty(new Date(end.getTime() + 86400000))) +
-      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Garden leave, payment in lieu and “to the end of the month” clauses override this. Put the date in writing.</p>';
+      cell('First day free', pretty(new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1))) +
+      '</div><p style="margin:10px 0 0;font-size:.75rem;color:var(--text-secondary);">Months use the corresponding-date rule: one month’s notice given on 28 February ends on 28 March, not 31 March; where the date doesn’t exist (31 January plus one month) it ends on the last day of the month. Garden leave, payment in lieu and “to the end of the month” clauses override this. Put the date in writing.</p>';
   }
   ['ntce-given', 'ntce-n', 'ntce-u', 'ntce-inc'].forEach(function (id) {
     $(id).addEventListener('input', run);
