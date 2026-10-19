@@ -198,7 +198,8 @@
 // reload fetch the 1 MB catalogue before first paint; and home-core.js skips
 // the cross-document view transition for destinations that do not opt in,
 // which threw an uncaught InvalidStateError on every tool page opened from home.
-const CACHE_VERSION = 'v43-2026-10-09';
+// v44: catalogue interaction polish and shared, cacheable tool-page chrome.
+const CACHE_VERSION = 'v45-2026-10-19';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -241,11 +242,13 @@ const PRECACHE_ASSETS = [
     `./toolbox.css?v=${PAGE_VERSION}`,
     `./explore.js?v=${PAGE_VERSION}`,
     `./toolbox.js?v=${PAGE_VERSION}`,
-    `./home-core.js?v=${PAGE_VERSION}`
+    `./home-core.js?v=${PAGE_VERSION}`,
+    // Warm the shared tool frame at install/idle, not on the first tool click.
+    `./tool-page.css?v=${PAGE_VERSION}`
 ];
 // Pathnames the handler must serve from STATIC_CACHE, where they are precached.
 const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/risk-notices.js',
-                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js', '/home-core.js'];
+                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js', '/home-core.js', '/tool-page.css'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.
@@ -617,64 +620,59 @@ function startBackground(request, cacheName) {
     pumpBackground();
 }
 
+// Own a refresh through the body/cache write, not just the response headers.
+// Neither a stalled socket nor a stalled body may hold a slot indefinitely.
+function trackRefresh(url, ctl, work) {
+    refreshSlots--;
+    backgroundRunning.set(url, ctl);
+    let finished = false;
+    let timer;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        // An older request must not remove a newer refresh of the same URL.
+        if (backgroundRunning.get(url) === ctl) backgroundRunning.delete(url);
+        refreshSlots++;
+        pumpBackground();
+    };
+    timer = setTimeout(() => { abort(ctl); finish(); }, UNCACHED_PATIENCE_MS);
+    Promise.resolve(work).then(finish, finish);
+}
+
 function pumpBackground() {
     while (refreshSlots > 0 && backgroundQueue.length) {
         const job = backgroundQueue.shift();
-        refreshSlots--;
         const ctl = newAbort();
-        const finish = () => {
-            refreshSlots++;
-            backgroundRunning.delete(job.url);
-            pumpBackground();
-        };
-        backgroundRunning.set(job.url, ctl);
-        let work;
-        try {
-            work = ctl ? fetch(job.request, { signal: ctl.signal }) : fetch(job.request);
-        } catch (e) {
-            finish();
-            continue;
-        }
-        Promise.resolve(work).then((res) => {
-            // This body belongs to nobody, so it goes straight into the store.
+        const work = Promise.resolve().then(() =>
+            ctl ? fetch(job.request, { signal: ctl.signal }) : fetch(job.request)
+        ).then((res) => {
             if (res && res.status === 200) return store(job.cacheName, job.request, res);
+            // Nobody consumes an error response; don't leave its body downloading.
+            if (res && res.body) return res.body.cancel().catch(() => {});
             return null;
-        }).then(finish, finish);
+        });
+        trackRefresh(job.url, ctl, work);
     }
 }
 
-// A refresh the visitor stopped waiting for. Letting it finish is worth exactly
-// as much as it costs: one slot of the same budget, so at most BACKGROUND_LIMIT
-// requests outlive their page, and the entry they update is what makes the next
-// view answer instantly instead of waiting out the patience again. With no slot
-// free the work is abandoned instead — the bound is the point.
+// Adopt only within the same per-URL and concurrency budget as queued work.
 function adoptRefresh(request, ctl, promise) {
     const url = request && request.url;
-    if (!url || refreshSlots <= 0) {
+    if (!url || refreshSlots <= 0 || backgroundRunning.has(url)) {
         abort(ctl);
         return false;
     }
-    refreshSlots--;
-    backgroundRunning.set(url, ctl);
-    Promise.resolve(promise).then(() => {
-        refreshSlots++;
-        backgroundRunning.delete(url);
-        pumpBackground();
-    }, () => {
-        refreshSlots++;
-        backgroundRunning.delete(url);
-        pumpBackground();
-    });
+    trackRefresh(url, ctl, promise);
     return true;
 }
 
-// A navigation is the visitor, waiting. Everything still QUEUED belongs to a
-// page they have left, so it hands the origin's budget back before this click
-// starts competing with it. Work already in flight is not cancelled here: it is
-// inside the same two-slot budget, it is nearly free to finish, and it is what
-// keeps the next page view off the network.
+// The next click outranks ALL cache-only traffic, including in-flight bodies.
+// Let their completion handlers return the slots; resetting the counter here
+// would let late completions inflate the budget on every navigation.
 function clearBacklog() {
     backgroundQueue.length = 0;
+    backgroundRunning.forEach((ctl) => abort(ctl));
 }
 
 // The one safe way into a cache: a rejected `open()`/`match()`/`put()` used to
@@ -742,9 +740,40 @@ const STALLED = { stalled: true };
 // `adopt` is for the caller that has a usable cached copy in hand: the fetch is
 // worth letting finish for the NEXT view (bounded by the refresh budget), and
 // the response it downloads is not needed by anyone now.
-async function foreground(request, ms, cacheName, event, adopt) {
+// Single-flight subresources: concurrent consumers (including separate tabs)
+// share the network/cache write, but receive independent Response streams.
+// Never merge document navigations or requests with different fetch semantics.
+const foregroundRunning = new Map();
+const FOREGROUND_LIMIT = 64;
+function foreground(request, ms, cacheName, event, adopt) {
+    if (request.mode === 'navigate') return fetchForeground(request, ms, cacheName, event, adopt);
+    let key;
+    try {
+        key = JSON.stringify([request.url, cacheName, ms, !!adopt,
+            request.mode, request.destination, request.credentials, request.cache,
+            request.redirect, request.integrity, request.referrer, request.referrerPolicy,
+            request.headers ? Array.from(request.headers.entries()) : []]);
+    } catch (e) {
+        return fetchForeground(request, ms, cacheName, event, adopt);
+    }
+    let pending = foregroundRunning.get(key);
+    if (!pending) {
+        // Keep bookkeeping bounded even if a page requests many distinct URLs.
+        if (foregroundRunning.size >= FOREGROUND_LIMIT) {
+            return fetchForeground(request, ms, cacheName, event, adopt);
+        }
+        pending = fetchForeground(request, ms, cacheName, event, adopt);
+        foregroundRunning.set(key, pending);
+        const clear = () => { foregroundRunning.delete(key); };
+        pending.then(clear, clear);
+    }
+    return pending.then((res) => res ? res.clone() : null);
+}
+
+async function fetchForeground(request, ms, cacheName, event, adopt) {
     const ctl = newAbort();
     let settled = false;
+    let saved = Promise.resolve();
     let work;
     try {
         work = ctl ? fetch(request, { signal: ctl.signal }) : fetch(request);
@@ -760,16 +789,16 @@ async function foreground(request, ms, cacheName, event, adopt) {
             // been delivered: fire-and-forget here meant the browser could kill
             // the worker mid-put, so the entry was still missing next visit and
             // the same download ran again.
-            const saved = store(cacheName, request, copy);
+            saved = store(cacheName, request, copy);
             if (event) { try { event.waitUntil(saved); } catch (e3) { /* event over */ } }
         }
         return res || null;
     }, () => { settled = true; stats.aborted++; return null; });
     stats.network++;
-    const winner = await Promise.race([p, after(ms).then(() => STALLED)]);
+    const winner = await bounded(p, ms);
     if (winner === STALLED) {
         if (!settled) {
-            if (!adopt || !adoptRefresh(request, ctl, p)) abort(ctl);
+            if (!adopt || !adoptRefresh(request, ctl, p.then(() => saved))) abort(ctl);
         }
         return null;
     }
@@ -790,13 +819,19 @@ async function cacheFirst(request, cacheName, maxAge, event) {
     return net || new Response('Offline', { status: 503, statusText: 'Offline' });
 }
 
-// A promise that resolves (with null) after ms. Unlike `foreground()` this is
-// for callers that own the fetch and decide for themselves what to do with it.
-function after(ms) {
-    return new Promise((resolve) => setTimeout(() => resolve(null), ms));
-}
+// A deadline must stop existing when its request finishes. Promise.race with
+// a bare setTimeout left one live timer per asset, even on a warm fast load.
 function bounded(promise, ms) {
-    return Promise.race([promise, after(ms).then(() => STALLED)]);
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve(STALLED), ms);
+        Promise.resolve(promise).then((value) => {
+            clearTimeout(timer);
+            resolve(value);
+        }, (err) => {
+            clearTimeout(timer);
+            reject(err);
+        });
+    });
 }
 
 // Navigations: network-first with the catalogue's patience, and the requested
@@ -824,17 +859,17 @@ async function navigateFast(request, preload, event) {
     // within the usual patience, skip it and fetch directly: in the pathological
     // case that costs one duplicate request, and everywhere else it costs
     // nothing because the preload already won the race.
-    const PRELOAD_SKIP = 'mp-preload-skip';
     const ctl = newAbort();
+    let saved = Promise.resolve();
     const start = () => (ctl ? fetch(request, { signal: ctl.signal }) : fetch(request));
-    const network = Promise.race([preload || Promise.resolve(null), after(NETWORK_PATIENCE_MS).then(() => PRELOAD_SKIP)])
-        .then((p) => (p === PRELOAD_SKIP || !p ? start() : p))
+    const network = bounded(preload || Promise.resolve(null), NETWORK_PATIENCE_MS)
+        .then((p) => (p === STALLED || !p ? start() : p))
         .then((res) => {
             if (res && res.ok) {
                 let copy = null;
                 try { copy = res.clone(); } catch (e2) { copy = null; }
                 if (copy) {
-                    const saved = store(RUNTIME_CACHE, request, copy);
+                    saved = store(RUNTIME_CACHE, request, copy);
                     try { if (event) event.waitUntil(saved); } catch (e3) { /* event over */ }
                 }
             }
@@ -868,7 +903,7 @@ async function navigateFast(request, preload, event) {
         // The visitor gets the copy we already have, and the refresh is kept
         // only if the budget has room for it — that copy is what makes their
         // back-and-forth trip instant instead of another patience wait.
-        if (!adoptRefresh(request, ctl, network)) abort(ctl);
+        if (!adoptRefresh(request, ctl, network.then(() => saved))) abort(ctl);
         stuckRuns = 0;                     // they got their page: the streak is broken
         return cached;
     }
@@ -917,8 +952,11 @@ async function cachedIndex() {
 function ageOf(response) {
     const date = Date.parse(response.headers.get('date') || '');
     if (!Number.isFinite(date)) return Infinity;   // unknown age: treat as stale
-    const age = parseInt(response.headers.get('age') || '0', 10) || 0;
-    return Math.max(0, Date.now() - date - age * 1000);
+    const age = Math.max(0, parseInt(response.headers.get('age') || '0', 10) || 0);
+    // Age is time ALREADY spent at the CDN, not freshness to add back. Date
+    // also advances while this response sits in CacheStorage. Use the older
+    // estimate; subtracting Age could make an expired CDN response look new.
+    return Math.max(0, Date.now() - date, age * 1000);
 }
 
 function ageWithin(response, maxAge) {

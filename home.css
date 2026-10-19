@@ -1,37 +1,14 @@
-/* home.css — the main page's first-paint stylesheet.
-   ---------------------------------------------------------------------------
-   The main page used to carry all 118,068 bytes of CSS inline in a single
-   <style> block, so every navigation re-transferred ~19 KB gzip of CSS and the
-   browser had to receive the whole block before it could paint. The styles are
-   now two files, both cached across visits:
+/* home.css — first-paint catalogue styles: chrome, hero, categories, footer.
+   Closed popovers and other deferred UI live in home-deferred.css, applied
+   after first paint (media="print" -> "all"). Keep above-fold rules here.
 
-     home.css            the first-paint rules (chrome, hero, sections, the
-                         category grid, the footer) — linked render-blocking,
-                         because unstyled first paint is worse than one RTT
-                         that overlaps the HTML download;
-     home-deferred.css   the rules for containers that are hidden at first
-                         paint (the palette and support popovers, the toolbox
-                         panel, the footer spotlight) — fetched alongside but
-                         applied only after the first paint (media="print" ->
-                         "all").
+   Shared tool lists and saved-tool controls are owned by explore.css and
+   toolbox.css. This page lists tools; it never mounts running card fragments.
+   explore.js measures sticky chrome into --xp-sticky-h rather than guessing.
 
-   On 2026-09-21 the file was rewritten around the page that actually exists.
-   The main page no longer mounts the catalogue (see home-core.js and
-   scripts/tests/no-live-tools.test.js): it lists tools. The card grid, card
-   faces, rating buttons, maximise modal, loader, park and directory view went
-   with the grid they styled — ~2,000 lines for elements no visitor sees.
-   What is left is the page: command bar, hero and search, three list sections,
-   28 category tiles, footer.
-
-   Responsiveness is the other half of it. Host pages used to hard-code the
-   offset their list toolbar parks at and three of the four were wrong at some
-   width. The offset is measured now (explore.js -> --xp-sticky-h); this file
-   declares the fallback.
-
-   Invariants enforced by scripts/check-critical-css.py: every class the first
-   paint can show is styled here; every var()/keyframes name used here is
-   defined here; index.html's ?v=, APP_VERSION in home-core.js and
-   CACHE_VERSION in sw.js all match.
+   check-critical-css.py enforces the split, token/keyframe completeness and
+   gzip budget. index.html's ?v=, home-core.js APP_VERSION and sw.js
+   CACHE_VERSION must move together for returning visitors.
 */
 
 /* =========================================================== 1. tokens ==== */
@@ -40,11 +17,11 @@
     --accent-dark: #1aa3cc;
     --text: #e6faff;
     --text-secondary: rgba(230, 250, 255, 0.7);
-    --text-muted: rgba(230, 250, 255, 0.55);
+    --text-muted: rgba(230, 250, 255, 0.68);
     --bg-primary: #0a0f14;
     --bg-secondary: #141e28;
     --bg-card: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.05));
-    --border-light: rgba(255, 255, 255, 0.08);
+    --border-light: rgba(255, 255, 255, 0.12);
     --border-strong: rgba(255, 255, 255, 0.14);
     --grid-line: color-mix(in srgb, var(--text) 3%, transparent);
     --rule: var(--border-strong);
@@ -361,6 +338,7 @@ body {
    The hide rules are pinned by scripts/check-critical-css.py: a late
    stylesheet must never be the thing that decides whether a panel is visible. */
 .panel {
+    color: var(--text);
     position: fixed;
     top: calc(var(--xp-sticky-h, 56px) + 8px);
     right: max(var(--space-md), env(safe-area-inset-right));
@@ -544,7 +522,7 @@ body {
 }
 
 .hero-subtitle {
-    max-width: 62ch;
+    max-width: 56ch;
     margin: 0 auto clamp(18px, 3vw, 28px);
     font-size: clamp(0.95rem, 2.4vw, 1.1rem);
     line-height: 1.65;
@@ -665,6 +643,8 @@ body {
     color: var(--text-muted);
 }
 .popular-chip {
+    flex: 0 0 auto;
+    white-space: nowrap;
     min-height: 32px;
     padding: 6px 12px;
     font-family: inherit;
@@ -684,6 +664,9 @@ body {
     background: color-mix(in srgb, var(--accent) 13%, transparent);
     border-color: var(--accent);
 }
+/* Layout rules must not resurrect a natively hidden recent-tools row. */
+.popular-chips[hidden] { display: none; }
+
 #recent-chips {
     margin-top: 10px;
 }
@@ -1083,7 +1066,7 @@ body {
         scrollbar-width: none;
     }
     .popular-chips::-webkit-scrollbar { display: none; }
-    .popular-label { position: sticky; left: 0; padding-right: 6px; background: var(--bg-primary); }
+    .popular-label { flex: none; padding-right: 6px; }
     .cat-card { min-height: 84px; }
     .site-footer-inner { grid-template-columns: repeat(2, 1fr); }
 }
@@ -1408,7 +1391,7 @@ button,
 
 /* Touch layouts get larger hit targets and skip hover/blur affordances. */
 @media (hover: none) and (pointer: coarse) {
-    .popular-chip { min-height: 40px; padding: 9px 15px; }
+    .popular-chip { min-height: 44px; padding: 10px 15px; }
     .sticky-action-btn,
     .toolbox-btn,
     .search-clear-btn { min-width: 44px; min-height: 44px; }
@@ -1548,4 +1531,23 @@ button,
     .hero-command { border: 0; box-shadow: none; }
     #featured,
     #trending { overflow: visible; display: block; }
+}
+
+/* Focus is a first-class state, never hidden behind a horizontal edge fade. */
+.popular-chips .popular-chip:focus-visible { outline-offset: -3px; }
+.hero-jumps:focus-within,
+.popular-chips:focus-within,
+#featured:focus-within,
+#trending:focus-within { -webkit-mask-image: none !important; mask-image: none !important; }
+
+@media (max-width: 560px) {
+    .hero-command { padding: 12px; border-radius: 16px; }
+    .hero-subtitle { font-size: 0.94rem; line-height: 1.65; }
+    .hero-command .popular-chips { align-items: center; }
+    .popular-chip, .hero-jumps a { min-height: 44px; }
+}
+@media (forced-colors: active) {
+    .futuristic-title { background: none; color: CanvasText; -webkit-text-fill-color: CanvasText; }
+    .hero-command, .cat-card, #featured .xp-row, #trending .xp-row { background: Canvas; border-color: CanvasText; box-shadow: none; }
+    .popular-chip[aria-pressed="true"] { background: Highlight; color: HighlightText; }
 }

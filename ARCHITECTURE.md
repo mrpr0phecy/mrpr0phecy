@@ -123,7 +123,10 @@ exactly one card has no "next card" to leak into. Around the card the page adds
 first-class navigation — breadcrumbs, previous/next in the category, a ranked
 related grid, the category hub — plus the site search (a plain form), the
 toolbox (`toolbox.js` + `toolbox.css`) and the YMYL risk notice
-(`risk-notices.js`), and a crawlable head (canonical, OG, JSON-LD).
+(`risk-notices.js`), and a crawlable head (canonical, OG, JSON-LD). The frame
+styles live in one versioned `tool-page.css`, not a repeated inline block:
+one download is reused across tool visits, and individual cards keep owning
+their internal layout and controls.
 
 `tool.html` is **not** deleted: it stays the *stateful* shell. Anything that
 carries URL state — filled links (`&<control>=<value>&run=1`), multi-step jobs,
@@ -652,8 +655,10 @@ every list page (§2). Its rules:
   fetched with `cache: 'reload'`, so a URL served from another cache is
   downloaded twice per install.
 - **`PAGE_ASSET_PATHS`**: `home.css`, `home-deferred.css`, `risk-notices.js`,
-  `explore.css`, `explore.js`, `toolbox.js` and `home-core.js` are fetched
-  before the worker controls anything, so they are precached into `STATIC_CACHE`
+  `explore.css`, `toolbox.css`, `explore.js`, `toolbox.js`, `home-core.js` and
+  the shared `tool-page.css` frame are fetched
+  before the worker controls anything (the tool frame is warmed at install),
+  so they are precached into `STATIC_CACHE`
   and served from there — **without** `cache: 'reload'`, because their `?v=` URL
   makes a stale entry impossible and lets the precache reuse the response the
   page just downloaded. **Bump `CACHE_VERSION` (and the matching `?v=`) or a
@@ -672,11 +677,13 @@ bridge, never a fresh `getElementById`** (the old page looked for
 nothing and `/` threw). The list is the only result surface; a query also steps
 the browse sections aside.
 
-**`tools-index.json` is about 945 KB and every list's data.** The home page
-fetches it when the visitor reaches the list; the static pages already contain
-its output and never fetch it. It duplicates the full catalogue tier's
-title/description/category (about 194 KB gzip vs 149 KB) — de-duplicating needs
-a new signals file plus a drift gate: deliberate or not at all, never half-way.
+**`tools-index.json` is about 744 KB and every list's data.** It is compact
+JSON, with the full public schema preserved; indentation belongs in source,
+not in a downloaded browser payload. The home page fetches it when the visitor
+reaches the list; the static pages already contain its output and never fetch
+it. It duplicates the full catalogue tier's title/description/category (about
+205 KB gzip vs 168 KB) — de-duplicating needs a new signals file plus a drift
+gate: deliberate or not at all, never half-way.
 
 **The only size the list engine assumes is `PAGE_SIZE = 60`.** Row height comes
 from the row's own content. The park, warm-ahead and the per-frame budget are

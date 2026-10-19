@@ -75,6 +75,8 @@
   var paintKey = '';
   var paintCount = -1;
   var facetStamp = null;
+  var keyboardRows = null;
+  var currentElement = null;
 
   /* ------------------------------------------------------------ utilities */
   // en-GB digit grouping without Intl: the first toLocaleString() call loads
@@ -568,7 +570,10 @@
     if (append) {
       var extra = '';
       for (var j = paintCount; j < shown; j++) extra += rowHTML(list[j], j);
-      if (extra) els.list.insertAdjacentHTML('beforeend', extra);
+      if (extra) {
+        els.list.insertAdjacentHTML('beforeend', extra);
+        keyboardRows = null;
+      }
     } else if (!(key === paintKey && shown === paintCount && els.list && els.list.children.length)) {
       var html = '';
       for (var i = 0; i < shown; i++) html += rowHTML(list[i], i);
@@ -579,32 +584,37 @@
         '<button type="button" class="xp-btn" data-xp-suggest="timer">timer</button> ' +
         'or <a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the directory</a>.' +
         '</div></li>';
-      state.current = -1;
+      resetCurrent();
     }
     paintKey = key;
     paintCount = shown;
-    els.list.setAttribute('data-xp-total', String(list.length));
+    if (els.list.getAttribute('data-xp-total') !== String(list.length)) {
+      els.list.setAttribute('data-xp-total', String(list.length));
+    }
 
     if (els.count) {
-      els.count.innerHTML = list.length === state.rows.length
+      var countHTML = list.length === state.rows.length
         ? '<strong>' + fmt(state.rows.length) + '</strong> tools'
         : '<strong>' + fmt(list.length) + '</strong> of ' + fmt(state.rows.length) +
           (state.q ? ' for “' + esc(state.q) + '”' : '');
+      if (els.countHTML !== countHTML) { els.count.innerHTML = countHTML; els.countHTML = countHTML; }
     }
     if (els.more) {
       var rest = list.length - shown;
-      els.more.hidden = rest <= 0;
-      els.more.textContent = 'Show ' + Math.min(PAGE_SIZE, rest) + ' more' + (rest > PAGE_SIZE ? ' (' + rest + ' left)' : '');
+      if (els.more.hidden !== (rest <= 0)) els.more.hidden = rest <= 0;
+      var moreText = 'Show ' + Math.min(PAGE_SIZE, rest) + ' more' + (rest > PAGE_SIZE ? ' (' + rest + ' left)' : '');
+      if (els.more.textContent !== moreText) els.more.textContent = moreText;
     }
     if (els.input && els.input.value !== state.q) els.input.value = state.q;
-    if (els.field) els.field.classList.toggle('xp-has-value', !!state.q);
+    if (els.field && els.field.classList.contains('xp-has-value') !== !!state.q) els.field.classList.toggle('xp-has-value', !!state.q);
     if (els.facets && facetStamp !== state.cat) {
       els.facets.innerHTML = facetHTML();
       facetStamp = state.cat;
       scheduleOverflowFades();
     }
     syncCatSelect();
-    syncToolboxButtons();
+    // New rows carry their saved state in rowHTML; toolbox.js owns changes
+    // to existing buttons. Filtering is not a toolbox mutation.
   }
 
   /* Static lists keep every row in the DOM (they were in the served HTML to
@@ -630,57 +640,52 @@
        says it does. */
     if (state.appliedSort !== state.sort) orderStatic();
 
-    var wanted = {};
-    list.forEach(function (r) { wanted[r.slug] = true; });
-
-    var groups = [];
-    state.staticRows.forEach(function (item) {
-      var groupEl = (item.el.closest && item.el.closest('[data-xp-group]')) || els.container;
-      var bucket = null;
-      for (var i = 0; i < groups.length; i++) if (groups[i].el === groupEl) bucket = groups[i];
-      if (!bucket) { bucket = { el: groupEl, items: [] }; groups.push(bucket); }
-      bucket.items.push(item);
-    });
-
-    var revealed = 0;
-    groups.forEach(function (bucket) {
-      var n = 0;
-      bucket.items.forEach(function (item) {
-        var matching = !!wanted[item.row.slug];
-        var show = matching && n < state.shown;
-        if (show) { n++; revealed++; }
-        item.el.hidden = !show;
-        var btn = item.el.querySelector('[data-toolbox-add]');
-        if (btn) {
-          var inBox = window.mpToolbox ? window.mpToolbox.has(item.row.slug) : false;
-          btn.classList.toggle('xp-in', inBox);
-          btn.setAttribute('aria-pressed', String(inBox));
-        }
+    var groups = state.staticGroups;
+    var revealed = state.staticRevealed;
+    // The matching result is memoised. Repeated inputs (including the hero
+    // and toolbar forwarding the same query) do not revisit 1,391 DOM rows.
+    if (state.staticPaintList !== list || state.staticPaintShown !== state.shown ||
+        state.staticPaintSort !== state.sort) {
+      var wanted = Object.create(null);
+      list.forEach(function (r) { wanted[r.slug] = true; });
+      revealed = 0;
+      groups.forEach(function (bucket) {
+        var n = 0;
+        bucket.items.forEach(function (item) {
+          var matching = !!wanted[item.row.slug];
+          var show = matching && n < state.shown;
+          if (show) { n++; revealed++; }
+          if (item.el.hidden !== !show) item.el.hidden = !show;
+        });
+        if (bucket.el.hidden !== (n === 0)) bucket.el.hidden = n === 0;
       });
-      bucket.el.hidden = n === 0;
-      bucket.count = n;
-    });
+      state.staticRevealed = revealed;
+      state.staticPaintList = list;
+      state.staticPaintShown = state.shown;
+      state.staticPaintSort = state.sort;
+      resetCurrent();
+    }
 
     if (els.more) {
       var rest = list.length - revealed;
-      els.more.hidden = rest <= 0;
-      els.more.textContent = 'Show ' + Math.min(PAGE_SIZE, rest) + ' more' +
+      if (els.more.hidden !== (rest <= 0)) els.more.hidden = rest <= 0;
+      var moreText = 'Show ' + Math.min(PAGE_SIZE, rest) + ' more' +
         (rest > PAGE_SIZE ? ' (' + rest + ' left)' : '') +
         (groups.length > 1 ? ' in each category' : '');
+      if (els.more.textContent !== moreText) els.more.textContent = moreText;
     }
-    if (els.empty) els.empty.hidden = list.length > 0;
+    if (els.empty && els.empty.hidden !== (list.length > 0)) els.empty.hidden = list.length > 0;
     if (els.count) {
-      els.count.innerHTML = list.length === state.rows.length
+      var countHTML = list.length === state.rows.length
         ? '<strong>' + fmt(state.rows.length) + '</strong> tools' +
           (state.shown < state.rows.length ? ' · showing the first ' + state.shown + ' of each category' : '')
         : '<strong>' + fmt(list.length) + '</strong> of ' + fmt(state.rows.length) +
           (state.q ? ' for “' + esc(state.q) + '”' : '');
+      if (els.countHTML !== countHTML) { els.count.innerHTML = countHTML; els.countHTML = countHTML; }
     }
     if (els.input && els.input.value !== state.q) els.input.value = state.q;
-    if (els.field) els.field.classList.toggle('xp-has-value', !!state.q);
+    if (els.field && els.field.classList.contains('xp-has-value') !== !!state.q) els.field.classList.toggle('xp-has-value', !!state.q);
     syncCatSelect();
-    state.current = -1;
-    syncToolboxButtons();
   }
 
   /* Static lists sort by re-appending rows inside their own group: the DOM the
@@ -689,22 +694,13 @@
      with a TOC pointing at those headings) keep their grouping, so the headings
      a visitor clicked to get here never move out from under them. */
   function orderStatic() {
-    var buckets = [];
-    state.staticRows.forEach(function (item) {
-      // Bucket by the row's own list, not its group section: re-appending a
-      // row to the section rips the <li> out of its <ul> (invalid HTML, and
-      // the list styling breaks with it). Each group's rows share one list,
-      // so the grouping the TOC points at is preserved either way.
-      var list = item.el.parentNode || els.container;
-      var bucket = null;
-      for (var i = 0; i < buckets.length; i++) if (buckets[i].list === list) bucket = buckets[i];
-      if (!bucket) { bucket = { list: list, items: [] }; buckets.push(bucket); }
-      bucket.items.push(item);
-    });
-    buckets.forEach(function (bucket) {
-      bucket.items.sort(function (a, b) { return byTitle(a.row.title, b.row.title, state.sort); });
+    var compare = function (a, b) { return byTitle(a.row.title, b.row.title, state.sort); };
+    state.staticLists.forEach(function (bucket) {
+      bucket.items.sort(compare);
       bucket.items.forEach(function (item) { bucket.list.appendChild(item.el); });
     });
+    // Reveal in the same order as the sorted DOM, not the original HTML.
+    state.staticGroups.forEach(function (bucket) { bucket.items.sort(compare); });
     state.appliedSort = state.sort;
   }
 
@@ -712,8 +708,8 @@
     if (!window.mpToolbox) return;
     els.wrap.querySelectorAll('[data-toolbox-add]').forEach(function (btn) {
       var inBox = window.mpToolbox.has(btn.getAttribute('data-toolbox-add'));
-      btn.classList.toggle('xp-in', inBox);
-      btn.setAttribute('aria-pressed', String(inBox));
+      if (btn.classList.contains('xp-in') !== inBox) btn.classList.toggle('xp-in', inBox);
+      if (btn.getAttribute('aria-pressed') !== String(inBox)) btn.setAttribute('aria-pressed', String(inBox));
     });
   }
 
@@ -849,7 +845,7 @@
 
   function activateRow(li) {
     if (!li) return;
-    var a = li.querySelector('[data-xp-open]');
+    var a = li.querySelector('[data-xp-open], a[href]');
     if (!a) return;
     logToolView(li.getAttribute('data-slug'), li.getAttribute('data-cat'));
     if (a.target === '_blank') window.open(a.href, '_blank', 'noopener');
@@ -857,11 +853,14 @@
   }
 
   function move(delta) {
-    var rows = els.list.querySelectorAll('.xp-row[data-slug]:not([hidden])');
+    var rows = navigableRows();
     if (!rows.length) return;
-    state.current = Math.max(0, Math.min(rows.length - 1, state.current + delta));
-    rows.forEach(function (r) { r.classList.remove('xp-current'); });
+    var next = Math.max(0, Math.min(rows.length - 1, state.current + delta));
+    if (currentElement === rows[next]) return;
+    if (currentElement) currentElement.classList.remove('xp-current');
+    state.current = next;
     var row = rows[state.current];
+    currentElement = row;
     row.classList.add('xp-current');
     // Instant. Smooth scrolling on every j/k press queues animations and
     // makes a launcher feel late.
@@ -869,8 +868,20 @@
     catch (e) { try { row.scrollIntoView(); } catch (e2) {} }
   }
 
+  function navigableRows() {
+    if (!keyboardRows) keyboardRows = els.list.querySelectorAll('.xp-row[data-slug]:not([hidden])');
+    return keyboardRows;
+  }
+
+  function resetCurrent() {
+    if (currentElement) currentElement.classList.remove('xp-current');
+    currentElement = null;
+    keyboardRows = null;
+    state.current = -1;
+  }
+
   function currentRow() {
-    var rows = els.list.querySelectorAll('.xp-row[data-slug]:not([hidden])');
+    var rows = navigableRows();
     return state.current >= 0 && state.current < rows.length ? rows[state.current] : null;
   }
 
@@ -995,7 +1006,6 @@
           e.preventDefault();
           var slug = row.getAttribute('data-slug');
           window.mpToolbox.toggle(slug);
-          syncToolboxButtons();
         }
         return;
       }
@@ -1012,7 +1022,8 @@
       if (open && !isTyping(e.target)) toggleDetails(open);
     });
 
-    if (window.mpToolbox && window.mpToolbox.subscribe) window.mpToolbox.subscribe(syncToolboxButtons);
+    // toolbox.js paints all saved buttons once per mutation, including these.
+    // Subscribing here too would scan the whole directory a second time.
   }
 
   /* ----------------------------------------------------------------- boot */
@@ -1113,6 +1124,7 @@
         els.input = bar.querySelector('#xp-input');
         els.field = bar.querySelector('.xp-field');
         els.count = bar.querySelector('#xp-count');
+        els.countHTML = null;
         els.facets = bar.querySelector('[data-xp-facets]');
         facetStamp = null;
         paintKey = '';
@@ -1252,6 +1264,22 @@
     });
     state.rows = rows.map(function (r) { return r.row; });
     state.staticRows = rows;
+    // Structural references are fixed for this served page. Cache both group
+    // wrappers and each row's own list once, not on every filter/sort.
+    var groups = [], lists = [];
+    rows.forEach(function (item) {
+      var groupEl = item.el.closest('[data-xp-group]') || container;
+      var listEl = item.el.parentNode || container;
+      var group = null, list = null;
+      groups.forEach(function (bucket) { if (bucket.el === groupEl) group = bucket; });
+      lists.forEach(function (bucket) { if (bucket.list === listEl) list = bucket; });
+      if (!group) { group = { el: groupEl, items: [] }; groups.push(group); }
+      if (!list) { list = { list: listEl, items: [] }; lists.push(list); }
+      group.items.push(item);
+      list.items.push(item);
+    });
+    state.staticGroups = groups;
+    state.staticLists = lists;
     var cats = {};
     rows.forEach(function (item) { if (item.row.catName) cats[item.row.catName] = true; });
     state.multiCategory = Object.keys(cats).length > 1;
@@ -1260,6 +1288,7 @@
     els.input = bar.querySelector('#xp-input');
     els.field = bar.querySelector('.xp-field');
     els.count = bar.querySelector('#xp-count');
+    els.countHTML = null;
     els.facets = bar.querySelector('[data-xp-facets]');
     applyFromUrl();
     wire();
@@ -1292,6 +1321,7 @@
       }
       li.setAttribute('data-index', String(idx));
     });
+    syncToolboxButtons();
     render();
     document.dispatchEvent(new CustomEvent('mp:explore-ready'));
     return Promise.resolve();
@@ -1333,6 +1363,8 @@
     var chip = e.target.closest && e.target.closest('.popular-chip');
     if (!chip || chip.id === 'heroSurpriseBtn' || chip.classList.contains('surprise-chip')) return;
     if (e.defaultPrevented) return;
+    // Recent-tool chips are real browse links, not search shortcuts.
+    if (chip.tagName === 'A' && !chip.hasAttribute('data-query')) return;
     var q = chip.getAttribute('data-query') || chip.textContent.trim();
     if (!q) return;
     if (window.mpExplore && window.mpExplore.state && window.mpExplore.state.q === q) return;
@@ -1347,7 +1379,7 @@
       window.mpExplore.filter(q);
       var section = document.getElementById('all-tools-section');
       if (section && typeof section.scrollIntoView === 'function') {
-        try { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (err) { try { section.scrollIntoView(); } catch (e2) {} }
+        smoothScroll(section, 'start');
       }
     }
   });
