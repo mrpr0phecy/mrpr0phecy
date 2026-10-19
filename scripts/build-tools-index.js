@@ -225,7 +225,9 @@ function build() {
 function main() {
   const isCheck = process.argv.includes('--check');
   const indexData = build();
-  const jsonStr = JSON.stringify(indexData, null, 2) + '\n';
+  // This is a browser payload, not source: preserve every public field but
+  // don't download/cache a quarter megabyte of indentation on each cold load.
+  const jsonStr = JSON.stringify(indexData) + '\n';
 
   if (isCheck) {
     if (!fs.existsSync(OUTPUT_JSON)) {

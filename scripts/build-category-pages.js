@@ -193,7 +193,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       --bg-primary: #0a0f14;
       --bg-secondary: #141e28;
       --bg-card: rgba(20, 30, 40, 0.7);
-      --border: rgba(255, 255, 255, 0.08);
+      --border: rgba(255, 255, 255, 0.12);
       --border-hover: rgba(45, 212, 255, 0.4);
       --accent: #2dd4ff;
       --accent-glow: rgba(45, 212, 255, 0.15);
@@ -282,7 +282,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       margin-bottom: 12px; color: #ffffff; text-wrap: balance;
     }
     .hero-lede {
-      max-width: 70ch; margin-bottom: 16px;
+      max-width: 62ch; margin-bottom: 16px;
       font-size: clamp(0.95rem, 2.4vw, 1.06rem); line-height: 1.7;
       color: var(--text-muted); text-wrap: pretty;
     }
@@ -358,10 +358,16 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     @media (hover: none) and (pointer: coarse) {
       /* The topbar is the only navigation on this page and it is sticky: give
          the wordmark and the three links finger-sized targets. */
-      .brand, .nav-link { min-height: 40px; display: inline-flex; align-items: center; }
+      .brand, .nav-link { min-height: 44px; display: inline-flex; align-items: center; }
 
       .nav-link.back { min-height: 44px; }
       .search-hint { min-height: 48px; }
+    }
+    @media (pointer: coarse), (prefers-reduced-transparency: reduce) {
+      .topbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg-primary); }
+    }
+    @media (forced-colors: active) {
+      .topbar, .badge, .cat-pill { background: Canvas; color: CanvasText; border-color: CanvasText; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -374,6 +380,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
   <script defer src="../explore.js?v=${ASSET_VERSION}"></script>
 </head>
 <body>
+  <a class="xp-skip" href="#explore">Skip to tools</a>
 
   <header class="topbar">
     <div class="container topbar-content">
@@ -411,9 +418,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     </section>
 
     <section aria-labelledby="tools-heading">
-      <div class="section-title">
-        <span id="tools-heading">All ${catTools.length} ${esc(cat.name)} Calculators &amp; Utilities</span>
-      </div>
+      <h2 class="section-title" id="tools-heading">All ${catTools.length} ${esc(cat.name)} Calculators &amp; Utilities</h2>
       <p class="list-note">
         Filter the ${catTools.length} tools below, sort them, expand a row for the full description, or keep one
         in your toolbox with the ＋. Press <kbd>/</kbd> to jump to the filter.
@@ -427,7 +432,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
         <a href="../sponsor.html">Sponsor this category →</a>
       </div>
 
-      <div data-explore="static" data-explore-reveal="all" id="explore" data-cat-name="${esc(cat.name)}">
+      <div data-explore="static" data-explore-reveal="all" id="explore" tabindex="-1" data-cat-name="${esc(cat.name)}">
         <ul class="xp-list">
 ${toolRowsHtml}
         </ul>

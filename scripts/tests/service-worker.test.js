@@ -32,6 +32,7 @@ function makeWorker() {
   const networkCalls = [];
   const signals = [];                // {url, signal}: what the worker passed to fetch()
   const waits = [];                  // promise the worker asked the browser to hold open
+  const activeTimers = new Set();
   let network = () => new Response('live', { status: 200 });
   let cachesBroken = false;          // simulate a quota error / private mode
   const listeners = {};
@@ -73,8 +74,13 @@ function makeWorker() {
     // uncached bound must still outlast the cached one and the preload skip,
     // or a hung preload plus a working network would resolve to the fallback
     // in the harness and the live page in production.
-    setTimeout: (fn, ms) => setTimeout(fn, (ms || 0) >= 8000 ? 80 : Math.min(ms || 0, 30)),
-    clearTimeout,
+    setTimeout: (fn, ms) => {
+      const timer = setTimeout(() => { activeTimers.delete(timer); fn(); },
+        (ms || 0) >= 8000 ? 80 : Math.min(ms || 0, 30));
+      activeTimers.add(timer);
+      return timer;
+    },
+    clearTimeout: (timer) => { activeTimers.delete(timer); clearTimeout(timer); },
     caches: {
       open: async (name) => {
         if (cachesBroken) throw new Error('QuotaExceededError: the cache store cannot be opened');
@@ -145,7 +151,7 @@ function makeWorker() {
   };
 
   return {
-    sandbox, stores, networkCalls, signals, dispatch, put, listeners,
+    sandbox, stores, networkCalls, signals, dispatch, put, listeners, activeTimers,
     // Settle every cache write the worker handed to the browser.
     drained: async () => { const p = waits.splice(0, waits.length); await Promise.all(p); },
     setNetwork: (fn) => { network = fn; },
@@ -160,6 +166,99 @@ const RUNTIME = `runtime-${CACHE_VERSION}`;
 const body = (res) => res.text();
 
 (async () => {
+  {
+    const w = makeWorker();
+    w.setNetwork(() => new Promise((resolve) => setTimeout(() => resolve(new Response('SHARED', {
+      headers: { date: new Date().toUTCString() },
+    })), 5)));
+    const responses = await Promise.all(Array.from({ length: 12 }, () => w.dispatch('/tools-index.json')));
+    assert.strictEqual(w.networkCalls.length, 1, 'concurrent catalogue loads downloaded identical data repeatedly');
+    assert.strictEqual(new Set(responses).size, 12, 'consumers must get independent Response objects');
+    assert.deepStrictEqual(await Promise.all(responses.map(body)), Array(12).fill('SHARED'),
+      "one consumer drained another consumer's response stream");
+    assert.strictEqual(vm.runInContext('foregroundRunning.size', w.sandbox), 0);
+    await w.drained();
+    await w.dispatch('/tools-index.json');
+    assert.strictEqual(w.networkCalls.length, 1, 'the shared download was not cached');
+    assert.strictEqual(w.activeTimers.size, 0, 'fast resource loads left deadline timers running');
+    console.log('  ok   twelve concurrent catalogue loads share one fetch and independent streams');
+  }
+
+  {
+    const w = makeWorker();
+    await Promise.all([
+      w.dispatch('/api/tools/bmi.json', { mode: 'cors', headers: { accept: 'application/json' } }),
+      w.dispatch('/api/tools/bmi.json', { mode: 'cors', headers: { accept: 'text/plain' } }),
+    ]);
+    assert.strictEqual(w.networkCalls.length, 2, 'requests with different headers were incorrectly shared');
+    await Promise.all([
+      w.dispatch('/variant.json', { mode: 'cors', destination: 'script' }),
+      w.dispatch('/variant.json', { mode: 'cors', destination: 'style' }),
+    ]);
+    assert.strictEqual(w.networkCalls.length, 4, 'requests with different destinations were incorrectly shared');
+    await Promise.all([
+      w.dispatch('/document.html', { mode: 'navigate' }),
+      w.dispatch('/document.html', { mode: 'navigate' }),
+    ]);
+    assert.strictEqual(w.networkCalls.length, 6, 'document navigations must not be merged');
+    console.log('  ok   request sharing preserves header/destination variants and never merges navigations');
+  }
+
+  {
+    const w = makeWorker();
+    w.setNetwork(() => Promise.reject(new Error('connection reset')));
+    const failed = await Promise.all(Array.from({ length: 6 }, () => w.dispatch('/retry.json')));
+    assert(failed.every((r) => r.status === 503));
+    assert.strictEqual(w.networkCalls.length, 1);
+    assert.strictEqual(vm.runInContext('foregroundRunning.size', w.sandbox), 0);
+    assert.strictEqual(w.activeTimers.size, 0);
+    w.setNetwork(() => new Response('RECOVERED'));
+    assert.strictEqual(await body(await w.dispatch('/retry.json')), 'RECOVERED',
+      'failed shared request poisoned the next attempt');
+    console.log('  ok   failed shared requests clear their timers and retry normally');
+  }
+
+  {
+    const w = makeWorker();
+    w.setNetwork(() => new Promise(() => {}));
+    const failed = await Promise.all(Array.from({ length: 6 }, () => w.dispatch('/timeout.json')));
+    assert(failed.every((r) => r.status === 503));
+    assert.strictEqual(w.networkCalls.length, 1);
+    assert(w.signals[0].signal.aborted);
+    assert.strictEqual(vm.runInContext('foregroundRunning.size', w.sandbox), 0,
+      'timed out request remained in the single-flight map');
+    w.setNetwork(() => new Response('AFTER TIMEOUT'));
+    assert.strictEqual(await body(await w.dispatch('/timeout.json')), 'AFTER TIMEOUT');
+    console.log('  ok   shared timeouts abort once and do not prevent retries');
+  }
+
+  {
+    const w = makeWorker();
+    assert.strictEqual(await body(await w.dispatch('/fast.html', { mode: 'navigate' })), 'live');
+    assert.strictEqual(w.activeTimers.size, 0, 'successful navigation left preload/patience timers alive');
+    await assert.rejects(vm.runInContext("bounded(Promise.reject(new Error('failure')), 8000)", w.sandbox), /failure/);
+    assert.strictEqual(w.activeTimers.size, 0, 'a rejected bounded promise left its timer alive');
+    console.log('  ok   completed and rejected waits cancel their deadlines immediately');
+  }
+
+  {
+    const w = makeWorker();
+    const cache = await w.sandbox.caches.open(RUNTIME);
+    await cache.put(new Request(ORIGIN + '/cdn.json'), new Response('EXPIRED AT CDN', {
+      headers: { date: new Date(Date.now() - 60 * 1000).toUTCString(), age: '700' },
+    }));
+    w.setNetwork(() => new Response('CURRENT'));
+    assert.strictEqual(await body(await w.dispatch('/cdn.json')), 'CURRENT',
+      'CDN Age was subtracted and made an expired response look fresh');
+    assert.strictEqual(w.networkCalls.length, 1);
+    await cache.put(new Request(ORIGIN + '/fresh-cdn.json'), new Response('FRESH AT CDN', {
+      headers: { date: new Date(Date.now() - 120 * 1000).toUTCString(), age: '100' },
+    }));
+    assert.strictEqual(await body(await w.dispatch('/fresh-cdn.json')), 'FRESH AT CDN');
+    assert.strictEqual(w.networkCalls.length, 1, 'fresh CDN copy unnecessarily hit the network');
+    console.log('  ok   CDN freshness uses the older of Date/apparent age and Age');
+  }
+
   // ------------------------------------------------------------- routing 1
   // The catalogue is the list of tools that exist: a stale copy must never
   // win when the network can answer. This is the "loads of cards missing"
@@ -422,6 +521,89 @@ const body = (res) => res.text();
   }
 
   {
+    // Queued refreshes used to have no deadline at all. Model a socket that
+    // never settles (even on abort): the budget must still recover.
+    const w = makeWorker();
+    w.setNetwork(() => new Promise(() => {}));
+    for (const slug of ['one', 'two', 'three']) {
+      await w.put(RUNTIME, '/' + slug + '.xml', 'CACHED', STALE_MS);
+      await w.dispatch('/' + slug + '.xml');
+    }
+    assert.strictEqual(w.signals.length, 2, 'background concurrency exceeded its budget');
+    await new Promise((r) => setTimeout(r, 110));
+    assert(w.signals.slice(0, 2).every((s) => s.signal.aborted),
+      'stalled refreshes kept their connections forever');
+    assert.strictEqual(w.signals.length, 3, 'a stalled refresh permanently wedged the queue');
+    await new Promise((r) => setTimeout(r, 100));
+    assert.strictEqual(vm.runInContext('refreshSlots', w.sandbox), 2);
+    assert.strictEqual(vm.runInContext('backgroundRunning.size', w.sandbox), 0);
+    console.log('  ok   hung refreshes abort, release slots and drain the bounded queue');
+  }
+
+  {
+    // fetch() resolves at HEADERS. A cache put can still be reading a body
+    // forever, so the refresh deadline must cover that write too.
+    const w = makeWorker();
+    await w.put(RUNTIME, '/slow-body.xml', 'CACHED', STALE_MS);
+    const open = w.sandbox.caches.open;
+    w.sandbox.caches.open = async (name) => {
+      const cache = await open(name);
+      return Object.assign({}, cache, { put: () => new Promise(() => {}) });
+    };
+    await w.dispatch('/slow-body.xml');
+    await new Promise((r) => setTimeout(r, 110));
+    assert(w.signals[0].signal.aborted, 'a stalled response body outlived its deadline');
+    assert.strictEqual(vm.runInContext('refreshSlots', w.sandbox), 2);
+    console.log('  ok   background deadline includes body consumption/cache writes');
+  }
+
+  {
+    const w = makeWorker();
+    // An abort-aware origin, just like fetch in a browser.
+    w.setNetwork((url) => url.endsWith('/clicked.html') ? new Response('CLICKED') : new Promise((resolve, reject) => {
+      const signal = w.signals[w.signals.length - 1].signal;
+      if (signal.aborted) return reject(new Error('aborted'));
+      signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }));
+    for (let click = 0; click < 12; click++) {
+      await w.put(RUNTIME, '/refresh-' + click + '.xml', 'CACHED', STALE_MS);
+      await w.dispatch('/refresh-' + click + '.xml');
+      assert.strictEqual(await body(await w.dispatch('/clicked.html', { mode: 'navigate' })), 'CLICKED');
+      await new Promise((r) => setTimeout(r, 0));
+      assert(w.signals.filter((s) => !s.url.endsWith('/clicked.html')).every((s) => s.signal.aborted),
+        'navigation left a cache-only fetch alive');
+      assert.strictEqual(vm.runInContext('refreshSlots', w.sandbox), 2,
+        'late completions corrupted the concurrency budget');
+      assert.strictEqual(vm.runInContext('backgroundRunning.size', w.sandbox), 0);
+    }
+    console.log('  ok   twelve clicks cancel in-flight refreshes without growing the budget');
+  }
+
+  {
+    // Adopted foreground fetches used to release their slot at headers,
+    // while their cache clone kept downloading a body outside the budget.
+    const w = makeWorker();
+    let releaseHeaders;
+    w.setNetwork(() => new Promise((resolve) => { releaseHeaders = resolve; }));
+    await w.put(RUNTIME, '/adopted.html', 'CACHED', FRESH_MS);
+    const open = w.sandbox.caches.open;
+    w.sandbox.caches.open = async (name) => {
+      const cache = await open(name);
+      return Object.assign({}, cache, { put: () => new Promise(() => {}) });
+    };
+    assert.strictEqual(await body(await w.dispatch('/adopted.html', { mode: 'navigate' })), 'CACHED');
+    assert.strictEqual(vm.runInContext('refreshSlots', w.sandbox), 1);
+    releaseHeaders(new Response('HEADERS ARRIVED'));
+    await new Promise((r) => setTimeout(r, 0));
+    assert.strictEqual(vm.runInContext('refreshSlots', w.sandbox), 1,
+      'headers released a slot while the body/cache write was still pending');
+    await new Promise((r) => setTimeout(r, 100));
+    assert(w.signals[0].signal.aborted, 'adopted download had no final deadline');
+    assert.strictEqual(vm.runInContext('refreshSlots', w.sandbox), 2);
+    console.log('  ok   adopted refreshes stay budgeted through the body and have a deadline');
+  }
+
+  {
     // A request the worker stopped waiting for is aborted, not abandoned. The
     // connection it holds is the one the next click needs, and its response
     // belongs to a page the visitor has already left.
@@ -579,7 +761,7 @@ const body = (res) => res.text();
                                 ['/risk-notices.js', 'CACHED NOTICES'], ['/explore.css', 'CACHED LIST CSS'],
                                 ['/toolbox.css', 'CACHED TOOLBOX CSS'],
                                 ['/explore.js', 'CACHED LIST'], ['/toolbox.js', 'CACHED TOOLBOX'],
-                                ['/home-core.js', 'CACHED CORE']]) {
+                                ['/home-core.js', 'CACHED CORE'], ['/tool-page.css', 'CACHED TOOL FRAME']]) {
       await w.put(STATIC, `${name}?v=${version}`, text, 0);
     }
     w.setNetwork(() => Promise.reject(new Error('offline')));
@@ -587,7 +769,7 @@ const body = (res) => res.text();
                                 ['/risk-notices.js', 'CACHED NOTICES'], ['/explore.css', 'CACHED LIST CSS'],
                                 ['/toolbox.css', 'CACHED TOOLBOX CSS'],
                                 ['/explore.js', 'CACHED LIST'], ['/toolbox.js', 'CACHED TOOLBOX'],
-                                ['/home-core.js', 'CACHED CORE']]) {
+                                ['/home-core.js', 'CACHED CORE'], ['/tool-page.css', 'CACHED TOOL FRAME']]) {
       const res = await w.dispatch(`${name}?v=${version}`);
       assert.strictEqual(res.status, 200, `${name} must be served offline from the precache`);
       assert.strictEqual(await body(res), text, `${name} offline body came from the wrong store`);
@@ -601,15 +783,9 @@ const body = (res) => res.text();
   {
     const paths = [...((SRC.match(/const PAGE_ASSET_PATHS = \[([^\]]*)\]/) || [])[1] || '')
       .matchAll(/'([^']+)'/g)].map((m) => m[1]);
-    // Eight: the four stylesheets (home.css / home-deferred.css / explore.css
-    // / toolbox.css — the toolbox split of 2026-10-05 added the last), the
-    // risk notices, and the four files that make the list layer work
-    // (explore.js / toolbox.js / home-core.js …) — i.e. every file index.html
-    // loads at ?v=. This count is the tripwire for exactly the change of
-    // 2026-09-21 — the assets a page loads and the assets the worker precaches
-    // have to be the same set, or a returning visitor gets a 503 for their own
-    // toolbox.
-    assert.strictEqual(paths.length, 8, `expected 8 page assets, found ${paths.length}`);
+    // The home assets plus the shared tool-page frame: warm its stylesheet
+    // at install/idle, and prove that offline tool visits use the same store.
+    assert.strictEqual(paths.length, 9, `expected 9 page assets, found ${paths.length}`);
     assert.ok(SRC.includes("const PAGE_VERSION = CACHE_VERSION.split('-')[0]"),
       'PAGE_VERSION must be derived from CACHE_VERSION, or a deploy serves the old version');
     for (const name of paths) {

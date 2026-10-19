@@ -41,14 +41,19 @@
   var SLUG_RE = /^[a-z0-9][a-z0-9-]{0,80}$/;
   function cleanSlugs(list) {
     if (!Array.isArray(list)) return [];
-    var out = [];
+    var out = [], seen = Object.create(null);
     for (var i = 0; i < list.length && out.length < 500; i++) {
       var s = list[i];
-      if (typeof s === 'string' && SLUG_RE.test(s) && out.indexOf(s) === -1) out.push(s);
+      if (typeof s === 'string' && SLUG_RE.test(s) && !seen[s]) {
+        seen[s] = true;
+        out.push(s);
+      }
     }
     return out;
   }
   var slugs = [];
+  var membership = null;
+  var panelPaint = null;
   var byslug = null;                 // slug → { name, title, category } from cards-lite.json
   var litePromise = null;
   // The lookup fetch carries its own abort window, spanning headers and body:
@@ -84,6 +89,7 @@
     var next = read();
     if (next.join(',') === slugs.join(',')) return false;
     slugs = next;
+    membership = null;
     return true;
   }
   function repaint() {
@@ -92,15 +98,23 @@
     listeners.forEach(function (fn) { try { fn(slugs.slice()); } catch (e) {} });
   }
   function emit() {
+    membership = null;
     write();
-    paintCounts();
-    renderPanel();
-    listeners.forEach(function (fn) { try { fn(slugs.slice()); } catch (e) {} });
+    repaint();
   }
 
   /* ---------------------------------------------------------------- api bits */
   function index(slug) { return slugs.indexOf(slug); }
-  function has(slug) { return index(slug) !== -1; }
+  function has(slug) {
+    if (typeof slug !== 'string') return false;
+    // A 500-tool shortlist should not turn each directory paint into hundreds
+    // of thousands of linear membership comparisons. Ordering stays in slugs.
+    if (!membership) {
+      membership = Object.create(null);
+      slugs.forEach(function (s) { membership[s] = true; });
+    }
+    return membership[slug] === true;
+  }
   function add(slug) {
     refresh();
     if (!slug || !SLUG_RE.test(slug) || has(slug)) return false;
@@ -229,9 +243,9 @@
      focus, the panel opening, or a tool being added. lite() dedupes, so the
      first one in wins and the rest are free. */
   function warm() {
-    // Renders on every call rather than only the first: lite() dedupes the
-    // fetch and re-arms after a failure, so a second reach for the toolbox
-    // after a failed one still ends with names in the panel. Resolves to the
+    // lite() dedupes the fetch and re-arms after a failure. renderPanel()
+    // skips unchanged content, so pointer/focus/open intent stays cheap but
+    // a successful retry still replaces raw slugs with names. Resolves to the
     // slug → tool map, which is what mpToolbox.ready() promises its callers.
     return lite().then(function (map) { renderPanel(); return map; });
   }
@@ -270,13 +284,16 @@
     var buttons = document.querySelectorAll('[data-toolbox-add]');
     for (var b = 0; b < buttons.length; b++) {
       var btnSlug = buttons[b].getAttribute('data-toolbox-add');
-      buttons[b].setAttribute('aria-pressed', String(has(btnSlug)));
-      buttons[b].classList.toggle('xp-in', has(btnSlug));
+      var inBox = has(btnSlug);
+      if (buttons[b].getAttribute('aria-pressed') !== String(inBox)) buttons[b].setAttribute('aria-pressed', String(inBox));
+      if (buttons[b].classList.contains('xp-in') !== inBox) buttons[b].classList.toggle('xp-in', inBox);
     }
     var nodes = document.querySelectorAll('[data-toolbox-count]');
-    for (var i = 0; i < nodes.length; i++) nodes[i].textContent = n ? String(n) : '';
+    var label = n ? String(n) : '';
+    for (var i = 0; i < nodes.length; i++) if (nodes[i].textContent !== label) nodes[i].textContent = label;
     var counter = document.getElementById('toolboxCardCount');
-    if (counter) counter.textContent = n === 1 ? '1 tool' : n + ' tools';
+    var countLabel = n === 1 ? '1 tool' : n + ' tools';
+    if (counter && counter.textContent !== countLabel) counter.textContent = countLabel;
   }
 
   function copyText(text, okMsg) {
@@ -328,7 +345,11 @@
   function renderPanel() {
     var host = document.getElementById('toolboxContent');
     if (!host) return;
-    paintCounts();
+    var key = slugs.join(',');
+    var base = panelBase();
+    if (panelPaint && panelPaint.host === host && panelPaint.key === key &&
+        panelPaint.lookup === byslug && panelPaint.base === base) return;
+    panelPaint = { host: host, key: key, lookup: byslug, base: base };
     if (!slugs.length) {
       host.innerHTML =
         '<div class="tb-empty">' +
@@ -352,7 +373,6 @@
       '<button type="button" data-tb="clear">Clear</button>' +
       '</div>';
 
-    var base = panelBase();
     html += '<ul class="tb-list">';
     groups.forEach(function (g, gi) {
       var open = groupState[g.name] !== false;
@@ -578,6 +598,7 @@
 
   function init() {
     slugs = read();
+    membership = null;
     // Any ＋ button anywhere on the page.
     document.addEventListener('click', function (e) {
       var btn = e.target.closest && e.target.closest('[data-toolbox-add]');

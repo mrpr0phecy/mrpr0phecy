@@ -152,6 +152,18 @@ grid, index-card labels, dense scannable cards. Most of that already exists
   illustrated marketing cards — density is the brand, and the row component is
   shared by home, category and directory pages (`explore.js`), so changes
   compound.
+- **Tool-page frame** (`tool/*.html`): `tool-page.css` is the shared frame,
+  not a global restyle of the card. Navigation, caveats and related links have
+  distinct levels; long text wraps rather than forcing a narrow viewport wider.
+  The frame is cached across visits instead of repeating CSS in every document.
+- **Interaction parity:** keyboard focus is as legible as hover; horizontal
+  fades step aside while a control inside them has focus. Hidden recents reserve
+  no space. Small-screen controls have 44 px targets and search fields use
+  16 px text to avoid focus-triggered zoom. Counts use tabular numerals.
+- **Inclusive surfaces:** keep quieter text readable, use structural borders
+  rather than shadow alone, and honor forced colors, increased contrast,
+  reduced transparency and reduced motion. Do not add animation or a new font
+  request merely to signal polish.
 - **Deep tool pages** (`tools/*.html`) keep their own generator CSS
   (`build-tool-pages.py`) — when a token changes, that CSS string is a second
   home that has to move with it.

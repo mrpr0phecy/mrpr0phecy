@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 43;
+  const APP_VERSION = 45;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -495,7 +495,8 @@
           // viewport is still at the top — bring the results into view.
           var section = document.getElementById('all-tools-section');
           if (section && typeof section.scrollIntoView === 'function') {
-            try { section.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { try { section.scrollIntoView(); } catch (e2) {} }
+            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            try { section.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' }); } catch (e) { try { section.scrollIntoView(); } catch (e2) {} }
           }
           if (typeof window.gtag === 'function') window.gtag('event', 'popular_chip', { query: q });
         } else {
@@ -514,6 +515,7 @@
   function setupRecents() {
     var host = document.getElementById('recent-chips');
     if (!host) return;
+    host.hidden = true;
     var rec = [];
     try { rec = JSON.parse(localStorage.getItem('__mp_recent') || '[]'); } catch (e) { rec = []; }
     if (!Array.isArray(rec)) rec = [];
@@ -812,6 +814,9 @@
     safely('search', setupSearch);
     safely('popular chips', setupPopularChips);
     safely('recents', setupRecents);
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) safely('restored recents', setupRecents);
+    });
     safely('surprise', setupSurpriseButtons);
     safely('panels', setupPanels);
     safely('popover a11y', syncPopoverA11y);
