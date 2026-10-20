@@ -108,6 +108,39 @@ token (`home.css :root`), not a brand value — `brand/mark.py` never sees it.
 weight that still clears 4.5:1 for the 0.68 rem section markers (measured
 below); anything dimmer has to be decoration, not text.
 
+### 3.1b Tool interiors: the same three values, card by card (2026-10-20)
+
+A tool page is a shell plus a card, and the card ships its own `<style>`. When
+the shell went gold the interiors did not: 474 cards hard-coded `#2dd4ff`, and
+another 1,209 painted from `var(--accent)` and inherited the shell by luck. The
+fix is a rewrite of colour literals only — **50 cards at a time, most-used
+first**, because 1,424 cards cannot be reviewed as one diff.
+
+- **Only colour moves.** `scripts/retheme-cards.py` rewrites hex and `rgba()`
+  literals; every other byte of the file is untouched, so structure, ids,
+  handlers and layout cannot drift. The diff for a converted card is a set of
+  one-for-one line swaps, and the gate checks that by stripping colour from both
+  sides and comparing.
+- **One hue per job, then a four-gold rotation.** A card with one or two accents
+  keeps the page's job split — action `#ffd700`, readout `#d4af37`. A card with
+  three or more sibling accents (four stat tiles, a legend, a series) rotates
+  through the same four golds the picker offers, in order of appearance, so the
+  tiles stay tellable apart instead of flattening into one colour.
+- **Colour that carries meaning is left alone.** A three-or-more-hue gradient is
+  data — the BMI bands, a risk scale, a spectrum — and its hues are exempted
+  *card-wide*, so a legend label keeps matching the stop it names. A protected
+  list (contrast checkers, colour pickers, physics and light toys) is skipped
+  entirely, because recolouring them would break the thing they do.
+- **A hue can be both.** `bodyfat` spends `#39ff14` as its theme accent *and* as
+  the low stop of a green→yellow→red scale. The rule: if that hue is also the
+  card's most-used chromatic colour (six hits or more), it is an accent sitting
+  in a ramp, and it converts everywhere; the remaining stops still read in
+  order.
+- **Contrast holds in the new tones.** `#d4af37` on the card surface `#0b1219`
+  is **8.96:1**, `#ffd700` on the same is **13.43:1**, and even the bronze
+  `#a1791f` clears AA as text at **5.07:1** on the page and **4.74:1** on the
+  `#111111` panel. No card gained a gold-on-gold pair.
+
 ### 3.2 Measured contrast
 
 | Pair | Ratio | Requirement |
