@@ -161,7 +161,8 @@ function main() {
 
 > ${total} free, self-contained browser tools — calculators, converters,
 > generators and simulators across ${ordered.length} categories. Every tool
-> runs 100% client-side: no accounts, no keys, no tracking, no build step.
+> runs 100% client-side: no accounts, no keys, no build step, and no tracking
+> on the tool pages (the standalone pages carry anonymised Google Analytics).
 > Made for humans, and deliberately easy for AI agents to navigate.
 
 ## How to use this site as an AI agent
