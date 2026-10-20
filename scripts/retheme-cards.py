@@ -138,6 +138,26 @@ ACCENT = {
     "4299e1": "a1791f",
     "1da1f2": "d4af37",
     "7ef9ff": "d4af37",
+    # Batch 3 residuals: Material blues, periwinkle, mint, the pale tints.
+    "6080f0": "d4af37",
+    "a0b0e0": "f0dc9a",
+    "9cbcff": "d4af37",
+    "a78bfa": "d4af37",
+    "90caf9": "d4af37",
+    "4fc3f7": "d4af37",
+    "64b5f6": "d4af37",
+    "bfeaff": "f0dc9a",
+    "cfe6f5": "f0dc9a",
+    "e0f2fe": "f0dc9a",
+    "9fb4c8": "a3a3a3",
+    "1976d2": "a1791f",
+    "0d47a1": "a1791f",
+    "55c8e0": "d4af37",
+    "8affa6": "d4af37",
+    "81c784": "d4af37",
+    "40c040": "d4af37",
+    "ffd66b": "d4af37",
+    "e8a33d": "d4af37",
 }
 
 # Neutrals: page, panel, text, hairlines. The whole black-to-white ramp.
@@ -159,6 +179,13 @@ NEUTRAL = {
     "f0e6dc": "d6d6d6",
     "9aa6b6": "8a8a8a",   # pale slate text
     "3a3a5a": "111111",   # slate panels
+    "1a1a3a": "0b1219",   # indigo panels
+    "2a2a4a": "0b1219",
+    "0a0a2a": "04070a",
+    "14264a": "0b1219",
+    "1a1a2a": "0b1219",
+    "5a2a20": "111111",   # dark browns
+    "b08070": "d6d6d6",
     "1b1b2f": "0b1219",
     "071019": "04070a",
     "071017": "04070a",
@@ -216,6 +243,21 @@ AMBER = {"ffa500", "ff9800", "ffd43b", "ffd166", "ffc107"}
 SURFACE = re.compile(
     r"(?:background|background-color|border(?:-[a-z]+)?|box-shadow|fill|stroke|outline)"
     r"\s*:[^;{}]*", re.I)
+
+
+def hue_of(r: int, g: int, b: int) -> int:
+    """Hue in degrees, 0-359."""
+    hi, lo = max(r, g, b), min(r, g, b)
+    if hi == lo:
+        return 0
+    d = hi - lo
+    if hi == r:
+        h = ((g - b) / d) % 6
+    elif hi == g:
+        h = (b - r) / d + 2
+    else:
+        h = (r - g) / d + 4
+    return int(h * 60) % 360
 
 
 def surface_uses(css: str, hue: str) -> bool:
@@ -314,6 +356,15 @@ def retheme(path: str):
             return ACCENT[key]
         if key in NEUTRAL:
             return NEUTRAL[key]
+        # A dark tinted surface is a panel whatever it was tinted with. The map
+        # cannot list every navy and plum in the catalogue, and one of them
+        # (`#0a1a2a → #1a0a2a`) was painting a whole card's backdrop indigo.
+        if len(key) == 6:
+            r, g, b = (int(key[i:i + 2], 16) for i in (0, 2, 4))
+            hi, lo = max(r, g, b), min(r, g, b)
+            if hi < 58 and hi - lo > 14 and hue_of(r, g, b) not in range(0, 36) \
+                    and hue_of(r, g, b) < 315:
+                return "0b1219"
         return None
 
     def hex_sub(m):
