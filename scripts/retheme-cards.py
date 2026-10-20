@@ -209,6 +209,12 @@ ACCENT = {
     "795548": "a1791f",
     "a5d6a7": "f0dc9a",
     "a0d080": "f0dc9a",
+    # Batch 6 residuals.
+    "40f080": "d4af37",
+    "c0a040": "d4af37",
+    "e2a0ff": "d4af37",
+    "a080b0": "a3a3a3",
+    "a0aec0": "a3a3a3",
 }
 
 # Neutrals: page, panel, text, hairlines. The whole black-to-white ramp.
@@ -249,6 +255,7 @@ NEUTRAL = {
     "604050": "111111",
     "06060a": "04070a",
     "1a0a0d": "04070a",
+    "2a5a3a": "111111",
     "9080b0": "a3a3a3",   # muted plum text
     "1b1b2f": "0b1219",
     "071019": "04070a",
@@ -378,9 +385,9 @@ def ramp_hues(css: str):
     if not outside:
         return hues
     if chromatic:
-        top = max(chromatic, key=lambda k: chromatic[k])
-        if top in hues and chromatic[top] >= 6 and surface_uses(css, top):
-            hues.discard(top)
+        for h in sorted(hues):
+            if counts.get(h, 0) >= 6 and surface_uses(css, h):
+                hues.discard(h)
     return hues
 
 
