@@ -182,6 +182,20 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-20 — ten Halloween tools (new category). The catalogue had horror
+  // *props* but nothing for the night itself: no pumpkin, costume, candy,
+  // trick-or-treat, fog, decoration-power, visibility, queue, purée or story
+  // tooling. Seasonal, but the maths is ordinary and stays useful every year.
+  'trick-or-treat-route-planner': 'Halloween',
+  'halloween-candy-calculator': 'Halloween',
+  'jack-o-lantern-carve-planner': 'Halloween',
+  'halloween-costume-weather-planner': 'Halloween',
+  'fog-machine-calculator': 'Halloween',
+  'halloween-decoration-power-budget': 'Halloween',
+  'halloween-night-visibility-check': 'Halloween',
+  'haunted-house-throughput-planner': 'Halloween',
+  'pumpkin-puree-pie-planner': 'Halloween',
+  'spooky-story-skeleton-generator': 'Halloween',
   // 2026-10-19 — ten Rocketry & Propulsion tools (new category). A keyword audit of
   // all 1,394 existing cards found no motor thrust curve, nozzle, parachute sizing,
   // launch-rail check, apogee/delay planner, multi-stage budget, re-entry heating or

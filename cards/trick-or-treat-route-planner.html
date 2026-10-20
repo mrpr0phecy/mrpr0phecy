@@ -1,0 +1,292 @@
+<h2 id="trick-or-treat-route-planner-title" style="margin-top:0;color:var(--accent);">🍬 Trick-or-Treat Route Planner</h2>
+
+<div id="tto-root">
+  <p id="tto-desc" class="small" style="color:rgba(230,250,255,.72);margin-bottom:14px;">
+    Work out how long the rounds actually take: distance, doors, walking and doorbell time, whether you finish before dark, and how much sweets each child comes home with.
+  </p>
+
+  <form onsubmit="event.preventDefault();" style="margin:0;">
+    <div class="tto-grid">
+      <div><label class="tto-l" for="tto-houses">Houses on the route</label><input id="tto-houses" class="tto-i" type="number" min="1" step="1" value="40" inputmode="numeric"></div>
+      <div><label class="tto-l" for="tto-spacing">Average distance between doors (m)</label><input id="tto-spacing" class="tto-i" type="number" min="5" step="1" value="28" inputmode="decimal"></div>
+      <div><label class="tto-l" for="tto-speed">Walking speed (km/h)</label><input id="tto-speed" class="tto-i" type="number" min="0.5" step="0.1" value="2.6" inputmode="decimal"></div>
+      <div><label class="tto-l" for="tto-dwell">Time at each door (s)</label><input id="tto-dwell" class="tto-i" type="number" min="5" step="5" value="45" inputmode="decimal"></div>
+      <div><label class="tto-l" for="tto-kids">Children</label><input id="tto-kids" class="tto-i" type="number" min="1" step="1" value="2" inputmode="numeric"></div>
+      <div><label class="tto-l" for="tto-youngest">Youngest child's age</label><input id="tto-youngest" class="tto-i" type="number" min="2" max="16" step="1" value="6" inputmode="numeric"></div>
+      <div><label class="tto-l" for="tto-per-house">Sweets per child per house</label><input id="tto-per-house" class="tto-i" type="number" min="0" step="1" value="2" inputmode="numeric"></div>
+      <div><label class="tto-l" for="tto-start">Leave time</label><input id="tto-start" class="tto-i" type="time" value="16:30"></div>
+      <div><label class="tto-l" for="tto-date">Date</label><input id="tto-date" class="tto-i" type="date" value="2026-10-31"></div>
+      <div><label class="tto-l" for="tto-lat">Latitude (°, north positive)</label><input id="tto-lat" class="tto-i" type="number" min="-66" max="66" step="0.1" value="51.5" inputmode="decimal"></div>
+      <div><label class="tto-l" for="tto-noon">Solar noon on your clock</label><input id="tto-noon" class="tto-i" type="time" value="12:00"></div>
+    </div>
+
+    <div class="tto-actions">
+      <button id="tto-reset" class="tto-btn" type="button">Reset example</button>
+      <span class="tto-hint">Sunset is estimated from latitude and date. Check your local almanac — hills, buildings and time-zone edges all move it.</span>
+    </div>
+  </form>
+
+  <div id="tto-error" class="tto-err" role="alert" style="display:none;"></div>
+
+  <div id="tto-out" aria-live="polite">
+    <div id="tto-banner" class="tto-banner">—</div>
+
+    <div class="tto-tiles">
+      <div class="tto-tile"><span class="tto-k">Route distance</span><strong id="tto-dist" class="tto-v">—</strong><span id="tto-dist-sub" class="tto-s">—</span></div>
+      <div class="tto-tile"><span class="tto-k">Time out</span><strong id="tto-total" class="tto-v">—</strong><span id="tto-total-sub" class="tto-s">—</span></div>
+      <div class="tto-tile"><span class="tto-k">Home by</span><strong id="tto-finish" class="tto-v">—</strong><span id="tto-finish-sub" class="tto-s">—</span></div>
+      <div class="tto-tile"><span class="tto-k">Sweets per child</span><strong id="tto-sweets" class="tto-v">—</strong><span id="tto-sweets-sub" class="tto-s">—</span></div>
+    </div>
+
+    <div class="tto-chartwrap">
+      <svg id="tto-svg" viewBox="0 0 640 280" aria-hidden="true" focusable="false"></svg>
+      <p class="tto-caption">Houses visited against the clock. The shaded part of the route is after sunset; the marker is when you get home.</p>
+    </div>
+
+    <div class="tto-panel">
+      <h3 class="tto-h3">Route briefing</h3>
+      <ul id="tto-facts" class="tto-facts"></ul>
+      <p id="tto-note" class="tto-body tto-muted">—</p>
+    </div>
+  </div>
+
+  <details class="tto-details">
+    <summary>How the timings and the sunset estimate are worked out</summary>
+    <p><strong>The route.</strong> Distance is houses × average spacing. Spacing should include the walk up a drive, the wait on the step and the return to the pavement, so 25–30 m per house is typical for a suburban street; a dense terrace can be 12–15 m and a rural lane can be 80 m. Walking time is distance ÷ speed. Door time is houses × dwell, and it usually dominates: forty doors at 45 seconds is half an hour of standing still.</p>
+    <p><strong>Walking speed.</strong> A steady adult walks about 4.8 km/h, but a group of children in costumes, crossing roads and stopping to compare bags moves at roughly half that. 2.4–2.8 km/h is a realistic planning figure. The model assumes no breaks; add them yourself if you plan to stop at a party or a friend's house.</p>
+    <p><strong>Sunset.</strong> The page estimates solar declination from the date, then the hour angle from latitude, giving day length. Sunset is solar noon plus half the day length. That ignores the equation of time (up to about 16 minutes), longitude within the time zone and elevation, so treat it as a planning estimate rather than an almanac value. If you already know the sunset time, set “solar noon” so that the two agree, or simply read the dark-walking minutes as approximate.</p>
+    <p><strong>Stamina.</strong> A common rule of thumb is that a child manages roughly half a kilometre per year of age, and that under-eights are usually done after 60–90 minutes. The tool flags the route when distance or time exceeds those bands — not because a longer route is unsafe, but because a tired child at the far end of it is the one who gets carried.</p>
+    <p class="tto-muted">Last reviewed: 2026-10-20. A planning aid for a family outing; follow local road-safety advice and go with your own judgement about your children and your streets.</p>
+  </details>
+
+  <style>
+    #tto-root{--tto-line:rgba(45,212,255,.28);}
+    #tto-root .tto-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+    #tto-root .tto-l{display:block;font-size:.75rem;color:rgba(230,250,255,.68);margin-bottom:4px;line-height:1.35;}
+    #tto-root .tto-i{width:100%;padding:9px 10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-size:14px;}
+    #tto-root .tto-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;}
+    #tto-root .tto-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.08);color:var(--text);font-weight:600;cursor:pointer;}
+    #tto-root .tto-btn:hover{background:rgba(45,212,255,.16);}
+    #tto-root .tto-hint{font-size:.72rem;color:rgba(230,250,255,.55);line-height:1.45;max-width:620px;}
+    #tto-root .tto-err{margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.35);color:#ffb3b3;font-size:.83rem;}
+    #tto-root .tto-banner{margin:14px 0 10px;padding:11px 14px;border-radius:10px;font-weight:800;letter-spacing:.02em;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.05);color:var(--text);}
+    #tto-root .tto-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;}
+    #tto-root .tto-tile{padding:12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid var(--tto-line);}
+    #tto-root .tto-k{display:block;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:rgba(230,250,255,.6);}
+    #tto-root .tto-v{display:block;margin-top:4px;font-size:1.24rem;font-weight:800;color:var(--accent);line-height:1.25;}
+    #tto-root .tto-s{display:block;margin-top:3px;font-size:.72rem;color:rgba(230,250,255,.6);line-height:1.4;}
+    #tto-root .tto-chartwrap{margin-top:12px;padding:8px 10px 4px;border-radius:12px;background:#050b11;border:1px solid rgba(255,255,255,.08);}
+    #tto-root #tto-svg{display:block;width:100%;height:auto;}
+    #tto-root .tto-caption{margin:2px 0 4px;font-size:.7rem;color:rgba(230,250,255,.5);text-align:center;line-height:1.45;}
+    #tto-root .tto-panel{margin-top:12px;padding:13px 14px;border-radius:10px;background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.1);}
+    #tto-root .tto-h3{margin:0 0 7px;font-size:.92rem;color:var(--text);}
+    #tto-root .tto-facts{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:.8rem;line-height:1.5;color:rgba(230,250,255,.82);}
+    #tto-root .tto-facts li::before{content:"·";color:var(--accent);margin-right:7px;font-weight:800;}
+    #tto-root .tto-body{margin:9px 0 0;font-size:.8rem;line-height:1.5;}
+    #tto-root .tto-muted{color:rgba(230,250,255,.55);}
+    #tto-root .tto-details{margin-top:16px;font-size:.85rem;color:rgba(230,250,255,.72);line-height:1.6;}
+    #tto-root .tto-details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.86rem;}
+    #tto-root .tto-details p{margin:9px 0;}
+  </style>
+</div>
+
+<script>
+(function () {
+  var card = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var DEFAULTS = {
+    'tto-houses': '40', 'tto-spacing': '28', 'tto-speed': '2.6', 'tto-dwell': '45',
+    'tto-kids': '2', 'tto-youngest': '6', 'tto-per-house': '2',
+    'tto-start': '16:30', 'tto-date': '2026-10-31', 'tto-lat': '51.5', 'tto-noon': '12:00'
+  };
+
+  function num(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : NaN; }
+  function nf(x, d) { return isFinite(x) ? x.toFixed(d == null ? 1 : d) : '—'; }
+  function setText(id, t) { $(id).textContent = t; }
+  function svgEl(name, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function parseClock(v) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(v || '');
+    return m ? (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : NaN;
+  }
+  function clock(mins) {
+    var m = ((Math.round(mins) % 1440) + 1440) % 1440;
+    return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2);
+  }
+  // Solar declination from day-of-year (Cooper), then day length from latitude.
+  function sunsetMinutes(dateStr, latDeg, noonMins) {
+    var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || '');
+    if (!parts) return NaN;
+    var d = new Date(Date.UTC(+parts[1], +parts[2] - 1, +parts[3]));
+    var yStart = new Date(Date.UTC(+parts[1], 0, 1));
+    var n = Math.floor((d - yStart) / 86400000) + 1;
+    var dec = 23.44 * Math.sin(2 * Math.PI * (284 + n) / 365) * Math.PI / 180;
+    var phi = latDeg * Math.PI / 180;
+    var cosH = -Math.tan(phi) * Math.tan(dec);
+    if (cosH <= -1) return { day: 24, sunset: NaN, polar: 'day' };
+    if (cosH >= 1) return { day: 0, sunset: NaN, polar: 'night' };
+    var daylight = 24 * Math.acos(cosH) / Math.PI;
+    return { day: daylight, sunset: noonMins + daylight * 30, polar: '' };
+  }
+
+  function run() {
+    if (!document.getElementById('tto-root')) return;
+    var houses = num('tto-houses'), spacing = num('tto-spacing'), speed = num('tto-speed');
+    var dwell = num('tto-dwell'), kids = num('tto-kids'), youngest = num('tto-youngest');
+    var perHouse = num('tto-per-house'), lat = num('tto-lat');
+    var start = parseClock($('tto-start').value), noon = parseClock($('tto-noon').value);
+    var dateStr = $('tto-date').value;
+    var err = $('tto-error');
+    var bad = !isFinite(houses) || !isFinite(spacing) || !isFinite(speed) || !isFinite(dwell) ||
+      !isFinite(kids) || !isFinite(youngest) || !isFinite(perHouse) || !isFinite(lat) ||
+      !isFinite(start) || !isFinite(noon);
+    if (bad || houses < 1 || spacing <= 0 || speed <= 0 || dwell < 0 || kids < 1 || youngest < 2 || perHouse < 0 || lat < -66 || lat > 66) {
+      err.style.display = 'block';
+      err.textContent = 'Enter at least one house, a positive spacing and speed, and a valid date, time and latitude.';
+      $('tto-out').style.opacity = '.4';
+      return;
+    }
+    if (speed > 8) {
+      err.style.display = 'block';
+      err.textContent = 'Walking speed above 8 km/h is faster than a walk — check the value.';
+      $('tto-out').style.opacity = '.4';
+      return;
+    }
+    err.style.display = 'none';
+    err.textContent = '';
+    $('tto-out').style.opacity = '1';
+
+    var distKm = houses * spacing / 1000;
+    var walkMin = distKm / speed * 60;
+    var doorMin = houses * dwell / 60;
+    var total = walkMin + doorMin;
+    var finish = start + total;
+    var sun = sunsetMinutes(dateStr, lat, noon);
+    var darkMin = isFinite(sun.sunset) ? Math.max(0, finish - sun.sunset) : 0;
+    var sweets = houses * perHouse;
+    var perKid = sweets / kids;
+    var maxKm = youngest * 0.5;
+    var overDist = distKm > maxKm;
+    var overTime = youngest < 8 && total > 90;
+
+    setText('tto-dist', nf(distKm, 2) + ' km');
+    setText('tto-dist-sub', houses + ' doors · ' + nf(spacing, 0) + ' m apart');
+    setText('tto-total', Math.round(total) + ' min');
+    setText('tto-total-sub', Math.round(walkMin) + ' min walking · ' + Math.round(doorMin) + ' min at doors');
+    setText('tto-finish', clock(finish));
+    setText('tto-finish-sub', isFinite(sun.sunset) ? 'Sunset about ' + clock(sun.sunset) + (darkMin > 0 ? ' · ' + Math.round(darkMin) + ' min in the dark' : ' · home before dark') : 'Sunset not defined at this latitude');
+    setText('tto-sweets', Math.round(perKid) + '');
+    setText('tto-sweets-sub', sweets + ' pieces for ' + kids + (kids === 1 ? ' child' : ' children') + ' · ' + perHouse + ' per door');
+
+    var banner = $('tto-banner');
+    if (!isFinite(sun.sunset)) {
+      banner.textContent = 'No sunset at this latitude on this date — plan for the light you have.';
+      banner.style.color = '#ffd166';
+      banner.style.borderColor = 'rgba(255,209,102,.5)';
+    } else if (start >= sun.sunset) {
+      banner.textContent = 'AFTER DARK — the route starts ' + Math.round(start - sun.sunset) + ' minutes after sunset';
+      banner.style.color = '#ffd166';
+      banner.style.borderColor = 'rgba(255,209,102,.5)';
+    } else if (darkMin > 45) {
+      banner.textContent = 'LATE — ' + Math.round(darkMin) + ' minutes of this route happen after sunset';
+      banner.style.color = '#ffd166';
+      banner.style.borderColor = 'rgba(255,209,102,.5)';
+    } else if (darkMin > 0) {
+      banner.textContent = 'DUSK — the last ' + Math.round(darkMin) + ' minutes are after sunset';
+      banner.style.color = '#ffd166';
+      banner.style.borderColor = 'rgba(255,209,102,.5)';
+    } else {
+      banner.textContent = 'DAYLIGHT — home about ' + Math.round(sun.sunset - finish) + ' minutes before sunset';
+      banner.style.color = '#55e6a5';
+      banner.style.borderColor = 'rgba(85,230,165,.5)';
+    }
+
+    var facts = [];
+    facts.push('Daylight on this date is about ' + nf(sun.day, 1) + ' hours at ' + nf(lat, 1) + '° latitude.');
+    facts.push('You cover ' + nf(distKm, 2) + ' km at ' + nf(speed, 1) + ' km/h; the doors add ' + Math.round(doorMin) + ' minutes on their own.');
+    facts.push('Each child carries home roughly ' + Math.round(perKid) + ' pieces — about ' + nf(perKid * 12, 0) + ' g if they average 12 g a piece.');
+    if (overDist) facts.push('The route is ' + nf(distKm - maxKm, 1) + ' km beyond the half-kilometre-per-year band for a ' + youngest + '-year-old.');
+    else facts.push('The route is inside the half-kilometre-per-year band for a ' + youngest + '-year-old (' + nf(maxKm, 1) + ' km).');
+    if (overTime) facts.push('Under-eights are usually finished after 60–90 minutes; this plan runs ' + Math.round(total) + '.');
+    if (darkMin > 0) facts.push('After sunset, drivers see a dark costume late — reflective tape and a torch matter more than the route itself.');
+    setText('tto-note', 'Sunset here is a latitude-and-date estimate, not an almanac time; the equation of time can move it by a quarter of an hour.');
+
+    var list = $('tto-facts');
+    list.textContent = '';
+    for (var i = 0; i < facts.length; i++) {
+      var li = document.createElement('li');
+      li.textContent = facts[i];
+      list.appendChild(li);
+    }
+    draw(houses, total, start, sun.sunset, finish);
+  }
+
+  function draw(houses, total, start, sunset, finish) {
+    var svg = $('tto-svg');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 640, H = 280, L = 54, R = 22, T = 20, B = 48;
+    var xMax = Math.max(total, isFinite(sunset) ? sunset - start : 0, 1) * 1.06;
+    var x = function (m) { return L + (m / xMax) * (W - L - R); };
+    var y = function (n) { return H - B - (n / houses) * (H - T - B); };
+    for (var i = 0; i <= 4; i++) {
+      var yy = T + (H - T - B) * i / 4, hv = houses * (1 - i / 4);
+      svg.appendChild(svgEl('line', { x1: L, y1: yy, x2: W - R, y2: yy, stroke: 'rgba(255,255,255,.08)', 'stroke-width': 1 }));
+      var yl = svgEl('text', { x: L - 7, y: yy + 3, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'end' });
+      yl.textContent = Math.round(hv);
+      svg.appendChild(yl);
+    }
+    for (var k = 0; k <= 4; k++) {
+      var tx = L + (W - L - R) * k / 4, mv = xMax * k / 4;
+      svg.appendChild(svgEl('line', { x1: tx, y1: T, x2: tx, y2: H - B, stroke: 'rgba(255,255,255,.06)', 'stroke-width': 1 }));
+      var xl = svgEl('text', { x: tx, y: H - B + 14, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'middle' });
+      xl.textContent = clock(start + mv);
+      svg.appendChild(xl);
+    }
+    svg.appendChild(svgEl('line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    svg.appendChild(svgEl('line', { x1: L, y1: T, x2: L, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    var xl2 = svgEl('text', { x: (L + W - R) / 2, y: H - 8, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle' });
+    xl2.textContent = 'Clock time';
+    svg.appendChild(xl2);
+    var yl2 = svgEl('text', { x: 12, y: (T + H - B) / 2, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((T + H - B) / 2) + ')' });
+    yl2.textContent = 'Houses visited';
+    svg.appendChild(yl2);
+
+    var d = 'M ' + x(0) + ' ' + y(0) + ' L ' + x(total) + ' ' + y(houses);
+    svg.appendChild(svgEl('path', { d: d, fill: 'none', stroke: '#2dd4ff', 'stroke-width': 2.4, 'stroke-linejoin': 'round' }));
+    if (isFinite(sunset)) {
+      // Shade whatever part of the walk falls after sunset, whether sunset
+      // lands inside the window, before it, or after it.
+      var darkFrom = Math.max(0, Math.min(xMax, sunset - start));
+      if (darkFrom < xMax) {
+        svg.appendChild(svgEl('rect', { x: x(darkFrom), y: T, width: W - R - x(darkFrom), height: H - T - B, fill: 'rgba(255,179,179,.07)' }));
+      }
+      if (sunset > start && sunset - start < xMax) {
+        var sx = x(sunset - start);
+        svg.appendChild(svgEl('line', { x1: sx, y1: T, x2: sx, y2: H - B, stroke: '#ffb3b3', 'stroke-width': 1.4, 'stroke-dasharray': '5 4' }));
+        var sl = svgEl('text', { x: Math.min(sx + 5, W - R - 40), y: T + 11, fill: '#ffb3b3', 'font-size': 9, 'font-weight': 700 });
+        sl.textContent = 'sunset ' + clock(sunset);
+        svg.appendChild(sl);
+      }
+    }
+    svg.appendChild(svgEl('circle', { cx: x(total), cy: y(houses), r: 4.5, fill: '#ffd166' }));
+    var fl = svgEl('text', { x: Math.min(x(total) + 7, W - R - 60), y: Math.max(y(houses) - 8, T + 12), fill: '#ffd166', 'font-size': 9, 'font-weight': 700 });
+    fl.textContent = 'home ' + clock(finish);
+    svg.appendChild(fl);
+  }
+
+  function reset() {
+    for (var id in DEFAULTS) if (Object.prototype.hasOwnProperty.call(DEFAULTS, id) && $(id)) $(id).value = DEFAULTS[id];
+    run();
+  }
+
+  Object.keys(DEFAULTS).forEach(function (id) {
+    var el = $(id);
+    if (el) { el.addEventListener('input', run); el.addEventListener('change', run); }
+  });
+  $('tto-reset').addEventListener('click', reset);
+  run();
+})();
+</script>

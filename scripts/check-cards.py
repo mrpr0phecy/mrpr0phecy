@@ -43,6 +43,7 @@ KNOWN_CATEGORIES = {
     "Survival & Emergency Readiness", "Trucking & Freight",
     "Fire & Rescue Service",
     "Rocketry & Propulsion",
+    "Halloween",
     "Legal & Professional",
 }
 

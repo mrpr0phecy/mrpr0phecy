@@ -48,6 +48,7 @@ const CATEGORY_ORDER = [
   ['Productivity & Lifestyle', '⚡'],
   ['Virtual Worlds & Gaming', '🎮'],
   ['Horror & Paranormal', '👻'],
+  ['Halloween', '🎃'],
   ['Field Investigation & Evidence', '🗂️'],
   ['Museum & Collection', '🏛️'],
   ['Trucking & Freight', '🚚'],
