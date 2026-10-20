@@ -1,0 +1,268 @@
+<h2 id="rch-title" style="margin-top:0;color:var(--accent);">🪂 Rocket Parachute Descent &amp; Drift Calculator</h2>
+
+<div id="rch-root">
+  <p id="rch-desc" class="small" style="color:rgba(230,250,255,.72);margin-bottom:14px;">
+    Size a recovery parachute for a target descent rate, then see the impact speed, landing energy and wind drift from deployment altitude — with spill holes and clusters included.
+  </p>
+
+  <form onsubmit="event.preventDefault();" style="margin:0;">
+    <div class="rch-grid">
+      <div><label class="rch-l" for="rch-mass">Recovered mass (g)</label><input id="rch-mass" class="rch-i" type="number" min="1" step="1" value="600" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-dia">Chute diameter, each (cm)</label><input id="rch-dia" class="rch-i" type="number" min="1" step="1" value="60" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-cd">Chute drag coefficient, Cd</label><input id="rch-cd" class="rch-i" type="number" min="0.1" step="0.05" value="1.2" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-count">Number of chutes</label><input id="rch-count" class="rch-i" type="number" min="1" max="12" step="1" value="1" inputmode="numeric"></div>
+      <div><label class="rch-l" for="rch-spill">Spill-hole diameter (cm)</label><input id="rch-spill" class="rch-i" type="number" min="0" step="0.5" value="0" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-alt">Deployment altitude AGL (m)</label><input id="rch-alt" class="rch-i" type="number" min="1" step="10" value="300" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-wind">Wind speed (m/s)</label><input id="rch-wind" class="rch-i" type="number" min="0" step="0.5" value="5" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-elev">Site elevation (m)</label><input id="rch-elev" class="rch-i" type="number" min="-100" step="10" value="100" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-temp">Air temperature (°C)</label><input id="rch-temp" class="rch-i" type="number" min="-40" max="50" step="1" value="15" inputmode="decimal"></div>
+      <div><label class="rch-l" for="rch-target">Target descent rate (m/s)</label><input id="rch-target" class="rch-i" type="number" min="0.5" step="0.5" value="5" inputmode="decimal"></div>
+    </div>
+
+    <div class="rch-actions">
+      <button id="rch-reset" class="rch-btn" type="button">Reset example</button>
+      <span class="rch-hint">Cd is the whole recovery system's drag coefficient. A flat sheet chute is typically 0.75–1.0; a hemispherical or toroidal chute 1.2–1.5.</span>
+    </div>
+  </form>
+
+  <div id="rch-error" class="rch-err" role="alert" style="display:none;"></div>
+
+  <div id="rch-out" aria-live="polite">
+    <div class="rch-tiles">
+      <div class="rch-tile"><span class="rch-k">Impact speed</span><strong id="rch-impact" class="rch-v">—</strong><span id="rch-impact-sub" class="rch-s">—</span></div>
+      <div class="rch-tile"><span class="rch-k">Landing energy</span><strong id="rch-energy" class="rch-v">—</strong><span id="rch-energy-sub" class="rch-s">—</span></div>
+      <div class="rch-tile"><span class="rch-k">Descent time</span><strong id="rch-time" class="rch-v">—</strong><span id="rch-time-sub" class="rch-s">—</span></div>
+      <div class="rch-tile"><span class="rch-k">Wind drift</span><strong id="rch-drift" class="rch-v">—</strong><span id="rch-drift-sub" class="rch-s">—</span></div>
+    </div>
+
+    <div id="rch-banner" class="rch-banner">—</div>
+
+    <div class="rch-chartwrap">
+      <svg id="rch-svg" viewBox="0 0 640 240" aria-hidden="true" focusable="false"></svg>
+      <p class="rch-caption">Side view: altitude above the landing point against downwind drift. The line is the modelled descent from deployment to touchdown.</p>
+    </div>
+
+    <div class="rch-panel">
+      <h3 class="rch-h3">Sizing for a target rate</h3>
+      <p id="rch-required" class="rch-body">—</p>
+      <div class="rch-tablewrap">
+        <table class="rch-table">
+          <caption class="rch-cap">Chute diameter needed per canopy, at the current Cd and spill hole</caption>
+          <thead><tr><th scope="col">Target rate</th><th scope="col">Diameter per chute</th><th scope="col">Status</th></tr></thead>
+          <tbody id="rch-table-body"></tbody>
+        </table>
+      </div>
+      <p id="rch-area" class="rch-body rch-muted">—</p>
+    </div>
+  </div>
+
+  <details class="rch-details">
+    <summary>How the descent and drift are calculated, and what a parachute rate does not tell you</summary>
+    <p><strong>Drag equilibrium.</strong> A parachute reaches terminal velocity when drag equals weight: ½ρv²CdA = mg, so v = √(2mg/(ρCdA)). The effective area here is the sum of the canopies, with the area of any spill hole removed. Air density comes from a standard-atmosphere approximation adjusted for site elevation and temperature. Because density rises as the rocket descends, the model integrates the descent in small altitude steps and uses the local terminal velocity at each step; that is why the impact speed is a little higher than the rate at deployment.</p>
+    <p><strong>Cd is the whole system.</strong> The drag coefficient of a canopy depends on its shape, porosity, suspension-line geometry, how it inflates and what it is carrying. A flat sheet is often quoted around 0.75–1.0, a hemispherical canopy around 1.2–1.5, and a toroidal or annular chute can be higher. A cluster does not simply add area: canopies interfere, and a realistic cluster may deliver less than the sum of its parts. The tool assumes no interference, so treat a cluster result as an optimistic upper bound on drag.</p>
+    <p><strong>Spill holes.</strong> A spill hole reduces projected area but also reduces oscillation and opening shock. The area removed is πd²/4, which is why a 20 cm hole in a 60 cm canopy removes about 11% of its area — not 33%. A small hole often improves descent stability at a modest cost in rate.</p>
+    <p><strong>Drift and landing energy.</strong> Drift is wind speed multiplied by descent time. Wind aloft is usually stronger than at the surface, so the true drift can be substantially larger; this model uses one constant wind. Landing energy is ½mv², and the equivalent drop height v²/2g is often the more intuitive number. There is no single safe impact speed: airframe mass, ground, recovery layout and what is inside the rocket all matter. Model-rocketry practice commonly aims for roughly 3.5–5.5 m/s, with high-power airframes often a little faster, but a heavy rocket at 5 m/s is not the same event as a 300 g rocket at 5 m/s.</p>
+    <p><strong>Not modelled.</strong> Opening shock and inflation distance, reefing, canopy oscillation, wind shear, thermal updraughts, landing on a hard surface, or the rocket swinging under the chute. A deployment rate calculation is not a shock-load calculation.</p>
+    <p class="rch-muted">Last reviewed: 2026-10-19. A recovery planning aid, not a substitute for a drop test and range safety assessment.</p>
+  </details>
+
+  <style>
+    #rch-root{--rch-line:rgba(45,212,255,.28);}
+    #rch-root .rch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+    #rch-root .rch-l{display:block;font-size:.75rem;color:rgba(230,250,255,.68);margin-bottom:4px;line-height:1.35;}
+    #rch-root .rch-i{width:100%;padding:9px 10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-size:14px;}
+    #rch-root .rch-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;}
+    #rch-root .rch-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.08);color:var(--text);font-weight:600;cursor:pointer;}
+    #rch-root .rch-btn:hover{background:rgba(45,212,255,.16);}
+    #rch-root .rch-hint{font-size:.72rem;color:rgba(230,250,255,.55);line-height:1.45;max-width:620px;}
+    #rch-root .rch-err{margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.35);color:#ffb3b3;font-size:.83rem;}
+    #rch-root .rch-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-top:14px;}
+    #rch-root .rch-tile{padding:12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid var(--rch-line);}
+    #rch-root .rch-k{display:block;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:rgba(230,250,255,.6);}
+    #rch-root .rch-v{display:block;margin-top:4px;font-size:1.22rem;font-weight:800;color:var(--accent);line-height:1.25;}
+    #rch-root .rch-s{display:block;margin-top:3px;font-size:.72rem;color:rgba(230,250,255,.6);line-height:1.4;}
+    #rch-root .rch-banner{margin-top:12px;padding:9px 12px;border-radius:8px;font-size:.82rem;font-weight:700;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);}
+    #rch-root .rch-chartwrap{margin-top:12px;padding:8px 10px 4px;border-radius:12px;background:#050b11;border:1px solid rgba(255,255,255,.08);}
+    #rch-root #rch-svg{display:block;width:100%;height:auto;}
+    #rch-root .rch-caption{margin:2px 0 4px;font-size:.7rem;color:rgba(230,250,255,.5);text-align:center;line-height:1.45;}
+    #rch-root .rch-panel{margin-top:12px;padding:13px 14px;border-radius:10px;background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.1);}
+    #rch-root .rch-h3{margin:0 0 7px;font-size:.92rem;color:var(--text);}
+    #rch-root .rch-body{margin:7px 0;font-size:.82rem;line-height:1.55;color:rgba(230,250,255,.8);}
+    #rch-root .rch-muted{color:rgba(230,250,255,.55);}
+    #rch-root .rch-tablewrap{overflow-x:auto;margin-top:8px;}
+    #rch-root .rch-table{width:100%;border-collapse:collapse;font-size:.8rem;min-width:380px;}
+    #rch-root .rch-cap{caption-side:top;text-align:left;font-size:.7rem;color:rgba(230,250,255,.55);padding-bottom:5px;}
+    #rch-root .rch-table th,#rch-root .rch-table td{text-align:left;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.09);}
+    #rch-root .rch-table th{font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;color:rgba(230,250,255,.55);font-weight:600;}
+    #rch-root .rch-table td{color:rgba(230,250,255,.82);}
+    #rch-root .rch-details{margin-top:16px;font-size:.85rem;color:rgba(230,250,255,.72);line-height:1.6;}
+    #rch-root .rch-details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.86rem;}
+    #rch-root .rch-details p{margin:9px 0;}
+  </style>
+</div>
+
+<script>
+(function () {
+  var card = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var G0 = 9.80665;
+  var DEFAULTS = { 'rch-mass':'600','rch-dia':'60','rch-cd':'1.2','rch-count':'1','rch-spill':'0','rch-alt':'300','rch-wind':'5','rch-elev':'100','rch-temp':'15','rch-target':'5' };
+
+  function num(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : NaN; }
+  function nf(x, d) { return isFinite(x) ? x.toFixed(d == null ? 1 : d) : '—'; }
+  function setText(id, text) { $(id).textContent = text; }
+  function svgEl(name, attrs) {
+    var n = document.createElementNS(NS, name);
+    if (attrs) for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function densityAt(hAGL, siteElev, tempC) {
+    var h = Math.max(0, siteElev + hAGL);
+    var T = h < 11000 ? 288.15 - 0.0065 * h : 216.65;
+    var p = h < 11000 ? 101325 * Math.pow(T / 288.15, 5.25588) : 22632.06 * Math.exp(-(h - 11000) / 6341.62);
+    return (p / (287.05 * T)) * (288.15 / (273.15 + tempC));
+  }
+
+  function simulate(massKg, cd, areaPerChute, count, alcove, wind, elev, tempC) {
+    var totalArea = areaPerChute * count;
+    var h = alcove, t = 0, drift = 0, vDeploy = null, vGround = null, step = 0.5;
+    var points = [{ h: h, t: 0, d: 0 }];
+    while (h > 0 && t < 3600) {
+      var rho = densityAt(h, elev, tempC);
+      var v = Math.sqrt((2 * massKg * G0) / (rho * cd * totalArea));
+      if (vDeploy === null) vDeploy = v;
+      var dh = Math.min(step, h);
+      var dt = dh / v;
+      t += dt; drift += wind * dt; h -= dh;
+      vGround = v;
+      if (points.length < 2000) points.push({ h: Math.max(0, h), t: t, d: drift });
+    }
+    return { time: t, drift: drift, vDeploy: vDeploy, vGround: vGround, points: points };
+  }
+
+  function requiredDiameter(massKg, cd, target, density, count, holeM) {
+    var totalArea = (2 * massKg * G0) / (density * cd * target * target);
+    var each = totalArea / count + Math.PI * holeM * holeM / 4;
+    return Math.sqrt(4 * each / Math.PI);
+  }
+
+  function plot(sim, alt, drift) {
+    var svg = $('rch-svg');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 640, H = 240, L = 52, R = 22, T = 18, B = 42;
+    var maxD = Math.max(drift * 1.15, 10);
+    var x = function (d) { return L + (d / maxD) * (W - L - R); };
+    var y = function (h) { return T + (1 - h / Math.max(alt, 1)) * (H - T - B); };
+    for (var i = 0; i <= 4; i++) {
+      var yy = T + (H - T - B) * i / 4, hv = alt * (1 - i / 4);
+      svg.appendChild(svgEl('line', { x1: L, y1: yy, x2: W - R, y2: yy, stroke: 'rgba(255,255,255,.08)', 'stroke-width': 1 }));
+      var yl = svgEl('text', { x: L - 7, y: yy + 3, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'end' });
+      yl.textContent = Math.round(hv);
+      svg.appendChild(yl);
+    }
+    for (var k = 0; k <= 4; k++) {
+      var xx = L + (W - L - R) * k / 4, dv = maxD * k / 4;
+      svg.appendChild(svgEl('line', { x1: xx, y1: T, x2: xx, y2: H - B, stroke: 'rgba(255,255,255,.06)', 'stroke-width': 1 }));
+      var xl = svgEl('text', { x: xx, y: H - B + 14, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'middle' });
+      xl.textContent = Math.round(dv);
+      svg.appendChild(xl);
+    }
+    svg.appendChild(svgEl('line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: 'rgba(230,250,255,.4)', 'stroke-width': 1.2 }));
+    svg.appendChild(svgEl('line', { x1: L, y1: T, x2: L, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    var xl2 = svgEl('text', { x: (L + W - R) / 2, y: H - 8, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle' });
+    xl2.textContent = 'Downwind drift (m)';
+    svg.appendChild(xl2);
+    var yl2 = svgEl('text', { x: 12, y: (T + H - B) / 2, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((T + H - B) / 2) + ')' });
+    yl2.textContent = 'Altitude AGL (m)';
+    svg.appendChild(yl2);
+
+    var path = '';
+    for (var j = 0; j < sim.points.length; j++) {
+      var p = sim.points[j];
+      path += (j ? ' L ' : 'M ') + x(p.d) + ' ' + y(p.h);
+    }
+    svg.appendChild(svgEl('path', { d: path, fill: 'none', stroke: '#2dd4ff', 'stroke-width': 2.2, 'stroke-linejoin': 'round' }));
+    var dep = sim.points[0], land = sim.points[sim.points.length - 1];
+    svg.appendChild(svgEl('circle', { cx: x(dep.d), cy: y(dep.h), r: 4, fill: '#ffd166' }));
+    var dl = svgEl('text', { x: x(dep.d) + 7, y: y(dep.h) + 4, fill: '#ffd166', 'font-size': 9, 'font-weight': 700 });
+    dl.textContent = 'deploy ' + Math.round(alt) + ' m';
+    svg.appendChild(dl);
+    svg.appendChild(svgEl('circle', { cx: x(land.d), cy: y(0), r: 4.5, fill: '#55e6a5' }));
+    var ll = svgEl('text', { x: Math.min(x(land.d) + 7, W - R - 60), y: y(0) - 7, fill: '#55e6a5', 'font-size': 9, 'font-weight': 700 });
+    ll.textContent = 'touchdown';
+    svg.appendChild(ll);
+  }
+
+  function run() {
+    if (!document.getElementById('rch-root')) return;
+    var massG = num('rch-mass'), diaCm = num('rch-dia'), cd = num('rch-cd'), count = num('rch-count');
+    var spillCm = num('rch-spill'), alt = num('rch-alt'), wind = num('rch-wind'), elev = num('rch-elev'), tempC = num('rch-temp'), target = num('rch-target');
+    var err = $('rch-error');
+    var bad = !isFinite(massG) || !isFinite(diaCm) || !isFinite(cd) || !isFinite(count) || !isFinite(spillCm) || !isFinite(alt) || !isFinite(wind) || !isFinite(elev) || !isFinite(tempC) || !isFinite(target);
+    if (bad || massG <= 0 || diaCm <= 0 || cd <= 0 || count < 1 || spillCm < 0 || alt <= 0 || wind < 0 || target <= 0) {
+      err.style.display = 'block'; err.textContent = 'Enter positive mass, chute diameter, Cd, altitude and target rate; wind, spill hole and count may be zero or more, with at least one chute.';
+      $('rch-out').style.opacity = '.4'; return;
+    }
+    if (spillCm >= diaCm) { err.style.display = 'block'; err.textContent = 'A spill hole larger than the canopy leaves no parachute. Reduce the hole.'; $('rch-out').style.opacity = '.4'; return; }
+    if (count > 12) { err.style.display = 'block'; err.textContent = 'This model handles up to 12 canopies.'; $('rch-out').style.opacity = '.4'; return; }
+    err.style.display = 'none'; err.textContent = ''; $('rch-out').style.opacity = '1';
+
+    var m = massG / 1000, dia = diaCm / 100, spill = spillCm / 100;
+    var areaEach = Math.PI * (dia * dia - spill * spill) / 4;
+    var rhoSite = densityAt(0, elev, tempC);
+    var sim = simulate(m, cd, areaEach, count, alt, wind, elev, tempC);
+    var energy = 0.5 * m * sim.vGround * sim.vGround;
+    var drop = sim.vGround * sim.vGround / (2 * G0);
+    var avgRate = alt / sim.time;
+
+    setText('rch-impact', nf(sim.vGround, 1) + ' m/s');
+    setText('rch-impact-sub', nf(sim.vGround * 3.28084, 1) + ' ft/s · ' + nf(sim.vDeploy, 1) + ' m/s at deployment');
+    setText('rch-energy', nf(energy, 1) + ' J');
+    setText('rch-energy-sub', 'Equivalent to a ' + nf(drop, 1) + ' m free fall');
+    setText('rch-time', nf(sim.time, 1) + ' s');
+    setText('rch-time-sub', 'Average rate ' + nf(avgRate, 1) + ' m/s over ' + nf(alt, 0) + ' m');
+    setText('rch-drift', nf(sim.drift, 0) + ' m');
+    setText('rch-drift-sub', wind > 0 ? 'At a constant ' + nf(wind, 1) + ' m/s wind' : 'No wind entered');
+
+    var banner = $('rch-banner');
+    var tone, msg;
+    if (sim.vGround > 8) { tone = '#ff6b81'; msg = 'Hard landing — reduce the descent rate with a larger canopy, more canopies or a lower-drag-efficient recovery.'; }
+    else if (sim.vGround > 6) { tone = '#ffd166'; msg = 'Firm landing — inspect the airframe and recovery anchors after touchdown; consider a larger canopy for delicate payloads.'; }
+    else if (sim.vGround > 4) { tone = '#8ecbff'; msg = 'Typical model-rocketry descent rate — suitable for many sport airframes, but check your own recovery limits.'; }
+    else { tone = '#55e6a5'; msg = 'Gentle descent rate — well suited to delicate payloads and hard landing sites.'; }
+    banner.textContent = msg; banner.style.color = tone; banner.style.borderColor = tone;
+
+    var reqDia = requiredDiameter(m, cd, target, rhoSite, count, spill);
+    setText('rch-required', 'For a ' + nf(target, 1) + ' m/s target at sea-level density near the site (' + nf(rhoSite, 2) + ' kg/m³), each canopy needs about ' + nf(reqDia * 100, 0) + ' cm diameter with the current Cd and spill hole. The current ' + nf(diaCm, 0) + ' cm canopies give ' + nf(sim.vGround, 1) + ' m/s at touchdown.');
+
+    var body = $('rch-table-body');
+    body.textContent = '';
+    [3.5, 4.5, 5.5, 6.5, 8].forEach(function (rate) {
+      var d = requiredDiameter(m, cd, rate, rhoSite, count, spill);
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td'); td1.textContent = nf(rate, 1) + ' m/s';
+      var td2 = document.createElement('td'); td2.textContent = nf(d * 100, 0) + ' cm';
+      var td3 = document.createElement('td');
+      td3.textContent = d <= dia ? 'current chute is larger' : 'current chute is smaller';
+      td3.style.color = d <= dia ? '#55e6a5' : '#ffd166';
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+      body.appendChild(tr);
+    });
+
+    var areaTotal = areaEach * count;
+    var removal = dia > 0 ? spill * spill / (dia * dia) * 100 : 0;
+    setText('rch-area', 'Effective canopy area ' + nf(areaTotal, 3) + ' m² (' + nf(areaTotal * 10.7639, 2) + ' ft²) across ' + count + ' canop' + (count === 1 ? 'y' : 'ies') + '; mass loading ' + nf(m / areaTotal, 2) + ' kg/m². The spill hole removes ' + nf(removal, 1) + '% of each canopy’s disc area. Cluster interference is not modelled.');
+
+    plot(sim, alt, sim.drift);
+  }
+
+  function reset() {
+    for (var id in DEFAULTS) if (Object.prototype.hasOwnProperty.call(DEFAULTS, id) && $(id)) $(id).value = DEFAULTS[id];
+    run();
+  }
+  Object.keys(DEFAULTS).forEach(function (id) { var el = $(id); if (el) { el.addEventListener('input', run); el.addEventListener('change', run); } });
+  $('rch-reset').addEventListener('click', reset);
+  run();
+})();
+</script>

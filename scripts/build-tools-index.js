@@ -24,6 +24,7 @@ const CATEGORY_ORDER = [
   ['MrProphecy Arcade', '🕹'],
   ['AI & Autonomous Agents', '🤖'],
   ['Astronomy & Space', '🔭'],
+  ['Rocketry & Propulsion', '🚀'],
   ['Dogs & Canine Care', '🐕'],
   ['Cats & Feline Care', '🐈'],
   ['Birdwatching & Ornithology', '🦅'],

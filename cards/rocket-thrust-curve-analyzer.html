@@ -1,0 +1,274 @@
+<h2 id="rtc-title" style="margin-top:0;color:var(--accent);">📈 Rocket Thrust Curve Analyzer &amp; Motor Class</h2>
+
+<div id="rtc-root">
+  <p id="rtc-desc" class="small" style="color:rgba(230,250,255,.72);margin-bottom:14px;">
+    Paste a thrust–time curve and get total impulse, burn time, average and peak thrust, the NAR/TRA impulse class and a thrust-to-weight check against your rocket's all-up mass.
+  </p>
+
+  <form onsubmit="event.preventDefault();" style="margin:0;">
+    <div class="rtc-row">
+      <div class="rtc-grow">
+        <label class="rtc-l" for="rtc-data">Thrust data — time (s), thrust (N), one pair per line</label>
+        <textarea id="rtc-data" class="rtc-i rtc-ta" rows="8" spellcheck="false" aria-describedby="rtc-data-help">0,0
+0.05,28
+0.10,44
+0.15,47
+0.25,46
+0.40,44
+0.60,42
+0.80,40
+1.00,36
+1.20,27
+1.40,13
+1.60,0</textarea>
+        <p id="rtc-data-help" class="rtc-help">Comma, tab or space separated. Lines starting with # or // are ignored. One number per line is read as a 0.05 s sample. The sample above is synthetic — replace it with test-stand data.</p>
+      </div>
+      <div class="rtc-side">
+        <label class="rtc-l" for="rtc-mass">Rocket all-up mass (g)</label>
+        <input id="rtc-mass" class="rtc-i" type="number" min="1" step="1" value="500" inputmode="decimal">
+        <p class="rtc-help">Mass with the motor loaded.</p>
+        <button id="rtc-analyze" class="rtc-btn" type="button">Analyze curve</button>
+        <button id="rtc-example" class="rtc-btn rtc-btn-ghost" type="button">Load example</button>
+        <button id="rtc-clear" class="rtc-btn rtc-btn-ghost" type="button">Clear</button>
+      </div>
+    </div>
+  </form>
+
+  <div id="rtc-error" class="rtc-err" role="alert" style="display:none;"></div>
+
+  <div id="rtc-out" aria-live="polite">
+    <div class="rtc-tiles">
+      <div class="rtc-tile"><span class="rtc-k">Total impulse</span><strong id="rtc-impulse" class="rtc-v">—</strong><span id="rtc-impulse-sub" class="rtc-s">—</span></div>
+      <div class="rtc-tile"><span class="rtc-k">Impulse class</span><strong id="rtc-class" class="rtc-v rtc-class">—</strong><span id="rtc-class-sub" class="rtc-s">—</span></div>
+      <div class="rtc-tile"><span class="rtc-k">Burn time</span><strong id="rtc-burn" class="rtc-v">—</strong><span id="rtc-burn-sub" class="rtc-s">—</span></div>
+      <div class="rtc-tile"><span class="rtc-k">Average thrust</span><strong id="rtc-avg" class="rtc-v">—</strong><span id="rtc-avg-sub" class="rtc-s">—</span></div>
+      <div class="rtc-tile"><span class="rtc-k">Peak thrust</span><strong id="rtc-peak" class="rtc-v">—</strong><span id="rtc-peak-sub" class="rtc-s">—</span></div>
+    </div>
+
+    <div class="rtc-chartwrap">
+      <svg id="rtc-svg" viewBox="0 0 640 280" aria-hidden="true" focusable="false"></svg>
+      <p class="rtc-caption">Thrust (N) against time (s). The shaded area is total impulse.</p>
+    </div>
+
+    <div class="rtc-panel">
+      <h3 class="rtc-h3">Thrust-to-weight at liftoff</h3>
+      <div class="rtc-tworow">
+        <div><span class="rtc-k">Average TWR</span><strong id="rtc-twr-avg" class="rtc-v">—</strong></div>
+        <div><span class="rtc-k">Peak TWR</span><strong id="rtc-twr-peak" class="rtc-v">—</strong></div>
+        <div><span class="rtc-k">Time at TWR ≥ 5</span><strong id="rtc-twr-time" class="rtc-v">—</strong></div>
+      </div>
+      <p id="rtc-twr-note" class="rtc-body">—</p>
+    </div>
+  </div>
+
+  <details class="rtc-details">
+    <summary>What the numbers mean, how burn time is defined, and why average thrust is not enough</summary>
+    <p><strong>Total impulse</strong> is the area under the thrust–time curve, computed here by the trapezium rule over your samples. It is the motor's total push, in newton-seconds, and it sets the impulse class. Classes are a geometric ladder: A is 2.5 N·s, and each letter doubles it — B 5, C 10, D 20, E 40, F 80, G 160, H 320, I 640, J 1,280, K 2,560, L 5,120, M 10,240, N 20,480, O 40,960. The half classes at the bottom are 1/4A (0.625 N·s) and 1/2A (1.25 N·s). A motor must not exceed its class ceiling; the certificate lists the measured value, not the label.</p>
+    <p><strong>Burn time</strong> here runs from the first sample above 0.5% of peak thrust to the last one, so leading and trailing zeroes do not inflate it. That is a curve-processing convention, not the motor certification's definition: certification bodies measure burn time from ignition to the point thrust falls below a threshold, and some motors have a long low tail that changes the number. Use the manufacturer's data for a certification claim.</p>
+    <p><strong>Average thrust</strong> is total impulse divided by burn time. It is the number in a motor designation such as C6-5, but it says nothing about the shape. A motor with a sharp initial spike can average 6 N and still fail to lift a heavy rocket after the first 0.2 s. The peak tells you about the airframe and launch lug; the average plus the mass tells you about liftoff. A common club rule is at least 5:1 average thrust to weight at liftoff, with enough thrust at every point of the burn that the rocket keeps accelerating.</p>
+    <p><strong>Data sources.</strong> Motor manufacturers publish .eng (RASP) or .rse (RockSim) files containing thrust samples; test stands and altimeters produce their own curves. A curve from a different propellant lot, temperature or nozzle is not the curve in your rocket. The sample shipped with this tool is illustrative and must not be used for a flight decision.</p>
+    <p class="rtc-muted">Last reviewed: 2026-10-19. A motor-analysis aid, not a certification or flight-safety determination.</p>
+  </details>
+
+  <style>
+    #rtc-root{--rtc-line:rgba(45,212,255,.28);}
+    #rtc-root .rtc-row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin-bottom:12px;}
+    #rtc-root .rtc-grow{flex:1 1 340px;min-width:0;}
+    #rtc-root .rtc-side{flex:0 1 190px;min-width:150px;display:flex;flex-direction:column;gap:8px;}
+    #rtc-root .rtc-l{display:block;font-size:.75rem;color:rgba(230,250,255,.68);margin-bottom:4px;line-height:1.35;}
+    #rtc-root .rtc-i{width:100%;padding:9px 10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-size:14px;}
+    #rtc-root .rtc-ta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;resize:vertical;min-height:170px;}
+    #rtc-root .rtc-help{margin:4px 0 0;font-size:.7rem;color:rgba(230,250,255,.55);line-height:1.45;}
+    #rtc-root .rtc-btn{width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.1);color:var(--text);font-weight:600;cursor:pointer;}
+    #rtc-root .rtc-btn:hover{background:rgba(45,212,255,.18);}
+    #rtc-root .rtc-btn-ghost{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14);font-weight:500;}
+    #rtc-root .rtc-err{margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.35);color:#ffb3b3;font-size:.83rem;}
+    #rtc-root .rtc-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;margin-top:6px;}
+    #rtc-root .rtc-tile{padding:11px 12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid var(--rtc-line);}
+    #rtc-root .rtc-k{display:block;font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:rgba(230,250,255,.6);}
+    #rtc-root .rtc-v{display:block;margin-top:3px;font-size:1.18rem;font-weight:800;color:var(--accent);line-height:1.25;}
+    #rtc-root .rtc-class{font-size:1.35rem;letter-spacing:.02em;}
+    #rtc-root .rtc-s{display:block;margin-top:2px;font-size:.7rem;color:rgba(230,250,255,.6);line-height:1.4;}
+    #rtc-root .rtc-chartwrap{margin-top:12px;padding:8px 10px 4px;border-radius:12px;background:#050b11;border:1px solid rgba(255,255,255,.08);}
+    #rtc-root #rtc-svg{display:block;width:100%;height:auto;}
+    #rtc-root .rtc-caption{margin:2px 0 4px;font-size:.7rem;color:rgba(230,250,255,.5);text-align:center;}
+    #rtc-root .rtc-panel{margin-top:12px;padding:13px 14px;border-radius:10px;background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.1);}
+    #rtc-root .rtc-h3{margin:0 0 8px;font-size:.92rem;color:var(--text);}
+    #rtc-root .rtc-tworow{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;}
+    #rtc-root .rtc-body{margin:9px 0 0;font-size:.82rem;line-height:1.55;color:rgba(230,250,255,.78);}
+    #rtc-root .rtc-details{margin-top:16px;font-size:.85rem;color:rgba(230,250,255,.72);line-height:1.6;}
+    #rtc-root .rtc-details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.86rem;}
+    #rtc-root .rtc-details p{margin:9px 0;}
+    #rtc-root .rtc-muted{color:rgba(230,250,255,.55);}
+  </style>
+</div>
+
+<script>
+(function () {
+  var card = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var G0 = 9.80665;
+  var EXAMPLE = '0,0\n0.05,28\n0.10,44\n0.15,47\n0.25,46\n0.40,44\n0.60,42\n0.80,40\n1.00,36\n1.20,27\n1.40,13\n1.60,0';
+  var CLASS_NAMES = ['1/4A', '1/2A', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'];
+  var CLASS_LIMITS = [0.625, 1.25, 2.5, 5, 10, 20, 40, 80, 160, 320, 640, 1280, 2560, 5120, 10240, 20480, 40960];
+
+  function svgEl(name, attrs) {
+    var n = document.createElementNS(NS, name);
+    if (attrs) for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function setText(id, text) { $(id).textContent = text; }
+  function nf(x, d) { return isFinite(x) ? x.toFixed(d == null ? 1 : d) : '—'; }
+
+  function parseCurve(text) {
+    var rows = text.split(/\r?\n|;/);
+    var pts = [];
+    for (var i = 0; i < rows.length; i++) {
+      var line = rows[i].replace(/(^|\s)(#|\/\/).*$/, '').trim();
+      if (!line) continue;
+      var parts = line.split(/[\s,]+/).filter(function (p) { return p !== ''; });
+      var nums = parts.map(parseFloat).filter(function (x) { return isFinite(x); });
+      if (nums.length >= 2) pts.push({ t: nums[0], f: nums[1] });
+      else if (nums.length === 1) pts.push({ t: (pts.length) * 0.05, f: nums[0] });
+    }
+    if (pts.length < 2) throw new Error('Found ' + pts.length + ' usable data point' + (pts.length === 1 ? '' : 's') + '. Paste at least two lines of “time, thrust”.');
+    pts.sort(function (a, b) { return a.t - b.t; });
+    var clean = [];
+    for (var j = 0; j < pts.length; j++) {
+      if (pts[j].t < 0 || pts[j].f < 0) throw new Error('Time and thrust must be zero or positive.');
+      if (clean.length && Math.abs(pts[j].t - clean[clean.length - 1].t) < 1e-9) clean[clean.length - 1] = pts[j];
+      else clean.push(pts[j]);
+    }
+    if (clean.length < 2) throw new Error('The curve needs at least two distinct times.');
+    return clean;
+  }
+
+  function classFor(impulse) {
+    if (!(impulse > 0)) return { name: '—', min: 0, max: 0, index: -1 };
+    for (var i = 0; i < CLASS_LIMITS.length; i++) {
+      if (impulse <= CLASS_LIMITS[i] + 1e-9) return { name: CLASS_NAMES[i], min: i === 0 ? 0 : CLASS_LIMITS[i - 1], max: CLASS_LIMITS[i], index: i };
+    }
+    return { name: 'above O', min: CLASS_LIMITS[CLASS_LIMITS.length - 1], max: Infinity, index: CLASS_LIMITS.length };
+  }
+
+  function analyze(pts) {
+    var peak = 0, impulse = 0;
+    for (var i = 0; i < pts.length; i++) peak = Math.max(peak, pts[i].f);
+    if (peak <= 0) throw new Error('Peak thrust is zero — the curve has no motor burn.');
+    for (var j = 1; j < pts.length; j++) impulse += (pts[j].f + pts[j - 1].f) / 2 * (pts[j].t - pts[j - 1].t);
+    var threshold = peak * 0.005;
+    var t0 = null, t1 = null, startF = null;
+    for (var k = 0; k < pts.length; k++) {
+      if (pts[k].f > threshold) { if (t0 === null) { t0 = pts[k].t; startF = pts[k].f; } t1 = pts[k].t; }
+    }
+    var burn = Math.max(0, t1 - t0);
+    var avg = burn > 0 ? impulse / burn : 0;
+    return { peak: peak, impulse: impulse, t0: t0, t1: t1, burn: burn, avg: avg };
+  }
+
+  function plot(pts, res) {
+    var svg = $('rtc-svg');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 640, H = 280, L = 58, R = 18, T = 18, B = 44;
+    var tMax = pts[pts.length - 1].t;
+    var fMax = res.peak * 1.12;
+    if (!(tMax > 0) || !(fMax > 0)) return;
+    var x = function (t) { return L + (t / tMax) * (W - L - R); };
+    var y = function (f) { return H - B - (f / fMax) * (H - T - B); };
+
+    for (var i = 0; i <= 5; i++) {
+      var fy = T + (H - T - B) * i / 5, fv = fMax * (1 - i / 5);
+      svg.appendChild(svgEl('line', { x1: L, y1: fy, x2: W - R, y2: fy, stroke: 'rgba(255,255,255,.08)', 'stroke-width': 1 }));
+      var yl = svgEl('text', { x: L - 7, y: fy + 3, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'end' });
+      yl.textContent = Math.round(fv);
+      svg.appendChild(yl);
+    }
+    for (var k = 0; k <= 5; k++) {
+      var tx = L + (W - L - R) * k / 5, tv = tMax * k / 5;
+      svg.appendChild(svgEl('line', { x1: tx, y1: T, x2: tx, y2: H - B, stroke: 'rgba(255,255,255,.06)', 'stroke-width': 1 }));
+      var xl = svgEl('text', { x: tx, y: H - B + 14, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'middle' });
+      xl.textContent = tv.toFixed(tv < 2 ? 2 : 1);
+      svg.appendChild(xl);
+    }
+    svg.appendChild(svgEl('line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    svg.appendChild(svgEl('line', { x1: L, y1: T, x2: L, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    var xl2 = svgEl('text', { x: (L + W - R) / 2, y: H - 8, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle' });
+    xl2.textContent = 'Time (s)';
+    svg.appendChild(xl2);
+    var yl2 = svgEl('text', { x: 12, y: (T + H - B) / 2, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((T + H - B) / 2) + ')' });
+    yl2.textContent = 'Thrust (N)';
+    svg.appendChild(yl2);
+
+    var area = 'M ' + x(pts[0].t) + ' ' + y(0);
+    for (var a = 0; a < pts.length; a++) area += ' L ' + x(pts[a].t) + ' ' + y(pts[a].f);
+    area += ' L ' + x(pts[pts.length - 1].t) + ' ' + y(0) + ' Z';
+    svg.appendChild(svgEl('path', { d: area, fill: 'rgba(45,212,255,.15)', stroke: 'none' }));
+    var line = '';
+    for (var b = 0; b < pts.length; b++) line += (b ? ' L ' : 'M ') + x(pts[b].t) + ' ' + y(pts[b].f);
+    svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: '#2dd4ff', 'stroke-width': 2.2, 'stroke-linejoin': 'round' }));
+
+    var mx = x(pts[0].t);
+    if (x(res.t0) > mx) mx = x(res.t0);
+    svg.appendChild(svgEl('line', { x1: x(res.t0), y1: T, x2: x(res.t0), y2: H - B, stroke: 'rgba(85,230,165,.45)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+    svg.appendChild(svgEl('line', { x1: x(res.t1), y1: T, x2: x(res.t1), y2: H - B, stroke: 'rgba(85,230,165,.45)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+    var bl = svgEl('text', { x: (x(res.t0) + x(res.t1)) / 2, y: T + 11, fill: 'rgba(85,230,165,.85)', 'font-size': 9, 'text-anchor': 'middle' });
+    bl.textContent = 'burn ' + res.burn.toFixed(2) + ' s · ' + res.impulse.toFixed(1) + ' N·s';
+    svg.appendChild(bl);
+  }
+
+  function run() {
+    if (!document.getElementById('rtc-root')) return;
+    var err = $('rtc-error');
+    var massG = parseFloat($('rtc-mass').value);
+    var pts;
+    try {
+      pts = parseCurve($('rtc-data').value);
+      if (!isFinite(massG) || massG <= 0) throw new Error('Rocket mass must be a positive number of grams.');
+      var res = analyze(pts);
+      var mass = massG / 1000;
+      var cls = classFor(res.impulse);
+      var twrAvg = res.avg / (mass * G0);
+      var twrPeak = res.peak / (mass * G0);
+      var above = 0;
+      for (var i = 1; i < pts.length; i++) {
+        if (pts[i].f / (mass * G0) >= 5 && pts[i - 1].f / (mass * G0) >= 5) above += pts[i].t - pts[i - 1].t;
+      }
+
+      err.style.display = 'none'; err.textContent = '';
+      $('rtc-out').style.opacity = '1';
+      setText('rtc-impulse', nf(res.impulse, 1) + ' N·s');
+      setText('rtc-impulse-sub', cls.index >= 0 ? 'Class ' + cls.name + ' range ' + cls.min + '–' + cls.max + ' N·s' : 'No class');
+      setText('rtc-class', cls.name);
+      setText('rtc-class-sub', res.impulse > 0 ? (cls.max === Infinity ? 'Beyond the O ceiling' : nf(res.impulse, 1) + ' of ' + cls.max + ' N·s used (' + nf(res.impulse / cls.max * 100, 0) + '%)') : '—');
+      setText('rtc-burn', nf(res.burn, 2) + ' s');
+      setText('rtc-burn-sub', 'Ignition ' + nf(res.t0, 2) + ' s → burnout ' + nf(res.t1, 2) + ' s');
+      setText('rtc-avg', nf(res.avg, 1) + ' N');
+      setText('rtc-avg-sub', 'Total impulse ÷ burn time');
+      setText('rtc-peak', nf(res.peak, 1) + ' N');
+      setText('rtc-peak-sub', 'Peak ÷ average ' + nf(res.peak / (res.avg || 1), 2) + '×');
+      setText('rtc-twr-avg', nf(twrAvg, 2) + ':1');
+      setText('rtc-twr-peak', nf(twrPeak, 2) + ':1');
+      setText('rtc-twr-time', nf(above, 2) + ' s');
+      var notes = [];
+      if (twrAvg < 5) notes.push('Average TWR is below the common 5:1 liftoff guideline. A heavier motor, a lighter build or a bigger motor is needed before this combination is safe to launch.');
+      else notes.push('Average TWR meets the common 5:1 liftoff guideline.');
+      if (twrPeak > 25) notes.push('Peak TWR above 25:1 puts a large load into the airframe, fins and launch lug — check the structure.');
+      if (res.burn < 0.15) notes.push('Very short burn: thrust samples may be too sparse to resolve the curve accurately.');
+      if (res.impulse > 0 && cls.index >= 0 && res.impulse > cls.max * 0.95) notes.push('Close to the top of the class — a different propellant lot could certificate in the next class up.');
+      setText('rtc-twr-note', notes.join(' '));
+      plot(pts, res);
+    } catch (e) {
+      err.style.display = 'block'; err.textContent = e.message || 'Could not read the curve.';
+      $('rtc-out').style.opacity = '.4';
+    }
+  }
+
+  $('rtc-analyze').addEventListener('click', run);
+  $('rtc-example').addEventListener('click', function () { $('rtc-data').value = EXAMPLE; $('rtc-mass').value = '500'; run(); });
+  $('rtc-clear').addEventListener('click', function () { $('rtc-data').value = ''; run(); });
+  $('rtc-data').addEventListener('input', run);
+  $('rtc-mass').addEventListener('input', run);
+  run();
+})();
+</script>

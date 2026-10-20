@@ -12,7 +12,7 @@ One GitHub Pages site serving **two unrelated products** from one domain:
 
 | | Product | Entry point |
 |---|---|---|
-| **A** | **The Most Useful Site In The World** — 1391 self-contained browser tools | `index.html` |
+| **A** | **The Most Useful Site In The World** — 1401 self-contained browser tools | `index.html` |
 | **B** | **MrProphecy** — the owner's music project | `listen.html` |
 
 **They are kept separate deliberately** (owner instruction): no music players,
@@ -37,7 +37,7 @@ explore.js / explore.css  the list engine + its styles (rows, toolbar, empty sta
 toolbox.js              the visitor's saved list (slugs) and the ＋ buttons
 cards/
   cards-lite.json       generated critical-path tier: {n,t,c}
-  cards.json            generated full index of all 1391 tools (descriptions feed search)
+  cards.json            generated full index of all 1401 tools (descriptions feed search)
   <tool>.html           1312 fragments — NOT full documents
 generate-cards-json.js  rebuilds cards.json + cards-lite.json from cards/
 ai.html                 Lantern: standalone on-device AI (own name, mark, palette; no
@@ -91,7 +91,7 @@ tool (half-drawn cards, clicks landing before listeners exist, phones out of
 memory), and each way lost a visitor. What is left is a page that links:
 
 - first paint waits for nothing but its own chrome;
-- `tool.html` fails the same way for all 1,391 tools, and
+- `tool.html` fails the same way for all 1,401 tools, and
   `scripts/check-tool-graph.py` proves every link into it lands on a real tool;
 - filtering, sorting, keyboard nav, density and the toolbox are properties of a
   *list*, and were impossible while the catalogue's first job was executing;
@@ -167,7 +167,7 @@ Two mount shapes:
   Rows are already in the served HTML; the engine decorates them in place and
   filters by hiding. The two large directories use a **per-group** progressive
   reveal: each category shows its first 60 and "Show 60 more" extends every one
-  (a global "first 60" would empty most of the 33 categories). Category hubs
+  (a global "first 60" would empty most of the 34 categories). Category hubs
   set `data-explore-reveal="all"`, so every tool in the focused category remains
   visible after the enhancer runs rather than looking like a truncated page.
 
@@ -278,7 +278,7 @@ A card is an **HTML fragment** — no `<!doctype>`, `<html>`, `<head>` or `<body
 ```
 
 1. **Fragment only.** A nested full document breaks the shell's layout.
-2. **IDs must be globally unique across all 1391 cards** (one shared DOM). Use a
+2. **IDs must be globally unique across all 1401 cards** (one shared DOM). Use a
    short per-tool prefix (`b3js-`, `cwf-`, `mytl-`) on every element — a
    collision silently makes another tool misbehave.
 3. **Inline styles** plus the CSS variables in §5; there is no per-card stylesheet.
@@ -323,7 +323,7 @@ reads `tools-index.json` for the category hub links it writes into `index.html`.
 `title` and `description` are scraped from `#<prefix>-title` and
 `#<prefix>-desc`; a card missing them shows up blank in the catalogue.
 
-### Categories (1391 tools)
+### Categories (1401 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
@@ -342,12 +342,12 @@ Derived from `cards/cards.json` — regenerate rather than hand-edit.
 | 48 | Health & Fitness | | 10 | Fire & Rescue Service |
 | 40 | Music & Audio | | 10 | Horror & Paranormal |
 | 36 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
-| 35 | Wellbeing & Community | | 10 | Trucking & Freight |
-| 33 | Culinary & Food Science | | 5 | Cats & Feline Care |
-| 29 | MrProphecy Arcade | | 5 | Legal & Professional |
-| 29 | Museum & Collection | | | |
+| 35 | Wellbeing & Community | | 10 | Rocketry & Propulsion |
+| 33 | Culinary & Food Science | | 10 | Trucking & Freight |
+| 29 | MrProphecy Arcade | | 5 | Cats & Feline Care |
+| 29 | Museum & Collection | | 5 | Legal & Professional |
 
-Total: 1391 tools in 33 categories.
+Total: 1401 tools in 34 categories.
 
 ## 4. Product B — MrProphecy music
 
@@ -568,7 +568,7 @@ The 12 language pages are an **hreflang cluster**: each lists all twelve
 siblings plus `en` and `x-default` → `listen.html`. Add a language in all
 thirteen pages or Google treats them as duplicates competing with each other.
 
-`sitemap.xml` lists all indexable pages (1,391 cards included) and is built by
+`sitemap.xml` lists all indexable pages (1,401 cards included) and is built by
 `python3 scripts/build-sitemap.py` **from git, not the working tree**, so a
 sparse checkout cannot silently drop the card pages. URLs are percent-encoded —
 some `images/` filenames contain spaces. `scan-seo.py` scans every root `*.html`;
@@ -751,7 +751,7 @@ for about a minute) and every six hours; failure modes are pinned by
 
 ## 9. Current state
 
-1391 tools in `cards/` across 33 categories, one shared DOM, every derived
+1401 tools in `cards/` across 34 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. Gate: `npm run verify`; `verify:deep`
 for shared infrastructure. CI runs the fast gate on PRs and pushes, and the deep
 gate on `main` (the deploy) and nightly. Local validation: AGENTS.md §1.

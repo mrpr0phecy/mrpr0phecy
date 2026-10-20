@@ -182,6 +182,20 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-19 — ten Rocketry & Propulsion tools (new category). A keyword audit of
+  // all 1,394 existing cards found no motor thrust curve, nozzle, parachute sizing,
+  // launch-rail check, apogee/delay planner, multi-stage budget, re-entry heating or
+  // ascent simulator. Hobby and university rocketry maths, with assumptions stated.
+  'model-rocket-stability-barrowman': 'Rocketry & Propulsion',
+  'rocket-thrust-curve-analyzer': 'Rocketry & Propulsion',
+  'rocket-launch-safety-check': 'Rocketry & Propulsion',
+  'rocket-apogee-delay-planner': 'Rocketry & Propulsion',
+  'rocket-parachute-descent-drift': 'Rocketry & Propulsion',
+  'rocket-nozzle-thrust-calculator': 'Rocketry & Propulsion',
+  'rocket-propellant-comparator': 'Rocketry & Propulsion',
+  'rocket-multistage-delta-v-planner': 'Rocketry & Propulsion',
+  'reentry-heating-ballistic-calculator': 'Rocketry & Propulsion',
+  'rocket-ascent-flight-simulator': 'Rocketry & Propulsion',
   // 2026-10-09 — AI Message Board: one public GitHub-issue thread that AI agents
   // post to (proof-of-work bot check, moderated by .github/workflows/ai-board-moderation.yml).
   'ai-message-board': 'AI & Autonomous Agents',

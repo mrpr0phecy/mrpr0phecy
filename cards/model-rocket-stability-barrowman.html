@@ -1,0 +1,295 @@
+<h2 id="mrs-title" style="margin-top:0;color:var(--accent);">🚀 Model Rocket Stability, CP &amp; Ballast</h2>
+
+<div id="mrs-root">
+  <p id="mrs-desc" class="small" style="color:rgba(230,250,255,.72);margin-bottom:14px;">
+    Find the centre of pressure with the Barrowman method, compare it with your centre of gravity and read the static margin in calibers — then calculate the nose ballast needed to reach a stable margin.
+  </p>
+
+  <form onsubmit="event.preventDefault();" style="margin:0;">
+    <div class="mrs-grid">
+      <div>
+        <label class="mrs-l" for="mrs-nose-shape">Nose shape</label>
+        <select id="mrs-nose-shape" class="mrs-i">
+          <option value="0.666" selected>Cone — CP at 0.666 L</option>
+          <option value="0.466">Ogive — CP at 0.466 L</option>
+          <option value="0.500">Parabolic — CP at 0.500 L</option>
+          <option value="0.666">Elliptical — CP at 0.666 L</option>
+        </select>
+      </div>
+      <div><label class="mrs-l" for="mrs-nose-len">Nose length (mm)</label><input id="mrs-nose-len" class="mrs-i" type="number" min="1" step="1" value="180" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-body-len">Body tube length (mm)</label><input id="mrs-body-len" class="mrs-i" type="number" min="1" step="1" value="420" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-dia">Body diameter (mm)</label><input id="mrs-dia" class="mrs-i" type="number" min="1" step="0.1" value="50" inputmode="decimal"></div>
+    </div>
+
+    <p class="mrs-h">Fin set — trapezoidal, root trailing edge flush with the body end</p>
+    <div class="mrs-grid">
+      <div><label class="mrs-l" for="mrs-fin-root">Root chord (mm)</label><input id="mrs-fin-root" class="mrs-i" type="number" min="1" step="0.1" value="110" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-fin-tip">Tip chord (mm)</label><input id="mrs-fin-tip" class="mrs-i" type="number" min="0" step="0.1" value="55" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-fin-span">Semi-span, body to tip (mm)</label><input id="mrs-fin-span" class="mrs-i" type="number" min="1" step="0.1" value="80" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-fin-sweep">Leading-edge sweep (mm)</label><input id="mrs-fin-sweep" class="mrs-i" type="number" min="0" step="0.1" value="45" inputmode="decimal"></div>
+      <div>
+        <label class="mrs-l" for="mrs-fin-count">Number of fins</label>
+        <select id="mrs-fin-count" class="mrs-i">
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="mrs-h">Mass, balance and target</p>
+    <div class="mrs-grid">
+      <div><label class="mrs-l" for="mrs-mass">All-up mass, motor fitted (g)</label><input id="mrs-mass" class="mrs-i" type="number" min="1" step="1" value="620" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-cg">CG station from nose tip (mm)</label><input id="mrs-cg" class="mrs-i" type="number" min="0" step="1" value="410" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-margin">Target static margin (calibers)</label><input id="mrs-margin" class="mrs-i" type="number" min="0" max="5" step="0.1" value="1.5" inputmode="decimal"></div>
+      <div><label class="mrs-l" for="mrs-ballast-station">Ballast station from nose tip (mm)</label><input id="mrs-ballast-station" class="mrs-i" type="number" min="0" step="1" value="8" inputmode="decimal"></div>
+    </div>
+
+    <div class="mrs-actions">
+      <button id="mrs-reset" class="mrs-btn" type="button">Reset example</button>
+      <span class="mrs-hint">Barrowman is a subsonic, slender-body method. Always swing-test and follow your club or range safety code.</span>
+    </div>
+  </form>
+
+  <div id="mrs-error" class="mrs-err" role="alert" style="display:none;"></div>
+
+  <div id="mrs-out" aria-live="polite" class="mrs-out">
+    <div class="mrs-tiles">
+      <div class="mrs-tile"><span class="mrs-k">Centre of pressure</span><strong id="mrs-cp" class="mrs-v">—</strong><span id="mrs-cp-sub" class="mrs-s">—</span></div>
+      <div class="mrs-tile"><span class="mrs-k">Centre of gravity</span><strong id="mrs-cg-out" class="mrs-v">—</strong><span id="mrs-cg-sub" class="mrs-s">—</span></div>
+      <div class="mrs-tile"><span class="mrs-k">Static margin</span><strong id="mrs-sm" class="mrs-v">—</strong><span id="mrs-sm-sub" class="mrs-s">—</span></div>
+      <div class="mrs-tile"><span class="mrs-k">Verdict</span><strong id="mrs-verdict" class="mrs-v mrs-pill">—</strong><span id="mrs-verdict-sub" class="mrs-s">—</span></div>
+    </div>
+
+    <div class="mrs-chartwrap">
+      <svg id="mrs-svg" viewBox="0 0 640 180" aria-hidden="true" focusable="false"></svg>
+      <p class="mrs-caption">Side view, nose to the left. CG and CP are drawn at their calculated stations.</p>
+    </div>
+
+    <div class="mrs-panel">
+      <h3 class="mrs-h3">Ballast to reach the target margin</h3>
+      <p id="mrs-ballast" class="mrs-body">—</p>
+      <p id="mrs-breakdown" class="mrs-body mrs-muted">—</p>
+    </div>
+  </div>
+
+  <details class="mrs-details">
+    <summary>How Barrowman finds the centre of pressure — and where this model stops</summary>
+    <p><strong>The method.</strong> Barrowman's 1966 method treats the rocket as a slender body at a small angle of attack and adds the normal-force contributions of the nose and each fin set, ignoring body lift and interference. The nose is taken as a pure slender body with a normal-force slope of 2 per radian. Each trapezoidal fin set contributes</p>
+    <p class="mrs-formula">CNα(fin) = 4·N·(s/d)² / (1 + √(1 + (2·l/(a+b))²))</p>
+    <p>where N is the number of fins, s the semi-span from the body surface, d the body diameter, a and b the root and tip chords, and l the length of the fin mid-chord line. The fin centre of pressure is measured from the fin root leading edge as</p>
+    <p class="mrs-formula">x(fin) = m(a+2b)/(3(a+b)) + (a+b−ab/(a+b))/6</p>
+    <p>with m the leading-edge sweep. The total CP is the normal-force-weighted average of the nose and fin CPs. The static margin is (CP − CG)/d, expressed in calibers — body diameters — because the same margin in millimeters means something different on a 25 mm and a 100 mm rocket.</p>
+    <p><strong>What it does not know.</strong> Barrowman's equations are subsonic and assume attached, slender flow. They do not model transonic CP shift, base drag, body lift, fin-body interference, vortex lift at high angle of attack, or the change in CP as the motor burns. A rocket at 1.5 calibers on the bench can still be marginal at Mach 0.9. Add a margin for the heaviest motor you intend to fly, check the CG with that motor installed, and confirm with a swing test or a six-degree-of-freedom simulator before flight.</p>
+    <p><strong>Ballast.</strong> The calculator treats ballast as a point mass at the station you enter and solves the two-point CG equation exactly. Epoxy and washers in the nose are not a point mass; place the real ballast as far forward as practical and re-measure the CG afterwards. A heavier rocket also needs more thrust: check thrust-to-weight separately.</p>
+    <p class="mrs-muted">Sources: J. S. Barrowman, <em>Theoretical and Practical Aerodynamics of Rockets</em> (1966); NAR and UKRA model-rocketry safety guidance. Last reviewed: 2026-10-19. A design aid, not a substitute for a swing test, range safety check or flight simulation.</p>
+  </details>
+
+  <style>
+    #mrs-root{--mrs-line:rgba(45,212,255,.28);--mrs-panel:rgba(0,0,0,.26);}
+    #mrs-root .mrs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px;}
+    #mrs-root .mrs-l{display:block;font-size:.75rem;color:rgba(230,250,255,.68);margin-bottom:4px;line-height:1.35;}
+    #mrs-root .mrs-i{width:100%;padding:9px 10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-size:14px;}
+    #mrs-root .mrs-h{margin:14px 0 8px;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(230,250,255,.55);}
+    #mrs-root .mrs-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;}
+    #mrs-root .mrs-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.08);color:var(--text);font-weight:600;cursor:pointer;}
+    #mrs-root .mrs-btn:hover{background:rgba(45,212,255,.16);}
+    #mrs-root .mrs-hint{font-size:.72rem;color:rgba(230,250,255,.55);line-height:1.45;max-width:560px;}
+    #mrs-root .mrs-err{margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.35);color:#ffb3b3;font-size:.83rem;}
+    #mrs-root .mrs-out{margin-top:14px;}
+    #mrs-root .mrs-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+    #mrs-root .mrs-tile{padding:12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid var(--mrs-line);}
+    #mrs-root .mrs-k{display:block;font-size:.68rem;letter-spacing:.05em;text-transform:uppercase;color:rgba(230,250,255,.6);}
+    #mrs-root .mrs-v{display:block;margin-top:4px;font-size:1.22rem;font-weight:800;color:var(--accent);line-height:1.25;}
+    #mrs-root .mrs-s{display:block;margin-top:3px;font-size:.72rem;color:rgba(230,250,255,.6);line-height:1.4;}
+    #mrs-root .mrs-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.9rem;border:1px solid currentColor;}
+    #mrs-root .mrs-chartwrap{margin-top:12px;padding:8px 10px 4px;border-radius:12px;background:#050b11;border:1px solid rgba(255,255,255,.08);}
+    #mrs-root #mrs-svg{display:block;width:100%;height:auto;}
+    #mrs-root .mrs-caption{margin:2px 0 4px;font-size:.7rem;color:rgba(230,250,255,.5);text-align:center;}
+    #mrs-root .mrs-panel{margin-top:12px;padding:13px 14px;border-radius:10px;background:var(--mrs-panel);border:1px solid rgba(255,255,255,.1);}
+    #mrs-root .mrs-h3{margin:0 0 6px;font-size:.92rem;color:var(--text);}
+    #mrs-root .mrs-body{margin:0;font-size:.83rem;line-height:1.55;color:rgba(230,250,255,.82);}
+    #mrs-root .mrs-body + .mrs-body{margin-top:6px;}
+    #mrs-root .mrs-muted{color:rgba(230,250,255,.55);}
+    #mrs-root .mrs-details{margin-top:16px;font-size:.85rem;color:rgba(230,250,255,.72);line-height:1.6;}
+    #mrs-root .mrs-details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.86rem;}
+    #mrs-root .mrs-details p{margin:9px 0;}
+    #mrs-root .mrs-formula{padding:8px 10px;border-radius:7px;background:rgba(0,0,0,.3);border-left:3px solid rgba(45,212,255,.4);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem;overflow-x:auto;}
+  </style>
+</div>
+
+<script>
+(function () {
+  var card = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var DEFAULTS = { 'mrs-nose-shape':'0.666','mrs-nose-len':'180','mrs-body-len':'420','mrs-dia':'50','mrs-fin-root':'110','mrs-fin-tip':'55','mrs-fin-span':'80','mrs-fin-sweep':'45','mrs-fin-count':'3','mrs-mass':'620','mrs-cg':'410','mrs-margin':'1.5','mrs-ballast-station':'8' };
+
+  function num(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : NaN; }
+  function nf(x, d) { return x.toFixed(d == null ? 1 : d); }
+  function svgEl(name, attrs) {
+    var n = document.createElementNS(NS, name);
+    if (attrs) for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function setText(id, text) { $(id).textContent = text; }
+
+  function calc() {
+    var noseFactor = parseFloat($('mrs-nose-shape').value);
+    var ln = num('mrs-nose-len'), lb = num('mrs-body-len'), d = num('mrs-dia');
+    var a = num('mrs-fin-root'), b = num('mrs-fin-tip'), s = num('mrs-fin-span'), m = num('mrs-fin-sweep');
+    var n = parseFloat($('mrs-fin-count').value);
+    var mass = num('mrs-mass'), cg = num('mrs-cg'), target = num('mrs-margin'), xb = num('mrs-ballast-station');
+
+    var bad = [ln, lb, d, a, s, n, mass, cg, target, xb].some(function (x) { return !isFinite(x); }) ||
+      [ln, lb, d, a, s, mass].some(function (x) { return x <= 0; }) || b < 0 || m < 0 || cg < 0 || xb < 0;
+    if (bad) { return { error: 'Enter positive lengths and mass. Tip chord, sweep, CG station and ballast station may be zero, but cannot be negative.' }; }
+    if (b > a * 3) { return { error: 'Tip chord looks too large relative to the root chord — check that the two chords are the other way round.' }; }
+    if (cg > ln + lb + 1) { return { error: 'CG station is beyond the end of the rocket. Measure it from the nose tip, along the body.' }; }
+    if (xb >= ln + lb) { return { error: 'Ballast station must be inside the rocket.' }; }
+
+    var totalLen = ln + lb;
+    var lMid = Math.sqrt(Math.pow(m + (b - a) / 2, 2) + s * s);
+    var cnaFin = (4 * n * Math.pow(s / d, 2)) / (1 + Math.sqrt(1 + Math.pow((2 * lMid) / (a + b), 2)));
+    var finCpFromRoot = (m * (a + 2 * b)) / (3 * (a + b)) + (a + b - (a * b) / (a + b)) / 6;
+    var finRootLe = totalLen - a;
+    var finCp = finRootLe + finCpFromRoot;
+    var noseCp = ln * noseFactor;
+    var cnaNose = 2;
+    var cp = (cnaNose * noseCp + cnaFin * finCp) / (cnaNose + cnaFin);
+    var margin = (cp - cg) / d;
+
+    var targetCg = cp - target * d;
+    var ballast = 0, possible = true, note = '';
+    if (margin >= target - 0.0001) {
+      ballast = 0;
+      note = 'The rocket already meets the target margin; no ballast is needed.';
+    } else if (targetCg <= xb + 0.0001) {
+      possible = false;
+      note = 'The target CG would have to sit at or ahead of the ballast station, which is impossible with a point mass there. Move the ballast further forward or accept a smaller margin.';
+    } else {
+      ballast = mass * ((cg - targetCg) / (targetCg - xb));
+      if (!isFinite(ballast) || ballast < 0) { ballast = 0; possible = false; note = 'No positive ballast solution — check the CG and ballast stations.'; }
+      else note = 'Add ' + nf(ballast, 0) + ' g at ' + nf(xb, 0) + ' mm from the nose tip to bring the CG to ' + nf(targetCg, 0) + ' mm.';
+    }
+    var newMass = mass + ballast;
+    var newCg = newMass > 0 ? (mass * cg + ballast * xb) / newMass : cg;
+    var newMargin = (cp - newCg) / d;
+    var ballast1 = 0, cg1 = cp - 1 * d;
+    if (margin < 1 && cg1 > xb + 0.0001) ballast1 = mass * ((cg - cg1) / (cg1 - xb));
+    if (!isFinite(ballast1) || ballast1 < 0) ballast1 = 0;
+
+    return {
+      cp: cp, cg: cg, margin: margin, totalLen: totalLen, d: d, noseLen: ln,
+      cnaFin: cnaFin, cnaNose: cnaNose, finCp: finCp, noseCp: noseCp,
+      target: target, targetCg: targetCg, ballast: ballast, newMass: newMass, newCg: newCg, newMargin: newMargin,
+      possible: possible, note: note, ballast1: ballast1, finRootLe: finRootLe, span: s, sweep: m,
+      shape: $('mrs-nose-shape').options[$('mrs-nose-shape').selectedIndex].text.split(' —')[0]
+    };
+  }
+
+  function verdict(margin) {
+    if (!isFinite(margin)) return { label: '—', color: 'rgba(230,250,255,.5)', sub: '' };
+    if (margin < 0) return { label: 'UNSTABLE', color: '#ff6b81', sub: 'CP is ahead of the CG' };
+    if (margin < 1) return { label: 'MARGINAL', color: '#ffd166', sub: 'Below the usual 1-caliber floor' };
+    if (margin <= 2) return { label: 'STABLE', color: '#55e6a5', sub: 'Inside the usual 1–2 caliber band' };
+    return { label: 'OVER-STABLE', color: '#8ecbff', sub: 'Above 2 calibers — weathercocks into wind' };
+  }
+
+  function draw(r) {
+    var svg = $('mrs-svg');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 640, H = 180, left = 46, right = 22, top = 26, base = 108;
+    var total = Math.max(r.totalLen, 1);
+    var sx = (W - left - right) / total;
+    var x = function (station) { return left + Math.max(0, Math.min(total, station)) * sx; };
+    var dPix = Math.max(14, Math.min(34, r.d * sx));
+    var bodyTop = base - dPix / 2, bodyBot = base + dPix / 2;
+    var noseLen = Math.min(r.noseLen, total);
+    var finSpan = Math.max(10, Math.min(34, r.span * sx * 0.8));
+    var finStart = x(r.finRootLe);
+    var finEnd = x(r.totalLen);
+    var tipStart = x(r.finRootLe + r.sweep);
+
+    svg.appendChild(svgEl('line', { x1: left, y1: base + 52, x2: W - right, y2: base + 52, stroke: 'rgba(255,255,255,.16)', 'stroke-width': 1 }));
+    svg.appendChild(svgEl('path', { d: 'M ' + x(0) + ' ' + bodyTop + ' L ' + x(noseLen) + ' ' + (base - 2) + ' L ' + x(noseLen) + ' ' + (base + 2) + ' L ' + x(0) + ' ' + bodyBot + ' Z', fill: 'rgba(45,212,255,.16)', stroke: 'rgba(45,212,255,.75)', 'stroke-width': 1.6 }));
+    svg.appendChild(svgEl('rect', { x: x(noseLen), y: bodyTop, width: Math.max(1, x(total) - x(noseLen)), height: dPix, fill: 'rgba(45,212,255,.1)', stroke: 'rgba(45,212,255,.6)', 'stroke-width': 1.4 }));
+
+    var finPath = 'M ' + finStart + ' ' + bodyBot + ' L ' + finEnd + ' ' + bodyBot + ' L ' + finEnd + ' ' + (bodyBot + finSpan) + ' L ' + tipStart + ' ' + (bodyBot + finSpan) + ' Z';
+    svg.appendChild(svgEl('path', { d: finPath, fill: 'rgba(255,209,102,.14)', stroke: 'rgba(255,209,102,.7)', 'stroke-width': 1.3 }));
+    var finTop = 'M ' + finStart + ' ' + bodyTop + ' L ' + finEnd + ' ' + bodyTop + ' L ' + finEnd + ' ' + (bodyTop - finSpan) + ' L ' + tipStart + ' ' + (bodyTop - finSpan) + ' Z';
+    svg.appendChild(svgEl('path', { d: finTop, fill: 'rgba(255,209,102,.08)', stroke: 'rgba(255,209,102,.45)', 'stroke-width': 1.1 }));
+
+    function marker(station, colour, label, above) {
+      var px = x(station);
+      var y1 = above ? 18 : 134, y2 = above ? bodyTop - 3 : bodyBot + 3;
+      svg.appendChild(svgEl('line', { x1: px, y1: y1, x2: px, y2: y2, stroke: colour, 'stroke-width': 2, 'stroke-dasharray': '4 3' }));
+      svg.appendChild(svgEl('circle', { cx: px, cy: above ? 14 : 138, r: 3.5, fill: colour }));
+      var t = svgEl('text', { x: px, y: above ? 10 : 154, fill: colour, 'font-size': 11, 'font-weight': 700, 'text-anchor': 'middle' });
+      t.textContent = label;
+      svg.appendChild(t);
+    }
+    marker(r.cg, '#ffb347', 'CG ' + nf(r.cg, 0), false);
+    marker(r.cp, '#2dd4ff', 'CP ' + nf(r.cp, 0), true);
+
+    var scaleY = base + 64;
+    svg.appendChild(svgEl('line', { x1: left, y1: scaleY, x2: W - right, y2: scaleY, stroke: 'rgba(255,255,255,.28)', 'stroke-width': 1 }));
+    for (var i = 0; i <= 4; i++) {
+      var st = total * i / 4, px = x(st);
+      svg.appendChild(svgEl('line', { x1: px, y1: scaleY - 3, x2: px, y2: scaleY + 3, stroke: 'rgba(255,255,255,.4)', 'stroke-width': 1 }));
+      var lab = svgEl('text', { x: px, y: scaleY + 14, fill: 'rgba(230,250,255,.55)', 'font-size': 9, 'text-anchor': 'middle' });
+      lab.textContent = Math.round(st) + ' mm';
+      svg.appendChild(lab);
+    }
+    var note = svgEl('text', { x: W - right, y: 16, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'end' });
+    note.textContent = 'Nose → tail';
+    svg.appendChild(note);
+  }
+
+  function run() {
+    if (!document.getElementById('mrs-root')) return;
+    var r = calc();
+    var err = $('mrs-error');
+    if (r.error) {
+      err.style.display = 'block'; err.textContent = r.error;
+      $('mrs-out').style.opacity = '.45';
+      return;
+    }
+    err.style.display = 'none'; err.textContent = '';
+    $('mrs-out').style.opacity = '1';
+
+    setText('mrs-cp', nf(r.cp, 0) + ' mm');
+    setText('mrs-cp-sub', 'Nose ' + nf(r.noseCp, 0) + ' · fins ' + nf(r.finCp, 0) + ' mm · CNα ' + nf(r.cnaNose + r.cnaFin, 2));
+    setText('mrs-cg-out', nf(r.cg, 0) + ' mm');
+    setText('mrs-cg-sub', 'CP − CG = ' + (r.cp - r.cg >= 0 ? '+' : '−') + nf(Math.abs(r.cp - r.cg), 0) + ' mm');
+    setText('mrs-sm', nf(r.margin, 2) + ' cal');
+    setText('mrs-sm-sub', nf(r.margin * r.d, 0) + ' mm on a ' + nf(r.d, 0) + ' mm body');
+    var v = verdict(r.margin);
+    var pill = $('mrs-verdict');
+    pill.textContent = v.label; pill.style.color = v.color;
+    setText('mrs-verdict-sub', v.sub);
+
+    var btext;
+    if (r.ballast > 0.5) {
+      btext = 'Add about ' + nf(r.ballast, 0) + ' g at ' + nf(num('mrs-ballast-station'), 0) + ' mm from the nose tip. New all-up mass ' + nf(r.newMass, 0) + ' g; new CG ' + nf(r.newCg, 0) + ' mm; static margin ' + nf(r.newMargin, 2) + ' calibers.';
+    } else {
+      btext = r.note + ' Current all-up mass ' + nf(r.newMass, 0) + ' g.';
+    }
+    setText('mrs-ballast', btext);
+    setText('mrs-breakdown', 'Fin mid-chord ' + nf(Math.sqrt(Math.pow(num('mrs-fin-sweep') + (num('mrs-fin-tip') - num('mrs-fin-root')) / 2, 2) + Math.pow(num('mrs-fin-span'), 2)), 1) + ' mm; fin CNα ' + nf(r.cnaFin, 2) + '; fin CP ' + nf(r.finCp, 0) + ' mm. Ballast for a 1.0-caliber margin: ' + (r.ballast1 > 0.5 ? nf(r.ballast1, 0) + ' g' : 'none') + '. Tip: a longer, larger or further-forward fin set moves the CP aft.');
+
+    draw(r);
+  }
+
+  function reset() {
+    for (var id in DEFAULTS) if (Object.prototype.hasOwnProperty.call(DEFAULTS, id) && $(id)) $(id).value = DEFAULTS[id];
+    run();
+  }
+
+  var ids = Object.keys(DEFAULTS);
+  ids.forEach(function (id) { var el = $(id); if (el) { el.addEventListener('input', run); el.addEventListener('change', run); } });
+  $('mrs-reset').addEventListener('click', reset);
+  run();
+})();
+</script>
