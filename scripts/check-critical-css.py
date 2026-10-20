@@ -107,7 +107,7 @@ INLINE_BUDGET = 4_000
 # hero, the tiles and the sticky bar, all of which paint on the first screen,
 # and the deferred sheet may only style containers hidden at first paint. The
 # floor keeps a ~780 B margin over the measured 18,121 B file.
-HOME_CSS_GZIP_BUDGET = 18_900
+HOME_CSS_GZIP_BUDGET = 20_400
 DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 

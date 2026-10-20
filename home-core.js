@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 49;
+  const APP_VERSION = 51;
 
   // Three blacks, no hue: the page is black, gold and #555555, and a background
   // theme only decides how far toward grey the canvas is allowed to drift.
@@ -614,6 +614,49 @@
     });
   }
 
+  /* ------------------------------------------------------------- the flywheel --
+     The dial is a picture until somebody wants it: one SVG, no script. This
+     fetches spin.js (and its behaviour) on the first sign of intent — a pointer
+     over the band, keyboard focus inside it, or 600 px of proximity — and with
+     the same ?v= as every other asset, so a cached copy can never pair with
+     another deploy's HTML.
+
+     The 600 px head start is the same idea as the catalogue's: be ready before
+     the visitor arrives, but never fetch something for a visit that never gets
+     there. A visitor who reads the hero and leaves downloads none of it. */
+  function setupFlywheel() {
+    var band = document.getElementById('flywheel');
+    if (!band) return;
+    var requested = false;
+    function request() {
+      if (requested) return;
+      requested = true;
+      var s = document.createElement('script');
+      s.src = 'spin.js?v=' + APP_VERSION;
+      s.async = true;
+      document.head.appendChild(s);
+    }
+    ['pointerenter', 'pointerdown', 'focusin', 'touchstart'].forEach(function (type) {
+      band.addEventListener(type, request, { passive: true, once: true });
+    });
+    /* Proximity, but never during the first screen. Observing at mount made the
+       dial's script arrive alongside the first paint on every phone whose
+       viewport reached the band (measured: it loaded before `load`). The
+       observer starts after the page has finished loading, so the instrument
+       can only ever cost a frame the visitor is already reading. */
+    function observeLater() {
+      if (!window.IntersectionObserver) return;
+      var io = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].isIntersecting) { io.disconnect(); request(); return; }
+        }
+      }, { rootMargin: '300px' });
+      io.observe(band);
+    }
+    if (document.readyState === 'complete') setTimeout(observeLater, 0);
+    else window.addEventListener('load', function () { setTimeout(observeLater, 0); }, { once: true });
+  }
+
   /* ------------------------------------------- popovers: a11y sync + fallback */
   // A native popover never touches aria-hidden itself: without this listener,
   // a screen reader is told every panel is hidden even while it is open.
@@ -863,6 +906,7 @@
       if (e.persisted) safely('restored recents', setupRecents);
     });
     safely('surprise', setupSurpriseButtons);
+    safely('flywheel', setupFlywheel);
     safely('panels', setupPanels);
     safely('popover a11y', syncPopoverA11y);
     safely('popover fallback', popoverFallback);
