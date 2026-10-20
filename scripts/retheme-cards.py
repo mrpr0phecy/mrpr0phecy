@@ -33,6 +33,12 @@ It refuses to change:
   them to one gold would destroy that, so they rotate through the four golds the
   accent picker offers, in order of appearance. Two or fewer keep the job-based
   map (action `#ffd700`, readout `#d4af37`).
+* **Legends.** When five or more hues paint one scale — heart-rate zones, a
+  battery-health bar — the four-gold rotation wraps and two buckets come out
+  the same colour. A card whose siblings have to be told apart by hue is
+  refused, because converting *some* of the buckets looks deliberate and is
+  not. Decorative multi-hue cards (a word cloud, coloured stat tiles) are not
+  affected: nothing there is read by colour alone.
 * **Subjects.** A card about colour, or one whose output *is* colour (a colour
   contrast checker, resistor bands, a lava lamp, an orrery), is refused outright
   by PROTECTED below. Its palette is its function.
@@ -59,6 +65,9 @@ PROTECTED = re.compile(
     r"(colou?r|palette|resistor|contrast|spirograph|lava-lamp|hourglass|orrery"
     r"|galaxy|nebula|cymatic|tunnel|wave-packet|aurora|firework|gradient|paint"
     r"|pixel|photo|image-|css-art|shader|plasma"
+    # A word cloud paints words in the palette you pick, and the picker is the
+    # point of the tool. Half-converting five named palettes ruins the choice.
+    r"|word-cloud"
     # Category colours: the periodic-table tiles and the body-system chips are
     # keyed by hue, and flattening ten categories into four golds loses the key.
     r"|anatomy|periodic|element-hall|constellation-map)",
@@ -331,6 +340,36 @@ def hue_of(r: int, g: int, b: int) -> int:
     return int(h * 60) % 360
 
 
+def light_of(h: str) -> float:
+    """Perceived lightness 0-1, enough to order golds by shade."""
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def gradient_partners(css: str, resolve_one, exempt: set[str]) -> dict[str, str]:
+    """A two-stop gradient is one object: either both stops move or neither.
+
+    Turning the left end of a button gold and leaving the right end blue is a
+    clash, not a palette. Where one stop converts and the other is not in any
+    map, the other is pulled to the gold nearest its own lightness, so the
+    gradient keeps the light-to-dark direction it had.
+    """
+    partners: dict[str, str] = {}
+    for m in GRADIENT.finditer(css):
+        stops = [h.lower() for h in HEX.findall(m.group(0))]
+        if len(stops) != 2 or stops[0] == stops[1]:
+            continue
+        moved = [h for h in stops if resolve_one(h)]
+        still = [h for h in stops if not resolve_one(h) and h not in exempt]
+        if len(moved) != 1 or len(still) != 1:
+            continue
+        taken = resolve_one(moved[0])
+        order = sorted((g for g in GOLD_TONES if g != taken),
+                       key=lambda g: abs(light_of(g) - light_of(still[0])))
+        partners[still[0]] = order[0]
+    return partners
+
+
 def surface_uses(css: str, hue: str) -> bool:
     """Does this hue paint a surface somewhere, not just letters?
 
@@ -417,6 +456,32 @@ def fix_text_on_gold(css: str) -> str:
     return block_re.sub(one, css)
 
 
+# Cards refused because a five-bucket legend cannot survive a four-gold
+# rotation. Filled by retheme(), reported by main().
+LEGEND_REFUSED: set[str] = set()
+
+ELEMENT = re.compile(
+    r'id="([a-z0-9_-]+)"[^>]*?style="([^"]*)"', re.I)
+HEX6 = re.compile(r"#([0-9a-fA-F]{6})\b")
+
+
+def legend_families(src: str):
+    """Hue sets that share an id stem — one scale, drawn as sibling elements.
+
+    A card can carry a dozen accent hues and never need them told apart; the
+    problem is only when five or more sit side by side on *one* legend, where
+    the rotation would hand two of them the same gold.
+    """
+    families: dict[str, set[str]] = {}
+    for m in ELEMENT.finditer(src):
+        stem = re.sub(r"[-_]?\d+$", "", m.group(1))
+        for h in HEX6.findall(m.group(2)):
+            h = h.lower()
+            if h not in NEUTRAL:
+                families.setdefault(stem, set()).add(h)
+    return list(families.values())
+
+
 def retheme(path: str):
     src = open(path, encoding="utf-8").read()
     exempt = ramp_hues(src)
@@ -442,8 +507,30 @@ def retheme(path: str):
         for i, h in enumerate(family):
             rotation[h] = GOLD_TONES[i % len(GOLD_TONES)]
 
-    def resolve(key):
-        """The palette colour this card gives a hue, or None to leave it alone."""
+
+    # The card's dominant cool hue, if it has one: a green terminal card whose
+    # palette is already moving should not keep a green title over gold buttons.
+    # Warm hues (0-70 and 340-360) are warning colours and are never taken.
+    theme_hues = {}
+    if spent or ambers:
+        counts = {}
+        for h in HEX.findall(src):
+            h = h.lower()
+            if h in exempt or h in ACCENT or h in AMBER or h in NEUTRAL:
+                continue
+            r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+            hi, lo = max(r, g, b), min(r, g, b)
+            if hi and (hi - lo) / hi > 0.2 and 70 <= hue_of(r, g, b) < 340 \
+                    and light_of(h) >= 0.25:
+                counts[h] = counts.get(h, 0) + 1
+        if counts:
+            top = max(counts, key=lambda h: counts[h])
+            if counts[top] >= 3:
+                theme_hues[top] = min(
+                    GOLD_TONES, key=lambda t: abs(light_of(t) - light_of(top)))
+
+    def resolve_one(key):
+        """What the maps say about a hue, before gradients are considered."""
         key = key.lower()
         if key in exempt:
             return None
@@ -462,7 +549,35 @@ def retheme(path: str):
             if hi < 58 and hi - lo > 14 and hue_of(r, g, b) not in range(0, 36) \
                     and hue_of(r, g, b) < 315:
                 return "0b1219"
+        # Cool hues are chrome: a blue, teal, green or violet accent is the
+        # card's theme colour and there is no palette job for it. Only the hue
+        # the card leans on most is taken — a theme colour, not every tint — and
+        # only on a card that is already moving, so a card left entirely alone
+        # stays entirely alone. Warm hues are not here: red and orange still
+        # mean "warning" and stay.
+        if key in theme_hues:
+            return theme_hues[key]
         return None
+
+    # A collision is a legend, not a theme. Three or more hues painting one
+    # scale (heart-rate zones, a battery-health bar) can wrap the four-gold
+    # rotation — and with the theme-hue rule, two shades can land on one gold
+    # even sooner — so two buckets come out the same colour. Refusing the card
+    # wholesale is the only honest answer: converting *some* of the buckets
+    # looks deliberate and is not. Decorative multi-hue cards (coloured stat
+    # tiles) are unaffected — nothing there has to be told apart by hue alone.
+    for hues in legend_families(src):
+        if len(hues) >= 3 and len({resolve_one(h) or h for h in hues}) < len(hues):
+            LEGEND_REFUSED.add(os.path.basename(path)[:-5])
+            return src, {}
+
+    # A gradient is one object: resolve_one decides whether one end moves, then
+    # gradient_partners moves the other end with it so the shape stays whole.
+    partners = gradient_partners(src, resolve_one, exempt)
+
+    def resolve(key):
+        key = key.lower()
+        return partners.get(key) or resolve_one(key)
 
     def hex_sub(m):
         key = m.group(1).lower()
@@ -542,7 +657,10 @@ def main() -> int:
             continue
         out, changes = retheme(path)
         if not changes:
-            untouched.append(slug)
+            if slug in LEGEND_REFUSED:
+                skipped.append(slug + " (legend)")
+            else:
+                untouched.append(slug)
             continue
         converted.append((slug, len(changes)))
         if args.write:
