@@ -192,6 +192,23 @@ ACCENT = {
     "8d6e63": "a1791f",
     "90a4ae": "a3a3a3",
     "78909c": "8a8a8a",
+    # Batch 5 residuals: salmon, mauve, the rest of Material, and the
+    # Tailwind greys the newer cards are built from.
+    "ff9966": "d4af37",
+    "ff7744": "d4af37",
+    "b08090": "d4af37",
+    "e06080": "d4af37",
+    "e08060": "d4af37",
+    "e0a040": "d4af37",
+    "b09070": "a3a3a3",
+    "ffd54f": "d4af37",
+    "2196f3": "d4af37",
+    "ff5722": "d4af37",
+    "9c27b0": "a1791f",
+    "673ab7": "a1791f",
+    "795548": "a1791f",
+    "a5d6a7": "f0dc9a",
+    "a0d080": "f0dc9a",
 }
 
 # Neutrals: page, panel, text, hairlines. The whole black-to-white ramp.
@@ -220,6 +237,18 @@ NEUTRAL = {
     "1a1a2a": "0b1219",
     "5a2a20": "111111",   # dark browns
     "b08070": "d6d6d6",
+    "e5e7eb": "d6d6d6",   # Tailwind greys
+    "e2e8f0": "d6d6d6",
+    "f0f9ff": "d6d6d6",
+    "dbeafe": "d6d6d6",
+    "6b7280": "a3a3a3",
+    "4b5563": "8a8a8a",
+    "374151": "111111",
+    "1e3a8a": "0b1219",
+    "3a2a3a": "111111",
+    "604050": "111111",
+    "06060a": "04070a",
+    "1a0a0d": "04070a",
     "9080b0": "a3a3a3",   # muted plum text
     "1b1b2f": "0b1219",
     "071019": "04070a",
