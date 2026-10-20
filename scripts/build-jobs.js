@@ -502,7 +502,7 @@ function buildHtml() {
 <title>${esc(title)} — The Most Useful Site in the World</title>
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${BASE}/jobs.html">
-<meta name="theme-color" content="#0a0f14">
+<meta name="theme-color" content="#04070a">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Most Useful Site in the World">
 <meta property="og:title" content="${esc(title)}">
@@ -516,11 +516,11 @@ function buildHtml() {
 <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--accent:#2dd4ff;--text:#e6faff;--dim:rgba(230,250,255,.7);--bg:#0a0f14;--panel:#141e28;--line:rgba(255,255,255,.08);--gold:#ffd700}
+:root{--accent:#ffd700;--text:#d6d6d6;--dim:#a3a3a3;--bg:#04070a;--panel:#0b1219;--line:rgba(85,85,85,.72);--gold:#ffd700}
 body{background:var(--bg);color:var(--text);line-height:1.65;font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;overflow-x:hidden}
 a{color:inherit}
 .wrap{max-width:920px;margin:0 auto;padding:0 20px}
-header.top{border-bottom:1px solid var(--line);padding:14px 0;position:sticky;top:0;background:rgba(10,15,20,.92);backdrop-filter:blur(8px);z-index:5}
+header.top{border-bottom:1px solid var(--line);padding:14px 0;position:sticky;top:0;background:rgba(8,8,9,.92);backdrop-filter:blur(8px);z-index:5}
 header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:9px;text-decoration:none;font-weight:700;font-size:.9rem}
 .brand img{width:22px;height:22px}
@@ -535,7 +535,7 @@ h1 .em{color:var(--accent)}
 .how h2{font-size:1rem;color:var(--accent);margin-bottom:10px}
 .how ol{margin-left:20px;color:var(--dim);font-size:.93rem}
 .how li{margin:5px 0}
-.how code{background:rgba(45,212,255,.1);border:1px solid rgba(45,212,255,.2);border-radius:5px;padding:1px 5px;font-size:.85em;color:#bff0ff;overflow-wrap:anywhere}
+.how code{background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);border-radius:5px;padding:1px 5px;font-size:.85em;color:#bff0ff;overflow-wrap:anywhere}
 .jobs{margin-top:30px;display:grid;gap:26px}
 .job{border:1px solid var(--line);border-radius:16px;padding:20px;background:var(--panel)}
 .job h2{font-size:1.12rem;letter-spacing:-.2px}
@@ -543,15 +543,15 @@ h1 .em{color:var(--accent)}
 .steps{list-style:none;display:grid;gap:9px}
 .step{display:grid;gap:4px}
 .step-link{display:flex;gap:12px;align-items:flex-start;text-decoration:none;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.02);min-height:44px}
-.step-link:hover{border-color:rgba(45,212,255,.45);background:rgba(45,212,255,.07)}
-.step-n{flex:none;width:24px;height:24px;border-radius:50%;background:rgba(45,212,255,.14);border:1px solid rgba(45,212,255,.35);color:var(--accent);font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.step-link:hover{border-color:rgba(255,215,0,.45);background:rgba(255,215,0,.07)}
+.step-n{flex:none;width:24px;height:24px;border-radius:50%;background:rgba(255,215,0,.14);border:1px solid rgba(255,215,0,.35);color:var(--accent);font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
 .step-title{display:block;font-weight:600;font-size:.94rem}
 .step-note{display:block;color:var(--dim);font-size:.83rem;margin-top:2px}
 .carry{color:rgba(230,250,255,.5);font-size:.76rem;padding-left:36px}
 .carry code{color:#bff0ff}
 .start{margin-top:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.start a{display:inline-flex;align-items:center;min-height:44px;padding:10px 18px;border-radius:10px;background:rgba(45,212,255,.12);border:1px solid rgba(45,212,255,.4);color:var(--accent);font-weight:700;text-decoration:none;font-size:.9rem}
-.start a:hover{background:rgba(45,212,255,.22)}
+.start a{display:inline-flex;align-items:center;min-height:44px;padding:10px 18px;border-radius:10px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.4);color:var(--accent);font-weight:700;text-decoration:none;font-size:.9rem}
+.start a:hover{background:rgba(255,215,0,.22)}
 .start-note{color:rgba(230,250,255,.5);font-size:.8rem}
 .notes{margin-top:34px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;color:var(--dim);font-size:.88rem}
 .notes h2{font-size:.98rem;color:var(--text);margin-bottom:8px}

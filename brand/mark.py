@@ -98,32 +98,29 @@ MASKABLE_SAFE_RADIUS = 0.4 * BOX
 
 # ------------------------------------------------------------------- colour --
 # The site's own tokens (home.css :root), so the kit cannot drift from the page.
-ACCENT = (45, 212, 255)           # #2dd4ff --accent: brackets, edge, accent fills
+# One palette since 2026-10-20: black, gold and #555555. The mark's brackets are
+# the same bright gold the interface presses with, so the logo and the page are
+# one drawing rather than two houses sharing a masthead.
+ACCENT = (255, 215, 0)            # #ffd700 --accent: brackets, edge, accent fills
 PAPER = (255, 255, 255)           # the star, and the mono-light colour
 INK = (7, 16, 25)                 # #071019 the mono-dark colour, text on light
-TILE_INK = (10, 15, 20)           # #0a0f14 --bg-primary: the page, the card
-TEXT = (230, 250, 255)            # #e6faff --text: the wordmark on dark
-MUTED = (150, 186, 200)           # #96bac8 secondary copy on the social card
-# The accent is a fill colour. As *text* on white it is 1.7:1, and even the
-# old "darkened" #1aa3cc was 2.9:1, so light surfaces set accent words in this
-# instead; gen_assets.py refuses to run if it ever drops below 4.5:1 (WCAG AA).
-ACCENT_ON_LIGHT = (10, 126, 164)  # #0a7ea4
+TILE_INK = (4, 7, 10)             # #04070a --bg-primary: the page, the card
+TEXT = (214, 214, 214)            # #d6d6d6 --text: the wordmark on dark
+MUTED = (138, 138, 138)           # #8a8a8a secondary copy on the social card
+# The accent is a fill colour. As *text* on white pure gold is 1.4:1, so light
+# surfaces set accent words in a deep bronze instead; gen_assets.py refuses to
+# run if it ever drops below 4.5:1 (WCAG AA).
+ACCENT_ON_LIGHT = (122, 80, 14)   # #7a500e
 
 # ------------------------------------------------------------------ house --
 # The HOUSE accent is the site's fixed brand colour — the one that defines the
-# product externally: the lockups, the Open Graph cards, the press kit. It is
-# deliberately not the UI accent: the page keeps the visitor's picker (default
-# cyan), and nothing in the interface follows the house colour. It also is not
-# the mark's colour: the finder is drawn out of the console, in the console's
-# cyan, and stays that way. See DESIGN.md §3 for the split and the ratios.
-#
-# Amber/ochre rather than blue or purple: the latter is the default palette of
-# every calculator and fintech competitor, and the brand sits against it. On
-# the near-black page the amber is 8.92:1 (measured below), a classic
-# instrument-panel readout; the on-light pair passes the same 4.5:1 WCAG AA
-# floor gen_assets.py enforces for ACCENT_ON_LIGHT.
-HOUSE_ACCENT = (232, 163, 61)      # #e8a33d — fills, rules, marks on dark
-HOUSE_ON_LIGHT = (122, 80, 14)     # #7a500e — accent words on light surfaces
+# product externally: the lockups, the Open Graph cards, the press kit. Since
+# 2026-10-20 it is the same gold family as the interface rather than a second
+# hue beside it: one palette, so a lockup dropped into a page cannot clash with
+# the page. The deep gold is used because a fill at the bright value would read
+# as a button inside a wordmark. See DESIGN.md §3 for the split and the ratios.
+HOUSE_ACCENT = (212, 175, 55)     # #d4af37 — fills, rules, marks on dark
+HOUSE_ON_LIGHT = (122, 80, 14)    # #7a500e — accent words on light surfaces
 
 
 def hex_triplet(colour) -> str:

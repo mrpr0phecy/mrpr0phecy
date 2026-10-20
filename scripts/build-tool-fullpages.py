@@ -199,14 +199,13 @@ THEMES_BOOTSTRAP = """<script>
     if (/^#[0-9a-fA-F]{6}$/.test(accent || '')) {
       document.documentElement.style.setProperty('--accent', accent);
     }
+    // Three blacks, no hue; a saved name from before 2026-10-20 simply misses
+    // and the page keeps its own background.
     var THEMES = {
-      'default': ['#0a0f14', '#141e28'],
-      'deep-blue': ['#05080c', '#0f151f'],
-      'deep-purple': ['#12081a', '#1f1229'],
-      'deep-teal': ['#061616', '#0f2525'],
-      'deep-red': ['#160606', '#251010'],
-      'deep-forest': ['#081408', '#152015'],
-      'deep-space': ['#000814', '#1a1a2e']
+      'default': ['#04070a', '#0b1219'],
+      'midnight': ['#04070a', '#0b1219'],
+      'graphite': ['#0a0a0a', '#2a2a2a'],
+      'void': ['#000000', '#0c0c0c']
     };
     var theme = THEMES[localStorage.getItem('theme')];
     if (theme) {
@@ -398,7 +397,7 @@ def render_page(tool: dict, fragment: str, ctx: dict) -> str:
 <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
 <link rel="canonical" href="{canonical}">
 <link rel="alternate" type="application/rss+xml" title="The Most Useful Site in The World — RSS feed" href="../feed.xml">
-<meta name="theme-color" content="#0a0f14">
+<meta name="theme-color" content="#04070a">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Most Useful Site in The World">
 <meta property="og:title" content="{esc(title)} — free, no sign-up">
@@ -569,7 +568,7 @@ def render_redirect(old: str, new_tool: dict) -> str:
         f"<meta http-equiv=\"refresh\" content=\"0; url={esc(new)}.html\">\n"
         f"<script>location.replace({json.dumps(new + '.html')} + location.search + location.hash);</script>\n"
         "<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:flex;align-items:center;"
-        "justify-content:center;background:#0a0f14;color:#e8eaf2;font-family:system-ui,sans-serif;padding:16px}"
+        "justify-content:center;background:#04070a;color:#e8eaf2;font-family:system-ui,sans-serif;padding:16px}"
         "a{color:#7cc4ff}</style>\n"
         "</head>\n<body>\n<main>\n"
         f"<h1>This tool has moved</h1>\n"

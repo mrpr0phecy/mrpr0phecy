@@ -187,19 +187,19 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
   <meta name="twitter:title" content="${esc(pageTitle)}">
   <meta name="twitter:description" content="${esc(metaDesc)}">
   <meta name="twitter:image" content="${SITE}/og-tools.png">
-  <meta name="theme-color" content="#0a0f14">
+  <meta name="theme-color" content="#04070a">
   <script type="application/ld+json">${JSON.stringify(itemList)}</script>
   <script type="application/ld+json">${JSON.stringify(breadcrumbList)}</script>
   <style>
     :root {
-      --bg-primary: #0a0f14;
-      --bg-secondary: #141e28;
-      --bg-card: rgba(20, 30, 40, 0.7);
+      --bg-primary: #04070a;
+      --bg-secondary: #0b1219;
+      --bg-card: rgba(14, 14, 15, 0.7);
       --border: rgba(255, 255, 255, 0.12);
-      --border-hover: rgba(45, 212, 255, 0.4);
-      --accent: #2dd4ff;
-      --accent-glow: rgba(45, 212, 255, 0.15);
-      --text: #e6faff;
+      --border-hover: rgba(255, 215, 0, 0.4);
+      --accent: #ffd700;
+      --accent-glow: rgba(255, 215, 0, 0.15);
+      --text: #d6d6d6;
       --text-muted: rgba(230, 250, 255, 0.7);
       --gold: #ffd700;
     }
@@ -220,7 +220,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     .container { max-width: 1200px; margin: 0 auto; padding: 0 clamp(12px, 3.4vw, 20px); width: 100%; }
     kbd {
       padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, monospace;
-      font-size: 0.82em; background: rgba(255, 255, 255, 0.08);
+      font-size: 0.82em; background: rgba(85, 85, 85, 0.72);
       border: 1px solid var(--border); border-radius: 4px;
     }
     /* ---------------------------------------------------------------- top bar
@@ -275,8 +275,8 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 6px 12px; margin-bottom: 12px;
       font-size: clamp(0.72rem, 2.2vw, 0.8rem); font-weight: 700;
-      color: var(--accent); background: rgba(45, 212, 255, 0.08);
-      border: 1px solid rgba(45, 212, 255, 0.25); border-radius: 999px;
+      color: var(--accent); background: rgba(255, 215, 0, 0.08);
+      border: 1px solid rgba(255, 215, 0, 0.25); border-radius: 999px;
     }
     h1 {
       font-size: clamp(1.55rem, 5.4vw, 2.7rem);
@@ -337,7 +337,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
     .cat-pill-name { flex: 1; min-width: 0; font-size: 0.92rem; font-weight: 700; overflow-wrap: anywhere; }
     .cat-pill-count {
       flex: none; padding: 2px 8px; font-size: 0.72rem; font-weight: 700;
-      color: var(--accent); background: rgba(45, 212, 255, 0.1); border-radius: 999px;
+      color: var(--accent); background: rgba(255, 215, 0, 0.1); border-radius: 999px;
     }
     /* ---------------------------------------------------------------- footer */
     footer {

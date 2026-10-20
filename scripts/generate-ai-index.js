@@ -333,7 +333,7 @@ ${sections.join('\n\n')}
   <meta name="twitter:title" content="All ${total} Tools — Plain Directory">
   <meta name="twitter:description" content="Zero-JavaScript directory of every free browser tool.">
   <meta name="twitter:image" content="${SITE}/og-tools.png">
-  <meta name="theme-color" content="#0a0f14">
+  <meta name="theme-color" content="#04070a">
   <script type="application/ld+json">{"@context": "https://schema.org", "@type": "CollectionPage", "name": "All ${total} Tools — Plain Directory", "url": "${SITE}/tools-index.html", "description": "Static zero-JavaScript directory of ${total} free browser tools across ${ordered.length} categories.", "isPartOf": {"@type": "WebSite", "name": "The Most Useful Site in the World", "url": "${SITE}/"}, "inLanguage": "en-GB"}</script>
   <style>
     /* tools-index.html — the directory that has to work when nothing else
@@ -341,12 +341,12 @@ ${sections.join('\n\n')}
        catalogue, 28 section blurbs and a list layer on top. Made fluid on
        2026-09-21: everything here was fixed-size before, and the rows' tap
        targets were the 14px of text inside them. */
-    :root { color-scheme: dark; --accent: #2dd4ff; --line: rgba(255, 255, 255, 0.12); }
+    :root { color-scheme: dark; --accent: #ffd700; --line: rgba(255, 255, 255, 0.12); }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0a0f14; color: #e6faff; line-height: 1.6;
+      background: #04070a; color: #d6d6d6; line-height: 1.6;
       padding: 0 clamp(12px, 3.4vw, 16px) 60px;
       overflow-x: hidden;
     }
@@ -366,7 +366,7 @@ ${sections.join('\n\n')}
     }
     nav.toc a {
       display: inline-flex; align-items: center; min-height: 34px;
-      font-size: 0.8rem; text-decoration: none; color: #e6faff;
+      font-size: 0.8rem; text-decoration: none; color: #d6d6d6;
       border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
     }
     nav.toc a span { color: rgba(230, 250, 255, 0.55); margin-left: 4px; font-size: 0.72rem; }
@@ -383,12 +383,12 @@ ${sections.join('\n\n')}
     }
     h2 .count {
       font-size: 0.72rem; font-weight: 600; color: var(--accent);
-      background: rgba(45, 212, 255, 0.1); border: 1px solid rgba(45, 212, 255, 0.25);
+      background: rgba(255, 215, 0, 0.1); border: 1px solid rgba(255, 215, 0, 0.25);
       padding: 2px 9px; border-radius: 999px;
     }
     p.cat-blurb { font-size: clamp(0.82rem, 2.3vw, 0.85rem); color: rgba(230, 250, 255, 0.65); margin: 0 0 10px; text-wrap: pretty; }
     .ai-note {
-      margin-top: 34px; border: 1px dashed rgba(45, 212, 255, 0.35); border-radius: 12px;
+      margin-top: 34px; border: 1px dashed rgba(255, 215, 0, 0.35); border-radius: 12px;
       padding: 14px 16px; font-size: 0.82rem; line-height: 1.65; color: rgba(230, 250, 255, 0.75);
     }
     .back { margin-top: 22px; font-size: 0.85rem; }

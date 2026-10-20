@@ -34,16 +34,17 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 47;
+  const APP_VERSION = 48;
 
+  // Three blacks, no hue: the page is black, gold and #555555, and a background
+  // theme only decides how far toward grey the canvas is allowed to drift.
+  // Saved names from before 2026-10-20 fall back to midnight (THEMES[name] ||
+  // THEMES['default'], below), so an old localStorage value is harmless.
   var THEMES = {
     'default': { bg1: '#04070a', bg2: '#0b1219' },
-    'deep-blue': { bg1: '#05080c', bg2: '#0f151f' },
-    'deep-purple': { bg1: '#12081a', bg2: '#1f1229' },
-    'deep-teal': { bg1: '#061616', bg2: '#0f2525' },
-    'deep-red': { bg1: '#160606', bg2: '#251010' },
-    'deep-forest': { bg1: '#081408', bg2: '#152015' },
-    'deep-space': { bg1: '#000814', bg2: '#1a1a2e' }
+    'midnight': { bg1: '#04070a', bg2: '#0b1219' },
+    'graphite': { bg1: '#0a0a0a', bg2: '#2a2a2a' },
+    'void': { bg1: '#000000', bg2: '#0c0c0c' }
   };
 
   function notify(msg) {
@@ -88,11 +89,11 @@
         h *= 60;
       }
       return h;
-    } catch (e) { return 190; }
+    } catch (e) { return 51; }
   }
 
   function setupTheme() {
-    var savedAccent = '#2dd4ff';
+    var savedAccent = '#ffd700';
     var savedTheme = 'default';
     try {
       savedAccent = localStorage.getItem('accent') || savedAccent;
@@ -100,7 +101,7 @@
     } catch (e) {}
     // localStorage is user-writable: a tampered value must fall back to the
     // default, not break the accent site-wide (or feed hueOf() a NaN).
-    if (!/^#[0-9a-fA-F]{6}$/.test(savedAccent)) savedAccent = '#2dd4ff';
+    if (!/^#[0-9a-fA-F]{6}$/.test(savedAccent)) savedAccent = '#ffd700';
     document.documentElement.style.setProperty('--accent', savedAccent);
     document.documentElement.style.setProperty('--accent-hue', String(hueOf(savedAccent)));
     applyTheme(savedTheme);
