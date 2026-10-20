@@ -158,6 +158,40 @@ ACCENT = {
     "40c040": "d4af37",
     "ffd66b": "d4af37",
     "e8a33d": "d4af37",
+    # Batch 4 residuals: the CSS-gradient indigo, plum purples, pinks.
+    "667eea": "d4af37",
+    "764ba2": "a1791f",
+    "a060f0": "d4af37",
+    "b060f0": "d4af37",
+    "f48fb1": "d4af37",
+    "f06292": "d4af37",
+    "e91e63": "d4af37",
+    "c2185b": "a1791f",
+    # The Material palette, wholsesale: the same 19 swatches turn up in card
+    # after card (pink buttons, indigo headers, lavender panels). Status reds
+    # are not in this list and stay red.
+    "ec407a": "d4af37",
+    "ad1457": "a1791f",
+    "ce93d8": "f0dc9a",
+    "ba68c8": "d4af37",
+    "ab47bc": "d4af37",
+    "9575cd": "d4af37",
+    "7986cb": "d4af37",
+    "5c6bc0": "a1791f",
+    "42a5f5": "d4af37",
+    "29b6f6": "d4af37",
+    "26c6da": "d4af37",
+    "26a69a": "d4af37",
+    "66bb6a": "d4af37",
+    "9ccc65": "d4af37",
+    "d4e157": "f0dc9a",
+    "ffee58": "f0dc9a",
+    "ffca28": "d4af37",
+    "ffa726": "d4af37",
+    "ff7043": "d4af37",
+    "8d6e63": "a1791f",
+    "90a4ae": "a3a3a3",
+    "78909c": "8a8a8a",
 }
 
 # Neutrals: page, panel, text, hairlines. The whole black-to-white ramp.
@@ -186,6 +220,7 @@ NEUTRAL = {
     "1a1a2a": "0b1219",
     "5a2a20": "111111",   # dark browns
     "b08070": "d6d6d6",
+    "9080b0": "a3a3a3",   # muted plum text
     "1b1b2f": "0b1219",
     "071019": "04070a",
     "071017": "04070a",
@@ -320,6 +355,32 @@ def ramp_hues(css: str):
     return hues
 
 
+GOLD_ANY = r"#(?:ffd700|d4af37|f0dc9a|a1791f)"
+LIGHT_TEXT = r"(?:#fff\b|#ffffff|#f2f2f2|#d6d6d6|#f[0-9a-f]{5}|white)"
+
+
+def fix_text_on_gold(css: str) -> str:
+    """Darken light text that now sits on a gold fill.
+
+    A pink `#ec407a → #ad1457` button carried white type at 3.9:1. Both stops
+    become gold, and white on gold is 2.2:1 — the conversion would have shipped
+    an unreadable button. Any declaration block (or inline style) that fills
+    with a solid gold and letters in a light colour gets near-black type
+    instead: 14.40:1 on #ffd700.
+    """
+    block_re = re.compile(r"\{[^{}]*\}|style=\"[^\"]*\"")
+    fill_re = re.compile(r"background[^;\"']*" + GOLD_ANY, re.I)
+    text_re = re.compile(r"((?<![\w-])color\s*:\s*)" + LIGHT_TEXT, re.I)
+
+    def one(m):
+        block = m.group(0)
+        if fill_re.search(block) and text_re.search(block):
+            block = text_re.sub(r"\1#04070a", block)
+        return block
+
+    return block_re.sub(one, css)
+
+
 def retheme(path: str):
     src = open(path, encoding="utf-8").read()
     exempt = ramp_hues(src)
@@ -401,6 +462,7 @@ def retheme(path: str):
 
     out = HEX.sub(hex_sub, src)
     out = RGBA_TOKEN.sub(rgba_sub, out)
+    out = fix_text_on_gold(out)
     return out, changes
 
 
