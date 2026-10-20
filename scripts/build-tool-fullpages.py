@@ -106,8 +106,15 @@ def title_sort_key(title: str) -> str:
     return folded.casefold()
 
 
+# Pinned public slugs — see scripts/discovery_catalogue.py. The Arcade hub was
+# renamed from "MrProphecy Arcade" on 2026-10-20 and its URL had to stay.
+CATEGORY_SLUGS = {"Arcade": "mrprophecy-arcade"}
+
+
 def slugify_category(name: str) -> str:
     """discovery_catalogue.slugify_category."""
+    if name in CATEGORY_SLUGS:
+        return CATEGORY_SLUGS[name]
     s = name.lower().replace("&", "and")
     s = re.sub(r"[^a-z0-9]+", "-", s)
     return s.strip("-")

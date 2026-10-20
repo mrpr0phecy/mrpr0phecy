@@ -21,7 +21,7 @@ const OUTPUT_JSON = path.join(ROOT, 'tools-index.json');
 const CATEGORY_ORDER = [
   ['Home & DIY', '🔨'],
   ['Wellbeing & Community', '🩺'],
-  ['MrProphecy Arcade', '🕹'],
+  ['Arcade', '🕹'],
   ['AI & Autonomous Agents', '🤖'],
   ['Astronomy & Space', '🔭'],
   ['Rocketry & Propulsion', '🚀'],
@@ -62,12 +62,20 @@ const CAT_ICON_MAP = Object.fromEntries(CATEGORY_ORDER);
 // 'icon-' + the slug, matching the symbols in assets/icons/categories.svg.
 // The emoji above stays in `icon` for machine-readable surfaces (llms.txt,
 // JSON feeds); HTML surfaces use iconId. See DESIGN.md §5.
-const iconIdFor = name => `icon-${slugCat(name)}`;
-
 const slugCat = c => c.toLowerCase()
   .replace(/&/g, 'and')
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
+
+// Public slugs that are pinned rather than derived. The Arcade category was
+// called "MrProphecy Arcade" until 2026-10-20; its hub URL and sprite id are
+// kept because 29 tool pages, sitemap.xml and every inbound link point at
+// categories/mrprophecy-arcade.html, and the symbol is referenced by id from
+// assets/icons/categories.svg. A display rename must not break either.
+const CATEGORY_SLUGS = { 'Arcade': 'mrprophecy-arcade' };
+const categorySlug = name => CATEGORY_SLUGS[name] || slugCat(name);
+
+const iconIdFor = name => `icon-${categorySlug(name)}`;
 
 // High-popularity tools for metrics and trending
 const HIGH_POPULARITY_MAP = {
@@ -164,7 +172,7 @@ function build() {
     if (catMap.has(catName)) {
       seenCats.add(catName);
       categories.push({
-        slug: slugCat(catName),
+        slug: categorySlug(catName),
         name: catName,
         count: catMap.get(catName).length,
         icon: icon,
@@ -176,7 +184,7 @@ function build() {
   for (const catName of Array.from(catMap.keys()).sort()) {
     if (!seenCats.has(catName)) {
       categories.push({
-        slug: slugCat(catName),
+        slug: categorySlug(catName),
         name: catName,
         count: catMap.get(catName).length,
         icon: CAT_ICON_MAP[catName] || '🛠️',
@@ -188,7 +196,7 @@ function build() {
   const tools = rawCards.map((c, idx) => {
     const slug = c.name;
     const catName = c.category || 'General';
-    const catSlug = slugCat(catName);
+    const catSlug = categorySlug(catName);
     const tags = extractTags(slug, c.title || '', c.description || '', catName);
     const popularity = computePopularity(slug, idx, rawCards.length);
     const featured = FEATURED_SLUGS.has(slug);

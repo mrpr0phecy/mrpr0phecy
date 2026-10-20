@@ -31,13 +31,23 @@ CARDS_DIR = os.path.join(ROOT, "cards")
 TOOLS_INDEX_JSON = os.path.join(ROOT, "tools-index.json")
 
 
+# Public slugs that are pinned rather than derived. The Arcade category was
+# called "MrProphecy Arcade" until 2026-10-20; its hub URL and sprite id stay
+# because 29 tool pages, sitemap.xml and inbound links point at
+# categories/mrprophecy-arcade.html. Keep in step with CATEGORY_SLUGS in
+# scripts/build-tools-index.js and the copy in tool.html.
+CATEGORY_SLUGS = {"Arcade": "mrprophecy-arcade"}
+
+
 def slugify_category(name: str) -> str:
     """The category slug used by categories/<slug>.html and every #cat- anchor.
 
-    Byte-for-byte the rule in scripts/build-tools-index.js (`slugCat`) and the
-    one tool.html re-implements at runtime for its "Explore Category" tile, so
-    a generator that got this wrong would emit anchors that 404.
+    Byte-for-byte the rule in scripts/build-tools-index.js (`slugCat`), apart
+    from the pinned slugs above, so a generator that got this wrong would emit
+    anchors that 404.
     """
+    if name in CATEGORY_SLUGS:
+        return CATEGORY_SLUGS[name]
     s = name.lower().replace("&", "and")
     s = re.sub(r"[^a-z0-9]+", "-", s)
     return s.strip("-")

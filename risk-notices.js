@@ -74,6 +74,10 @@
     'uk-holiday-entitlement-calculator': 'legal',
     'nda-contract-service-agreement-builder': 'legal',
     'gdpr-ccpa-privacy-policy-generator': 'legal',
+    // Consent-tech watchlist: cites UK legal routes (subject access, the ICO,
+    // Report Remove), so it is legal information, not medical advice — which
+    // is what its Wellbeing & Community category would otherwise attach.
+    'consent-tech-watchlist': 'legal',
     'schengen-90-180-day-calculator': 'legal',
     // DIY/structural/electrical estimates (Home & DIY).
     'deck-joist-span-calculator': 'diy',

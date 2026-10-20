@@ -39,7 +39,7 @@ const ASSET_VERSION = (() => {
 const CAT_BLURBS = {
   'Home & DIY': 'Precision calculators and guides for paint coverage, tiling area, concrete volume, timber sizing, and electrical wiring. Practical mathematics for home improvement and construction.',
   'Wellbeing & Community': 'Self-guided tools for box breathing, grounding exercises, grief support, mindfulness, and community care. Private, respectful utilities designed for daily mental wellness.',
-  'MrProphecy Arcade': 'Interactive web games, rhythm taps, lyric scrambles, beat challenges, and musical puzzles straight from the studio of UK artist MrProphecy.',
+  'Arcade': 'Browser games and drills: board games, Sudoku, Scrabble scoring, map and flag quizzes, and the rhythm, lyric and beat games from the studio.',
   'AI & Autonomous Agents': 'Interactive prompt engineering sandboxes, agent pattern simulators, RAG calculators, and large language model token budgeters. 100% private in-browser AI experimentation.',
   'Astronomy & Space': 'Stargazing tools, telescope magnification calculators, lunar phase calendars, satellite pass predictors, and orbital mechanics simulators for astronomy enthusiasts.',
   'Rocketry & Propulsion': 'Model-rocket stability and ballast, thrust-curve analysis, launch-rail and wind checks, apogee and ejection-delay planning, parachute sizing and drift, nozzle and propellant comparisons, multi-stage delta-v, re-entry heating and a 2-D ascent simulator — every assumption stated.',

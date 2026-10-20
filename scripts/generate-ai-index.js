@@ -44,7 +44,7 @@ function deepToolPages() {
 const CATEGORY_ORDER = [
   ['Home & DIY', '🔨'],
   ['Wellbeing & Community', '🩺'],
-  ['MrProphecy Arcade', '🕹'],
+  ['Arcade', '🕹'],
   ['AI & Autonomous Agents', '🤖'],
   ['Astronomy & Space', '🔭'],
   ['Rocketry & Propulsion', '🚀'],
@@ -81,7 +81,7 @@ const CATEGORY_ORDER = [
 const CAT_BLURB = {
   'Home & DIY': 'Paint, tiling, concrete, timber and wiring maths for real projects.',
   'Wellbeing & Community': 'Breathing, grounding, grief support and everyday kindness tools.',
-  'MrProphecy Arcade': 'Rhythm taps, lyric scrambles and beat games from the music side.',
+  'Arcade': 'Board games, quizzes, word scores and the rhythm and lyric games.',
   'AI & Autonomous Agents': 'Prompt builders, simulators and agent-pattern playgrounds.',
   'Astronomy & Space': 'Star charts, lunar phases, telescope maths and orbital toys.',
   'Rocketry & Propulsion': 'Motor curves, stability, apogee and delay, parachutes, nozzles, propellants, staging, re-entry and ascent simulation.',
@@ -117,7 +117,9 @@ const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-const slugCat = c => c.toLowerCase()
+// Pinned public slugs — see scripts/build-tools-index.js (CATEGORY_SLUGS).
+const CATEGORY_SLUGS = { 'Arcade': 'mrprophecy-arcade' };
+const slugCat = c => CATEGORY_SLUGS[c] || c.toLowerCase()
   .replace(/&/g, 'and')
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-+|-+$/g, '');
