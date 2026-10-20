@@ -24,6 +24,22 @@ Two rules this encodes, both learned the hard way:
    same run, so the first build under-counts by one and `verify.sh` fails with
    `MISSING from sitemap`. Stage, then build again.
 
+4. **`lastmod` is the page's own last commit, not the build date.** It used to
+   be `today` for all 2,975 URLs, rewritten on every build. A `lastmod` that
+   changes without the page changing is the one signal Google's documentation
+   says it will stop believing — and on a site this size it is the lever that
+   gets the pages that matter recrawled after an edit. So each URL now carries
+   the date of the last commit that touched it (`git log` is newest-first, so
+   one pass builds the whole map), except for files that are dirty in the
+   working tree: those are about to be committed, so they get `today`.
+
+   Two consequences worth knowing. `--check` still compares the URL set only:
+   `lastmod` is derived from local history, and CI checks out with
+   `fetch-depth: 1`, where nothing but the tip commit exists — comparing it
+   there would fail every night. Build the sitemap in a full clone before
+   deploying; a shallow clone says so on stdout and falls back to `today` for
+   files with no history in it.
+
 This replaces a copy-paste heredoc that lived in ARCHITECTURE.md §6. That
 snippet had no noindex filter, so anyone who followed the documented procedure
 would have silently added the three noindex pages back to the sitemap.
@@ -36,6 +52,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Dict, Set
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = "https://www.themostusefulsiteintheworld.com"
@@ -76,9 +93,74 @@ def is_noindex(rel: str) -> bool:
     return bool(NOINDEX.search(blob.stdout[:4096]))
 
 
+def commit_dates() -> Dict[str, str]:
+    """Newest commit date per tracked path, from a single `git log` pass.
+
+    `git log` walks newest-first, so the first date seen for a path is the most
+    recent one. `--no-renames` makes a moved file read as a delete plus an add,
+    which is the honest answer: the new path has its own history.
+    """
+    dates: Dict[str, str] = {}
+    try:
+        out = subprocess.run(
+            ["git", "log", "--format=@%cs", "--name-only", "--no-renames"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return dates
+    current = ""
+    for line in out.splitlines():
+        if line.startswith("@"):
+            current = line[1:].strip()
+        elif line.strip() and current:
+            dates.setdefault(line, current)
+    return dates
+
+
+def dirty_paths() -> Set[str]:
+    """Paths that differ from HEAD, staged or not — about to be committed."""
+    try:
+        raw = subprocess.run(
+            ["git", "status", "--porcelain", "-z"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return set()
+    out: Set[str] = set()
+    skip_old_path = False
+    for rec in raw.split("\0"):
+        if not rec:
+            continue
+        if skip_old_path:          # second half of a rename/copy record
+            skip_old_path = False
+            continue
+        status, path = rec[:2], rec[3:]
+        out.add(path)
+        if "R" in status or "C" in status:
+            skip_old_path = True
+    return out
+
+
+def is_shallow() -> bool:
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--is-shallow-repository"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.strip() == "true"
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
 def build() -> str:
     today = datetime.date.today().isoformat()
     html = tracked_html()
+    dates = commit_dates()
+    dirty = dirty_paths()
+
+    def lastmod(rel: str) -> str:
+        if rel in dirty:
+            return today            # editing now: the next commit is today
+        return dates.get(rel, today)
 
     indexable = [f for f in html if not is_noindex(f)]
     skipped = [f for f in html if f not in indexable]
@@ -94,7 +176,7 @@ def build() -> str:
 
     body = "\n".join(
         f"  <url><loc>{BASE}/{u.replace(' ', '%20')}</loc>"
-        f"<lastmod>{today}</lastmod>"
+        f"<lastmod>{lastmod(u)}</lastmod>"
         f"<changefreq>{c}</changefreq><priority>{p}</priority></url>"
         for u, p, c in urls
     )
@@ -105,13 +187,20 @@ def build() -> str:
     print(f"sitemap: {len(urls)} URLs "
           f"({len([u for u in urls if u[0].startswith('cards/')])} cards), "
           f"{len(skipped)} noindex page(s) excluded: {', '.join(skipped) or 'none'}")
+    spread = len({lastmod(u) for u, _, _ in urls})
+    print(f"  lastmod: {spread} distinct date(s), {len(dirty & {u for u, _, _ in urls})} "
+          f"URL(s) dated today because they are dirty in the working tree")
+    if is_shallow():
+        print("  note: shallow clone — paths with no history here fall back to today. "
+              "Build in a full clone before deploying.")
     return xml
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true",
-                    help="fail if sitemap.xml differs (ignoring lastmod dates)")
+                    help="fail if the URL set differs (lastmod is derived from "
+                         "local history, so it is not compared)")
     args = ap.parse_args()
 
     fresh = build()
@@ -128,7 +217,9 @@ def main() -> int:
     with open(SITEMAP, encoding="utf-8") as fh:
         current = fh.read()
 
-    # lastmod moves every day; compare the URL set, which is what matters.
+    # Compare the URL set, not lastmod: the dates come from local history and
+    # CI checks out with fetch-depth 1, so a lastmod comparison would fail every
+    # night in CI while telling you nothing about the deployed file.
     strip = lambda t: sorted(re.findall(r"<loc>([^<]+)</loc>", t))
     if strip(current) != strip(fresh):
         cur, new = set(strip(current)), set(strip(fresh))

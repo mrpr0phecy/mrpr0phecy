@@ -18,7 +18,7 @@ URL) and still mountable in `index.html` / `tool.html`. Manifest:
 | Page | Role |
 |---|---|
 | `index.html` | catalogue home |
-| `tool/<slug>.html` | the tool's own full page — one document per tool (generated, 1,389 of them) |
+| `tool/<slug>.html` | the tool's own full page — one document per tool (generated, one per card) |
 | `tool.html` | stateful shell — filled links (`&field=value&run=1`), jobs, `&embed=1`; browse links no longer use it |
 | `tools.html` | interactive catalogue directory |
 | `tools-index.html` | plain no-JS directory (what `llms.txt` links) |

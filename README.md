@@ -1,6 +1,6 @@
 # The Most Useful Site in the World + MrProphecy
 
-**1,424 free tools that run entirely in your browser — no backend, no signup, no tracking, no ads.**
+**1,424 free tools that run entirely in your browser — no backend, no signup, no ads, and no tracking on the tool pages.**
 
 Live: **<https://www.themostusefulsiteintheworld.com>** — one static domain, two deliberately separate products that never cross-promote.
 
@@ -78,7 +78,7 @@ money-related.
 |---|---|
 | **Live** | <https://www.themostusefulsiteintheworld.com> · <https://www.mrprophecy.com> (same repo, `CNAME`) |
 | **Stack** | Static HTML/CSS/JS — **no build step in production, no framework, no dependencies, no backend**. All 1,424 tools are fragments in `cards/` |
-| **Catalogue** | **1,424 tools · 35 categories · 67 top-level pages** — everything derived from `cards/cards.json` via `npm run build`. Tool count is not a growth target |
+| **Catalogue** | **1,424 tools · 35 categories · a static page per tool** — everything derived from `cards/cards.json` via `npm run build`. Tool count is not a growth target |
 | **AI** | **Lantern** (`ai.html`) — chat that runs 100% on-device (documents + memory + real local tools, 18 reasoning methods, optional WebGPU model). Private by default |
 | **Music** | **MrProphecy** — 233 YouTube videos, Luton-rooted UK hip hop. `listen.html` is the hub, 12-language hreflang cluster |
 | **Hosting** | GitHub Pages from `main` — push → live in ~60 s. `.nojekyll` keeps dot-paths alive |
