@@ -225,7 +225,12 @@
       '</div>' + powerNote + '</div>';
 
     drawChart(r);
-    renderBayes(r);
+    // The Bayesian panel is a 40,000-draw simulation. It used to run here, so
+    // every keystroke and the initial page load paid for a panel that is not
+    // even on screen: at 4x CPU that was 9.4 s of blocking work before
+    // DOMContentLoaded, and on a phone the page simply appeared to hang. It now
+    // runs only when its tab is opened, in slices, and is cached per input set.
+    if (active === 'bayes') renderBayes(r);
   }
 
   function drawChart(r) {
@@ -275,38 +280,65 @@
     });
   }
 
+  var bayesKey = '', bayesToken = 0;
   function renderBayes(r) {
     if (!r) r = compute();
-    var rng = lcg(20260905);
+    var key = [r.d.cn, r.d.cx, r.d.vn, r.d.vx].join(':');
+    if (key === bayesKey) return;
+    bayesKey = key;
+    var token = ++bayesToken;
+    var out = $('abl-bayes-out');
     var N = 40000, wins = 0, sum = 0, diffs = [];
     var aC = 1 + r.d.cx, bC = 1 + r.d.cn - r.d.cx;
     var aV = 1 + r.d.vx, bV = 1 + r.d.vn - r.d.vx;
-    for (var i = 0; i < N; i++) {
-      var dc = betaSample(aC, bC, rng), dv = betaSample(aV, bV, rng);
-      var delta = dv - dc;
-      diffs.push(delta);
-      sum += delta;
-      if (delta > 0) wins++;
+    var rng = lcg(20260905);
+    var i = 0;
+    out.innerHTML = '<div style="padding:14px;border-radius:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);font-size:0.82rem;color:rgba(214,214,214,0.8);">' +
+      'Simulating 40,000 draws from the two posterior distributions&hellip; <span data-bayes-progress>0%</span></div>';
+    var progress = out.querySelector('[data-bayes-progress]');
+    function slice() {
+      // 250 draws is ~50 ms of work at 4x CPU: enough to keep the tab
+      // responsive without 160 frames of overhead. The simulation is identical
+      // to the one-shot version — same seed, same order, same result.
+      var end = Math.min(N, i + 250);
+      for (; i < end; i++) {
+        var dc = betaSample(aC, bC, rng), dv = betaSample(aV, bV, rng);
+        var delta = dv - dc;
+        diffs.push(delta);
+        sum += delta;
+        if (delta > 0) wins++;
+      }
+      if (i < N) {
+        if (token !== bayesToken) return;
+        if (progress) progress.textContent = Math.round(i / N * 100) + '%';
+        setTimeout(slice, 0);
+        return;
+      }
+      diffs.sort(function (a, b) { return a - b; });
+      finish();
     }
-    diffs.sort(function (a, b) { return a - b; });
-    var lo = diffs[Math.floor(N * 0.025)], hi = diffs[Math.floor(N * 0.975)];
-    var pw = wins / N;
-    var colour = pw >= 0.95 ? 'var(--success)' : pw <= 0.05 ? 'var(--error)' : 'var(--premium)';
-    var words = pw >= 0.95 ? 'Almost certainly better' : pw >= 0.8 ? 'Probably better' : pw >= 0.5 ? 'Slightly more likely better' : pw >= 0.2 ? 'Probably not better' : 'Almost certainly worse';
-    $('abl-bayes-out').innerHTML =
-      '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
-      '<div style="font-size:1.3rem;font-weight:800;color:' + colour + ';">' + pct(pw, 1) + ' chance the variant is better</div>' +
-      '<div style="font-size:0.88rem;color:rgba(214,214,214,0.85);margin-top:6px;">' + words + ' &mdash; expected lift ' + ci(sum / N) +
-      ', 95% credible interval ' + ci(lo) + ' to ' + (hi >= 0 ? '+' : '−') + Math.abs(hi * 100).toFixed(2) + ' pp.</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">' +
-      statBox('P(variant &gt; control)', pct(pw, 1), colour) +
-      statBox('expected lift', ci(sum / N), 'var(--accent)') +
-      statBox('P(lift &gt; 0.5pp)', pct(diffs.filter(function (x) { return x > 0.005; }).length / N, 1), 'var(--text)') +
-      statBox('posterior mean control', pct(aC / (aC + bC)), 'var(--text)') +
-      statBox('posterior mean variant', pct(aV / (aV + bV)), 'var(--text)') +
-      '</div>' +
-      '<div style="font-size:0.75rem;color:rgba(214,214,214,0.5);margin-top:10px;">40,000 draws, fixed seed — the same inputs always give the same answer.</div>' +
-      '</div>';
+    function finish() {
+      if (token !== bayesToken) return;
+      var lo = diffs[Math.floor(N * 0.025)], hi = diffs[Math.floor(N * 0.975)];
+      var pw = wins / N;
+      var colour = pw >= 0.95 ? 'var(--success)' : pw <= 0.05 ? 'var(--error)' : 'var(--premium)';
+      var words = pw >= 0.95 ? 'Almost certainly better' : pw >= 0.8 ? 'Probably better' : pw >= 0.5 ? 'Slightly more likely better' : pw >= 0.2 ? 'Probably not better' : 'Almost certainly worse';
+      out.innerHTML =
+        '<div style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;">' +
+        '<div style="font-size:1.3rem;font-weight:800;color:' + colour + ';">' + pct(pw, 1) + ' chance the variant is better</div>' +
+        '<div style="font-size:0.88rem;color:rgba(214,214,214,0.85);margin-top:6px;">' + words + ' &mdash; expected lift ' + ci(sum / N) +
+        ', 95% credible interval ' + ci(lo) + ' to ' + (hi >= 0 ? '+' : '−') + Math.abs(hi * 100).toFixed(2) + ' pp.</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">' +
+        statBox('P(variant &gt; control)', pct(pw, 1), colour) +
+        statBox('expected lift', ci(sum / N), 'var(--accent)') +
+        statBox('P(lift &gt; 0.5pp)', pct(diffs.filter(function (x) { return x > 0.005; }).length / N, 1), 'var(--text)') +
+        statBox('posterior mean control', pct(aC / (aC + bC)), 'var(--text)') +
+        statBox('posterior mean variant', pct(aV / (aV + bV)), 'var(--text)') +
+        '</div>' +
+        '<div style="font-size:0.75rem;color:rgba(214,214,214,0.5);margin-top:10px;">40,000 draws, fixed seed — the same inputs always give the same answer.</div>' +
+        '</div>';
+    }
+    slice();
   }
 
   function renderSize() {
@@ -366,7 +398,10 @@
         PANELS.forEach(function (q) { $(q.panel).style.display = q.id === active ? '' : 'none'; });
         renderTabs();
         if (active === 'size') renderSize();
-        if (active === 'bayes') renderBayes();
+        if (active === 'bayes') { bayesKey = ''; renderBayes(); }
+        // Leaving the tab stops a simulation that is still running: it would
+        // otherwise keep slicing 40,000 draws for a panel nobody is looking at.
+        else { bayesToken++; }
       });
       box.appendChild(b);
     });

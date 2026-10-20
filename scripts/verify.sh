@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify.sh — would this change break the site?
 #
-#   bash scripts/verify.sh          # the gate: 8 checks, ~6 s
+#   bash scripts/verify.sh          # the gate: 10 checks, ~7 s
 #   bash scripts/verify.sh --deep   # gate + the slow audits, ~75 s with jsdom
 #   bash scripts/verify.sh --live   # gate + ask the deployed site what it serves
 #
@@ -10,7 +10,7 @@
 #
 # The gate: hygiene (secrets, placeholders, rel=noopener), catalogue
 # consistency, card JavaScript, internal links, published counts, top-level
-# SEO, Lantern contracts. --deep adds egress, accessibility, cross-card
+# SEO, Lantern contracts, card load. --deep adds egress, accessibility, cross-card
 # collisions, CSS leaks, generated-surface drift, the full card-JS sweep, the
 # product tests and the measured quality floors. CI runs the gate on PRs, and
 # the full gate on main (the deploy) and nightly.
@@ -237,6 +237,34 @@ lantern() {
 }
 
 # ---------------------------------------------------------------------------
+# Speed
+# ---------------------------------------------------------------------------
+
+perf() {
+  # The site's speed floor, in bytes and in rules: the first paint and the
+  # first screen have budgets, the 210 KB search catalogue stays off the
+  # critical path, and the scroll path keeps its document-wide writes at zero.
+  # Each rule in scripts/perf-budget.js says what it cost when it was broken.
+  expect "the first screen stays inside its byte and scroll-path budgets" \
+         "performance regression — see scripts/perf-budget.js (run it with --verbose)" \
+         node scripts/perf-budget.js
+}
+
+card_load() {
+  # A card's first job is to appear. Cards are fragments inlined into the
+  # generated page, so anything they do at parse time is the page's first
+  # impression: a parser-blocking CDN <script src> stops the HTML parser at
+  # that line, and a fetch() with no AbortController waits for as long as the
+  # browser will — minutes on a stalled socket. Both shipped (evolution-walker
+  # and motor-startup rendered nothing without their CDN; the photo and API
+  # cards sat on their spinners), so the rule is a gate rather than a note.
+  # The script's docstring names the three shapes and the exception list.
+  expect "cards always paint: nothing at parse time waits on the network" \
+         "a card can hold the page hostage while it loads — see scripts/check-card-load.py" \
+         python3 scripts/check-card-load.py
+}
+
+# ---------------------------------------------------------------------------
 # --deep: shared infrastructure audits and the CI gate
 # ---------------------------------------------------------------------------
 
@@ -397,16 +425,18 @@ live() {
 # ---------------------------------------------------------------------------
 
 T_START=$(now_ms)
-printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 8-check gate")"
+printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 10-check gate")"
 
 check "hygiene: secrets, placeholders, rel=noopener" hygiene
 check "catalogue consistency"                      catalogue
 check "card JavaScript syntax"                     card_js
+check "card load: nothing waits on the network before paint" card_load
 check "internal links"                             links
 check "published tool counts"                      counts
 check "top-level SEO"                              seo
 check "Lantern engine contracts"                   lantern
 check "service worker discipline"                  sw_discipline
+check "speed: first screen + lazy catalogue"       perf
 
 if [ "$DEEP" = "1" ]; then
   check "card safety audits (egress, a11y, collisions, CSS leaks)" deep_card_safety

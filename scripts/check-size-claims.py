@@ -52,11 +52,16 @@ sentence about the project as a whole is checkable too:
 Hedging is not decoration here: "a repo of about 89 MB" stays true as the
 catalogue grows, and this check is what fails when it stops being true.
 
-Not covered: gzip figures.
+Gzip figures are covered too, because they are the numbers a reader acts on:
+"`tools-index.json` is 210 KB gzipped" is what the visitor downloads, and the
+raw file is four times that. A claim followed by "gzipped"/"gz" is compared
+against `gzip.compress(data, 6)` — the level the site's own harness measures
+with — so a transfer claim rots visibly like any other.
 """
 
 from __future__ import annotations
 
+import gzip
 import os
 import re
 import subprocess
@@ -74,6 +79,10 @@ CLAIM = re.compile(
     re.IGNORECASE,
 )
 HISTORICAL = "historical-size"
+# A transfer figure, not a file size: "`tools-index.json` is 210 KB gzipped".
+# The number is real and checkable, but only against the same gzip level the
+# server uses, so it is resolved separately rather than compared to st_size.
+GZIP_HINT = re.compile(r"\b(gzip|gzipped|gz)\b", re.IGNORECASE)
 SEARCH_DIRS = ("cards", "scripts")
 UNITS = {"B": 1, "KB": 1024, "MB": 1024 * 1024}
 HEDGE_TOLERANCE = 0.15
@@ -149,6 +158,12 @@ def set_size(name: str) -> int:
         else tracked_bytes()
 
 
+def claimed_size(path: str, gzipped: bool) -> int:
+    """Bytes the claim is about: the file, or what it weighs over the wire."""
+    data = open(path, "rb").read()
+    return len(gzip.compress(data, 6)) if gzipped else len(data)
+
+
 def resolve(target: str, doc_rel: str) -> str | None:
     """The file a claim names, or None when the name resolves to nothing."""
     candidates = [
@@ -185,19 +200,23 @@ def main() -> int:
                 continue
             unit = UNITS[m.group(4).upper()]
             claimed = float(m.group(3).replace(",", ""))
-            real = os.path.getsize(path)
+            # "… is 210 KB gzipped" — the word can sit on the next line, and
+            # may be "gzip", "gzipped" or "gz".
+            after = re.sub(r"\s+", " ", text[m.end():m.end() + 24]).lstrip()
+            gzipped = bool(GZIP_HINT.match(after))
+            real = claimed_size(path, gzipped)
             checked += 1
             if m.group(2):  # hedged: "about 900 KB" is allowed to be approximate
                 if abs(real - claimed * unit) / real > HEDGE_TOLERANCE:
                     problems.append(
                         f"{rel}:{line_no}  \"{m.group(0).strip()}\" — {m.group(1)} is "
-                        f"{real / 1024:.1f} KB, which is "
+                        f"{real / 1024:.1f} KB{' gzipped' if gzipped else ''}, which is "
                         f"{abs(real - claimed * unit) / real * 100:.0f}% away from the claim, "
                         f"beyond the 15% a hedged claim may be")
             elif round(real / unit) != claimed:
                 problems.append(
                     f"{rel}:{line_no}  \"{m.group(0).strip()}\" — {m.group(1)} is "
-                    f"{real / 1024:.1f} KB, so the honest figure is "
+                    f"{real / 1024:.1f} KB{' gzipped' if gzipped else ''}, so the honest figure is "
                     f"{round(real / 1024)} KB (or write \"about\" and leave it room)")
         for m in SET_CLAIM.finditer(text):
             line_no = text[:m.start()].count("\n") + 1

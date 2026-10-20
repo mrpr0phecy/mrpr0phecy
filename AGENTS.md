@@ -102,8 +102,9 @@ approval. No plans, ledgers or extra docs.
 | Card | `npm run build`, `node scripts/test-card.js cards/<slug>.html`, `npm run verify` |
 | Shared loaders, generators, `sw.js`, cross-card, check infra | tests → `npm run verify:deep`; build if generated output changes |
 | Visible UI | also 360 & 1440 px (§5) |
+| Anything the home page loads first | `npm test` (the catalogue-lazy suite), `npm run verify` (speed budget), and the throttled load numbers in the PR — see §3 line 8 |
 
-`build` regenerates derived surfaces · `verify` 8 checks (~20 s) · `verify:deep`
+`build` regenerates derived surfaces · `verify` 10 checks (~20 s) · `verify:deep`
 adds audits and product tests (~105 s) · `test` runs the product suite
 (`node --test scripts/tests/<name>.test.js` for one file). Extra checks only
 when impact is uncertain. CI: fast gate on PRs and pushes, `--deep` on `main`
@@ -133,6 +134,22 @@ if your change touches one of these lines.
 5. No secrets, credentials or auth output; rotate anything that reached history.
 6. Music and catalogue stay separate, never cross-promoted.
 7. Never hand-edit a generated file; fix the source and regenerate (§4).
+8. Speed is a product requirement, not a polish item: the home page must feel
+   instant on a throttled phone, so nothing large may join the first screen and
+   the scroll path may not restyle the document. `scripts/perf-budget.js`
+   (in the gate) and `scripts/tests/home-catalogue-lazy.test.js` (in the
+   product suite) enforce it; their headers say what each rule cost when it was
+   broken. Load a 210 KB JSON catalogue to render a section four screens down
+   and you have shipped a two-second page. Measure before and after with the
+   throttled harness described in `ARCHITECTURE.md` §10.
+
+   The same line applies to a single tool. A card is inlined into a generated
+   page, so whatever it does before paint is the page's first impression.
+   `scripts/check-card-load.py` (in the gate) refuses a parser-blocking remote
+   `<script src>` and a `fetch()` with no `AbortController`: a stalled CDN or
+   socket then costs the visitor a blank card or an endless spinner, not a
+   second, and it is the visitor's network that decides — which is exactly the
+   case nobody tests by hand.
 
 Cards stay offline except `scripts/check-egress.py` classifications; new
 tracking, cookies or events need `docs/INSTRUMENTATION.md`. Ask before changing

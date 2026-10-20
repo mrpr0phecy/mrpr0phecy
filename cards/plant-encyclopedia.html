@@ -93,6 +93,22 @@
 </div>
 
 <script>
+  // fetch() has no timeout of its own. A request that never answers — a
+  // stalled socket, a filtered network, a proxy that swallows the response —
+  // used to leave this card on its loading state for as long as the browser
+  // would wait. This bounds each attempt: ten seconds for a single request,
+  // less where the card tries several sources in a row. When it gives up, the
+  // card's own catch path shows its fallback instead of nothing.
+  function plantFetchT(url, opts, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 10000) : null;
+    var o = {};
+    if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (ctrl) o.signal = ctrl.signal;
+    return fetch(url, o).then(function (r) { if (timer) clearTimeout(timer); return r; },
+                              function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+
 /* plant-encyclopedia.html
    - Comprehensive plant database with multiple sources
    - Scoped with pe- prefix
@@ -299,7 +315,7 @@ async function peFetchWikipedia(query) {
     try {
         // First search for the plant
         const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)} plant&format=json&origin=*`;
-        const searchRes = await fetch(searchUrl);
+        const searchRes = await plantFetchT(searchUrl, null, 4500);
         const searchData = await searchRes.json();
         
         if (!searchData.query?.search?.[0]) return null;
@@ -308,7 +324,7 @@ async function peFetchWikipedia(query) {
         
         // Get page content
         const contentUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages|info&titles=${encodeURIComponent(pageTitle)}&exintro=true&explaintext=true&inprop=url&format=json&origin=*&pithumbsize=400`;
-        const contentRes = await fetch(contentUrl);
+        const contentRes = await plantFetchT(contentUrl, null, 4500);
         const contentData = await contentRes.json();
         
         const page = Object.values(contentData.query.pages)[0];
@@ -331,7 +347,7 @@ async function peFetchWikipedia(query) {
 async function peFetchUSDA(query) {
     try {
         // Using OpenFarm as USDA alternative (USDA API requires key)
-        const res = await fetch(`https://openfarm.cc/api/v1/crops/?filter=${encodeURIComponent(query)}`);
+        const res = await plantFetchT(`https://openfarm.cc/api/v1/crops/?filter=${encodeURIComponent(query)}`);
         const data = await res.json();
         
         if (!data.data?.[0]) return null;
@@ -362,7 +378,7 @@ async function peFetchUSDA(query) {
 // Fetch from OpenFarm
 async function peFetchOpenFarm(query) {
     try {
-        const res = await fetch(`https://openfarm.cc/api/v1/crops/?filter=${encodeURIComponent(query)}`);
+        const res = await plantFetchT(`https://openfarm.cc/api/v1/crops/?filter=${encodeURIComponent(query)}`);
         const data = await res.json();
         
         if (!data.data?.[0]) return null;

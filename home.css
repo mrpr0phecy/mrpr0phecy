@@ -235,6 +235,28 @@ body {
     transition: opacity 0.16s ease, visibility 0.16s;
     z-index: 1000;
 }
+/* While the command bar is showing, the list toolbar parks under it; while it
+   is hidden, the toolbar sticks to the top of the viewport. This used to be
+   driven by `--xp-sticky-h` written on <html> on every toggle — an inherited
+   custom property, so each write restyled the entire document (~40 ms of
+   forced style work per toggle on a throttled phone, measured in
+   scripts/perf-budget.js's profile notes). The height is published once as
+   `--xp-bar-h`; the show/hide state is a class, so the only elements restyled
+   are the toolbar and its own children. */
+/* The two measurements this rule needs, with the values it would fall back to
+   anyway. home-core.js overwrites --xp-bar-h on <html> with the bar's measured
+   height (an inline style, so it wins); --xp-toolbar-top is set per page. They
+   are declared here as well because scripts/check-critical-css.py holds the
+   stylesheet to the tokens it uses, and "defined only by a script" is exactly
+   the kind of thing that goes missing in a refactor. */
+:root {
+    --xp-bar-h: 56px;
+    --xp-toolbar-top: 4px;
+}
+html.xp-bar-shown .xp-bar {
+    top: calc(var(--xp-bar-h) + var(--xp-toolbar-top));
+}
+
 .sticky-home {
     display: none;
     flex: none;
@@ -1519,8 +1541,16 @@ button,
     }
 }
 
+/* 0.01, not 0. An element at opacity 0 is not painted, so the hero's
+   entrance animation was also the moment the page first had any content on
+   it: on a throttled phone the first contentful paint waited for the fade to
+   start and the largest-contentful paint waited for it to finish (~600 ms of
+   LCP on a cold load, measured). At 1% the element is painted and counted at
+   once, and the fade still reads exactly the same — 1% of a light glyph on a
+   near-black page is not a visible state, it is the first frame of the
+   fade. */
 @keyframes mp-rise {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0.01; transform: translateY(10px); }
     to { opacity: 1; transform: none; }
 }
 
@@ -1921,7 +1951,7 @@ html[data-season="halloween"] .cat-card[href$="categories/halloween.html"] .cat-
    Everything below `no-preference` is absent under reduced motion. */
 
 @keyframes mp-focus-pull {
-    from { opacity: 0; filter: blur(7px); transform: scale(1.08); }
+    from { opacity: 0.01; filter: blur(7px); transform: scale(1.08); }
     to   { opacity: 1; filter: blur(0);   transform: none; }
 }
 @keyframes mp-clip-right {
