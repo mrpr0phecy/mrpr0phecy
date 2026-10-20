@@ -104,7 +104,7 @@ approval. No plans, ledgers or extra docs.
 | Visible UI | also 360 & 1440 px (§5) |
 | Anything the home page loads first | `npm test` (the catalogue-lazy suite), `npm run verify` (speed budget), and the throttled load numbers in the PR — see §3 line 8 |
 
-`build` regenerates derived surfaces · `verify` 9 checks (~20 s) · `verify:deep`
+`build` regenerates derived surfaces · `verify` 10 checks (~20 s) · `verify:deep`
 adds audits and product tests (~105 s) · `test` runs the product suite
 (`node --test scripts/tests/<name>.test.js` for one file). Extra checks only
 when impact is uncertain. CI: fast gate on PRs and pushes, `--deep` on `main`
@@ -142,6 +142,14 @@ if your change touches one of these lines.
    broken. Load a 210 KB JSON catalogue to render a section four screens down
    and you have shipped a two-second page. Measure before and after with the
    throttled harness described in `ARCHITECTURE.md` §10.
+
+   The same line applies to a single tool. A card is inlined into a generated
+   page, so whatever it does before paint is the page's first impression.
+   `scripts/check-card-load.py` (in the gate) refuses a parser-blocking remote
+   `<script src>` and a `fetch()` with no `AbortController`: a stalled CDN or
+   socket then costs the visitor a blank card or an endless spinner, not a
+   second, and it is the visitor's network that decides — which is exactly the
+   case nobody tests by hand.
 
 Cards stay offline except `scripts/check-egress.py` classifications; new
 tracking, cookies or events need `docs/INSTRUMENTATION.md`. Ask before changing

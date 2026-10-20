@@ -678,7 +678,7 @@ bridge, never a fresh `getElementById`** (the old page looked for
 nothing and `/` threw). The list is the only result surface; a query also steps
 the browse sections aside.
 
-**`tools-index.json` is about 744 KB and every list's data.** It is compact
+**`tools-index.json` is about 760 KB and every list's data.** It is compact
 JSON, with the full public schema preserved; indentation belongs in source,
 not in a downloaded browser payload. The home page fetches it when the visitor
 reaches the list; the static pages already contain its output and never fetch
@@ -777,8 +777,9 @@ launcher, and a launcher that takes three seconds has failed before anyone taps
 it. Three things make the page fast, and all three are enforced rather than
 remembered.
 
-**The catalogue is not on the first screen.** `tools-index.json` is 210 KB
-gzipped — 42% of the page — and it fills a section four screens down. The home
+**The catalogue is not on the first screen.** `tools-index.json` is about 212 KB
+gzipped — the largest single thing the page can load — and it fills a section
+four screens down. The home
 page loads it when the visitor is within 1500 px of that section, searches,
 follows a `#all-tools` or `?q=` deep link, or has no `IntersectionObserver` at
 all. `scripts/tests/home-catalogue-lazy.test.js` drives the shipped file in
@@ -816,6 +817,24 @@ main-thread time, transfer, and what a full-length scroll costs. It needs
 `puppeteer-core` and `@sparticuz/chromium` in `/tmp/tenv` (never a repository
 dependency, AGENTS.md §2) and exits 2 rather than skipping silently when they
 are missing. Run it before and after anything that touches the first screen.
+
+**A single tool has the same rule.** The home page is not the only place a
+visitor waits. A card is inlined into `tool/<slug>.html`, so anything it does
+before paint is the page's first impression, and the visitor's network decides
+how long it lasts. Three shapes shipped and cost real time: a parser-blocking
+`<script src="https://cdn…">` stops the HTML parser at that line, so a stalled
+CDN renders nothing at all (`evolution-walker`, `motor-startup` — both now
+inject the script with `async = true` and paint without it); a `fetch()` with
+no `AbortController` waits for the browser's own timeout on a stalled socket,
+leaving a spinner up for minutes (`cat-photo-viewer`, `dog-photo-viewer` and
+the eight API cards now stop at ten seconds and take their error path); and a
+synchronous warm-up loop in the card's boot blocks the first frame
+(`3d-spirograph-nebula` drew 1,200 warm-up particles before its first visible
+one — 7.5–8.3 s to 155–233 ms without it). `scripts/check-card-load.py` (in
+`npm run verify`) enforces the first two and rejects synchronous XHR, with a
+named-exception list for cards whose `fetch()` cannot reach a socket. Do not
+fix a card because one contended audit said it was slow: revert the patch,
+re-probe the original three times on a quiet machine, and only then keep it.
 
 ## MostUsefulMaps (`maps.html`)
 

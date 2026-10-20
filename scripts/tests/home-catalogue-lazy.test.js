@@ -3,7 +3,8 @@
 // The home page must not download the catalogue until somebody wants it.
 //
 // This is the site's most expensive, most repeatable performance bug: the home
-// page fetched tools-index.json (210 KB gzipped — 42% of the whole page) in a
+// page fetched tools-index.json (about 212 KB gzipped — the largest single thing
+// the page can load) in a
 // warm-up "just in case". It was removed twice and came back twice, because
 // nothing failed when it did: the page still worked, it just took 3.2 s to load
 // on a throttled phone instead of 0.76 s, and the list section four screens
