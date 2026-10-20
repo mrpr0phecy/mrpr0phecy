@@ -1,0 +1,254 @@
+<h2 id="rhb-title" style="margin-top:0;color:var(--accent);">🔥 Re-entry Heating &amp; Ballistic Coefficient Calculator</h2>
+
+<div id="rhb-root">
+  <p id="rhb-desc" class="small" style="color:rgba(230,250,255,.72);margin-bottom:14px;">
+    Estimate ballistic coefficient, stagnation-point heat flux, peak heating, peak deceleration and total heat load along a constant-angle entry — the numbers that set a heat shield's size and shape.
+  </p>
+
+  <form onsubmit="event.preventDefault();" style="margin:0;">
+    <div class="rhb-grid">
+      <div><label class="rhb-l" for="rhb-mass">Entry mass (kg)</label><input id="rhb-mass" class="rhb-i" type="number" min="1" step="10" value="5000" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-dia">Vehicle diameter (m)</label><input id="rhb-dia" class="rhb-i" type="number" min="0.1" step="0.1" value="3.7" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-cd">Drag coefficient, Cd</label><input id="rhb-cd" class="rhb-i" type="number" min="0.1" step="0.05" value="1.2" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-rn">Nose radius (m)</label><input id="rhb-rn" class="rhb-i" type="number" min="0.01" step="0.01" value="0.3" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-vel">Entry velocity (km/s)</label><input id="rhb-vel" class="rhb-i" type="number" min="0.1" step="0.1" value="7.8" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-angle">Flight-path angle below horizon (°)</label><input id="rhb-angle" class="rhb-i" type="number" min="0.1" max="60" step="0.1" value="5" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-alt">Entry interface altitude (km)</label><input id="rhb-alt" class="rhb-i" type="number" min="20" max="200" step="5" value="120" inputmode="decimal"></div>
+      <div><label class="rhb-l" for="rhb-emis">Surface emissivity</label><input id="rhb-emis" class="rhb-i" type="number" min="0.05" max="1" step="0.05" value="0.85" inputmode="decimal"></div>
+    </div>
+
+    <div class="rhb-actions">
+      <button id="rhb-reset" class="rhb-btn" type="button">Reset example</button>
+      <span class="rhb-hint">Constant flight-path-angle model with a standard-atmosphere density profile. No lift, no ablation, no radiative heating.</span>
+    </div>
+  </form>
+
+  <div id="rhb-error" class="rhb-err" role="alert" style="display:none;"></div>
+
+  <div id="rhb-out" aria-live="polite">
+    <div class="rhb-tiles">
+      <div class="rhb-tile"><span class="rhb-k">Ballistic coefficient</span><strong id="rhb-beta" class="rhb-v">—</strong><span id="rhb-beta-sub" class="rhb-s">—</span></div>
+      <div class="rhb-tile"><span class="rhb-k">Peak heat flux</span><strong id="rhb-peak" class="rhb-v">—</strong><span id="rhb-peak-sub" class="rhb-s">—</span></div>
+      <div class="rhb-tile"><span class="rhb-k">Peak deceleration</span><strong id="rhb-g" class="rhb-v">—</strong><span id="rhb-g-sub" class="rhb-s">—</span></div>
+      <div class="rhb-tile"><span class="rhb-k">Integrated heat load</span><strong id="rhb-load" class="rhb-v">—</strong><span id="rhb-load-sub" class="rhb-s">—</span></div>
+    </div>
+
+    <div id="rhb-warn" class="rhb-warn" style="display:none;"></div>
+
+    <div class="rhb-chartwrap">
+      <svg id="rhb-svg" viewBox="0 0 640 300" aria-hidden="true" focusable="false"></svg>
+      <p class="rhb-caption">Stagnation-point convective heat flux against altitude along the entry path. The marker is the peak.</p>
+    </div>
+
+    <div class="rhb-panel">
+      <h3 class="rhb-h3">Entry and heating detail</h3>
+      <ul id="rhb-facts" class="rhb-facts"></ul>
+      <p id="rhb-note" class="rhb-body rhb-muted">—</p>
+    </div>
+  </div>
+
+  <details class="rhb-details">
+    <summary>The Sutton–Graves estimate, ballistic coefficient, and the assumptions that make this a screening tool</summary>
+    <p><strong>Stagnation-point heating.</strong> For a blunt body in high-speed flight, the cold-wall convective heat flux at the stagnation point is approximated by the Sutton–Graves correlation q̇ = 1.7415×10⁻⁴ √(ρ/R<sub>n</sub>) V³ in SI units, with ρ in kg/m³, nose radius R<sub>n</sub> in metres, V in m/s and q̇ in W/m². It rises with the cube of speed and with the square root of density, and falls with the square root of nose radius — a sharper nose concentrates the same energy into a smaller area. The constant assumes air and a cold wall; it is an engineering estimate, not a solution of the shock layer.</p>
+    <p><strong>Radiative equilibrium temperature.</strong> The surface temperature shown is the temperature at which a grey body of the entered emissivity radiates away the incoming flux: T = (q̇/(σ ε))<sup>1/4</sup>. A real ablative heat shield never reaches that temperature because material pyrolyses and blows away, carrying energy with it; a reusable tile surface does approach it. The number is a useful upper bound for a non-ablating surface, not a material limit.</p>
+    <p><strong>Ballistic coefficient.</strong> β = m/(C<sub>d</sub>A) is the mass per unit drag area, in kg/m². A high-β vehicle (dense, small, streamlined) punches deeper into the atmosphere, spends longer at high speed, and generally sees higher peak heating and a longer heat pulse. A low-β vehicle (large, light, blunt) decelerates high and fast, with a shorter, more intense pulse lower in the atmosphere. The same mass with a bigger aeroshell lands differently.</p>
+    <p><strong>The trajectory model.</strong> The path is assumed to be a straight line at a constant flight-path angle below the horizon, with gravity and lift neglected, and the atmosphere is a tabulated standard-atmosphere density profile. Velocity falls through drag: dV/ds = −ρV/(2β). Heat load is ∫q̇ dt along that path. It captures the first-order trade between entry angle, ballistic coefficient, nose radius and peak heating, but it cannot model pull-up, skip-out, lift-to-drag steering, a changing angle of attack, or the shock-layer chemistry of a real entry.</p>
+    <p><strong>What is missing.</strong> Radiative heating becomes important above roughly 9 km/s and can dominate for lunar or Mars return; the Sutton–Graves term is convective only. Ablation, pyrolysis-gas injection, surface roughness, turbulence, boundary-layer transition and shape change all move the answer. Use this for intuition and preliminary sizing, then a validated entry simulation (such as NASA's DPLR/LAURA class tools or a verified 3-DOF model) for hardware.</p>
+    <p class="rhb-muted">Sutton &amp; Graves, <em>A general stagnation-point convective-heating equation for arbitrary gas mixtures</em> (NASA TR R-376, 1971); US Standard Atmosphere 1976. Last reviewed: 2026-10-19. A teaching and screening aid, not a TPS design tool.</p>
+  </details>
+
+  <style>
+    #rhb-root{--rhb-line:rgba(45,212,255,.28);}
+    #rhb-root .rhb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;}
+    #rhb-root .rhb-l{display:block;font-size:.75rem;color:rgba(230,250,255,.68);margin-bottom:4px;line-height:1.35;}
+    #rhb-root .rhb-i{width:100%;padding:9px 10px;border-radius:8px;background:#071019;color:var(--text);border:1px solid rgba(255,255,255,.16);font-size:14px;}
+    #rhb-root .rhb-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;}
+    #rhb-root .rhb-btn{padding:9px 14px;border-radius:8px;border:1px solid rgba(45,212,255,.35);background:rgba(45,212,255,.08);color:var(--text);font-weight:600;cursor:pointer;}
+    #rhb-root .rhb-btn:hover{background:rgba(45,212,255,.16);}
+    #rhb-root .rhb-hint{font-size:.72rem;color:rgba(230,250,255,.55);line-height:1.45;max-width:640px;}
+    #rhb-root .rhb-err{margin:12px 0;padding:10px 12px;border-radius:8px;background:rgba(255,77,77,.1);border:1px solid rgba(255,77,77,.35);color:#ffb3b3;font-size:.83rem;}
+    #rhb-root .rhb-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px;}
+    #rhb-root .rhb-tile{padding:12px;border-radius:10px;background:rgba(45,212,255,.06);border:1px solid var(--rhb-line);}
+    #rhb-root .rhb-k{display:block;font-size:.66rem;letter-spacing:.05em;text-transform:uppercase;color:rgba(230,250,255,.6);line-height:1.3;}
+    #rhb-root .rhb-v{display:block;margin-top:4px;font-size:1.18rem;font-weight:800;color:var(--accent);line-height:1.25;}
+    #rhb-root .rhb-s{display:block;margin-top:3px;font-size:.7rem;color:rgba(230,250,255,.6);line-height:1.4;}
+    #rhb-root .rhb-warn{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:.81rem;line-height:1.5;border:1px solid rgba(255,209,102,.45);background:rgba(255,209,102,.08);color:#ffe0a3;}
+    #rhb-root .rhb-chartwrap{margin-top:12px;padding:8px 10px 4px;border-radius:12px;background:#050b11;border:1px solid rgba(255,255,255,.08);}
+    #rhb-root #rhb-svg{display:block;width:100%;height:auto;}
+    #rhb-root .rhb-caption{margin:2px 0 4px;font-size:.7rem;color:rgba(230,250,255,.5);text-align:center;line-height:1.45;}
+    #rhb-root .rhb-panel{margin-top:12px;padding:13px 14px;border-radius:10px;background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.1);}
+    #rhb-root .rhb-h3{margin:0 0 7px;font-size:.92rem;color:var(--text);}
+    #rhb-root .rhb-facts{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:5px 16px;}
+    #rhb-root .rhb-facts li{font-size:.79rem;line-height:1.45;color:rgba(230,250,255,.8);padding-left:12px;position:relative;}
+    #rhb-root .rhb-facts li:before{content:'·';position:absolute;left:2px;color:var(--accent);}
+    #rhb-root .rhb-body{margin:9px 0 0;font-size:.81rem;line-height:1.55;}
+    #rhb-root .rhb-muted{color:rgba(230,250,255,.55);}
+    #rhb-root .rhb-details{margin-top:16px;font-size:.85rem;color:rgba(230,250,255,.72);line-height:1.6;}
+    #rhb-root .rhb-details summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:.86rem;}
+    #rhb-root .rhb-details p{margin:9px 0;}
+  </style>
+</div>
+
+<script>
+(function () {
+  var card = (document.currentScript && document.currentScript.closest('.card')) || document.body;
+  var $ = function (id) { return card.querySelector('#' + id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var G0 = 9.80665, SIGMA = 5.670374419e-8, SG = 1.7415e-4;
+  var DEFAULTS = { 'rhb-mass':'5000','rhb-dia':'3.7','rhb-cd':'1.2','rhb-rn':'0.3','rhb-vel':'7.8','rhb-angle':'5','rhb-alt':'120','rhb-emis':'0.85' };
+  var ATM = [
+    [0, 1.225], [10000, 0.4135], [20000, 0.0889], [30000, 0.0184], [40000, 0.0040],
+    [50000, 0.001027], [60000, 3.097e-4], [70000, 8.283e-5], [80000, 1.846e-5],
+    [90000, 3.416e-6], [100000, 5.57e-7], [110000, 9.66e-8], [120000, 2.3e-8],
+    [130000, 8.9e-9], [140000, 3.9e-9], [150000, 2.1e-9], [180000, 5.4e-10], [200000, 2.5e-10]
+  ];
+
+  function num(id) { var v = parseFloat($(id).value); return isFinite(v) ? v : NaN; }
+  function nf(x, d) { return isFinite(x) ? x.toFixed(d == null ? 1 : d) : '—'; }
+  function setText(id, text) { $(id).textContent = text; }
+  function svgEl(name, attrs) {
+    var n = document.createElementNS(NS, name);
+    if (attrs) for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function density(hM) {
+    hM = Math.max(0, Math.min(200000, hM));
+    for (var i = 1; i < ATM.length; i++) {
+      if (hM <= ATM[i][0]) {
+        var a = ATM[i - 1], b = ATM[i];
+        var f = (hM - a[0]) / (b[0] - a[0]);
+        return Math.exp(Math.log(a[1]) + (Math.log(b[1]) - Math.log(a[1])) * f);
+      }
+    }
+    return ATM[ATM.length - 1][1];
+  }
+  function heatFlux(rho, rn, v) { return SG * Math.sqrt(rho / rn) * Math.pow(v, 3); }
+
+  function simulate(beta, rn, v0, angleDeg, altKm) {
+    var gamma = angleDeg * Math.PI / 180;
+    var h = altKm * 1000, v = v0, s = 0, t = 0;
+    var ds = 200, steps = 0, heatLoad = 0;
+    var peakQ = 0, peakAlt = h, peakV = v, peakG = 0;
+    var trace = [{ h: h / 1000, q: heatFlux(density(h), rn, v) }];
+    while (h > 0 && v > 50 && steps < 250000) {
+      var rho = density(h);
+      var q = heatFlux(rho, rn, v);
+      var decel = 0.5 * rho * v * v / beta;
+      var dt = ds / Math.max(v, 1);
+      heatLoad += q * dt;
+      if (q > peakQ) { peakQ = q; peakAlt = h; peakV = v; }
+      if (decel > peakG) peakG = decel;
+      v += -rho * v * ds / (2 * beta);
+      if (v < 50) v = 50;
+      h -= ds * Math.sin(gamma);
+      s += ds; steps++;
+      if (steps % 10 === 0) trace.push({ h: Math.max(0, h) / 1000, q: q });
+    }
+    trace.push({ h: 0, q: 0 });
+    return { heatLoad: heatLoad, peakQ: peakQ, peakAlt: peakAlt / 1000, peakV: peakV, peakG: peakG / G0, trace: trace, entryQ: heatFlux(density(altKm * 1000), rn, v0) };
+  }
+
+  function plot(trace, peakAlt, peakQ, entryAlt) {
+    var svg = $('rhb-svg');
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 640, H = 300, L = 58, R = 20, T = 18, B = 44;
+    var x = function (h) { return L + (h / Math.max(entryAlt, 1)) * (W - L - R); };
+    // peakQ arrives in W/m²; the axis is labelled in W/cm², so scale once here
+    // and keep every plotted value and tick in the same unit.
+    var yMax = Math.max(peakQ / 1e4 * 1.15, 1);
+    var y = function (q) { return H - B - (q / yMax) * (H - T - B); };
+    for (var i = 0; i <= 5; i++) {
+      var yy = T + (H - T - B) * i / 5, qv = yMax * (1 - i / 5);
+      svg.appendChild(svgEl('line', { x1: L, y1: yy, x2: W - R, y2: yy, stroke: 'rgba(255,255,255,.08)', 'stroke-width': 1 }));
+      var yl = svgEl('text', { x: L - 7, y: yy + 3, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'end' });
+      yl.textContent = qv < 10 ? qv.toFixed(1) : Math.round(qv);
+      svg.appendChild(yl);
+    }
+    for (var k = 0; k <= 5; k++) {
+      var tx = L + (W - L - R) * k / 5, hv = entryAlt * k / 5;
+      svg.appendChild(svgEl('line', { x1: tx, y1: T, x2: tx, y2: H - B, stroke: 'rgba(255,255,255,.06)', 'stroke-width': 1 }));
+      var xl = svgEl('text', { x: tx, y: H - B + 14, fill: 'rgba(230,250,255,.5)', 'font-size': 9, 'text-anchor': 'middle' });
+      xl.textContent = Math.round(hv);
+      svg.appendChild(xl);
+    }
+    svg.appendChild(svgEl('line', { x1: L, y1: H - B, x2: W - R, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    svg.appendChild(svgEl('line', { x1: L, y1: T, x2: L, y2: H - B, stroke: 'rgba(255,255,255,.35)', 'stroke-width': 1 }));
+    var xl2 = svgEl('text', { x: (L + W - R) / 2, y: H - 8, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle' });
+    xl2.textContent = 'Altitude (km)';
+    svg.appendChild(xl2);
+    var yl2 = svgEl('text', { x: 12, y: (T + H - B) / 2, fill: 'rgba(230,250,255,.6)', 'font-size': 10, 'text-anchor': 'middle', transform: 'rotate(-90 12 ' + ((T + H - B) / 2) + ')' });
+    yl2.textContent = 'Heat flux (W/cm²)';
+    svg.appendChild(yl2);
+    var path = '';
+    for (var j = 0; j < trace.length; j++) path += (j ? ' L ' : 'M ') + x(trace[j].h) + ' ' + y(trace[j].q / 1e4);
+    svg.appendChild(svgEl('path', { d: path, fill: 'none', stroke: '#ff9f43', 'stroke-width': 2.2, 'stroke-linejoin': 'round' }));
+    var px = x(peakAlt), py = y(peakQ / 1e4);
+    svg.appendChild(svgEl('circle', { cx: px, cy: py, r: 4, fill: '#2dd4ff' }));
+    var ml = svgEl('text', { x: Math.min(px + 7, W - R - 75), y: Math.max(py - 7, T + 10), fill: '#2dd4ff', 'font-size': 9, 'font-weight': 700 });
+    ml.textContent = 'peak ' + nf(peakQ / 1e4, 1) + ' W/cm²';
+    svg.appendChild(ml);
+  }
+
+  function run() {
+    if (!document.getElementById('rhb-root')) return;
+    var mass = num('rhb-mass'), dia = num('rhb-dia'), cd = num('rhb-cd'), rn = num('rhb-rn');
+    var vKm = num('rhb-vel'), angle = num('rhb-angle'), altKm = num('rhb-alt'), emis = num('rhb-emis');
+    var err = $('rhb-error');
+    var bad = !isFinite(mass) || !isFinite(dia) || !isFinite(cd) || !isFinite(rn) || !isFinite(vKm) || !isFinite(angle) || !isFinite(altKm) || !isFinite(emis);
+    if (bad || mass <= 0 || dia <= 0 || cd <= 0 || rn <= 0 || vKm <= 0 || angle <= 0 || angle > 60 || altKm < 20 || altKm > 200 || emis <= 0 || emis > 1) {
+      err.style.display = 'block'; err.textContent = 'Enter positive mass, diameter, Cd, nose radius and velocity; entry altitude 20–200 km; flight-path angle 0.1–60°; emissivity 0.05–1.';
+      $('rhb-out').style.opacity = '.4'; return;
+    }
+    err.style.display = 'none'; err.textContent = ''; $('rhb-out').style.opacity = '1';
+
+    var area = Math.PI * dia * dia / 4;
+    var beta = mass / (cd * area);
+    var sim = simulate(beta, rn, vKm * 1000, angle, altKm);
+    var tempK = Math.pow(sim.peakQ / (SIGMA * emis), 0.25);
+    var entryTemp = Math.pow(sim.entryQ / (SIGMA * emis), 0.25);
+
+    setText('rhb-beta', Math.round(beta) + ' kg/m²');
+    setText('rhb-beta-sub', 'Mass ÷ (Cd × ' + nf(area, 2) + ' m² frontal area)');
+    setText('rhb-peak', nf(sim.peakQ / 1e4, 1) + ' W/cm²');
+    setText('rhb-peak-sub', 'At ' + nf(sim.peakAlt, 0) + ' km and ' + nf(sim.peakV, 0) + ' m/s');
+    setText('rhb-g', nf(sim.peakG, 1) + ' g');
+    setText('rhb-g-sub', 'Peak drag deceleration, no lift');
+    setText('rhb-load', nf(sim.heatLoad / 1e6, 1) + ' MJ/m²');
+    setText('rhb-load-sub', nf(sim.heatLoad / 1e6 * 23.9, 0) + ' cal/cm² along the path');
+
+    var warn = $('rhb-warn');
+    var msgs = [];
+    if (vKm >= 9) msgs.push('At ' + nf(vKm, 1) + ' km/s, shock-layer radiation can be comparable to or larger than the convective heating computed here — this estimate is likely low.');
+    if (angle > 15) msgs.push('A steep ' + nf(angle, 0) + '° entry produces a short, intense pulse; structural loads and peak g are likely to be more limiting than the heat load.');
+    if (angle < 1.5) msgs.push('A shallow ' + nf(angle, 1) + '° entry can skip or fly a very long path; this straight-line model cannot represent pull-up.');
+    if (rn < 0.1) msgs.push('A nose radius below 10 cm concentrates the flux strongly; check the correlation’s validity and the material’s limits.');
+    if (sim.peakQ / 1e4 > 500) msgs.push('Peak flux above 500 W/cm² is beyond what most reusable materials tolerate without active cooling or ablation.');
+    if (msgs.length) { warn.style.display = 'block'; warn.textContent = msgs.join(' '); }
+    else { warn.style.display = 'none'; warn.textContent = ''; }
+
+    var facts = [
+      'Entry heat flux: ' + nf(sim.entryQ / 1e4, 2) + ' W/cm²',
+      'Entry radiative-equilibrium temperature: ' + nf(entryTemp, 0) + ' K',
+      'Peak radiative-equilibrium temperature: ' + nf(tempK, 0) + ' K (' + nf(tempK - 273.15, 0) + ' °C)',
+      'Peak heating altitude: ' + nf(sim.peakAlt, 0) + ' km',
+      'Peak heating velocity: ' + nf(sim.peakV / 1000, 2) + ' km/s',
+      'Heat load: ' + nf(sim.heatLoad / 1e6, 2) + ' MJ/m²',
+      'Ballistic coefficient: ' + nf(beta, 0) + ' kg/m²',
+      'Nose radius: ' + nf(rn, 2) + ' m'
+    ];
+    var list = $('rhb-facts');
+    list.textContent = '';
+    facts.forEach(function (text) { var li = document.createElement('li'); li.textContent = text; list.appendChild(li); });
+    setText('rhb-note', 'The model holds the flight-path angle constant and ignores gravity, so the peak heating altitude and heat load are first-order estimates rather than a trajectory solution. A lower ballistic coefficient generally decelerates higher and shortens the heat pulse; a larger nose radius lowers peak flux but spreads the load over a blunter, heavier shape.');
+    plot(sim.trace, sim.peakAlt, sim.peakQ, altKm);
+  }
+
+  function reset() {
+    for (var id in DEFAULTS) if (Object.prototype.hasOwnProperty.call(DEFAULTS, id) && $(id)) $(id).value = DEFAULTS[id];
+    run();
+  }
+  Object.keys(DEFAULTS).forEach(function (id) { var el = $(id); if (el) { el.addEventListener('input', run); el.addEventListener('change', run); } });
+  $('rhb-reset').addEventListener('click', reset);
+  run();
+})();
+</script>

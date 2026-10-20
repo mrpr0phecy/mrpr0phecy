@@ -502,9 +502,15 @@ section('truthfulness — advertised tool count is real');
   const actual = fs.existsSync(path.join(ROOT, 'cards'))
     ? fs.readdirSync(path.join(ROOT, 'cards')).filter(f => f.endsWith('.html')).length
     : 0;
-  const claimRe = /\b(\d{3})\s+(?:free|tools\b)/gi;
+  // Capture the whole count, including a thousands separator. The old
+  // three-digit pattern read the tail of "1401 tools" as "401 tools" once
+  // the catalogue crossed 1,400; the boundary now refuses to start mid-number.
+  const claimRe = /(?<![\d,])(\d{1,4}(?:,\d{3})?)\s+(?:free|tools\b)/gi;
   const bad = [];
-  for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
+  // changelog.html is a dated record: its "1,149 tools" entries describe the
+  // catalogue at that release, so they are history, not a current claim.
+  const historical = new Set(['changelog.html']);
+  for (const f of fs.readdirSync(ROOT).filter(f => f.endsWith('.html') && !historical.has(f))) {
     let txt = fs.readFileSync(path.join(ROOT, f), 'utf8');
     /* Strip inline tags first: counts are routinely wrapped for emphasis, e.g.
        "all <strong>N</strong> tools". Without this the guard silently misses
@@ -512,9 +518,9 @@ section('truthfulness — advertised tool count is real');
     txt = txt.replace(/<\/?(?:strong|b|em|i|span|small)\b[^>]*>/gi, '');
     let m;
     while ((m = claimRe.exec(txt)) !== null) {
-      const n = parseInt(m[1], 10);
+      const n = parseInt(m[1].replace(/,/g, ''), 10);
       // Only treat plausible tool-count claims as claims.
-      if (n >= 400 && n <= 999 && n !== actual) bad.push(`${f}: "${m[0].trim()}"`);
+      if (n >= 400 && n <= 9999 && n !== actual) bad.push(`${f}: "${m[0].trim()}"`);
     }
   }
   if (bad.length) {

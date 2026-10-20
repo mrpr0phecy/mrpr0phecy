@@ -47,6 +47,7 @@ const CATEGORY_ORDER = [
   ['MrProphecy Arcade', '🕹'],
   ['AI & Autonomous Agents', '🤖'],
   ['Astronomy & Space', '🔭'],
+  ['Rocketry & Propulsion', '🚀'],
   ['Dogs & Canine Care', '🐕'],
   ['Cats & Feline Care', '🐈'],
   ['Birdwatching & Ornithology', '🦅'],
@@ -71,6 +72,7 @@ const CATEGORY_ORDER = [
   ['Virtual Worlds & Gaming', '🎮'],
   ['Museum & Collection', '🏛️'],
   ['Trucking & Freight', '🚚'],
+  ['Halloween', '🎃'],
   ['Legal & Professional', '⚖️'],
 ];
 
@@ -82,6 +84,8 @@ const CAT_BLURB = {
   'MrProphecy Arcade': 'Rhythm taps, lyric scrambles and beat games from the music side.',
   'AI & Autonomous Agents': 'Prompt builders, simulators and agent-pattern playgrounds.',
   'Astronomy & Space': 'Star charts, lunar phases, telescope maths and orbital toys.',
+  'Rocketry & Propulsion': 'Motor curves, stability, apogee and delay, parachutes, nozzles, propellants, staging, re-entry and ascent simulation.',
+  'Halloween': 'Trick-or-treat routes, candy quantities, pumpkin carving and purée, costume weather, fog, decoration power, night visibility, queue capacity and spooky story skeletons.',
   'Dogs & Canine Care': 'Feeding, training and health planners for good dogs.',
   'Cats & Feline Care': 'Feeding maths, life stages, poison triage and kitten timelines for cats.',
   'Birdwatching & Ornithology': 'Identification helpers, logs and migration trackers.',

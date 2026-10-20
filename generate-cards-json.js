@@ -182,6 +182,50 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-20 — ten Halloween tools (new category). The catalogue had horror
+  // *props* but nothing for the night itself: no pumpkin, costume, candy,
+  // trick-or-treat, fog, decoration-power, visibility, queue, purée or story
+  // tooling. Seasonal, but the maths is ordinary and stays useful every year.
+  'trick-or-treat-route-planner': 'Halloween',
+  'halloween-candy-calculator': 'Halloween',
+  'jack-o-lantern-carve-planner': 'Halloween',
+  'halloween-costume-weather-planner': 'Halloween',
+  'fog-machine-calculator': 'Halloween',
+  'halloween-decoration-power-budget': 'Halloween',
+  'halloween-night-visibility-check': 'Halloween',
+  'haunted-house-throughput-planner': 'Halloween',
+  'pumpkin-puree-pie-planner': 'Halloween',
+  'spooky-story-skeleton-generator': 'Halloween',
+  // 2026-10-20 — twelve more Halloween tools, written for search: costume ideas,
+  // couple/group/last-minute costumes, pumpkin stencils, face paint, party games,
+  // trivia, spooky names, playlist, film marathon and a scavenger hunt. They link
+  // to each other and to guides/halloween.html; no network calls, as ever.
+  'halloween-costume-generator': 'Halloween',
+  'halloween-pumpkin-stencil-generator': 'Halloween',
+  'halloween-face-paint-planner': 'Halloween',
+  'halloween-party-games-planner': 'Halloween',
+  'halloween-trivia-questions': 'Halloween',
+  'halloween-couple-costume-matcher': 'Halloween',
+  'halloween-group-costume-planner': 'Halloween',
+  'last-minute-halloween-costume-finder': 'Halloween',
+  'halloween-name-generator': 'Halloween',
+  'halloween-party-playlist-planner': 'Halloween',
+  'halloween-movie-marathon-planner': 'Halloween',
+  'halloween-scavenger-hunt-generator': 'Halloween',
+  // 2026-10-19 — ten Rocketry & Propulsion tools (new category). A keyword audit of
+  // all 1,394 existing cards found no motor thrust curve, nozzle, parachute sizing,
+  // launch-rail check, apogee/delay planner, multi-stage budget, re-entry heating or
+  // ascent simulator. Hobby and university rocketry maths, with assumptions stated.
+  'model-rocket-stability-barrowman': 'Rocketry & Propulsion',
+  'rocket-thrust-curve-analyzer': 'Rocketry & Propulsion',
+  'rocket-launch-safety-check': 'Rocketry & Propulsion',
+  'rocket-apogee-delay-planner': 'Rocketry & Propulsion',
+  'rocket-parachute-descent-drift': 'Rocketry & Propulsion',
+  'rocket-nozzle-thrust-calculator': 'Rocketry & Propulsion',
+  'rocket-propellant-comparator': 'Rocketry & Propulsion',
+  'rocket-multistage-delta-v-planner': 'Rocketry & Propulsion',
+  'reentry-heating-ballistic-calculator': 'Rocketry & Propulsion',
+  'rocket-ascent-flight-simulator': 'Rocketry & Propulsion',
   // 2026-10-09 — AI Message Board: one public GitHub-issue thread that AI agents
   // post to (proof-of-work bot check, moderated by .github/workflows/ai-board-moderation.yml).
   'ai-message-board': 'AI & Autonomous Agents',

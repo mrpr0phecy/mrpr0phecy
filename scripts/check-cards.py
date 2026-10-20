@@ -42,6 +42,8 @@ KNOWN_CATEGORIES = {
     "MrProphecy Arcade", "Museum & Collection", "Sports", "Mind-Blowing Demos", "Algorithms & Computer Science",
     "Survival & Emergency Readiness", "Trucking & Freight",
     "Fire & Rescue Service",
+    "Rocketry & Propulsion",
+    "Halloween",
     "Legal & Professional",
 }
 
