@@ -129,13 +129,19 @@ first**, because 1,424 cards cannot be reviewed as one diff.
 - **Colour that carries meaning is left alone.** A three-or-more-hue gradient is
   data — the BMI bands, a risk scale, a spectrum — and its hues are exempted
   *card-wide*, so a legend label keeps matching the stop it names. A protected
-  list (contrast checkers, colour pickers, physics and light toys) is skipped
-  entirely, because recolouring them would break the thing they do.
+  list (contrast checkers, colour pickers, physics and light toys, and the cards
+  where hue is a *key* — the periodic table's category tiles, the anatomy
+  explorer's body-system chips) is skipped entirely, because recolouring them
+  would break the thing they do.
 - **A hue can be both.** `bodyfat` spends `#39ff14` as its theme accent *and* as
   the low stop of a green→yellow→red scale. The rule: if that hue is also the
-  card's most-used chromatic colour (six hits or more), it is an accent sitting
-  in a ramp, and it converts everywhere; the remaining stops still read in
-  order.
+  card's most-used chromatic colour (six hits or more) **and it paints a
+  surface** — a background, border or shadow outside the gradient itself — it is
+  an accent sitting in a ramp, and it converts everywhere; the remaining stops
+  still read in order. `bmi` fails that test: its `#4dabf7` only ever letters
+  the word "Underweight" and fills the band behind it, so the band stays blue.
+  Without the surface test a converted card could not be re-run safely — the
+  second pass would see the ramp's remaining hue as an accent and eat the scale.
 - **Contrast holds in the new tones.** `#d4af37` on the card surface `#0b1219`
   is **8.96:1**, `#ffd700` on the same is **13.43:1**, and even the bronze
   `#a1791f` clears AA as text at **5.07:1** on the page and **4.74:1** on the

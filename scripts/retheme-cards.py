@@ -58,7 +58,10 @@ INDEX = os.path.join(ROOT, "tools-index.json")
 PROTECTED = re.compile(
     r"(colou?r|palette|resistor|contrast|spirograph|lava-lamp|hourglass|orrery"
     r"|galaxy|nebula|cymatic|tunnel|wave-packet|aurora|firework|gradient|paint"
-    r"|pixel|photo|image-|css-art|shader|plasma)",
+    r"|pixel|photo|image-|css-art|shader|plasma"
+    # Category colours: the periodic-table tiles and the body-system chips are
+    # keyed by hue, and flattening ten categories into four golds loses the key.
+    r"|anatomy|periodic|element-hall|constellation-map)",
     re.I,
 )
 
@@ -81,6 +84,60 @@ ACCENT = {
     "ff6b35": "d4af37",   # orange as an accent
     "c060f0": "d4af37",
     "63d3a6": "d4af37",
+    # The long tail, measured across the catalogue before batch 2: the same
+    # families in Tailwind/Bootstrap spelling, plus the cyan and lilac that the
+    # generators and wellbeing cards inked themselves with.
+    "22d3ee": "d4af37",
+    "06b6d4": "d4af37",
+    "00bcd4": "d4af37",
+    "0ea5e9": "d4af37",
+    "38bdf8": "d4af37",
+    "60a5fa": "d4af37",
+    "3b82f6": "d4af37",
+    "1e90ff": "d4af37",
+    "7fe0c3": "d4af37",
+    "2dd4bf": "d4af37",
+    "14b8a6": "d4af37",
+    "10b981": "d4af37",
+    "34d399": "d4af37",
+    "4caf50": "d4af37",
+    "22c55e": "d4af37",
+    "2ecc71": "d4af37",
+    "00e676": "d4af37",
+    "4ade80": "d4af37",
+    "80a070": "d4af37",
+    "d896ff": "d4af37",   # lilac
+    "8080f0": "d4af37",
+    "c084fc": "d4af37",
+    "8b5cf6": "a1791f",
+    "a855f7": "d4af37",
+    "7c3aed": "a1791f",
+    "e879f9": "d4af37",
+    "ff007a": "d4af37",   # magenta
+    "ff3366": "d4af37",
+    "ff5577": "d4af37",
+    "ec4899": "d4af37",
+    "e83e8c": "d4af37",
+    "f472b6": "d4af37",
+    "ff4081": "d4af37",
+    # Gold-adjacent yellows: already the same family, so they take the readout
+    # gold rather than staying a second yellow beside it.
+    "ffcc00": "d4af37",
+    "ffd27f": "d4af37",
+    "e3c05a": "d4af37",
+    "c9a227": "d4af37",
+    # Batch 2 residuals: one-off palettes and the pale cyan of the old charts.
+    "ffdc6b": "f0dc9a",
+    "ffcc5b": "d4af37",
+    "ff9a6b": "d4af37",
+    "ff6b9d": "d4af37",
+    "6bff97": "d4af37",
+    "6b9dff": "a1791f",
+    "4ecdc4": "d4af37",
+    "38b2ac": "d4af37",
+    "4299e1": "a1791f",
+    "1da1f2": "d4af37",
+    "7ef9ff": "d4af37",
 }
 
 # Neutrals: page, panel, text, hairlines. The whole black-to-white ramp.
@@ -92,6 +149,17 @@ NEUTRAL = {
     "ffffff": None,        # white stays white
     "9ccbe0": "a3a3a3",
     "9aa3af": "a3a3a3",
+    "8fa3bf": "a3a3a3",   # cool blue-greys, the secondary text of the old cards
+    "8090b0": "a3a3a3",
+    "587080": "8a8a8a",
+    "94a3b8": "8a8a8a",
+    "64748b": "8a8a8a",
+    "e0d0c0": "d6d6d6",   # warm papers used as text
+    "f4ead0": "d6d6d6",
+    "f0e6dc": "d6d6d6",
+    "9aa6b6": "8a8a8a",   # pale slate text
+    "3a3a5a": "111111",   # slate panels
+    "1b1b2f": "0b1219",
     "071019": "04070a",
     "071017": "04070a",
     "050811": "04070a",
@@ -145,6 +213,32 @@ GOLD_TONES = ["ffd700", "d4af37", "f0dc9a", "a1791f"]
 AMBER = {"ffa500", "ff9800", "ffd43b", "ffd166", "ffc107"}
 
 
+SURFACE = re.compile(
+    r"(?:background|background-color|border(?:-[a-z]+)?|box-shadow|fill|stroke|outline)"
+    r"\s*:[^;{}]*", re.I)
+
+
+def surface_uses(css: str, hue: str) -> bool:
+    """Does this hue paint a surface somewhere, not just letters?
+
+    A theme accent fills buttons and panels. A ramp stop that also has a legend
+    label does not — `bmi` writes #4dabf7 in the band and in the word
+    "Underweight" beside it, and nothing else. That is the line between the
+    green `bodyfat` wears (panels, buttons, the result) and the blue `bmi` only
+    names.
+    """
+    rgb = tuple(int(hue[i:i + 2], 16) for i in (0, 2, 4))
+    channels = r"\s*,\s*".join(str(c) for c in rgb)
+    # The band behind a legend is a gradient, and a gradient is data however it
+    # is declared; only a surface *outside* one counts as wearing the colour.
+    for m in SURFACE.finditer(GRADIENT.sub("", css)):
+        chunk = m.group(0)
+        if re.search(r"#" + hue + r"\b", chunk, re.I) or \
+                re.search(r"rgba?\(\s*" + channels + r"\b", chunk):
+            return True
+    return False
+
+
 def ramp_hues(css: str):
     """Hues that encode data: any colour in a gradient with 3+ distinct hues.
 
@@ -179,7 +273,7 @@ def ramp_hues(css: str):
         return hues
     if chromatic:
         top = max(chromatic, key=lambda k: chromatic[k])
-        if top in hues and chromatic[top] >= 6:
+        if top in hues and chromatic[top] >= 6 and surface_uses(css, top):
             hues.discard(top)
     return hues
 
@@ -262,6 +356,8 @@ def retheme(path: str):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--top", type=int, help="the N most-used cards")
+    ap.add_argument("--next", type=int,
+                    help="the next N cards, most-used first, that still need it")
     ap.add_argument("--slugs", help="comma-separated slugs")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--write", action="store_true")
@@ -276,13 +372,17 @@ def main() -> int:
         chosen = [t for t in by_pop if t["slug"] in wanted]
     elif args.top:
         chosen = by_pop[: args.top]
+    elif args.next:
+        chosen = by_pop
     elif args.all:
         chosen = by_pop
     else:
-        ap.error("choose --top N, --slugs, or --all")
+        ap.error("choose --top N, --next N, --slugs, or --all")
 
     converted, skipped, untouched = [], [], []
+    examined = 0
     for t in chosen:
+        examined += 1
         slug = t["slug"]
         if PROTECTED.search(slug):
             skipped.append(slug)
@@ -298,11 +398,15 @@ def main() -> int:
         converted.append((slug, len(changes)))
         if args.write:
             open(path, "w", encoding="utf-8").write(out)
+        if args.next and len(converted) >= args.next:
+            break
 
-    print(f"scanned   {len(chosen)}")
+    print(f"scanned   {examined}")
     print(f"converted {len(converted)}" + ("" if args.write else "  (dry run)"))
     print(f"protected {len(skipped)}  {', '.join(skipped[:8])}{'…' if len(skipped) > 8 else ''}")
     print(f"no change {len(untouched)}  {', '.join(untouched[:8])}{'…' if len(untouched) > 8 else ''}")
+    if converted:
+        print(f"   span    {converted[0][0]} … {converted[-1][0]}")
     for slug, n in converted[:15]:
         print(f"   {slug:44} {n} colours")
     if len(converted) > 15:
