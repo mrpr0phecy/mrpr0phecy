@@ -42,6 +42,7 @@ MostUsefulMaps and SupaViewer out of the tools brand).
 | **UI accent** (visitor's) | default `#2dd4ff` cyan; six offered, choice in `localStorage` | everything *in* the interface: washes, hover, focus rings, the mark's brackets |
 | **House accent** (brand's) | `#e8a33d` amber on dark; `#7a500e` for accent words on light | external surfaces only: `logo-lockup-*.svg`, `og-brand.png`/`og-tools.png`, `logo.png` |
 | **Season accent** | `#ff9f43` pumpkin (`--pumpkin`) | one dated surface only: the Halloween band on the home page (`home.css` §13), the Halloween category hub and `guides/halloween.html` |
+| **Readout amber** | `#ffb454` (`--readout`), `rgba(255,180,84,.62)` (`--readout-dim`) | numbers and labels only: category counts, section markers, the tool total, shelf tags. Never a control |
 
 The house accent defines the product externally (the logo a journalist grabs,
 the social card, the press kit). **The page itself is never in the house
@@ -75,10 +76,24 @@ glance. It is scoped as tightly as possible:
   surface, and forced-colours drops it for Canvas/Highlight like everything
   else.
 
+The readout amber is a fourth, equally narrow job (added 2026-10-20 with the
+darker home page). The interface now speaks in two colours: **amber is what you
+read, the accent is what you press.** Counts, section numbers and the tool total
+are amber; every interactive thing keeps the visitor's accent, so the picker
+still means something. It is deliberately lighter and more orange than the
+house `#e8a33d` so a readout is never mistaken for the brand, and it is a *page*
+token (`home.css :root`), not a brand value — `brand/mark.py` never sees it.
+`--readout-dim` is the same hue at 62 % over the page, which is the smallest
+weight that still clears 4.5:1 for the 0.68 rem section markers (measured
+below); anything dimmer has to be decoration, not text.
+
 ### 3.2 Measured contrast
 
 | Pair | Ratio | Requirement |
 |---|---|---|
+| `#ffb454` on `#04070a` (page) | **11.45:1** | text 4.5:1 — passes |
+| `#ffb454` on `#0c141c` (tile) / `#0b131a` (shelf) | **10.52:1** / **10.61:1** | text 4.5:1 — passes |
+| `rgba(255,180,84,.62)` on `#04070a` → `#a07238` | **4.77:1** | small text 4.5:1 — passes |
 | `#e8a33d` on `#0a0f14` (page) | **8.92:1** | fill 3:1 — passes |
 | `#e8a33d` on `#17232e` (worst-case tile top) | **7.40:1** | fill 3:1 — passes |
 | `#e8a33d` on white | 2.16:1 | **never as text** |
@@ -98,11 +113,12 @@ change, so the mapping is documented instead):
 
 | Brief | Repo token | Note |
 |---|---|---|
-| `--bg` / `--bg-dark` | `--bg-primary` / `--surface` (`light-dark(#f8fafc,#0a0f14)`) | unchanged |
+| `--bg` / `--bg-dark` | `--bg-primary` / `--surface` (`light-dark(#f8fafc,#04070a)`) | #04070a since the 2026-10-20 darker pass |
 | `--fg` / `--fg-dark` | `--text` / `--surface-2` family | unchanged |
 | `--accent-user` | `--accent` (+ `--accent-hue`) | the picker; unchanged |
 | `--accent-house` | `HOUSE_ACCENT` / `HOUSE_ON_LIGHT` in `brand/mark.py` | external brand only — not a page token, on purpose |
 | `--grid-line` / `--rule` | `home.css :root` | faint grid / structural divider |
+| `--readout` / `--readout-dim` | `home.css :root` | the amber readout voice; see §3.1 |
 | `--font-display` | planned (§4) | the variable display font, when it lands |
 | `--font-body` | `--font-sans` (Inter) | unchanged |
 

@@ -223,7 +223,7 @@ drift. Everything below the fold is `[data-explore="json"]`, an empty container.
 
 | file | size | when |
 |---|---|---|
-| `home.css` | about 62 KB | first paint — render-blocking on purpose |
+| `home.css` | about 66 KB (15,846 B gzip) | first paint — render-blocking on purpose |
 | `home-deferred.css` | about 7.5 KB | containers hidden at first paint; applied after it (13 KB gzip for the pair) |
 | `explore.css` | about 19 KB | the list layer, shared with four other page types |
 | `toolbox.css` | about 11 KB | the toolbox panel and its ＋ buttons — split out of explore.css so the tool pages can load the panel without the list layer |
