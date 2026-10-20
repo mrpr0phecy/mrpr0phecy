@@ -247,6 +247,22 @@
 </style>
 
 <script>
+  // fetch() has no timeout of its own. A request that never answers — a
+  // stalled socket, a filtered network, a proxy that swallows the response —
+  // used to leave this card on its loading state for as long as the browser
+  // would wait. This bounds each attempt: ten seconds for a single request,
+  // less where the card tries several sources in a row. When it gives up, the
+  // card's own catch path shows its fallback instead of nothing.
+  function plFetchT(url, opts, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 10000) : null;
+    var o = {};
+    if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (ctrl) o.signal = ctrl.signal;
+    return fetch(url, o).then(function (r) { if (timer) clearTimeout(timer); return r; },
+                              function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+
 /* Premier League Live Card - Web Scraping Edition */
 
 let currentTeams = [];
@@ -304,7 +320,7 @@ async function loadCurrentTeams() {
     // request before it can ever succeed — a wasted failed request on every
     // load. Wikipedia's API supports CORS (origin=*) and can actually work,
     // so it is the primary source, with the static list as final fallback.
-    const wikiResponse = await fetch(
+    const wikiResponse = await plFetchT(
       'https://en.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro&titles=2023%E2%80%9324_Premier_League&origin=*'
     );
     
@@ -492,7 +508,7 @@ async function fetchPLData() {
 async function fetchStandings() {
   try {
     // Try BBC Sport table
-    const response = await fetch(DATA_SOURCES.bbcStandings, {
+    const response = await plFetchT(DATA_SOURCES.bbcStandings, {
       headers: { 'User-Agent': 'Mozilla/5.0' }
     });
     

@@ -275,9 +275,25 @@
 </div>
 <p id="seoat-toast" class="seoat-muted" aria-live="polite"></p>
 
-<script>
-(function () {
+<script>(function () {
   'use strict';
+
+  // fetch() has no timeout of its own. A request that never answers — a
+  // stalled socket, a filtered network, a proxy that swallows the response —
+  // used to leave this card on its loading state for as long as the browser
+  // would wait. This bounds each attempt: ten seconds for a single request,
+  // less where the card tries several sources in a row. When it gives up, the
+  // card's own catch path shows its fallback instead of nothing.
+  function seoFetchT(url, opts, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 10000) : null;
+    var o = {};
+    if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (ctrl) o.signal = ctrl.signal;
+    return fetch(url, o).then(function (r) { if (timer) clearTimeout(timer); return r; },
+                              function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+
   var ROOT_ID = 'pro-seo-audit-toolkit-root';
   var STOP = ('a,about,above,after,again,against,all,am,an,and,any,are,as,at,be,because,been,before,being,below,between,both,but,by,can,could,did,do,does,doing,down,during,each,few,for,from,further,had,has,have,having,he,her,here,hers,herself,him,himself,his,how,i,if,in,into,is,it,its,itself,just,me,more,most,my,myself,no,nor,not,now,of,off,on,once,only,or,other,our,ours,ourselves,out,over,own,same,she,should,so,some,such,than,that,the,their,theirs,them,themselves,then,there,these,they,this,those,through,to,too,under,until,up,very,was,we,were,what,when,where,which,while,who,whom,why,will,with,would,you,your,yours,yourself,yourselves,also,get,got,may,might,must,us,use,used,using,one,two,new').split(',');
   var STOPSET = {}; STOP.forEach(function (w) { STOPSET[w] = 1; });
@@ -542,7 +558,7 @@
     try { u = new URL(url); } catch (e) { u = null; }
     if (!u || !/^https?:$/.test(u.protocol)) { els.fetchStatus.textContent = 'Enter a full address starting with https://'; return; }
     els.fetchStatus.textContent = 'Asking ' + u.hostname + ' for the page…';
-    fetch(u.href, { mode: 'cors', credentials: 'omit' }).then(function (r) {
+    seoFetchT(u.href, { mode: 'cors', credentials: 'omit' }).then(function (r) {
       if (!r.ok) throw new Error('The site answered with error ' + r.status + '.');
       return r.text();
     }).then(function (text) {

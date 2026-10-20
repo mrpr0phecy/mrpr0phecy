@@ -265,6 +265,9 @@ function resize(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.fillStyle='#02040a'; ctx.fillRect(0,0,w,h);
   prev={};
+  // Paused (off-screen, hidden tab, reduced motion): the resize wiped the
+  // canvas, so repaint one frame or the card comes back blank.
+  if(!raf && typeof drawFrame === 'function'){ drawFrame(0.016,false); }
 }
 function fadeStep(){
   var fade=Math.pow(1-P.trail,2)*0.55+0.008;
@@ -334,9 +337,27 @@ function drawFrame(dt, advance){
 function speedFactor(){ return P.orbit<0.05 ? 0.0 : (0.35+P.orbit*1.3); }
 
 var time=0;
+/* When the animation is allowed to run. Three things stop it: the visitor
+   pressing Pause, the card being scrolled out of view, and the browser being
+   hidden. A full-screen canvas that keeps drawing at 60 fps in a background
+   tab is a battery drain with nothing to show for it. */
+var onScreen=true, userPlaying=true, reducedMotion=false;
+try { reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch(e){}
+if(reducedMotion) userPlaying=false;
+function canRun(){ return userPlaying && onScreen && !document.hidden; }
+function syncRun(){
+  var btn=$('sg3-play');
+  if(btn) btn.textContent=userPlaying?'⏸ Pause':'▶ Play';
+  if(canRun()){
+    if(!raf){ lastTs=performance.now(); raf=requestAnimationFrame(loop); }
+  } else if(raf){
+    cancelAnimationFrame(raf); raf=null;
+  }
+}
 function loop(ts){
+  raf=null;
+  if(!canRun()) return;
   raf=requestAnimationFrame(loop);
-  if(!running) return;
   var dt=Math.min(0.06,(ts-lastTs)/1000||0.016); lastTs=ts;
   time+=dt;
   hueT=(hueT + P.hueSpeed*dt)%1;
@@ -391,9 +412,9 @@ function readSliders(){
  .forEach(function(id){ $(id).addEventListener('input',readSliders); });
 
 $('sg3-play').addEventListener('click',function(){
-  running=!running;
-  $('sg3-play').textContent=running?'⏸ Pause':'▶ Play';
-  if(running){ lastTs=performance.now(); } else { $('sg3-play').blur(); }
+  userPlaying=!userPlaying;
+  if(!userPlaying) this.blur();
+  syncRun();
 });
 $('sg3-rand').addEventListener('click',function(){
   applyPreset(Math.floor(Math.random()*PRESETS.length));
@@ -466,10 +487,24 @@ applyPreset(0);
 resize();
 if(window.ResizeObserver){ boxResize=new ResizeObserver(function(){ resize(); }); boxResize.observe(box); }
 else { window.addEventListener('resize',resize); }
-/* warm-up: draw enough of the pattern that the canvas looks alive on load */
-for(i=0;i<820;i++){ tNow+= (TAU/900)*0.85; drawFrame(0.016,false); }
-lastTs=performance.now();
-raf=requestAnimationFrame(loop);
+/* One frame, not 820. The old warm-up drew 820 complete frames synchronously
+   before the first animation frame — 44 steps x up to 4 echoes x 170 stars
+   each — to make the canvas "look alive" on load. At 4x CPU that was ~1.5 s of
+   blocked main thread, and because it ran during parsing it pushed the load
+   event out by several seconds: the card appeared to hang. The trail the
+   warm-up was compensating for builds itself in the first second of playing,
+   which is the whole point of the card. */
+tNow = 0;
+drawFrame(0.016, false);
+lastTs = performance.now();
+if('IntersectionObserver' in window){
+  new IntersectionObserver(function(entries){
+    onScreen = !!entries[0].isIntersecting;
+    syncRun();
+  }, { threshold: 0 }).observe(box);
+}
+document.addEventListener('visibilitychange', syncRun);
+syncRun();
 })();
 </script>
 

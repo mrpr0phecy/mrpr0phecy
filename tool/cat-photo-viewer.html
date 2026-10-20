@@ -313,6 +313,22 @@ async function loadMoreCats() {
   isLoading = false;
 }
 
+  // fetch() has no timeout of its own. A stalled socket used to park this
+  // viewer on "Loading…" for as long as the browser was willing to wait —
+  // minutes — because each endpoint was tried in turn with no bound. Six
+  // seconds per endpoint, then the next one, and the card stays honest.
+  function fetchJson(url, ms, init) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 4000) : null;
+    var opts = init ? Object.assign({}, init) : {};
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(url, opts).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) { if (timer) clearTimeout(timer); return data; },
+            function (err) { if (timer) clearTimeout(timer); throw err; });
+  }
+
 async function fetchCatsFromAPI(breed, order, page) {
   // Use multiple API endpoints for better reliability
   const endpoints = [
@@ -330,23 +346,19 @@ async function fetchCatsFromAPI(breed, order, page) {
   
   try {
     // Try first endpoint
-    const response = await fetch(endpoints[0], {
+    const cats = await fetchJson(endpoints[0], 4000, {
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       }
     });
-    
-    if (response.ok) {
-      const cats = await response.json();
       return cats.map(cat => ({
         id: cat.id || `cat-${Date.now()}-${Math.random()}`,
         url: cat.url,
         width: cat.width,
         height: cat.height,
         breeds: cat.breeds || []
-      }));
-    }
+    }));
   } catch (e) {
     console.log('Primary API failed, trying secondary...');
   }
@@ -354,8 +366,7 @@ async function fetchCatsFromAPI(breed, order, page) {
   // Try secondary endpoint
   try {
     if (page === 1) { // Cataas doesn't support pagination well, only use for first page
-      const response = await fetch(endpoints[1]);
-      const data = await response.json();
+      const data = await fetchJson(endpoints[1], 4000);
       
       if (Array.isArray(data)) {
         return data.map(cat => ({
@@ -372,8 +383,7 @@ async function fetchCatsFromAPI(breed, order, page) {
   
   // Fallback to random cat
   try {
-    const response = await fetch(endpoints[2]);
-    const data = await response.json();
+    const data = await fetchJson(endpoints[2], 4000);
     
     return [{
       id: `random-${Date.now()}`,

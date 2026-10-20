@@ -265,6 +265,22 @@
 </style>
 
 <script>
+  // fetch() has no timeout of its own. A request that never answers — a
+  // stalled socket, a filtered network, a proxy that swallows the response —
+  // used to leave this card on its loading state for as long as the browser
+  // would wait. This bounds each attempt: ten seconds for a single request,
+  // less where the card tries several sources in a row. When it gives up, the
+  // card's own catch path shows its fallback instead of nothing.
+  function censFetchT(url, opts, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 10000) : null;
+    var o = {};
+    if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (ctrl) o.signal = ctrl.signal;
+    return fetch(url, o).then(function (r) { if (timer) clearTimeout(timer); return r; },
+                              function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+
 /* CENSORSHIP MONITOR - WORKING VERSION
    Uses ONLY Wikipedia and Reddit public APIs (no auth required)
    Everything works out of the box
@@ -367,7 +383,7 @@ async function fetchLiveData() {
 // Fetch Wikipedia blocks - WORKING API
 async function fetchWikipediaBlocks(limit) {
   try {
-    const response = await fetch(
+    const response = await censFetchT(
       `https://en.wikipedia.org/w/api.php?action=query&format=json&list=blocks&bklimit=${limit}&bkprop=user|by|timestamp|expiry|reason&origin=*`
     );
     
@@ -396,7 +412,7 @@ async function fetchWikipediaBlocks(limit) {
 // Fetch Reddit removed posts - WORKING API
 async function fetchRedditRemovals(limit) {
   try {
-    const response = await fetch(
+    const response = await censFetchT(
       `https://www.reddit.com/r/all/removed.json?limit=${limit}`,
       {
         headers: {

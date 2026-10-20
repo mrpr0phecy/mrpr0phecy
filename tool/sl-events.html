@@ -219,6 +219,22 @@
 </div>
 
 <script>
+  // fetch() has no timeout of its own. A request that never answers — a
+  // stalled socket, a filtered network, a proxy that swallows the response —
+  // used to leave this card on its loading state for as long as the browser
+  // would wait. This bounds each attempt: ten seconds for a single request,
+  // less where the card tries several sources in a row. When it gives up, the
+  // card's own catch path shows its fallback instead of nothing.
+  function slFetchT(url, opts, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 10000) : null;
+    var o = {};
+    if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (ctrl) o.signal = ctrl.signal;
+    return fetch(url, o).then(function (r) { if (timer) clearTimeout(timer); return r; },
+                              function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+
 // Configuration
 const SL_EVENTS_CONFIG = {
   apiEndpoint: 'https://api.secondlifeapi.com/events',
@@ -376,12 +392,12 @@ async function fetchFromPrimaryAPI(category, hours) {
     const proxyUrl = 'https://api.allorigins.win/raw?url=';
     const slUrl = `https://secondlife.com/destinations/events/json`;
     
-    const response = await fetch(proxyUrl + encodeURIComponent(slUrl), {
+    const response = await slFetchT(proxyUrl + encodeURIComponent(slUrl), {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'SecondLifeEvents/1.0'
       }
-    });
+    }, 4500);
     
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     
@@ -400,12 +416,12 @@ async function fetchFromPrimaryAPI(category, hours) {
 async function fetchFromFallbackAPI(category, hours) {
   try {
     // Alternative community API
-    const response = await fetch('https://api.sl-communities.com/events/upcoming', {
+    const response = await slFetchT('https://api.sl-communities.com/events/upcoming', {
       mode: 'cors',
       headers: {
         'Accept': 'application/json'
       }
-    });
+    }, 4500);
     
     if (!response.ok) throw new Error(`Fallback error: ${response.status}`);
     

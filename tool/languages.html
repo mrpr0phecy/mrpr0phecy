@@ -224,6 +224,22 @@
 </div>
 
 <script>
+  // fetch() has no timeout of its own. A request that never answers — a
+  // stalled socket, a filtered network, a proxy that swallows the response —
+  // used to leave this card on its loading state for as long as the browser
+  // would wait. This bounds each attempt: ten seconds for a single request,
+  // less where the card tries several sources in a row. When it gives up, the
+  // card's own catch path shows its fallback instead of nothing.
+  function langFetchT(url, opts, ms) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, ms || 10000) : null;
+    var o = {};
+    if (opts) for (var k in opts) if (Object.prototype.hasOwnProperty.call(opts, k)) o[k] = opts[k];
+    if (ctrl) o.signal = ctrl.signal;
+    return fetch(url, o).then(function (r) { if (timer) clearTimeout(timer); return r; },
+                              function (e) { if (timer) clearTimeout(timer); throw e; });
+  }
+
 /* languages-tool.html
    - Language translation tool using open-source services
    - Scoped with languages- prefix
@@ -419,11 +435,13 @@ async function languagesTryServices(text, source, target) {
   // Try each service in order
   for (const service of languagesServices) {
     try {
-      const response = await fetch(service.url, {
+      // Three services are tried in order, so each gets a third of the
+      // ten-second budget rather than ten seconds of its own.
+      const response = await langFetchT(service.url, {
         method: service.method,
         headers: service.headers,
         body: JSON.stringify(service.getBody(text, source, target))
-      });
+      }, 3000);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
