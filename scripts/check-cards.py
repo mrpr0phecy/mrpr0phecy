@@ -39,7 +39,7 @@ KNOWN_CATEGORIES = {
     "AI & Autonomous Agents", "Anime & Otaku Culture", "Aquatics & Fishkeeping",
     "Birdwatching & Ornithology", "Dogs & Canine Care", "Cats & Feline Care",
     "Virtual Worlds & Gaming", "Horror & Paranormal", "Field Investigation & Evidence",
-    "MrProphecy Arcade", "Museum & Collection", "Sports", "Mind-Blowing Demos", "Algorithms & Computer Science",
+    "Arcade", "Museum & Collection", "Sports", "Mind-Blowing Demos", "Algorithms & Computer Science",
     "Survival & Emergency Readiness", "Trucking & Freight",
     "Fire & Rescue Service",
     "Rocketry & Propulsion",

@@ -182,6 +182,16 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // 2026-10-20 — the consent-tech watchlist. The catalogue had privacy tools
+  // (password hygiene, recovery maps, evidence manifests) but nothing that
+  // named the technologies that can be pointed at a person without their
+  // agreement: trackers, voice cloning, non-consensual deepfakes, venue face
+  // recognition, workplace and exam monitoring, DNA matching, data brokers,
+  // connected cars, smart meters, crowd counting. It is a reference with a
+  // built-in triage: tick the contexts that apply and it produces a short,
+  // printable brief. No network calls — the entries are dated and reviewed by
+  // hand, because a live feed would rot and arrive with someone else's framing.
+  'consent-tech-watchlist': 'Wellbeing & Community',
   // 2026-10-20 — ten Halloween tools (new category). The catalogue had horror
   // *props* but nothing for the night itself: no pumpkin, costume, candy,
   // trick-or-treat, fog, decoration-power, visibility, queue, purée or story
@@ -1014,17 +1024,17 @@ const imported05a89Map = {
   'bank-section75-claim': 'Finance & Money',
   'bank-small-claims': 'Finance & Money',
   'bank-switching-calculator': 'Finance & Money',
-  'boardgame-backgammon': 'MrProphecy Arcade',
-  'boardgame-checkers': 'MrProphecy Arcade',
-  'boardgame-chess': 'MrProphecy Arcade',
-  'boardgame-connect-four': 'MrProphecy Arcade',
-  'boardgame-dominoes': 'MrProphecy Arcade',
-  'boardgame-ludo': 'MrProphecy Arcade',
-  'boardgame-mancala': 'MrProphecy Arcade',
-  'boardgame-nine-mens-morris': 'MrProphecy Arcade',
-  'boardgame-othello': 'MrProphecy Arcade',
-  'boardgame-snakes-ladders': 'MrProphecy Arcade',
-  'boardgame-yahtzee': 'MrProphecy Arcade',
+  'boardgame-backgammon': 'Arcade',
+  'boardgame-checkers': 'Arcade',
+  'boardgame-chess': 'Arcade',
+  'boardgame-connect-four': 'Arcade',
+  'boardgame-dominoes': 'Arcade',
+  'boardgame-ludo': 'Arcade',
+  'boardgame-mancala': 'Arcade',
+  'boardgame-nine-mens-morris': 'Arcade',
+  'boardgame-othello': 'Arcade',
+  'boardgame-snakes-ladders': 'Arcade',
+  'boardgame-yahtzee': 'Arcade',
   'clipboard-history': 'Productivity & Lifestyle',
   'color-contrast-checker': 'Algorithms & Computer Science',
   'cron-expression-builder': 'Algorithms & Computer Science',
@@ -1173,9 +1183,9 @@ const importedSalvageMap = {
   'compass-bearings-trainer': 'Science & Engineering',
   'conservation-lux-hours': 'Science & Engineering',
   'coordinate-format-translator': 'Science & Engineering',
-  'coordinates-trainer': 'MrProphecy Arcade',
+  'coordinates-trainer': 'Arcade',
   'cors-header-builder': 'Algorithms & Computer Science',
-  'country-flags-quiz': 'MrProphecy Arcade',
+  'country-flags-quiz': 'Arcade',
   'crop-factor-35mm-equivalent': 'Productivity & Lifestyle',
   'css-specificity-calculator': 'Algorithms & Computer Science',
   'cubic-bezier-easing-preview': 'Algorithms & Computer Science',
@@ -1212,7 +1222,7 @@ const importedSalvageMap = {
   'gitignore-template-builder': 'Algorithms & Computer Science',
   'golden-ratio-crop-calculator': 'Productivity & Lifestyle',
   'great-circle-route-planner': 'Science & Engineering',
-  'grid-reference-trainer': 'MrProphecy Arcade',
+  'grid-reference-trainer': 'Arcade',
   'guitar-fret-calculator': 'Music & Audio',
   'hat-size-converter': 'Productivity & Lifestyle',
   'heat-index-calculator': 'Science & Engineering',
@@ -1296,7 +1306,7 @@ const importedSalvageMap = {
   'parts-of-speech-trainer': 'Writing & Language',
   'passport-photo-size-guide': 'Productivity & Lifestyle',
   'percentage-change-calculator': 'Mathematics',
-  'periodic-table-quiz': 'MrProphecy Arcade',
+  'periodic-table-quiz': 'Arcade',
   'phenology-gdd-calendar-lab': 'Interactive Art & Living Worlds',
   'pigment-cabinet-of-colour': 'Museum & Collection',
   'planet-surface-3d-explorer': 'Astronomy & Space',
@@ -1339,7 +1349,7 @@ const importedSalvageMap = {
   'sand-dune-lab': 'Interactive Art & Living Worlds',
   'schengen-90-180-day-calculator': 'Productivity & Lifestyle',
   'scientific-notation-sigfig-calculator': 'Mathematics',
-  'scrabble-score-calculator': 'MrProphecy Arcade',
+  'scrabble-score-calculator': 'Arcade',
   'screen-ppi-calculator': 'Productivity & Lifestyle',
   'semver-compare-bump-calculator': 'Algorithms & Computer Science',
   'seven-wonders-hall': 'Museum & Collection',
@@ -1359,7 +1369,7 @@ const importedSalvageMap = {
   'starling-murmuration': 'Interactive Art & Living Worlds',
   'stone-pounds-kg-weight-converter': 'Science & Engineering',
   'stripe-paypal-fee-calculator': 'Finance & Money',
-  'sudoku-trainer': 'MrProphecy Arcade',
+  'sudoku-trainer': 'Arcade',
   'sundial-designer-gnomonics': 'Astronomy & Space',
   'sunrise-sunset-calculator': 'Astronomy & Space',
   'svg-path-optimizer-cleaner': 'Algorithms & Computer Science',
@@ -1385,7 +1395,7 @@ const importedSalvageMap = {
   'typing-speed-test': 'Writing & Language',
   'ucas-tariff-points-calculator': 'Finance & Money',
   'uk-alcohol-units-calculator': 'Health & Fitness',
-  'uk-counties-quiz': 'MrProphecy Arcade',
+  'uk-counties-quiz': 'Arcade',
   'uk-hallmark-decoder': 'Museum & Collection',
   'uk-holiday-entitlement-calculator': 'Finance & Money',
   'uk-postcode-formatter': 'Productivity & Lifestyle',
@@ -1404,7 +1414,7 @@ const importedSalvageMap = {
   'wind-chill-calculator': 'Science & Engineering',
   'wind-triangle-flight-planner': 'Science & Engineering',
   'wind-wave-fetch-forecaster': 'Science & Engineering',
-  'world-capitals-quiz': 'MrProphecy Arcade',
+  'world-capitals-quiz': 'Arcade',
   'yeast-fresh-instant-converter': 'Culinary & Food Science',
   'younger-futhark-runes': 'Museum & Collection'
 };
@@ -1434,7 +1444,7 @@ function getCategory(name) {
   if (slList.some(s => name.includes(s))) return 'Virtual Worlds & Gaming';
   // MrProphecy minigames — checked first so they keep their own category
   // when this script is re-run (it overwrites categories every time).
-  if (name.startsWith('mrprophecy-')) return 'MrProphecy Arcade';
+  if (name.startsWith('mrprophecy-')) return 'Arcade';
   if (musicList.some(s => name.includes(s))) return 'Music & Audio';
   if (healthList.some(s => name.includes(s))) return 'Health & Fitness';
   if (financeList.some(s => name.includes(s))) return 'Finance & Money';

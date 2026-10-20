@@ -5,15 +5,22 @@
 ```
 MrProphecy (the maker)
   └── The Most Useful Site in the World (the catalogue product)
-        ├── homepage chrome (home-core.js) and 1,423 tools (utilities, not sub-brands)
+        ├── homepage chrome (home-core.js) and 1,424 tools (utilities, not sub-brands)
         ├── the list layer: explore.js / explore.css / toolbox.js
         └── Lantern (a separate browser AI; not a tool)
 ```
 
 - **MrProphecy** is the maker/voice: playful, British-inflected, a little
-  theatrical. It owns the story, the illustration and the arcade
-  (`MrProphecy Arcade`), and appears in the footer and on `about.html` — not on
-  every tool.
+  theatrical. It owns the story, the illustration and the music, and appears in
+  the footer and on `about.html` — not on every tool.
+- **The arcade is just "Arcade"** (renamed 2026-10-20). It holds 29 browser
+  games: board games, quizzes and word scores with no musical content, plus the
+  rhythm, lyric and beat games that are scored on MrProphecy's own tracks. Only
+  the second group carries the name in its title. The hub's public URL is still
+  `categories/mrprophecy-arcade.html` — pinned, see `CATEGORY_SLUGS` in
+  `scripts/build-tools-index.js` — because 29 tool pages and the sitemap point
+  at it. Card copy, sample values and storage keys inside the other 19 games
+  carry no brand name.
 - **The Most Useful Site in the World** is the product promise: useful first,
   delightful second. The name is literal; use it in titles, `og:site_name` and
   manifests.
@@ -27,7 +34,7 @@ MrProphecy (the maker)
 
 | Surface | Voice | Example |
 |---|---|---|
-| `index.html` hero/search | product + light maker charm | "1,423 tools that actually run." |
+| `index.html` hero/search | product + light maker charm | "1,424 tools that actually run." |
 | Tool fragment (`cards/*.html`) | utility | labels, placeholders, results — no lore |
 | Deep page (`tools/*.html`) | utility + one-line provenance | "WHO BMI · Last reviewed 2026-09-19" + disclaimer |
 | `tools-index.html`, `categories/*.html` | product | directory copy, no character |
