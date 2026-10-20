@@ -196,6 +196,22 @@ const categoryMap = {
   'haunted-house-throughput-planner': 'Halloween',
   'pumpkin-puree-pie-planner': 'Halloween',
   'spooky-story-skeleton-generator': 'Halloween',
+  // 2026-10-20 — twelve more Halloween tools, written for search: costume ideas,
+  // couple/group/last-minute costumes, pumpkin stencils, face paint, party games,
+  // trivia, spooky names, playlist, film marathon and a scavenger hunt. They link
+  // to each other and to guides/halloween.html; no network calls, as ever.
+  'halloween-costume-generator': 'Halloween',
+  'halloween-pumpkin-stencil-generator': 'Halloween',
+  'halloween-face-paint-planner': 'Halloween',
+  'halloween-party-games-planner': 'Halloween',
+  'halloween-trivia-questions': 'Halloween',
+  'halloween-couple-costume-matcher': 'Halloween',
+  'halloween-group-costume-planner': 'Halloween',
+  'last-minute-halloween-costume-finder': 'Halloween',
+  'halloween-name-generator': 'Halloween',
+  'halloween-party-playlist-planner': 'Halloween',
+  'halloween-movie-marathon-planner': 'Halloween',
+  'halloween-scavenger-hunt-generator': 'Halloween',
   // 2026-10-19 — ten Rocketry & Propulsion tools (new category). A keyword audit of
   // all 1,394 existing cards found no motor thrust curve, nozzle, parachute sizing,
   // launch-rail check, apogee/delay planner, multi-stage budget, re-entry heating or
