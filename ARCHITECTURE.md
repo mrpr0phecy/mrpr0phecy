@@ -225,9 +225,9 @@ drift. Everything below the fold is `[data-explore="json"]`, an empty container.
 |---|---|---|
 | `home.css` | about 75 KB (18,121 B gzip) | first paint — render-blocking on purpose |
 | `home-deferred.css` | about 7.5 KB | containers hidden at first paint; applied after it (13 KB gzip for the pair) |
-| `explore.css` | about 19 KB | the list layer, shared with four other page types |
+| `explore.css` | about 23.5 KB | the list layer, shared with four other page types, plus the home shelves' arrow buttons |
 | `toolbox.css` | about 11 KB | the toolbox panel and its ＋ buttons — split out of explore.css so the tool pages can load the panel without the list layer |
-| `explore.js` | about 62 KB | list engine: fetch, filter, sort, reveal, keyboard, URL state |
+| `explore.js` | about 76 KB | list engine: fetch, filter, sort, reveal, keyboard, URL state; the shelves' wheel/drag/arrow controller |
 | `toolbox.js` | about 33 KB | saved list, ＋ buttons, panel; lite-tier fetch on intent |
 | `home-core.js` | about 37 KB | theme, panels, search bridge, deep links, service worker |
 

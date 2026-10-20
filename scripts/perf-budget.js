@@ -85,10 +85,17 @@ const FILE_BUDGETS = {
     'index.html': 16 * 1024,
     'home.css': 19 * 1024,
     'home-deferred.css': 3 * 1024,
-    'explore.css': 7 * 1024,
+    // +0.4 KB on 2026-10-20 for the shelf arrows' styling and a drag cursor:
+    // the two home-page rows were only reachable by trackpad or thumb, and a
+    // mouse user could not get past the fourth Most-used tool at all.
+    'explore.css': 7.5 * 1024,
     'toolbox.css': 4 * 1024,
     'home-core.js': 14 * 1024,
-    'explore.js': 22 * 1024,
+    // +2 KB on 2026-10-20 for the same reason, and the same trade: the
+    // controller is wheel, drag, edge buttons and arrow keys. It is deferred
+    // (never render-blocking), so it delays no paint; the first screen still
+    // sits under its 150 KB budget.
+    'explore.js': 24 * 1024,
     'toolbox.js': 12 * 1024,
     'fonts/inter-latin.woff2': 50 * 1024,
     // The catalogue is the biggest transfer on the site. It is allowed to be

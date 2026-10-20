@@ -227,6 +227,230 @@
 
   var FADE_ROWS = '[data-xp-facets], .xp-facets, .popular-chips, .toc-inner, nav.toc, .hero-jumps, #featured, #trending';
 
+  /* --------------------------------------------------------- shelf controls --
+     The home page's two shelves (#featured, #trending) are horizontal strips
+     wherever they are wider than the window. A thumb swipes them and a
+     trackpad pushes them sideways, but a mouse has no gesture for "right":
+     the wheel scrolls the page vertically, the overlay scrollbar is only
+     drawn while scrolling, and so six of the eight Most-used tools were
+     unreachable for anyone holding one. The row looked cut off rather than
+     scrollable.
+
+     Three ways in, and none of them changes the layout:
+
+       * the wheel becomes a sideways scroll while the shelf still has room in
+         that direction, and gives the page its scroll back at either end — a
+         wheel event is only cancelled when it actually moved the shelf, so a
+         shelf that cannot move can never trap the page;
+       * pressing and dragging scrolls the row, and the click that ends a drag
+         is swallowed so a drag never opens the card it finished on;
+       * a pair of edge buttons, created here rather than in the served HTML,
+         appear on hover and on keyboard focus and disable at the ends. They
+         cost the first paint nothing and are hidden on touch-only screens,
+         where the swipe is already the better gesture.
+
+     Arrow keys scroll the row while focus is inside it (a focused card is a
+     link, and nothing native happens on Left/Right there). */
+  var SHELVES = '#featured, #trending';
+
+  function shelfMax(el) { return Math.max(0, el.scrollWidth - el.clientWidth); }
+
+  function shelfReduced() {
+    try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+    catch (e) { return false; }
+  }
+
+  /* One card, not one screen: at 960 px wide a row shows four and a half
+     cards, and 80% of the row per press put the last card on screen in one
+     jump with nothing to show for the other seven. Measured from the served
+     rows themselves (the gap between the first two is the real gap whatever
+     the stylesheet says), so no magic number here. */
+  function shelfStep(el) {
+    var first = el.children[0];
+    var second = el.children[1];
+    if (first && second) {
+      var step = second.offsetLeft - first.offsetLeft;
+      if (step > 40) return step;
+    }
+    return Math.max(180, Math.round(el.clientWidth * 0.8));
+  }
+
+  function scrollShelfBy(el, delta, smooth) {
+    var max = shelfMax(el);
+    if (max <= 2) return false;
+    var to = Math.max(0, Math.min(max, el.scrollLeft + delta));
+    if (Math.round(to) === Math.round(el.scrollLeft)) return false;
+    if (smooth && typeof el.scrollBy === 'function') {
+      try { el.scrollBy({ left: to - el.scrollLeft, behavior: shelfReduced() ? 'auto' : 'smooth' }); return true; }
+      catch (e) { /* older engines: fall through to a jump */ }
+    }
+    el.scrollLeft = to;
+    return true;
+  }
+
+  function shelfLabel(el) {
+    var sec = el.closest ? el.closest('section') : null;
+    var head = sec && sec.querySelector('h1, h2, h3');
+    var name = head ? String(head.textContent || '').trim() : '';
+    return name || 'the list';
+  }
+
+  /* A class on <html> while a pointer-capable device is what is being used, so
+     the stylesheet can show the arrows only where a swipe does not already
+     exist. (hover: none) is the CSS answer, but it is media-query state that a
+     browser only updates at load on some engines — a laptop with a touchscreen
+     reports it, a mouse plugged in later does not change it. This is the
+     pointer's own answer, and it is one class written on the first real
+     pointer move. */
+  function watchPointerKind() {
+    var root = document.documentElement;
+    if (!root || root.__xpPointerKind) return;
+    root.__xpPointerKind = true;
+    // Nothing is written until a real pointer event arrives: no guess at load.
+    var onPointer = function (e) {
+      if (!e || !e.pointerType) return;
+      root.classList.toggle('xp-pointer-fine', e.pointerType === 'mouse' || e.pointerType === 'pen');
+      root.classList.toggle('xp-pointer-touch', e.pointerType === 'touch');
+    };
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('pointermove', onPointer, true);
+  }
+
+  function makeShelfButton(el, dir, resync) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'xp-shelf-arrow';
+    b.setAttribute('data-dir', dir < 0 ? 'prev' : 'next');
+    b.setAttribute('aria-controls', el.id || '');
+    b.setAttribute('aria-label', (dir < 0 ? 'Scroll ' : 'Scroll ') + shelfLabel(el) + (dir < 0 ? ' back' : ' forward'));
+    // A chevron drawn in CSS (explore.css) rather than text: the same glyph at
+    // every font size, and nothing for a screen reader to announce twice.
+    b.appendChild(document.createElement('span'));
+    b.addEventListener('click', function () {
+      if (scrollShelfBy(el, dir * shelfStep(el), true)) requestAnimationFrame(resync);
+    });
+    return b;
+  }
+
+  function setupShelf(el) {
+    if (el.__xpShelf) return;
+    el.__xpShelf = true;
+
+    // The buttons have to sit over the row, not inside it: a child of a
+    // scrolling box scrolls away with the cards. So the row gets a positioned
+    // parent of its own — created here, which keeps the served HTML and its
+    // generator untouched.
+    var wrap = document.createElement('div');
+    wrap.className = 'xp-shelf';
+    if (el.parentNode) el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+
+    var sync = function () {
+      var max = shelfMax(el);
+      var noRoom = max <= 2;
+      wrap.classList.toggle('xp-shelf-flat', noRoom);
+      el.classList.toggle('xp-shelf-draggable', !noRoom);
+      prev.disabled = noRoom || el.scrollLeft <= 2;
+      next.disabled = noRoom || el.scrollLeft >= max - 2;
+      // A disabled button cannot be focused, so hiding the pair entirely on a
+      // row that fits keeps the tab order identical to the no-JS page.
+      prev.hidden = noRoom;
+      next.hidden = noRoom;
+    };
+
+    var prev = makeShelfButton(el, -1, sync);
+    var next = makeShelfButton(el, 1, sync);
+    wrap.appendChild(prev);
+    wrap.appendChild(next);
+
+    el.addEventListener('scroll', function () {
+      if (el.__xpShelfSync) return;
+      el.__xpShelfSync = true;
+      requestAnimationFrame(function () { el.__xpShelfSync = false; sync(); });
+    }, { passive: true });
+
+    /* The vertical wheel becomes sideways scroll; a trackpad's own deltaX is
+       left to the browser. deltaMode is honoured (Firefox reports lines). */
+    el.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) return;                              // pinch-zoom
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // already sideways
+      var unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? el.clientWidth : 1);
+      var max = shelfMax(el);
+      if (max <= 2) return;
+      var to = Math.max(0, Math.min(max, el.scrollLeft + e.deltaY * unit));
+      if (Math.round(to) === Math.round(el.scrollLeft)) return; // at the end: let the page have it
+      e.preventDefault();
+      el.scrollLeft = to;
+    }, { passive: false });
+
+    /* Drag. Mouse and pen only — a touch drag is already the browser's own
+       momentum scroll. No setPointerCapture: capture retargets the *click*, so
+       a card under the pointer stops being a link and a plain click opens
+       nothing (measured, then fixed). Window listeners for the drag instead. */
+    var drag = null;
+    var onMove = function (e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      var dx = e.clientX - drag.x;
+      if (!drag.moved && Math.abs(dx) < 5) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        wrap.classList.add('xp-shelf-dragging');
+      }
+      e.preventDefault();
+      el.scrollLeft = drag.left - dx;
+    };
+    var endDrag = function (e) {
+      if (!drag) return;
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', endDrag, true);
+      window.removeEventListener('pointercancel', endDrag, true);
+      if (drag.moved && (!e || e.pointerId === drag.id)) {
+        wrap.classList.remove('xp-shelf-dragging');
+        // The browser fires click after pointerup on the element under the
+        // pointer. That click is the end of a drag, not a tap: swallow it
+        // once, in the capture phase, before a link can follow it.
+        var swallow = function (ev) { ev.preventDefault(); ev.stopPropagation(); };
+        document.addEventListener('click', swallow, { capture: true, once: true });
+        // If no click follows (released over the gutter), drop the listener
+        // on the next task so it cannot eat an unrelated one later.
+        setTimeout(function () { document.removeEventListener('click', swallow, true); }, 0);
+      }
+      drag = null;
+    };
+    el.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'touch' || (e.button !== undefined && e.button !== 0)) return;
+      if (shelfMax(el) <= 2) return;
+      drag = { id: e.pointerId, x: e.clientX, left: el.scrollLeft, moved: false };
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', endDrag, true);
+      window.addEventListener('pointercancel', endDrag, true);
+    });
+    // A native link drag would take the pointer events away mid-scroll.
+    el.addEventListener('dragstart', function (e) { if (drag && drag.moved) e.preventDefault(); });
+
+    /* Keyboard: Left/Right while focus is in the row. Nothing native happens
+       there on a focused link, so this adds a way to reach the off-screen
+       cards without a Tab per card. */
+    el.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (shelfMax(el) <= 2) return;
+      if (scrollShelfBy(el, (e.key === 'ArrowRight' ? 1 : -1) * shelfStep(el), false)) e.preventDefault();
+    });
+
+    if ('ResizeObserver' in window) {
+      var ro = new ResizeObserver(function () { sync(); });
+      ro.observe(el);
+    }
+    sync();
+  }
+
+  function watchShelves() {
+    watchPointerKind();
+    var shelves = document.querySelectorAll(SHELVES);
+    for (var i = 0; i < shelves.length; i++) setupShelf(shelves[i]);
+  }
+
   /* The floating toolbox button sits over the end of the page. On a phone it
      lands exactly on the footer's last links once you scroll to the bottom, so
      the page gets clearance under its content — but only the pages that
@@ -1344,6 +1568,9 @@
   }
 
   function start() {
+    // Before the list guard: the home page's shelves need a mouse path even on
+    // a page where the list itself failed to mount.
+    watchShelves();
     var containers = document.querySelectorAll('[data-explore]');
     if (!containers.length) return;
     // One engine per page: the first container is the list. (Category pages and
