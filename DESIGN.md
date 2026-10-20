@@ -39,20 +39,41 @@ MostUsefulMaps and SupaViewer out of the tools brand).
 
 | Role | Value | Where |
 |---|---|---|
-| **UI accent** (visitor's) | default `#2dd4ff` cyan; six offered, choice in `localStorage` | everything *in* the interface: washes, hover, focus rings, the mark's brackets |
-| **House accent** (brand's) | `#e8a33d` amber on dark; `#7a500e` for accent words on light | external surfaces only: `logo-lockup-*.svg`, `og-brand.png`/`og-tools.png`, `logo.png` |
+| **UI accent** (visitor's) | default `#ffd700` gold; four golds offered, choice in `localStorage` | everything *in* the interface: washes, hover, focus rings, the mark's brackets |
+| **House accent** (brand's) | `#d4af37` deep gold on dark; `#7a500e` for accent words on light | external surfaces only: `logo-lockup-*.svg`, `og-brand.png`/`og-tools.png`, `logo.png` |
 | **Season accent** | `#ff9f43` pumpkin (`--pumpkin`) | one dated surface only: the Halloween band on the home page (`home.css` §13), the Halloween category hub and `guides/halloween.html` |
-| **Readout amber** | `#ffb454` (`--readout`), `rgba(255,180,84,.62)` (`--readout-dim`) | numbers and labels only: category counts, section markers, the tool total, shelf tags. Never a control |
+| **Readout gold** | `#d4af37` (`--readout`), `rgba(212,175,55,.68)` (`--readout-dim`) | numbers and labels only: category counts, section markers, the tool total, shelf tags. Never a control |
+| **Structure grey** | `#555555` (`--grey`), `rgba(85,85,85,.82)` (`--grey-soft`) | every hairline, divider, tick and icon socket. Never text |
 
 The house accent defines the product externally (the logo a journalist grabs,
 the social card, the press kit). **The page itself is never in the house
 colour** — every visitor sees their own accent, and the mark's cyan brackets
 stay drawn out of the console they came from.
 
-Amber was chosen because blue/purple is every calculator and fintech
-competitor's default and blending in works against the positioning; amber/ochre
-reads as instrument panel and sits far from every picker accent except the warm
-family, where it is still distinguishable at a glance.
+### 3.1a One palette: black, gold, #555555 (2026-10-20)
+
+The page is three values. Everything else is one of them at an alpha, or a step
+on the same grey ramp.
+
+- **Gold splits by job, never by mood.** `#ffd700` is what you *press* (focus,
+  active, hover edges, the mark's brackets); `#d4af37` is what you *read*
+  (counts, section markers, stats, tags).
+- **`#555555` is structure only.** At 2.71:1 on the page it can draw a hairline
+  and it cannot carry a letter, so copy climbs a ramp: `#d6d6d6` body,
+  `#a3a3a3` secondary, `#8a8a8a` muted.
+- **State is weight and shape, not hue.** A warning is a rule and a ⚠; a pass is
+  a filled gold dot. Nothing in the interface means something by colour alone,
+  which is what lets it stay three values and still be readable.
+- **The accent picker survives, inside the palette**: four golds (bright
+  `#ffd700`, antique `#d4af37`, champagne `#f0dc9a`, bronze `#a1791f`). The six
+  coloured page themes became three blacks (midnight, graphite, void), because a
+  theme now only decides how far toward grey the canvas may drift.
+- **The seasonal band** keeps its own token but it is the same gold family; the
+  band is identified by its label and its date, not by a hue.
+
+Amber was the previous house colour for the reason gold still holds: blue and
+purple are every calculator and fintech competitor's default and blending in
+works against the positioning; gold reads as instrument panel.
 
 The season accent is a third, narrower job (added 2026-10-20). It exists
 because a seasonal shelf has to read as *this* season without pretending to be
@@ -91,9 +112,11 @@ below); anything dimmer has to be decoration, not text.
 
 | Pair | Ratio | Requirement |
 |---|---|---|
-| `#ffb454` on `#04070a` (page) | **11.45:1** | text 4.5:1 — passes |
-| `#ffb454` on `#0c141c` (tile) / `#0b131a` (shelf) | **10.52:1** / **10.61:1** | text 4.5:1 — passes |
-| `rgba(255,180,84,.62)` on `#04070a` → `#a07238` | **4.77:1** | small text 4.5:1 — passes |
+| `#ffd700` on `#04070a` (page) | **14.40:1** | the accent, as text or fill |
+| `#d4af37` on `#04070a` (page) | **9.60:1** | text 4.5:1 — passes |
+| `#d4af37` on `#0c141c` (tile) | **8.90:1** | text 4.5:1 — passes |
+| `#555555` on `#04070a` → **2.71:1** | **lines only** | never text; the grey ramp below it carries copy |
+| `#d6d6d6` / `#a3a3a3` / `#8a8a8a` on the page | **16.48:1** / **8.49:1** / **5.85:1** | body, secondary, muted |
 | `#e8a33d` on `#0a0f14` (page) | **8.92:1** | fill 3:1 — passes |
 | `#e8a33d` on `#17232e` (worst-case tile top) | **7.40:1** | fill 3:1 — passes |
 | `#e8a33d` on white | 2.16:1 | **never as text** |
@@ -201,8 +224,16 @@ grid, index-card labels, dense scannable cards. Most of that already exists
   16 px text to avoid focus-triggered zoom. Counts use tabular numerals.
 - **Inclusive surfaces:** keep quieter text readable, use structural borders
   rather than shadow alone, and honor forced colors, increased contrast,
-  reduced transparency and reduced motion. Do not add animation or a new font
-  request merely to signal polish.
+  reduced transparency and reduced motion.
+- **Motion (`home.css` §14).** Animation is a product requirement, not
+  decoration bolted on: the page should feel assembled, not printed. The rules
+  that keep it honest — every effect one-shot, only `transform` / `opacity` /
+  `clip-path`, everything inside `prefers-reduced-motion: no-preference`, no new
+  request and no new font, and the first-paint budget raised on purpose with the
+  measurement recorded in `check-critical-css.py`. Below-the-fold entrances hang
+  off the existing `.js-reveal` gate rather than `view()` timelines: a filled
+  view() animation resolves off-screen elements to its start frame, which hid
+  tiles below the fold in a real browser.
 - **Deep tool pages** (`tools/*.html`) keep their own generator CSS
   (`build-tool-pages.py`) — when a token changes, that CSS string is a second
   home that has to move with it.

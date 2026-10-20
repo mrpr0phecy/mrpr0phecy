@@ -199,7 +199,7 @@ def build_page() -> str:
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="{SITE}/embed-finance.html">
 <link rel="alternate" type="application/rss+xml" title="The Most Useful Site in the World — RSS feed" href="feed.xml">
-<meta name="theme-color" content="#0a0f14">
+<meta name="theme-color" content="#04070a">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="The Most Useful Site in the World">
 <meta property="og:title" content="Free finance calculators for your website">
@@ -214,20 +214,20 @@ def build_page() -> str:
 <script type="application/ld+json">{faq_ld}</script>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-:root{{--accent:#2dd4ff;--text:#e6faff;--text-secondary:rgba(230,250,255,.7);--bg-primary:#0a0f14;--bg-secondary:#141e28;--border-light:rgba(255,255,255,.08);--success:#39ff14}}
+:root{{--accent:#ffd700;--text:#d6d6d6;--text-secondary:#a3a3a3;--bg-primary:#04070a;--bg-secondary:#0b1219;--border-light:rgba(85,85,85,.72);--success:#ffd700}}
 body{{background:var(--bg-primary);color:var(--text);line-height:1.65;font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;overflow-x:hidden}}
 a{{color:inherit}}
 .wrap{{max-width:1100px;margin:0 auto;padding:0 20px}}
-.topbar{{border-bottom:1px solid var(--border-light);padding:13px 0;background:rgba(10,15,20,.9);position:sticky;top:0;z-index:100;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}}
+.topbar{{border-bottom:1px solid var(--border-light);padding:13px 0;background:rgba(8,8,9,.9);position:sticky;top:0;z-index:100;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}}
 .topbar .wrap{{display:flex;justify-content:space-between;align-items:center;gap:14px;max-width:1180px}}
 .topbar a{{text-decoration:none;font-weight:800;font-size:.9rem}}.topbar .brand{{display:inline-flex;align-items:center;gap:9px}}.topbar .brand img{{display:block;flex:none}}.topbar .back{{color:var(--text-secondary);font-weight:600;font-size:.85rem}}.topbar .back:hover{{color:var(--text)}}
-.hero{{padding:56px 0 26px;text-align:center;background:radial-gradient(ellipse 60% 50% at 50% 0%, rgba(45,212,255,0.08), transparent 70%)}}
+.hero{{padding:56px 0 26px;text-align:center;background:radial-gradient(ellipse 60% 50% at 50% 0%, rgba(255,215,0,0.08), transparent 70%)}}
 .hero h1{{font-size:clamp(1.9rem,4.6vw,2.9rem);font-weight:900;letter-spacing:-.025em;line-height:1.1;background:linear-gradient(135deg,#fff 20%,var(--accent) 80%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}}
 .hero p{{color:var(--text-secondary);font-size:1rem;max-width:700px;margin:0 auto 20px}}
-.eyebrow{{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(45,212,255,.34);background:rgba(45,212,255,.07);padding:5px 12px;border-radius:100px;margin-bottom:14px}}
+.eyebrow{{display:inline-block;font-size:.68rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(255,215,0,.34);background:rgba(255,215,0,.07);padding:5px 12px;border-radius:100px;margin-bottom:14px}}
 .btnrow{{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}}
 .btn{{padding:11px 20px;border-radius:10px;font-weight:800;font-size:.9rem;text-decoration:none;border:1px solid var(--accent)}}
-.btn.primary{{background:var(--accent);color:#04141c}}
+.btn.primary{{background:var(--accent);color:#06090c}}
 .btn.ghost{{background:transparent;color:var(--accent)}}
 .btn:hover{{filter:brightness(1.12)}}
 h2{{font-size:clamp(1.35rem,3vw,1.8rem);font-weight:900;letter-spacing:-.02em;margin-bottom:10px}}
@@ -250,14 +250,14 @@ h2{{font-size:clamp(1.35rem,3vw,1.8rem);font-weight:900;letter-spacing:-.02em;ma
 .p-lead{{color:var(--text-secondary);max-width:760px;margin-bottom:18px}}
 .tier-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}}
 .tier{{background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px;position:relative}}
-.tier.featured{{border-color:rgba(45,212,255,.55);box-shadow:0 0 0 1px rgba(45,212,255,.25), 0 12px 40px rgba(45,212,255,.08)}}
-.tier .t-flag{{position:absolute;top:-9px;left:14px;background:var(--accent);color:#04141c;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:3px 9px;border-radius:100px}}
+.tier.featured{{border-color:rgba(255,215,0,.55);box-shadow:0 0 0 1px rgba(255,215,0,.25), 0 12px 40px rgba(255,215,0,.08)}}
+.tier .t-flag{{position:absolute;top:-9px;left:14px;background:var(--accent);color:#06090c;font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;padding:3px 9px;border-radius:100px}}
 .tier h3{{font-size:.95rem;color:#fff}}
 .tier .t-price{{font-size:1.7rem;font-weight:900;color:var(--accent)}}.tier .t-price small{{font-size:.75rem;font-weight:600;color:var(--text-secondary)}}
 .tier ul{{list-style:none;display:grid;gap:6px;font-size:.8rem;color:var(--text-secondary)}}
 .tier ul li::before{{content:"\\2713 ";color:var(--success);font-weight:700}}
 .tier ul li.no::before{{content:"\\2717 ";color:#ff6b6b}}
-.tier .t-cta{{margin-top:auto;display:block;text-align:center;padding:9px 12px;border-radius:9px;background:var(--accent);color:#04141c;font-weight:800;font-size:.82rem;text-decoration:none;border:1px solid var(--accent)}}
+.tier .t-cta{{margin-top:auto;display:block;text-align:center;padding:9px 12px;border-radius:9px;background:var(--accent);color:#06090c;font-weight:800;font-size:.82rem;text-decoration:none;border:1px solid var(--accent)}}
 .tier .t-cta:hover{{filter:brightness(1.1)}}
 .tier .t-cta.ghost{{background:transparent;color:var(--accent)}}
 .p-fine{{color:var(--text-secondary);font-size:.75rem;margin-top:14px;max-width:820px}}

@@ -94,7 +94,20 @@ INLINE_BUDGET = 4_000
 # and home-deferred.css may only style containers that are hidden at first
 # paint. It is one band, dated, absent eleven months of the year, and the
 # floor below keeps a ~500 B margin over the measured file.
-HOME_CSS_GZIP_BUDGET = 15_900
+#
+# Raised from 15_900 to 18_400 on 2026-10-20, deliberately, for two things:
+# the gold/black/#555555 palette (which replaces six picker hues, the six
+# coloured page themes and four semantic hues with three values, so it is a
+# net simplification) and §14, the motion library. §13 was measured at
+# 15,401 B and the darker pass at 15,845 B; the motion block adds 1,883 B
+# gzip and the palette rework the rest. The new prose was cut by ~2 KB before
+# the floor moved, twice, and this block is still the largest single cost in
+# the file (16.8 KB of 73 KB raw is comments) — trim here next time before
+# raising again. The motion cannot move to the deferred sheet: it animates the
+# hero, the tiles and the sticky bar, all of which paint on the first screen,
+# and the deferred sheet may only style containers hidden at first paint. The
+# floor keeps a ~780 B margin over the measured 18,121 B file.
+HOME_CSS_GZIP_BUDGET = 18_900
 DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 
