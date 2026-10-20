@@ -1594,6 +1594,11 @@
     // list that never arrived.
     ready: function () { return catalogueReady; },
     warm: function () { return ensureCatalogue(); },
+    // The flywheel's index: the catalogue in its own order, uncopied so a
+    // 1,424-row slice does not run on every landing. Read-only by contract.
+    all: function () {
+      return catalogueReady && state.rows && state.rows.length ? state.rows : null;
+    },
     state: state
   };
 

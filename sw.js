@@ -205,7 +205,7 @@
 // version, so a returning visitor's cached page can never pair the new
 // band with the old stylesheet, or the new stylesheet with a page that has
 // no band to style.
-const CACHE_VERSION = 'v50-2026-10-20';
+const CACHE_VERSION = 'v51-2026-10-20';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
