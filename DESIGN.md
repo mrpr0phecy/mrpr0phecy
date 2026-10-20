@@ -142,6 +142,11 @@ first**, because 1,424 cards cannot be reviewed as one diff.
   the word "Underweight" and fills the band behind it, so the band stays blue.
   Without the surface test a converted card could not be re-run safely — the
   second pass would see the ramp's remaining hue as an accent and eat the scale.
+- **White type on a gold fill goes dark.** A pink button carried white at
+  3.9:1; once both stops are gold it would be 2.2:1. Any block that fills with
+  a solid gold and letters in a light colour is rewritten to `#04070a` on the
+  spot (14.40:1), which is why a converted card never has a pale-gold button
+  with unreadable type.
 - **Contrast holds in the new tones.** `#d4af37` on the card surface `#0b1219`
   is **8.96:1**, `#ffd700` on the same is **13.43:1**, and even the bronze
   `#a1791f` clears AA as text at **5.07:1** on the page and **4.74:1** on the
