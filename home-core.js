@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 48;
+  const APP_VERSION = 49;
 
   // Three blacks, no hue: the page is black, gold and #555555, and a background
   // theme only decides how far toward grey the canvas is allowed to drift.
@@ -157,6 +157,7 @@
     // and resize — and never read on the scroll path, where reading
     // offsetHeight straight after toggling a class forced a synchronous layout.
     var barH = 0;
+    var published = '';
     function measureLimit() {
       var search = document.getElementById('tool-search');
       if (!search) return;
@@ -164,10 +165,21 @@
       if (r.height < 8) return;
       limit = Math.max(0, Math.round(window.scrollY + r.bottom - 8));
     }
-    function publish(show) {
-      var reserve = barH || 56;
-      document.documentElement.style.setProperty('--xp-bar-reserve', Math.round(reserve) + 'px');
-      document.documentElement.style.setProperty('--xp-sticky-h', show ? Math.round(reserve) + 'px' : '0px');
+    /* The bar's height is a fact about the viewport, not about the scroll
+       position: it is published once per change (load, resize, fonts) as
+       `--xp-bar-h`, and the stylesheet decides whether to park the list
+       toolbar under it from a class on <html>. The old code wrote two custom
+       properties on <html> on every show/hide. Custom properties inherit, so
+       one write invalidated style for the whole document — measured at ~40 ms
+       per toggle on a throttled phone, i.e. a dropped frame every time the
+       visitor scrolled past the hero. A class toggle is a selector-invalidation
+       change: only the toolbar that matches `html.xp-bar-shown .xp-bar` is
+       restyled. */
+    function publishOffset() {
+      var next = Math.round(barH || 56) + 'px';
+      if (next === published) return;
+      published = next;
+      document.documentElement.style.setProperty('--xp-bar-h', next);
     }
     function onScroll() {
       var show = window.scrollY > limit;
@@ -175,11 +187,12 @@
       shown = show;
       bar.classList.toggle('visible', show);
       bar.setAttribute('aria-hidden', String(!show));
-      publish(show);
+      document.documentElement.classList.toggle('xp-bar-shown', show);
     }
     function relayout() {
       barH = bar.offsetHeight || barH;
       measureLimit();
+      publishOffset();
       shown = null;
       onScroll();
     }
@@ -222,7 +235,12 @@
     window.addEventListener('resize', relayout, { passive: true });
     window.addEventListener('load', relayout);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
-    onScroll();
+    // The first onScroll() rides inside relayout()'s frame. Calling it here,
+    // synchronously in the deferred-script pass, made the first class toggle
+    // land before the browser had styled anything: the recalc it forced then
+    // included the whole document (measured at 190 ms in a throttled load
+    // profile, attributed to this function). One frame later is before the
+    // first paint and costs a fraction of that.
     if (location.hash.length > 1) {
       window.addEventListener('load', function () { jumpTo(location.hash.slice(1), false); });
     }

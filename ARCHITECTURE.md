@@ -770,6 +770,53 @@ page with its "Estimated Bag Value" projector, and its sitemap entry (FINANCE.md
 section used to be a 725-line dated changelog; `git log` is the changelog now —
 this file describes the site as it is.
 
+## 10. Speed
+
+Speed is a product requirement here, not a polish item: the home page is a
+launcher, and a launcher that takes three seconds has failed before anyone taps
+it. Three things make the page fast, and all three are enforced rather than
+remembered.
+
+**The catalogue is not on the first screen.** `tools-index.json` is 210 KB
+gzipped — 42% of the page — and it fills a section four screens down. The home
+page loads it when the visitor is within 1500 px of that section, searches,
+follows a `#all-tools` or `?q=` deep link, or has no `IntersectionObserver` at
+all. `scripts/tests/home-catalogue-lazy.test.js` drives the shipped file in
+jsdom and fails if mounting the page, `DOMContentLoaded`, `load` or an idle
+callback fetches it. (It was removed twice and came back twice before that test
+existed.)
+
+**The scroll path writes nothing document-wide.** `--xp-sticky-h` is inherited
+from `<html>`, so writing it restyles the whole document; the command bar
+publishes `--xp-bar-h` once and toggles `html.xp-bar-shown` instead, and
+`explore.js` memoises the offset it publishes for static chrome. The home page
+has no per-scroll style work left to do.
+
+**Content is painted when it exists, not when its animation starts.** The hero's
+entrance keyframes begin at `opacity: 0.01`, never `0`: at 0 the element is not
+painted, so first contentful paint waits for the fade to begin and LCP waits for
+it to end.
+
+Budgets: `scripts/perf-budget.js` (in `npm run verify`) holds the first paint at
+42 KB gzip and the first screen at 150 KB, pins the catalogue's single guarded
+fetch site, and rejects an inherited custom-property write from `home-core.js`.
+Numbers, measured on 2026-10-20 with `scripts/perf-home.mjs`, cold, at 4x CPU /
+1.6 Mbps / 150 ms RTT:
+
+| | with the catalogue at idle | now |
+|---|---|---|
+| transfer before the list is touched | 352 KB gzip | **216 KB** |
+| first contentful paint | 1128 ms | 1324 ms |
+| one full-page scroll | 4280 ms, 485 ms style, 674 ms layout | **1967 ms, 189 ms style, 306 ms layout** |
+
+`scripts/perf-home.mjs` is the harness: it serves the working tree the way
+GitHub Pages does (gzip, ETag/304, `max-age=600` — a server without those makes
+every number wrong), throttles the browser, and reports load, FCP, LCP, blocked
+main-thread time, transfer, and what a full-length scroll costs. It needs
+`puppeteer-core` and `@sparticuz/chromium` in `/tmp/tenv` (never a repository
+dependency, AGENTS.md §2) and exits 2 rather than skipping silently when they
+are missing. Run it before and after anything that touches the first screen.
+
 ## MostUsefulMaps (`maps.html`)
 
 The site's own open-data map, built so the catalogue's tools can use it too.

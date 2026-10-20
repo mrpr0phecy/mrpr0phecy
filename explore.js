@@ -169,13 +169,24 @@
      phone). This measures the real thing instead and republishes it as
      `--xp-sticky-h`, which explore.css's `.xp-bar` consumes.
 
-     Recomputed on scroll (rAF-throttled) and on resize, because a sticky
-     element that has slid off-screen is not chrome: while the home page's
-     command bar is hidden the toolbar sits at the very top of the viewport,
-     and while it is showing it sits below it. */
+     Recomputed on resize and once on mount, not on every scroll frame: the
+     chrome this measures (a topbar, a table of contents) does not move once
+     the page has been laid out. The one piece of chrome that DOES change with
+     scroll is the home page's command bar, and the home page owns that
+     offset itself (home-core.js publishes its height once and toggles a
+     class), so this pass deliberately ignores it. */
+  var publishedSticky = '';
   function measureStickyOffset() {
     var h = 0;
-    var candidates = document.querySelectorAll('.topbar, .toc, [data-xp-sticky], #stickyCommandBar');
+    // The home page's command bar is deliberately NOT measured here. It is
+    // the one piece of chrome that changes as the visitor scrolls, and the
+    // home page publishes its height once and toggles a class for the rest
+    // (see home.css `html.xp-bar-shown .xp-bar`). Measuring it here as well
+    // meant every show/hide rewrote `--xp-sticky-h` on <html> — an inherited
+    // custom property, so the write restyled the whole document on the scroll
+    // path. On every other page the chrome above the list is static, so this
+    // pass runs on load/resize and then finds the same number.
+    var candidates = document.querySelectorAll('.topbar, .toc, [data-xp-sticky]');
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
       if (el.classList.contains('xp-bar')) continue;
@@ -183,21 +194,16 @@
       try { cs = window.getComputedStyle(el); } catch (e) { continue; }
       if (cs.position !== 'sticky' && cs.position !== 'fixed') continue;
       if (cs.visibility === 'hidden' || cs.display === 'none') continue;
-      // The home command bar slides in with a transform. Measuring its box
-      // mid-animation reports a height of nothing and parks the list toolbar
-      // under the bar. Its layout height does not move with the transform.
-      if (el.id === 'stickyCommandBar') {
-        if (!el.classList.contains('visible')) continue;
-        if (el.offsetHeight > h) h = el.offsetHeight;
-        continue;
-      }
       var r = el.getBoundingClientRect();
       // Pinned near the top edge, actually painted, and not one of the
       // bottom-anchored floating buttons — those live at the other end.
       if (r.height < 8 || r.bottom <= 2 || r.top > 160) continue;
       if (r.bottom > h) h = r.bottom;
     }
-    document.documentElement.style.setProperty('--xp-sticky-h', Math.round(h) + 'px');
+    var next = Math.round(h) + 'px';
+    if (next === publishedSticky) return;
+    publishedSticky = next;
+    document.documentElement.style.setProperty('--xp-sticky-h', next);
   }
 
   /* ---------------------------------------------------- scroll affordance --
@@ -297,9 +303,7 @@
       queued = true;
       requestAnimationFrame(function () {
         queued = false;
-        var bar = document.getElementById('stickyCommandBar');
-        var next = (bar && bar.classList.contains('visible') ? '1' : '0') +
-          '|' + window.innerWidth + '|' + window.innerHeight;
+        var next = window.innerWidth + '|' + window.innerHeight;
         if (!force && next === sig) return;
         sig = next;
         measureStickyOffset();
@@ -1217,7 +1221,25 @@
       });
       if (wantsNow()) return loadCatalogue();
       bar.innerHTML = '<span class="xp-count">The full list loads as you reach it.</span>';
+      /* Nothing is fetched until the visitor is close to the list, or asks for
+         it. That is the whole bandwidth decision, and it is measured: the
+         home page is 501 KB over the wire with the catalogue fetched at idle
+         and 253 KB without it, and on a throttled phone (4x CPU, 1.6 Mbps)
+         the difference is 3.2 s of load and 776 ms of blocked main thread
+         against 761 ms and almost none. 210 KB of JSON is 42% of the page to
+         fill a section four screens down that most visits never reach.
+
+         An earlier revision fetched at idle with a 600 ms bound, because the
+         700 px observer below could leave the box visibly empty for a second
+         or two. The fix for that is a *wider* margin, not an eager fetch: at
+         1500 px the download starts a screen and a half before the section
+         can be seen, so it is either ready on arrival or has the same head
+         start it used to get. The intent listeners above (search focus,
+         pointer, popular chips) and wantsNow() (a shared ?q= link) still
+         start it immediately for anyone who is actually looking for it.
+         Deduped by loadCatalogue's own `loading`. */
       var section = document.getElementById('all-tools-section') || container;
+      var begin = function () { loadCatalogue(); };
       if (window.IntersectionObserver) {
         var io = new IntersectionObserver(function (entries) {
           for (var i = 0; i < entries.length; i++) {
@@ -1226,26 +1248,20 @@
             loadCatalogue();
             return;
           }
-        }, { rootMargin: '700px 0px' });
+        }, { rootMargin: '1500px 0px' });
         io.observe(section);
+      } else {
+        // No observer (very old browser): the list is what the page is for.
+        window.addEventListener('load', begin, { once: true });
       }
-      /* When the catalogue is allowed to start, which is a bandwidth decision
-         and was measured rather than guessed. It must not compete with the
-         first screen — 200 KB of JSON downloading against the font and the
-         render-blocking stylesheets moves the thing the visitor is waiting for
-         further away. But waiting for a genuinely idle browser put the request
-         at 3.2 s on a throttled connection (load was done at 2.1 s, LCP at
-         1.1 s): the list then could not appear before ~4.5 s, and the visitor
-         had been looking at an empty box for three of those seconds.
-
-         So: idle — as soon as the browser has nothing more urgent — with a
-         short bound, or the window's `load` event, whichever comes first.
-         Both are after the first paint; `load` means nothing is left to
-         compete with at all. Deduped by loadCatalogue's own `loading`. */
-      var begin = function () { loadCatalogue(); };
-      var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 600); };
-      idle(begin, { timeout: 600 });
-      window.addEventListener('load', begin, { once: true });
+      // A deep link to the catalogue, or the back/forward cache restoring a
+      // scroll position inside it, is an explicit request for the list.
+      var hashWantsIt = function () {
+        var h = location.hash || '';
+        return h === '#all-tools-section' || h === '#all-tools' || h === '#explore';
+      };
+      if (hashWantsIt()) loadCatalogue();
+      window.addEventListener('hashchange', function () { if (hashWantsIt()) loadCatalogue(); });
       return Promise.resolve();
     }
 

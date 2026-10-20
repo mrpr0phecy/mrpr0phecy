@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify.sh — would this change break the site?
 #
-#   bash scripts/verify.sh          # the gate: 8 checks, ~6 s
+#   bash scripts/verify.sh          # the gate: 9 checks, ~6 s
 #   bash scripts/verify.sh --deep   # gate + the slow audits, ~75 s with jsdom
 #   bash scripts/verify.sh --live   # gate + ask the deployed site what it serves
 #
@@ -237,6 +237,20 @@ lantern() {
 }
 
 # ---------------------------------------------------------------------------
+# Speed
+# ---------------------------------------------------------------------------
+
+perf() {
+  # The site's speed floor, in bytes and in rules: the first paint and the
+  # first screen have budgets, the 210 KB search catalogue stays off the
+  # critical path, and the scroll path keeps its document-wide writes at zero.
+  # Each rule in scripts/perf-budget.js says what it cost when it was broken.
+  expect "the first screen stays inside its byte and scroll-path budgets" \
+         "performance regression — see scripts/perf-budget.js (run it with --verbose)" \
+         node scripts/perf-budget.js
+}
+
+# ---------------------------------------------------------------------------
 # --deep: shared infrastructure audits and the CI gate
 # ---------------------------------------------------------------------------
 
@@ -397,7 +411,7 @@ live() {
 # ---------------------------------------------------------------------------
 
 T_START=$(now_ms)
-printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 8-check gate")"
+printf '\033[1mverify.sh\033[0m — %s\n' "$([ "$DEEP" = "1" ] && echo "gate + deep audits" || echo "the 9-check gate")"
 
 check "hygiene: secrets, placeholders, rel=noopener" hygiene
 check "catalogue consistency"                      catalogue
@@ -407,6 +421,7 @@ check "published tool counts"                      counts
 check "top-level SEO"                              seo
 check "Lantern engine contracts"                   lantern
 check "service worker discipline"                  sw_discipline
+check "speed: first screen + lazy catalogue"       perf
 
 if [ "$DEEP" = "1" ]; then
   check "card safety audits (egress, a11y, collisions, CSS leaks)" deep_card_safety
