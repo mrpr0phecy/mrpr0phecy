@@ -85,7 +85,16 @@ INLINE_BUDGET = 4_000
 # prose was trimmed first, then this floor moved to the measured 13,473 B
 # gzip plus a small margin — an entrance that costs ~1 KB gz is cheap for the
 # difference between a page that renders and one that arrives.
-HOME_CSS_GZIP_BUDGET = 13_700
+#
+# Raised again 2026-10-20 for §13, the seasonal Halloween band: 13,449 B
+# without it, 15,401 B with it. The prose was cut to the decisions first
+# (it saved ~280 B); the rest is the card, the four tool rows, their hover
+# and focus states, and the print/forced-colours/reduced-motion answers,
+# none of which can move to the deferred sheet — the band is above the fold,
+# and home-deferred.css may only style containers that are hidden at first
+# paint. It is one band, dated, absent eleven months of the year, and the
+# floor below keeps a ~500 B margin over the measured file.
+HOME_CSS_GZIP_BUDGET = 15_900
 DEFERRED_GZIP_BUDGET = 5_000
 INDEX_GZIP_BUDGET = 18_000
 

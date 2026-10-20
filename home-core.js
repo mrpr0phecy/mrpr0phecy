@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 45;
+  const APP_VERSION = 46;
 
   var THEMES = {
     'default': { bg1: '#0a0f14', bg2: '#141e28' },
@@ -780,6 +780,32 @@
   // "InvalidStateError: ViewTransition opt-in disabled" on the tool page — one
   // per click, measured on the live site. Skip the transition up front when the
   // destination cannot take part, and settle its promises either way.
+  /* -------------------------------------------------- the seasonal band ---- */
+  // index.html's head script already decided whether the band shows and adds
+  // `data-season` before the first paint, so nothing here can cause a flash.
+  // The one thing that script cannot do is answer a click: dismissal is stored
+  // for the calendar year, and hiding the band must not drop the keyboard on
+  // the floor — focus moves to the next heading the visitor can actually use.
+  function setupSeasonBand() {
+    var band = document.querySelector('[data-season-band]');
+    if (!band) return;
+    var close = band.querySelector('[data-season-dismiss]');
+    if (!close) return;
+    close.addEventListener('click', function () {
+      var root = document.documentElement;
+      var year = String(new Date().getFullYear());
+      root.setAttribute('data-season', 'off');
+      try { localStorage.setItem('halloween-band-dismissed', year); } catch (e) {}
+      var status = band.querySelector('.season-band-status');
+      if (status) status.textContent = 'Halloween band hidden until next year.';
+      var next = document.getElementById('featured-heading');
+      if (next) {
+        next.setAttribute('tabindex', '-1');
+        try { next.focus({ preventScroll: true }); } catch (e) { next.focus(); }
+      }
+    });
+  }
+
   function setupPageSwap() {
     window.addEventListener('pageswap', function (e) {
       var vt = e.viewTransition;
@@ -822,6 +848,7 @@
     safely('popover a11y', syncPopoverA11y);
     safely('popover fallback', popoverFallback);
     safely('reveal', setupReveal);
+    safely('seasonal band', setupSeasonBand);
     safely('app entry', handleAppEntry);
     safely('page swap', setupPageSwap);
     safely('service worker', registerServiceWorker);

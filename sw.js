@@ -199,7 +199,13 @@
 // the cross-document view transition for destinations that do not opt in,
 // which threw an uncaught InvalidStateError on every tool page opened from home.
 // v44: catalogue interaction polish and shared, cacheable tool-page chrome.
-const CACHE_VERSION = 'v45-2026-10-19';
+// v46: the seasonal Halloween band on the home page. index.html gains a
+// head script (the 10 Oct – 2 Nov window), the band's markup and links, and
+// home.css gains §13; home-core.js gains the dismissal. All three carry the
+// version, so a returning visitor's cached page can never pair the new
+// band with the old stylesheet, or the new stylesheet with a page that has
+// no band to style.
+const CACHE_VERSION = 'v46-2026-10-20';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

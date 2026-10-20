@@ -35,12 +35,13 @@ MostUsefulMaps and SupaViewer out of the tools brand).
 
 ## 3. Colour
 
-### 3.1 The two accent jobs
+### 3.1 The three accent jobs
 
 | Role | Value | Where |
 |---|---|---|
 | **UI accent** (visitor's) | default `#2dd4ff` cyan; six offered, choice in `localStorage` | everything *in* the interface: washes, hover, focus rings, the mark's brackets |
 | **House accent** (brand's) | `#e8a33d` amber on dark; `#7a500e` for accent words on light | external surfaces only: `logo-lockup-*.svg`, `og-brand.png`/`og-tools.png`, `logo.png` |
+| **Season accent** | `#ff9f43` pumpkin (`--pumpkin`) | one dated surface only: the Halloween band on the home page (`home.css` §13), the Halloween category hub and `guides/halloween.html` |
 
 The house accent defines the product externally (the logo a journalist grabs,
 the social card, the press kit). **The page itself is never in the house
@@ -51,6 +52,28 @@ Amber was chosen because blue/purple is every calculator and fintech
 competitor's default and blending in works against the positioning; amber/ochre
 reads as instrument panel and sits far from every picker accent except the warm
 family, where it is still distinguishable at a glance.
+
+The season accent is a third, narrower job (added 2026-10-20). It exists
+because a seasonal shelf has to read as *this* season without pretending to be
+the visitor's accent, and it is deliberately not the house amber: the band is a
+page surface, the amber is the brand's, and the two would be confused at a
+glance. It is scoped as tightly as possible:
+
+- **Where:** `home.css` §13, the Halloween hub and its guide. Nowhere else, and
+  never in `brand/`.
+- **When:** the band is in the document all year — its links are crawlable and
+  it works without JavaScript — but a `<head>` script sets `data-season` before
+  the first paint, so it is `display:none` outside 10 October – 2 November and
+  absent from the tab order. The hub and guide keep the colour: they are
+  ordinary category pages.
+- **How:** it never replaces `--accent` anywhere else on the page. Outside the
+  band the search box, chips, tiles and panels keep the visitor's colour; the
+  band's own hover edges and row arrows are pumpkin, and the filled call to
+  action takes a white focus ring so it is visible against the fill.
+- **Contrast:** `#1b0e02` on `#ff9f43` (the call to action) is **9.29:1**, and
+  `#ff9f43` on `#0a0f14` is **9.43:1**. It is never body text on a light
+  surface, and forced-colours drops it for Canvas/Highlight like everything
+  else.
 
 ### 3.2 Measured contrast
 
