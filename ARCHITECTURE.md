@@ -230,7 +230,6 @@ drift. Everything below the fold is `[data-explore="json"]`, an empty container.
 | `explore.js` | about 76 KB | list engine: fetch, filter, sort, reveal, keyboard, URL state; the shelves' wheel/drag/arrow controller |
 | `toolbox.js` | about 33 KB | saved list, ＋ buttons, panel; lite-tier fetch on intent |
 | `home-core.js` | about 44 KB | theme, panels, search bridge, deep links, service worker |
-| `spin.js` | about 19 KB (6.1 KB gzip) | the flywheel's instrument — fetched on intent, never on the first screen |
 
 `window.mpExplore` / `window.mpToolbox` are the public seams: `home-core.js`
 calls `mpExplore.filter()` for the hero search; `mpExplore` calls
@@ -819,44 +818,25 @@ main-thread time, transfer, and what a full-length scroll costs. It needs
 dependency, AGENTS.md §2) and exits 2 rather than skipping silently when they
 are missing. Run it before and after anything that touches the first screen.
 
-### The flywheel — the home page's dial
+### The random-tool band — section 00
 
-A fidget spinner sits between the seasonal band and the shelves, and it is not a
-"random tool" button in fancy dress. The spin is the index:
+The home page's first section is one button: *Pick a random tool*. It replaced a
+fidget-spinner dial on 2026-10-21 at the owner's request. The dial's angle was
+the catalogue index (one turn walked all 1,424 tools), and that idea was the
+reason it cost what it did: a 19 KB canvas instrument fetched on intent, 4.5 KB
+of CSS and a resting SVG, all to answer "give me something I did not come for".
 
-    index = floor(angle / 2π × N) mod N
+The band keeps the answer and drops the instrument. `home-core.js` owns the
+pick (`pickRandomTool()`) and three things call it — the hero's *Surprise Me*
+chip, the sticky bar's die, and the band's button — plus the `R` key. One
+picker, so the three cannot drift. Nothing loads until the button is pressed,
+and what loads then is a page, not a script.
 
-The angle is the catalogue. One turn walks all 1,424 tools; the 180 marks on the
-bezel are about eight tools each; "tools passed" is the angular distance the
-visitor actually travelled; and a deliberate turn returns the tool they started
-on, the way a dial should. Braking with a hand steers the answer rather than
-re-rolling it — which is the one property a random-number button can never have.
-
-It is also a load rule, not a toy bolted on. Three things pay for it:
-
-* **It is a picture until it is touched.** The resting state is one `<svg>` in
-  `index.html` — no script, no canvas. `home-core.js` fetches `spin.js` on a
-  pointer over the band, keyboard focus inside it, or 300 px of proximity, and
-  the proximity observer only starts after `load` (observing at mount loaded it
-  before the first paint on every phone whose viewport reached the band).
-  `scripts/perf-budget.js` fails the build if `index.html` references it.
-* **Only the rotor is redrawn.** The bezel never moves, so it is painted once
-  into an offscreen canvas; the visible canvas works in the SVG's own 320-unit
-  coordinate system, so the hand-off from picture to instrument is the same
-  drawing.
-* **Detail is spent where it can be seen.** Below 40 rpm the arms carry their
-  gradient and screws; to 240 rpm they are flat; above that the rotor is two
-  arcs and an eight-segment comet. Nobody can see detail at 240 rpm, and drawing
-  it is exactly what makes an instrument stutter. The loop stops when the wheel
-  stops: no rAF while idle, off screen, or in a hidden tab, and none at all for
-  a visitor who asked for reduced motion — they get the numbered answer with no
-  animation.
-
-The first throw is the catalogue's load trigger (`mpExplore.warm()`, the same
-guarded fetch the search box uses), so a visitor who never touches the dial
-never downloads the catalogue. The result is announced through a live region and
-is a real link; with a keyboard, the button's arrow keys walk the dial a mark at
-a time.
+The lesson worth keeping from the dial: a feature that is fetched on intent and
+painted on a canvas is still budgeted like anything else. When it was removed,
+`scripts/perf-budget.js` lost its `spin.js` ceiling and its "index.html must not
+reference it" rule, because a rule that guards a deleted file only teaches the
+next reader to ignore the gate.
 
 **A single tool has the same rule.** The home page is not the only place a
 visitor waits. A card is inlined into `tool/<slug>.html`, so anything it does

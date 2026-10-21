@@ -43,7 +43,12 @@ const ROOT = path.join(__dirname, '..');
 const CARDS = path.join(ROOT, 'cards');
 const OUT = path.join(ROOT, 'intents.json');
 const BASE = 'https://www.themostusefulsiteintheworld.com';
-const VERSION = new Date().toISOString().slice(0, 10);
+/* Bumped by hand when the routes below change — NOT `new Date()`.
+   A clock-derived stamp made intents.json differ from its own rebuild at every
+   UTC midnight, so `npm run verify:deep` reported it stale every morning on an
+   untouched `main` (2026-10-21, the day after it was last built). The routes are
+   hand-written; their version should move when a human moves them. */
+const VERSION = '2026-10-21';
 
 // The engine's own caps (tool.html): a link that is not a link any more is
 // worse than no link, so the builder refuses to publish an intent whose
