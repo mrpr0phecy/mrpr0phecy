@@ -412,6 +412,7 @@ ${sections.join('\n\n')}
   <link rel="stylesheet" href="toolbox.css?v=${assetVersion}" media="print" onload="this.media='all';this.onload=null">
   <script defer src="toolbox.js?v=${assetVersion}"></script>
   <script defer src="explore.js?v=${assetVersion}"></script>
+  <script type="speculationrules">{"prefetch":[{"where":{"href_matches":["/tool/*","/categories/*","/index.html","/"]},"eagerness":"conservative"}]}</script>
 </head>
 <body>
   <main>

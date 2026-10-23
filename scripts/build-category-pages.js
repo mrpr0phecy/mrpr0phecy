@@ -90,8 +90,26 @@ function catIcon(iconId, cls) {
   return `<svg class="${cls}" aria-hidden="true" focusable="false"><use href="../assets/icons/categories.svg#${iconId}"></use></svg>`;
 }
 
+const TITLE_COLLATOR = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+
+function sortTitle(raw) {
+  const s = String(raw || '');
+  return s.replace(/^[^\p{L}\p{N}]+/u, '') || s;
+}
+
+function compareCategoryTools(a, b) {
+  return TITLE_COLLATOR.compare(sortTitle(a.title), sortTitle(b.title))
+    || String(a.slug || '').localeCompare(String(b.slug || ''));
+}
+
 function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
-  const catTools = tools.filter(t => t.category === cat.slug || t.categoryName === cat.name);
+  // Pre-sort in the exact emoji-stripped A–Z title order explore.js uses as its
+  // default sort, so the served HTML matches the enhanced order without a
+  // synchronous DOM re-append pass or visible row jump after load.
+  const catTools = tools
+    .filter(t => t.category === cat.slug || t.categoryName === cat.name)
+    .slice()
+    .sort(compareCategoryTools);
   const blurb = CAT_BLURBS[cat.name] || 'Explore our collection of free, high-speed browser tools. No ads, no registrations, no server latency.';
   const pageTitle = `${catTools.length} Free ${cat.name} Tools — The Most Useful Site in the World`;
   const metaDesc = `Explore ${catTools.length} free ${cat.name} tools, calculators, generators and simulators. 100% private in-browser computation with no sign-ups or ads.`;
@@ -188,8 +206,10 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
   <meta name="twitter:description" content="${esc(metaDesc)}">
   <meta name="twitter:image" content="${SITE}/og-tools.png">
   <meta name="theme-color" content="#04070a">
-  <script type="application/ld+json">${JSON.stringify(itemList)}</script>
-  <script type="application/ld+json">${JSON.stringify(breadcrumbList)}</script>
+  <link rel="stylesheet" href="../explore.css?v=${ASSET_VERSION}">
+  <link rel="stylesheet" href="../toolbox.css?v=${ASSET_VERSION}" media="print" onload="this.media='all';this.onload=null">
+  <script defer src="../toolbox.js?v=${ASSET_VERSION}"></script>
+  <script defer src="../explore.js?v=${ASSET_VERSION}"></script>
   <style>
     :root {
       --bg-primary: #04070a;
@@ -376,10 +396,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       .cat-pill, .search-hint { transition: none; }
     }
   </style>
-  <link rel="stylesheet" href="../explore.css?v=${ASSET_VERSION}">
-  <link rel="stylesheet" href="../toolbox.css?v=${ASSET_VERSION}" media="print" onload="this.media='all';this.onload=null">
-  <script defer src="../toolbox.js?v=${ASSET_VERSION}"></script>
-  <script defer src="../explore.js?v=${ASSET_VERSION}"></script>
+  <script type="speculationrules">{"prefetch":[{"where":{"href_matches":["/tool/*","/categories/*","/index.html","/"]},"eagerness":"conservative"}]}</script>
 </head>
 <body>
   <a class="xp-skip" href="#explore">Skip to tools</a>
@@ -460,6 +477,8 @@ ${otherCategoriesHtml}
     </div>
   </footer>
 
+  <script type="application/ld+json">${JSON.stringify(itemList)}</script>
+  <script type="application/ld+json">${JSON.stringify(breadcrumbList)}</script>
 </body>
 </html>
 `;

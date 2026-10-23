@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 52;
+  const APP_VERSION = 55;
 
   // Three blacks, no hue: the page is black, gold and #555555, and a background
   // theme only decides how far toward grey the canvas is allowed to drift.
@@ -289,6 +289,12 @@
         return;
       }
       var n = window.mpExplore.rows().length;
+      var full = !window.mpExplore.fullReady || window.mpExplore.fullReady();
+      var busy = !!(window.mpExplore.loading && window.mpExplore.loading());
+      if (!n && !full && busy) {
+        status.textContent = 'Searching full descriptions…';
+        return;
+      }
       status.textContent = n
         ? (n === 1 ? '1 match — Enter to open it' : n + ' matches — Enter to see them')
         : 'No matches — try a shorter word';
@@ -391,8 +397,8 @@
     var apply = function (value, scroll) {
       if (window.mpExplore) {
         var pending = window.mpExplore.filter(value, { quiet: !scroll });
+        report(value);
         if (pending && typeof pending.then === 'function') pending.then(function () { report(value); });
-        else report(value);
       } else {
         // No engine (script blocked): the honest answer is the plain index,
         // pre-filtered by nothing — never a filter that silently does nothing.
@@ -795,12 +801,20 @@
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
     var doRegister = function () {
+      if (window.__mpSwRegistered) return;
+      window.__mpSwRegistered = true;
       navigator.serviceWorker.register('sw.js', { type: 'module' }).catch(function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
       });
     };
-    if ('requestIdleCallback' in window) requestIdleCallback(doRegister, { timeout: 4000 });
-    else window.addEventListener('load', function () { setTimeout(doRegister, 1500); });
+    var afterLoad = function () {
+      setTimeout(function () {
+        if ('requestIdleCallback' in window) requestIdleCallback(doRegister, { timeout: 3000 });
+        else doRegister();
+      }, 1500);
+    };
+    if (document.readyState === 'complete') afterLoad();
+    else window.addEventListener('load', afterLoad, { once: true });
   }
 
   /* ------------------------------------------------ cross-page transitions */

@@ -518,48 +518,55 @@ function buildHtml() {
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${BASE}/og-tools.png">
-<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--accent:#ffd700;--text:#d6d6d6;--dim:#a3a3a3;--bg:#04070a;--panel:#0b1219;--line:rgba(85,85,85,.72);--gold:#ffd700}
+html{color-scheme:dark}
+:root{--accent:#ffd700;--text:#d6d6d6;--text-strong:#f8fafc;--dim:#a3a3a3;--bg:#04070a;--panel:#0b1219;--line:rgba(85,85,85,.72);--gold:#ffd700}
 body{background:var(--bg);color:var(--text);line-height:1.65;font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;overflow-x:hidden}
 a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.skip-link{position:fixed;left:14px;top:12px;z-index:200;padding:8px 14px;border-radius:8px;background:var(--accent);color:#06090c;font-weight:800;font-size:.84rem;text-decoration:none;transform:translateY(-160%);transition:transform .15s ease}
+.skip-link:focus{transform:translateY(0)}
 .wrap{max-width:920px;margin:0 auto;padding:0 20px}
-header.top{border-bottom:1px solid var(--line);padding:14px 0;position:sticky;top:0;background:rgba(8,8,9,.92);backdrop-filter:blur(8px);z-index:5}
+header.top{border-bottom:1px solid var(--line);padding:14px 0;position:sticky;top:0;background:rgba(4,7,10,.92);backdrop-filter:blur(8px);z-index:5}
 header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:9px;text-decoration:none;font-weight:700;font-size:.9rem}
+.brand{display:flex;align-items:center;gap:9px;text-decoration:none;font-weight:700;font-size:.9rem;color:var(--text-strong)}
 .brand img{width:22px;height:22px}
 .brand span.accent{color:var(--accent)}
 .top-links a{color:var(--accent);text-decoration:none;font-size:.85rem;font-weight:600;margin-left:14px}
 .top-links a:hover{text-decoration:underline}
 main{padding:38px 0 20px}
-h1{font-size:clamp(1.7rem,5vw,2.4rem);line-height:1.15;letter-spacing:-.5px}
+h1{font-size:clamp(1.7rem,5vw,2.4rem);line-height:1.15;letter-spacing:-.5px;color:var(--text-strong)}
 h1 .em{color:var(--accent)}
 .lede{color:var(--dim);margin-top:14px;max-width:64ch;font-size:1.02rem}
-.how{margin:26px 0 8px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,rgba(255,255,255,.03),rgba(255,255,255,.05))}
+.view-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.view-tabs a{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:999px;font-size:.78rem;font-weight:700;text-decoration:none;color:var(--dim);background:rgba(255,255,255,.025);border:1px solid var(--line);transition:border-color .15s,color .15s}
+.view-tabs a:hover{color:var(--text-strong);border-color:rgba(255,215,0,.4)}
+.view-tabs a[aria-current="page"]{color:#06090c;background:var(--accent);border-color:var(--accent);font-weight:800}
+.how{margin:26px 0 8px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
 .how h2{font-size:1rem;color:var(--accent);margin-bottom:10px}
 .how ol{margin-left:20px;color:var(--dim);font-size:.93rem}
 .how li{margin:5px 0}
-.how code{background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);border-radius:5px;padding:1px 5px;font-size:.85em;color:#bff0ff;overflow-wrap:anywhere}
+.how code{background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.22);border-radius:5px;padding:1px 5px;font-size:.85em;color:var(--text-strong);overflow-wrap:anywhere}
 .jobs{margin-top:30px;display:grid;gap:26px}
 .job{border:1px solid var(--line);border-radius:16px;padding:20px;background:var(--panel)}
-.job h2{font-size:1.12rem;letter-spacing:-.2px}
+.job h2{font-size:1.12rem;letter-spacing:-.2px;color:var(--text-strong)}
 .job .blurb{color:var(--dim);font-size:.92rem;margin:7px 0 15px}
 .steps{list-style:none;display:grid;gap:9px}
 .step{display:grid;gap:4px}
 .step-link{display:flex;gap:12px;align-items:flex-start;text-decoration:none;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.02);min-height:44px}
 .step-link:hover{border-color:rgba(255,215,0,.45);background:rgba(255,215,0,.07)}
 .step-n{flex:none;width:24px;height:24px;border-radius:50%;background:rgba(255,215,0,.14);border:1px solid rgba(255,215,0,.35);color:var(--accent);font-size:.78rem;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
-.step-title{display:block;font-weight:600;font-size:.94rem}
+.step-title{display:block;font-weight:600;font-size:.94rem;color:var(--text-strong)}
 .step-note{display:block;color:var(--dim);font-size:.83rem;margin-top:2px}
-.carry{color:rgba(230,250,255,.5);font-size:.76rem;padding-left:36px}
-.carry code{color:#bff0ff}
+.carry{color:var(--dim);font-size:.76rem;padding-left:36px}
+.carry code{color:var(--accent)}
 .start{margin-top:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.start a{display:inline-flex;align-items:center;min-height:44px;padding:10px 18px;border-radius:10px;background:rgba(255,215,0,.12);border:1px solid rgba(255,215,0,.4);color:var(--accent);font-weight:700;text-decoration:none;font-size:.9rem}
-.start a:hover{background:rgba(255,215,0,.22)}
-.start-note{color:rgba(230,250,255,.5);font-size:.8rem}
+.start a{display:inline-flex;align-items:center;min-height:44px;padding:10px 18px;border-radius:10px;background:var(--accent);border:1px solid var(--accent);color:#06090c;font-weight:800;text-decoration:none;font-size:.9rem}
+.start a:hover{box-shadow:0 6px 20px rgba(255,215,0,.25)}
+.start-note{color:var(--dim);font-size:.8rem}
 .notes{margin-top:34px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;color:var(--dim);font-size:.88rem}
-.notes h2{font-size:.98rem;color:var(--text);margin-bottom:8px}
+.notes h2{font-size:.98rem;color:var(--text-strong);margin-bottom:8px}
 .notes p{margin:6px 0}
 .notes a{color:var(--accent)}
 footer{border-top:1px solid var(--line);margin-top:40px;padding:22px 0 34px;color:var(--dim);font-size:.85rem}
@@ -569,6 +576,7 @@ footer a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to workflows</a>
 <header class="top">
   <div class="wrap">
     <a class="brand" href="index.html"><img src="logo-mark.svg" alt="" width="22" height="22"><span><span class="accent">The Most Useful</span> Site in the World</span></a>
@@ -579,9 +587,16 @@ footer a:hover{text-decoration:underline}
     </nav>
   </div>
 </header>
-<main class="wrap">
+<main id="main" class="wrap" tabindex="-1">
   <h1>Jobs: <span class="em">one form, several tools</span>, the numbers carried forward</h1>
   <p class="lede">A single tool answers a single question. These ${count} jobs answer the one you actually had — and every step is a normal tool on this site, opened with your numbers already in it.</p>
+  <nav class="view-tabs" aria-label="Discovery views">
+    <a href="popular.html">⭐ Most popular</a>
+    <a href="new.html">🆕 Newly added</a>
+    <a href="use-case.html">🎯 By use case</a>
+    <a href="jobs.html" aria-current="page">🔗 Multi-step jobs</a>
+    <a href="tools.html">📚 Complete A–Z index</a>
+  </nav>
 
   <div class="how">
     <h2>How a job works</h2>
@@ -609,6 +624,8 @@ footer a:hover{text-decoration:underline}
     <p>Free forever · no accounts · no ads · nothing you type leaves your device. <a href="index.html">Browse all ${count === 1 ? '' : ''}tools</a> · <a href="donate.html">Support the site</a></p>
   </div>
 </footer>
+<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+<script type="speculationrules">{"prefetch":[{"where":{"href_matches":["/tool/*","/tool.html*","/index.html","/","/popular.html","/new.html","/use-case.html","/tools.html"]},"eagerness":"conservative"}]}</script>
 </body>
 </html>
 `;

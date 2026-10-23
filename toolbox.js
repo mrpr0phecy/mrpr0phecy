@@ -174,18 +174,23 @@
   }
 
   /* ------------------------------------------------------------ tool lookup */
+  // Subdirectory entry pages (/categories/*, /tool/*, /tools/*, /guides/*,
+  // /blog/*) live one directory below the site root. Resolving root-relative
+  // assets and links through one helper keeps cards-lite.json, saved-tool
+  // links, footer links and service-worker scope aligned on every page depth.
+  var SUBDIR_RE = /\/(?:categories|tool|tools|guides|blog)\/[^/]*$/;
+  function rootPrefix() {
+    var explicit = document.body && document.body.getAttribute('data-cards-dir');
+    if (explicit) return explicit;
+    return SUBDIR_RE.test(location.pathname) ? '../' : '';
+  }
+
   // cards-lite.json is about 120 KB and name/title/category only, so the panel
   // can name a saved tool without pulling the about 900 KB index.
   function lite() {
     if (byslug) return Promise.resolve(byslug);
     if (litePromise) return litePromise;
-    /* The lite tier is at the site root, and half the pages that load this
-       file live one directory down (/categories/<slug>.html) — asking for
-       `cards/cards-lite.json` from there 404s, which silently degrades the
-       panel to raw slugs. `data-cards-dir` on <body> overrides the guess for
-       any future nesting. */
-    var dir = document.body.getAttribute('data-cards-dir') ||
-      (location.pathname.indexOf('/categories/') !== -1 ? '../' : '');
+    var dir = rootPrefix();
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, LITE_TIMEOUT_MS) : null;
     litePromise = fetch(dir + 'cards/cards-lite.json', ctrl ? { signal: ctrl.signal } : undefined)
@@ -275,8 +280,8 @@
     var panel = document.getElementById(PANEL_ID);
     var explicit = panel && panel.getAttribute('data-tool-base');
     if (explicit) return explicit;
-    return document.body.getAttribute('data-tool-base') ||
-      (location.pathname.indexOf('/categories/') !== -1 ? '../tool/' : 'tool/');
+    return (document.body && document.body.getAttribute('data-tool-base')) ||
+      (rootPrefix() + 'tool/');
   }
 
   function paintCounts() {
@@ -507,12 +512,12 @@
   }
 
   function donateHref() {
-    return document.body.getAttribute('data-donate-href') ||
-      (location.pathname.indexOf('/categories/') !== -1 ? '../donate.html' : 'donate.html');
+    return (document.body && document.body.getAttribute('data-donate-href')) ||
+      (rootPrefix() + 'donate.html');
   }
   function sponsorHref() {
-    return document.body.getAttribute('data-sponsor-href') ||
-      (location.pathname.indexOf('/categories/') !== -1 ? '../sponsor.html' : 'sponsor.html');
+    return (document.body && document.body.getAttribute('data-sponsor-href')) ||
+      (rootPrefix() + 'sponsor.html');
   }
 
   /* ------------------------------------------------------------ shared links */
@@ -596,6 +601,36 @@
     warm();
   }
 
+  /* ------------------------------------------------------- service worker */
+  // Most organic visits land on tool/*.html or categories/*.html rather than
+  // index.html. Registering sw.js once the entry page has finished loading and
+  // gone idle warms STATIC_CACHE before the next click, without competing with
+  // the entry page's own paint, stylesheets or font download.
+  function registerServiceWorker() {
+    if (window.__mpSwRegistered) return;
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker ||
+        typeof navigator.serviceWorker.register !== 'function' ||
+        location.protocol === 'file:') return;
+    window.__mpSwRegistered = true;
+    var prefix = rootPrefix() || './';
+    var url = prefix + 'sw.js';
+    navigator.serviceWorker.register(url, { type: 'module', scope: prefix }).catch(function () {
+      navigator.serviceWorker.register(url, { scope: prefix }).catch(function () {});
+    });
+  }
+  function scheduleServiceWorker() {
+    if (window.__mpSwRegistered) return;
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker || location.protocol === 'file:') return;
+    var scheduleIdle = function () {
+      setTimeout(function () {
+        if (typeof requestIdleCallback === 'function') requestIdleCallback(registerServiceWorker, { timeout: 2500 });
+        else registerServiceWorker();
+      }, 1500);
+    };
+    if (document.readyState === 'complete' || typeof window.addEventListener !== 'function') scheduleIdle();
+    else window.addEventListener('load', scheduleIdle, { once: true });
+  }
+
   function init() {
     slugs = read();
     membership = null;
@@ -654,6 +689,7 @@
     renderPanel();
     watchForIntent();
     readShared();
+    scheduleServiceWorker();
     // Keep this page honest when the toolbox changes elsewhere: a `storage`
     // event from another tab, or a back/forward restore (bfcache pages miss
     // storage events while frozen) after adding a tool on its own page.

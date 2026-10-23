@@ -205,15 +205,24 @@
 // version, so a returning visitor's cached page can never pair the new
 // band with the old stylesheet, or the new stylesheet with a page that has
 // no band to style.
-// v52: quash the multi-click / Back navigation stall ("This page did not load")
-// and remove the home-page flywheel (spin.js). clearBacklog() now aborts
-// orphaned foreground subresource downloads from the outgoing page so they
-// cannot deadlock the browser's 6-socket origin pool before commit; navigations
-// mint a safe signal-bearing fetch when cloning a mode:'navigate' Request
-// throws TypeError (WebKit/Safari); ?v=-stamped shell assets serve cache-first
-// from STATIC_CACHE instead of revalidating all 9 files every 10 minutes; and
-// navigationPreload enables in activate() with the full uncached budget.
-const CACHE_VERSION = 'v52-2026-10-23';
+// v53: speed up static list surfaces (categories/*.html, tools.html,
+// tools-index.html) and tool/*.html head discovery — move JSON-LD out of
+// <head>, pre-sort category hubs in emoji-stripped A–Z title order, skip
+// orderStatic() DOM re-appends on already-sorted buckets, clone one action
+// template per list instead of per-row innerHTML parsing, and batch sticky +
+// overflow-fade geometry reads ahead of DOM writes.
+// v54: make organic entry pages (tool/*.html, categories/*.html, tools.html,
+// tools-index.html) warm the next click — precache cards/card.css alongside
+// tool-page.css in STATIC_CACHE, register sw.js at post-load idle from
+// toolbox.js with root scope across nested directories, and ship conservative
+// pointerdown speculation rules on tool, category and directory pages.
+// v55: instant cold-visit and SW-warmed search on index.html — race the
+// compact cards/cards-lite.json lookup ahead of tools-index.json on search
+// intent (?q=, search focus/tap, typed queries) so title, slug and category
+// matches render immediately while full descriptions and tags stream in,
+// preserving #xp-input focus and deferring zero-result verdicts until full
+// descriptions finish loading.
+const CACHE_VERSION = 'v55-2026-10-23';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -257,12 +266,14 @@ const PRECACHE_ASSETS = [
     `./explore.js?v=${PAGE_VERSION}`,
     `./toolbox.js?v=${PAGE_VERSION}`,
     `./home-core.js?v=${PAGE_VERSION}`,
-    // Warm the shared tool frame at install/idle, not on the first tool click.
-    `./tool-page.css?v=${PAGE_VERSION}`
+    // Warm both shared tool-page stylesheets at install/idle, not on the first tool click.
+    `./tool-page.css?v=${PAGE_VERSION}`,
+    `./cards/card.css?v=${PAGE_VERSION}`
 ];
 // Pathnames the handler must serve from STATIC_CACHE, where they are precached.
 const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/risk-notices.js',
-                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js', '/home-core.js', '/tool-page.css'];
+                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js',
+                          '/home-core.js', '/tool-page.css', '/cards/card.css'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.
@@ -491,13 +502,8 @@ function route(event) {
 
     // Scripts / styles / JSON: freshFast — never pin code to the version a
     // visitor first saw (v4 note), and never serve the version from before the
-    // deploy either (v5 note). card.css stamped with ?v=${PAGE_VERSION} is
-    // deploy-immutable too, so repeat tool clicks do not revalidate it.
+    // deploy either (v5 note).
     if (/\.(js|css|json)$/.test(url.pathname)) {
-        if (url.pathname === '/cards/card.css' && url.searchParams.get('v') === PAGE_VERSION) {
-            event.respondWith(cacheFirst(req, RUNTIME_CACHE, undefined, event));
-            return;
-        }
         event.respondWith(freshFast(req, RUNTIME_CACHE, event));
         return;
     }

@@ -50,11 +50,33 @@ test('category hubs have keyboard bypass links and actual section headings', () 
 });
 
 test('handwritten discovery pages use the current shared catalogue assets', () => {
-  for (const page of ['index.html', 'popular.html', 'new.html']) {
+  for (const page of ['index.html', 'popular.html', 'new.html', 'use-case.html']) {
     const html = read(page);
     for (const asset of ['explore.css', 'toolbox.css', 'toolbox.js']) {
       assert(html.includes(`${asset}?v=${version}`), `${page}: stale ${asset}`);
     }
+  }
+});
+
+test('filtered discovery views share the obsidian + gold theme, skip links, non-blocking CSS, and accurate counts', () => {
+  for (const page of ['popular.html', 'new.html', 'use-case.html']) {
+    const html = read(page);
+    assert(html.includes('name="theme-color" content="#04070a"'), `${page}: wrong theme-color`);
+    assert(html.includes('--bg-primary:#04070a'), `${page}: missing obsidian --bg-primary`);
+    assert(html.includes('--accent:#ffd700'), `${page}: missing gold --accent`);
+    assert(!/#2dd4ff|#39ff14|#0a0f14/i.test(html), `${page}: legacy cyan/green token remains`);
+    assert(html.includes('class="skip-link" href="#main"'), `${page}: missing keyboard skip link`);
+    assert(html.includes('<script type="speculationrules">'), `${page}: missing speculationrules`);
+    const withoutNoscript = html.replace(/<noscript>[\s\S]*?<\/noscript>/gi, '');
+    assert(withoutNoscript.includes(`explore.css?v=${version}" media="print"`), `${page}: explore.css should load non-blocking`);
+  }
+  const uc = read('use-case.html');
+  const cases = [...uc.matchAll(/<div class="case">([\s\S]*?)<\/div><\/div>/g)];
+  assert(cases.length >= 30, 'use-case.html must list its situation cards');
+  for (const [, block] of cases) {
+    const claimed = (block.match(/<span class="count">([^<]+)<\/span>/) || [])[1];
+    const pills = (block.match(/class="pill"/g) || []).length;
+    assert.equal(claimed, `${pills} tool${pills === 1 ? '' : 's'}`);
   }
 });
 
