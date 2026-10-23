@@ -168,3 +168,119 @@ test('a shared ?q= link loads the catalogue immediately', async () => {
         w.close();
     }
 });
+
+test('search intent renders instant title matches from cards-lite.json while tools-index.json streams in, then upgrades in place without losing focus', async () => {
+    const litePayload = [
+        { n: 'bmi', t: 'BMI Calculator', c: 'Health & Fitness' },
+        { n: 'loan', t: 'Loan Calculator', c: 'Finance & Money' },
+    ];
+    let resolveFull;
+    const dom = new JSDOM(
+        `<!doctype html><html><body>
+            <input id="tool-search" type="search">
+            <p id="heroSearchStatus"></p>
+            <main>
+                <section id="all-tools-section">
+                    <div id="explore" data-explore="json"></div>
+                </section>
+            </main>
+        </body></html>`,
+        { url: 'https://perf.test/index.html', runScripts: 'outside-only', pretendToBeVisual: true },
+    );
+    const w = dom.window;
+    await new Promise((resolve) => w.document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+    w.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
+    w.HTMLElement.prototype.scrollIntoView = function () {};
+    w.fetch = (url) => {
+        const u = String(url);
+        if (u.includes('cards-lite.json')) {
+            return Promise.resolve({ ok: true, status: 200, json: async () => litePayload });
+        }
+        if (u.includes('tools-index.json')) {
+            return new Promise((resolve) => {
+                resolveFull = () => resolve({ ok: true, status: 200, json: async () => payload });
+            });
+        }
+        return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+    };
+    w.eval(source('toolbox.js'));
+    w.eval(source('explore.js'));
+    w.eval(source('home-core.js'));
+    try {
+        const searchBox = w.document.getElementById('tool-search');
+        const status = w.document.getElementById('heroSearchStatus');
+        searchBox.dispatchEvent(new w.FocusEvent('focusin', { bubbles: true }));
+        searchBox.value = 'bmi';
+        searchBox.dispatchEvent(new w.Event('input', { bubbles: true }));
+        await settle(110);
+
+        assert.equal(w.mpExplore.ready(), true, 'lite tier makes the list ready before tools-index.json finishes');
+        assert.equal(w.mpExplore.fullReady(), false, 'full catalogue is still streaming in');
+        assert.equal(w.document.querySelectorAll('#explore .xp-row[data-slug]').length, 1, 'title match renders immediately from cards-lite.json');
+        assert.equal(status.textContent, '1 match — Enter to open it', 'hero status reports exact match count immediately');
+
+        // A description-only query ("repayments" is in Loan Calculator's description, not its title)
+        // must NOT claim zero matches while tools-index.json is still downloading.
+        searchBox.value = 'repayments';
+        searchBox.dispatchEvent(new w.Event('input', { bubbles: true }));
+        await settle(110);
+        assert.equal(status.textContent, 'Searching full descriptions…', 'description-only query waits honestly instead of flashing No matches');
+        assert.match(w.document.querySelector('#explore .xp-list').textContent, /Searching full descriptions/, 'list shows pending description search state');
+
+        // Focus #xp-input inside the toolbar before full catalogue lands: upgrading must preserve the node and focus.
+        const xpInput = w.document.getElementById('xp-input');
+        xpInput.focus();
+        xpInput.setSelectionRange(2, 5);
+
+        resolveFull();
+        await settle(60);
+
+        assert.equal(w.mpExplore.fullReady(), true, 'full catalogue is now active');
+        assert.equal(w.document.activeElement, xpInput, 'upgrading from lite to full preserves focus on #xp-input');
+        assert.equal(xpInput.selectionStart, 2, 'upgrading preserves selectionStart');
+        assert.equal(xpInput.selectionEnd, 5, 'upgrading preserves selectionEnd');
+        const rows = w.document.querySelectorAll('#explore .xp-row[data-slug]');
+        assert.equal(rows.length, 1, 'description match appears as soon as tools-index.json arrives');
+        assert.equal(rows[0].getAttribute('data-slug'), 'loan');
+        assert.match(rows[0].textContent, /Monthly repayments/, 'upgraded row carries full description');
+        assert.equal(status.textContent, '1 match — Enter to open it');
+    } finally {
+        w.close();
+    }
+});
+
+test('if tools-index.json fails after cards-lite.json succeeded, the lite list stays searchable instead of collapsing to an error screen', async () => {
+    const litePayload = [
+        { n: 'bmi', t: 'BMI Calculator', c: 'Health & Fitness' },
+    ];
+    let rejectFull;
+    const dom = new JSDOM(
+        `<!doctype html><html><body>
+            <input id="tool-search" type="search">
+            <main><section id="all-tools-section"><div id="explore" data-explore="json"></div></section></main>
+        </body></html>`,
+        { url: 'https://perf.test/index.html', runScripts: 'outside-only', pretendToBeVisual: true },
+    );
+    const w = dom.window;
+    await new Promise((resolve) => w.document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+    w.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
+    w.HTMLElement.prototype.scrollIntoView = function () {};
+    w.fetch = (url) => {
+        if (String(url).includes('cards-lite.json')) return Promise.resolve({ ok: true, status: 200, json: async () => litePayload });
+        if (String(url).includes('tools-index.json')) return new Promise((_, rej) => { rejectFull = rej; });
+        return Promise.resolve({ ok: false, status: 404, json: async () => ({}) });
+    };
+    w.eval(source('toolbox.js'));
+    w.eval(source('explore.js'));
+    try {
+        w.document.getElementById('tool-search').dispatchEvent(new w.FocusEvent('focusin', { bubbles: true }));
+        await settle(40);
+        assert.equal(w.document.querySelectorAll('#explore .xp-row[data-slug]').length, 1);
+        rejectFull(new Error('network cut'));
+        await settle(40);
+        assert.equal(w.mpExplore.ready(), true, 'lite list remains ready');
+        assert.equal(w.document.querySelectorAll('#explore .xp-row[data-slug]').length, 1, 'working lite rows are not wiped');
+    } finally {
+        w.close();
+    }
+});

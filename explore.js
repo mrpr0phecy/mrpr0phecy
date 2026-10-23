@@ -68,17 +68,25 @@
 
   var els = {};          // container, bar, list, facets, more, count
   var categoryCounts = [];
-  // JSON pages are not ready until tools-index.json lands. Static pages are.
+  // JSON pages are not ready until tools-index.json (or cards-lite.json on
+  // search intent) lands. Static pages are ready immediately.
   var catalogueReady = true;
+  var liteReady = false;
   var catalogueLoading = false;
   var catalogueFailed = false;
   var queuedQuery = null;
   var ensureCatalogue = function () {};
+  var ensureLite = function () {};
   var paintKey = '';
   var paintCount = -1;
   var facetStamp = null;
   var keyboardRows = null;
   var currentElement = null;
+
+  function catSlug(n) {
+    return n === 'Arcade' ? 'mrprophecy-arcade'
+      : norm(n).replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
 
   /* ------------------------------------------------------------ utilities */
   // en-GB digit grouping without Intl: the first toLocaleString() call loads
@@ -458,8 +466,9 @@
     if ('ResizeObserver' in window) {
       var ro = new ResizeObserver(function () { sync(); });
       ro.observe(el);
+    } else {
+      sync();
     }
-    sync();
   }
 
   function watchShelves() {
@@ -816,7 +825,8 @@
     }
     var list = visible();
     var shown = Math.min(state.shown, list.length);
-    var key = state.sort + '\n' + state.cat + '\n' + norm(state.q).trim();
+    var tier = catalogueReady ? 'f' : (catalogueLoading ? 'l' : 'd');
+    var key = tier + '\n' + state.sort + '\n' + state.cat + '\n' + norm(state.q).trim();
     var append = !!(opts && opts.append && key === paintKey && shown > paintCount &&
       els.list && els.list.querySelector('.xp-row[data-slug]'));
     if (append) {
@@ -829,13 +839,16 @@
     } else if (!(key === paintKey && shown === paintCount && els.list && els.list.children.length)) {
       var html = '';
       for (var i = 0; i < shown; i++) html += rowHTML(list[i], i);
-      els.list.innerHTML = html || '<li class="xp-row"><div class="xp-empty">' +
-        '<strong>Nothing matches that.</strong><br>Try ' +
-        '<button type="button" class="xp-btn" data-xp-suggest="calculator">calculator</button> ' +
-        '<button type="button" class="xp-btn" data-xp-suggest="converter">converter</button> ' +
-        '<button type="button" class="xp-btn" data-xp-suggest="timer">timer</button> ' +
-        'or <a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the directory</a>.' +
-        '</div></li>';
+      var emptyMsg = (!catalogueReady && catalogueLoading && norm(state.q).trim())
+        ? '<li class="xp-row"><div class="xp-empty xp-pending">Searching full descriptions…</div></li>'
+        : '<li class="xp-row"><div class="xp-empty">' +
+          '<strong>Nothing matches that.</strong><br>Try ' +
+          '<button type="button" class="xp-btn" data-xp-suggest="calculator">calculator</button> ' +
+          '<button type="button" class="xp-btn" data-xp-suggest="converter">converter</button> ' +
+          '<button type="button" class="xp-btn" data-xp-suggest="timer">timer</button> ' +
+          'or <a href="tools-index.html" style="color:var(--xp-accent,#2dd4ff);">browse the directory</a>.' +
+          '</div></li>';
+      els.list.innerHTML = html || emptyMsg;
       resetCurrent();
     }
     paintKey = key;
@@ -1017,7 +1030,7 @@
   function setQuery(q, opts) {
     state.q = String(q || '');
     resetShown();
-    if (state.mode === 'json' && !catalogueReady) {
+    if (state.mode === 'json' && !catalogueReady && !liteReady) {
       queuedQuery = state.q;
       syncOtherInputs(state.q);
       if (els.list) {
@@ -1025,11 +1038,25 @@
       }
       paintKey = '';
       paintCount = -1;
-      var pending = ensureCatalogue();
+      var catPending = ensureCatalogue();
+      var litePending = norm(state.q).trim() ? ensureLite() : null;
+      var pending = litePending
+        ? Promise.race([litePending, catPending]).then(function () {
+            return (catalogueReady || (liteReady && visible().length > 0)) ? undefined : catPending;
+          })
+        : catPending;
       if (opts && opts.scroll && pending && pending.then) {
         pending.then(function () { if (els.wrap) smoothScroll(els.wrap, 'start'); });
       }
       return pending;
+    }
+    if (state.mode === 'json' && !catalogueReady) {
+      var fullPending = ensureCatalogue();
+      render();
+      syncOtherInputs(state.q);
+      if (opts && opts.scroll) smoothScroll(els.wrap, 'start');
+      pushState();
+      return (!visible().length && norm(state.q).trim()) ? fullPending : undefined;
     }
     if (opts && opts.silent !== true) logSearch(state.q.trim(), visible().length);
     render();
@@ -1056,10 +1083,12 @@
   function setCategory(name) {
     state.cat = resolveCategory(name);
     resetShown();
-    if (state.mode === 'json' && !catalogueReady) {
+    if (state.mode === 'json' && !catalogueReady && !liteReady) {
+      ensureLite();
       ensureCatalogue();
       return;
     }
+    if (state.mode === 'json' && !catalogueReady) ensureCatalogue();
     render();
     pushState();
   }
@@ -1361,9 +1390,11 @@
          link, a search, the list scrolling into view, or the browser going
          idle. A search that arrives first is queued, not dropped. */
       catalogueReady = false;
+      liteReady = false;
       catalogueLoading = false;
       catalogueFailed = false;
       var loading = null;
+      var liteLoading = null;
       var failed = false;
       var pageHiding = false;
       window.addEventListener('pagehide', function () { pageHiding = true; });
@@ -1373,50 +1404,133 @@
           return !!(params.get('q') || params.get('cat') || params.get('sort'));
         } catch (e) { return false; }
       }
+      function mountToolbar() {
+        if (els.input && bar.contains(els.input)) {
+          els.input.placeholder = 'Filter ' + fmt(state.rows.length) + ' tools…';
+          var catSel = bar.querySelector('#xp-cat');
+          if (catSel) {
+            catSel.innerHTML = '<option value="">All categories</option>' + categoryCounts.map(function (c) {
+              return '<option value="' + esc(c.name) + '">' + esc(c.name) + ' (' + c.count + ')</option>';
+            }).join('');
+          }
+        } else {
+          bar.innerHTML = toolbarHTML();
+          els.input = bar.querySelector('#xp-input');
+          els.field = bar.querySelector('.xp-field');
+          els.count = bar.querySelector('#xp-count');
+          els.facets = bar.querySelector('[data-xp-facets]');
+        }
+        els.countHTML = null;
+        facetStamp = null;
+        paintKey = '';
+        paintCount = -1;
+      }
+      function finishLite(map) {
+        if (catalogueReady || liteReady || !map) return;
+        var keys = Object.keys(map);
+        if (!keys.length) return;
+        var counts = Object.create(null);
+        var nextRows = new Array(keys.length);
+        for (var i = 0; i < keys.length; i++) {
+          var t = map[keys[i]];
+          var c = t.category || '';
+          if (c) counts[c] = (counts[c] || 0) + 1;
+          nextRows[i] = rowFromTool({ slug: t.name, title: t.title, categoryName: c });
+        }
+        liteReady = true;
+        failed = false;
+        catalogueFailed = false;
+        state.rows = nextRows;
+        categoryCounts = Object.keys(counts).sort().map(function (n) {
+          return { name: n, count: counts[n], slug: catSlug(n) };
+        });
+        mountToolbar();
+        if (queuedQuery == null) applyFromUrl();
+        else state.q = queuedQuery;
+        queuedQuery = null;
+        wire();
+        setDensity(savedDensity());
+        render();
+        syncOtherInputs(state.q);
+        document.dispatchEvent(new CustomEvent('mp:explore-ready'));
+      }
+      function loadLite() {
+        if (catalogueReady || liteReady) return Promise.resolve();
+        if (liteLoading) return liteLoading;
+        var tb = window.mpToolbox;
+        var p = (tb && typeof tb.ready === 'function')
+          ? tb.ready()
+          : fetch('cards/cards-lite.json')
+              .then(function (r) { return r.ok ? r.json() : []; })
+              .then(function (arr) {
+                var m = {};
+                (arr || []).forEach(function (x) {
+                  var s = x && (x.n || x.name);
+                  if (s) m[s] = { name: s, title: x.t || x.title || s, category: x.c || x.category || '' };
+                });
+                return m;
+              })
+              .catch(function () { return null; });
+        liteLoading = p.then(function (map) {
+          liteLoading = null;
+          finishLite(map);
+        }, function () { liteLoading = null; });
+        return liteLoading;
+      }
+      ensureLite = loadLite;
       function finish(data) {
-        // Validate before touching any state: a truncated or malformed
-        // response (a captive portal's HTML, a half-written cache entry) must
-        // land in fail() with the page exactly as it was, not half-mounted.
         if (!data || !Array.isArray(data.tools) || !data.tools.length || !Array.isArray(data.categories)) {
           throw new Error('catalogue payload is malformed');
         }
         var nextRows = data.tools.filter(function (t) { return t && t.slug && t.title; }).map(rowFromTool);
         if (!nextRows.length) throw new Error('catalogue has no usable rows');
+        var hadLite = liteReady;
+        var prevSlug = currentElement && currentElement.getAttribute('data-slug');
         loading = null;
         catalogueLoading = false;
         catalogueReady = true;
+        liteReady = true;
         failed = false;
         catalogueFailed = false;
         state.rows = nextRows;
         categoryCounts = data.categories.filter(Boolean).map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
-        bar.innerHTML = toolbarHTML();
-        els.input = bar.querySelector('#xp-input');
-        els.field = bar.querySelector('.xp-field');
-        els.count = bar.querySelector('#xp-count');
-        els.countHTML = null;
-        els.facets = bar.querySelector('[data-xp-facets]');
-        facetStamp = null;
-        paintKey = '';
-        paintCount = -1;
-        if (queuedQuery == null) applyFromUrl();
-        else state.q = queuedQuery;
+        mountToolbar();
+        if (!hadLite) {
+          if (queuedQuery == null) applyFromUrl();
+          else state.q = queuedQuery;
+        } else if (state.cat) {
+          state.cat = resolveCategory(state.cat);
+        }
+        queuedQuery = null;
         wire();
         setDensity(savedDensity());
         render();
+        if (prevSlug && !isTyping(document.activeElement)) {
+          var rowsNow = navigableRows();
+          for (var rIdx = 0; rIdx < rowsNow.length; rIdx++) {
+            if (rowsNow[rIdx].getAttribute('data-slug') === prevSlug) {
+              state.current = rIdx;
+              currentElement = rowsNow[rIdx];
+              currentElement.classList.add('xp-current');
+              break;
+            }
+          }
+        }
         if (state.q) logSearch(state.q.trim(), visible().length);
         syncOtherInputs(state.q);
         pushState();
         document.dispatchEvent(new CustomEvent('mp:explore-ready'));
       }
       function fail() {
-        // Re-armed, not dead. `loading` used to keep the rejected promise and
-        // `catalogueReady` claimed success, so one failed fetch meant the list
-        // could never appear without a reload — the next search just replayed
-        // the same settled promise against zero rows. Now the next search,
-        // scroll or tap retries the fetch, and the list itself says what
-        // happened, with a retry next to the directory link.
         loading = null;
         catalogueLoading = false;
+        if (liteReady) {
+          paintKey = '';
+          paintCount = -1;
+          render();
+          document.dispatchEvent(new CustomEvent('mp:explore-ready'));
+          return;
+        }
         catalogueReady = false;
         failed = true;
         catalogueFailed = true;
@@ -1479,17 +1593,16 @@
          a 779 KB download right before navigation. */
       var INTENT = '#tool-search, #stickySearchInput, .popular-chip:not(.surprise-chip), .hero-search, [data-xp-warm]';
       var onIntent = function (e) {
-        if (catalogueReady || loading) return;
+        if (catalogueReady) return;
         var t = e.target;
-        if (t && t.nodeType === 1 && t.closest && t.closest(INTENT)) loadCatalogue();
+        if (t && t.nodeType === 1 && t.closest && t.closest(INTENT)) {
+          loadLite();
+          if (!loading) loadCatalogue();
+        }
       };
       ['focusin', 'pointerdown', 'touchstart'].forEach(function (type) {
         document.addEventListener(type, onIntent, { capture: true, passive: true });
       });
-      // Retry for a failed catalogue load: delegated from the wrapper because
-      // fail() replaces both the bar and the list contents, while the wrapper
-      // itself is stable across failure and success. A tap while a fetch is
-      // already in flight just rejoins it (loadCatalogue dedupes on `loading`).
       els.wrap.addEventListener('click', function (e) {
         if (!e.target.closest || !e.target.closest('[data-xp-retry]')) return;
         e.preventDefault();
@@ -1497,27 +1610,16 @@
         if (els.list) els.list.innerHTML = '<li class="xp-row"><div class="xp-empty xp-pending">Loading the catalogue…</div></li>';
         paintKey = '';
         paintCount = -1;
+        loadLite();
         loadCatalogue();
       });
-      if (wantsNow()) return loadCatalogue();
+      if (wantsNow()) {
+        loadLite();
+        return loadCatalogue();
+      }
       bar.innerHTML = '<span class="xp-count">The full list loads as you reach it.</span>';
-      /* Nothing is fetched until the visitor is close to the list, or asks for
-         it. That is the whole bandwidth decision, and it is measured: the
-         home page is 501 KB over the wire with the catalogue fetched at idle
-         and 253 KB without it, and on a throttled phone (4x CPU, 1.6 Mbps)
-         the difference is 3.2 s of load and 776 ms of blocked main thread
-         against 761 ms and almost none. 210 KB of JSON is 42% of the page to
-         fill a section four screens down that most visits never reach.
-
-         An earlier revision fetched at idle with a 600 ms bound, because the
-         700 px observer below could leave the box visibly empty for a second
-         or two. The fix for that is a *wider* margin, not an eager fetch: at
-         1500 px the download starts a screen and a half before the section
-         can be seen, so it is either ready on arrival or has the same head
-         start it used to get. The intent listeners above (search focus,
-         pointer, popular chips) and wantsNow() (a shared ?q= link) still
-         start it immediately for anyone who is actually looking for it.
-         Deduped by loadCatalogue's own `loading`. */
+      /* Nothing is fetched until the visitor reaches the list (1500 px observer
+         margin) or expresses search intent above. */
       var section = document.getElementById('all-tools-section') || container;
       var begin = function () { loadCatalogue(); };
       var io = null;
@@ -1695,7 +1797,8 @@
     // still be in flight, or have failed). home-core.js uses this to send a
     // search to the full directory instead of reporting "No matches" for a
     // list that never arrived.
-    ready: function () { return catalogueReady; },
+    ready: function () { return catalogueReady || liteReady; },
+    fullReady: function () { return catalogueReady; },
     loading: function () { return catalogueLoading; },
     failed: function () { return catalogueFailed; },
     warm: function () { return ensureCatalogue(); },

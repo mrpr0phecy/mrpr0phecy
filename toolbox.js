@@ -625,7 +625,7 @@
       setTimeout(function () {
         if (typeof requestIdleCallback === 'function') requestIdleCallback(registerServiceWorker, { timeout: 2500 });
         else registerServiceWorker();
-      }, 900);
+      }, 1500);
     };
     if (document.readyState === 'complete' || typeof window.addEventListener !== 'function') scheduleIdle();
     else window.addEventListener('load', scheduleIdle, { once: true });

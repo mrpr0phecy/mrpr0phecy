@@ -216,7 +216,13 @@
 // tool-page.css in STATIC_CACHE, register sw.js at post-load idle from
 // toolbox.js with root scope across nested directories, and ship conservative
 // pointerdown speculation rules on tool, category and directory pages.
-const CACHE_VERSION = 'v54-2026-10-23';
+// v55: instant cold-visit and SW-warmed search on index.html — race the
+// compact cards/cards-lite.json lookup ahead of tools-index.json on search
+// intent (?q=, search focus/tap, typed queries) so title, slug and category
+// matches render immediately while full descriptions and tags stream in,
+// preserving #xp-input focus and deferring zero-result verdicts until full
+// descriptions finish loading.
+const CACHE_VERSION = 'v55-2026-10-23';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
