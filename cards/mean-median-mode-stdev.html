@@ -9,6 +9,8 @@
 </form>
 <div id="mmms-out" style="margin-top:14px;"></div>
 
+<p data-see-also style="margin:12px 0 0;font-size:.8rem;opacity:.75;">See also: <a href="/tool/mean-median-mode.html" style="color:inherit;text-decoration:underline;">Mean, Median &amp; Mode</a> · <a href="/tool/mean-median-mode-trainer.html" style="color:inherit;text-decoration:underline;">Mean, Median, Mode &amp; Range Trainer</a></p>
+
 <script>
 (function () {
   var host = document.currentScript.parentNode;
@@ -17,7 +19,7 @@
     return '<div style="padding:10px;border-radius:10px;background:rgba(45,212,255,.07);border:1px solid rgba(45,212,255,.25);"><div style="font-size:.7rem;color:var(--text-secondary);">' + k + '</div><div style="font-weight:800;color:var(--accent);margin-top:4px;">' + v + '</div></div>';
   }
   function parse(text) {
-    return text.split(/[^0-9eE.+-]+/).map(Number).filter(function (n) { return isFinite(n); });
+    return text.split(/[^0-9eE.+-]+/).filter(Boolean).map(Number).filter(function (n) { return isFinite(n); });
   }
   function run() {
     var xs = parse($('mmms-in').value).sort(function (a, b) { return a - b; });
@@ -38,8 +40,11 @@
     var ss = xs.reduce(function (a, x) { return a + (x - mean) * (x - mean); }, 0);
     var pop = Math.sqrt(ss / n);
     var samp = n > 1 ? Math.sqrt(ss / (n - 1)) : 0;
-    var q1 = xs[Math.floor((n - 1) * 0.25)];
-    var q3 = xs[Math.floor((n - 1) * 0.75)];
+    // Quartiles by linear interpolation between order statistics (inclusive method,
+    // as Excel QUARTILE.INC / R type 7), not the lower neighbour.
+    function quart(p) { var h = (n - 1) * p, lo = Math.floor(h); return lo + 1 < n ? xs[lo] + (h - lo) * (xs[lo + 1] - xs[lo]) : xs[lo]; }
+    var q1 = +quart(0.25).toPrecision(10);
+    var q3 = +quart(0.75).toPrecision(10);
     $('mmms-out').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">' +
       cell('Count n', String(n)) +
       cell('Mean', mean.toPrecision(6)) +
@@ -48,7 +53,7 @@
       cell('Range', (xs[n - 1] - xs[0]).toPrecision(6)) +
       cell('Sample s', samp.toPrecision(6)) +
       cell('Population σ', pop.toPrecision(6)) +
-      cell('Q1 / Q3', q1 + ' / ' + q3) +
+      cell('Q1 / Q3 (inclusive)', q1 + ' / ' + q3) +
       '</div>';
   }
   $('mmms-in').addEventListener('input', run);
