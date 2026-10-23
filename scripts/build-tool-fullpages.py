@@ -408,8 +408,6 @@ def render_page(tool: dict, fragment: str, ctx: dict) -> str:
 <meta name="twitter:title" content="{esc(title)} — free, no sign-up">
 <meta name="twitter:description" content="{esc(desc)}">
 <meta name="twitter:image" content="{SITE}/og-tools.png">
-<script type="application/ld+json">{ld(webapp)}</script>
-<script type="application/ld+json">{ld(crumbs)}</script>
 {FONTS}
 {THEMES_BOOTSTRAP}
 <link rel="stylesheet" href="../cards/card.css?v={v}">
@@ -464,6 +462,8 @@ def render_page(tool: dict, fragment: str, ctx: dict) -> str:
 <script defer src="../risk-notices.js?v={v}"></script>
 <script defer src="../toolbox.js?v={v}"></script>
 {boot_script(slug, title, cat)}
+<script type="application/ld+json">{ld(webapp)}</script>
+<script type="application/ld+json">{ld(crumbs)}</script>
 </body>
 </html>
 """

@@ -205,15 +205,13 @@
 // version, so a returning visitor's cached page can never pair the new
 // band with the old stylesheet, or the new stylesheet with a page that has
 // no band to style.
-// v52: quash the multi-click / Back navigation stall ("This page did not load")
-// and remove the home-page flywheel (spin.js). clearBacklog() now aborts
-// orphaned foreground subresource downloads from the outgoing page so they
-// cannot deadlock the browser's 6-socket origin pool before commit; navigations
-// mint a safe signal-bearing fetch when cloning a mode:'navigate' Request
-// throws TypeError (WebKit/Safari); ?v=-stamped shell assets serve cache-first
-// from STATIC_CACHE instead of revalidating all 9 files every 10 minutes; and
-// navigationPreload enables in activate() with the full uncached budget.
-const CACHE_VERSION = 'v52-2026-10-23';
+// v53: speed up static list surfaces (categories/*.html, tools.html,
+// tools-index.html) and tool/*.html head discovery — move JSON-LD out of
+// <head>, pre-sort category hubs in emoji-stripped A–Z title order, skip
+// orderStatic() DOM re-appends on already-sorted buckets, clone one action
+// template per list instead of per-row innerHTML parsing, and batch sticky +
+// overflow-fade geometry reads ahead of DOM writes.
+const CACHE_VERSION = 'v53-2026-10-23';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;

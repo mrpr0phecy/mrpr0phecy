@@ -178,7 +178,7 @@
      offset itself (home-core.js publishes its height once and toggles a
      class), so this pass deliberately ignores it. */
   var publishedSticky = '';
-  function measureStickyOffset() {
+  function computeStickyOffset() {
     var h = 0;
     // The home page's command bar is deliberately NOT measured here. It is
     // the one piece of chrome that changes as the visitor scrolls, and the
@@ -202,10 +202,15 @@
       if (r.height < 8 || r.bottom <= 2 || r.top > 160) continue;
       if (r.bottom > h) h = r.bottom;
     }
-    var next = Math.round(h) + 'px';
+    return Math.round(h) + 'px';
+  }
+  function applyStickyOffset(next) {
     if (next === publishedSticky) return;
     publishedSticky = next;
     document.documentElement.style.setProperty('--xp-sticky-h', next);
+  }
+  function measureStickyOffset() {
+    applyStickyOffset(computeStickyOffset());
   }
 
   /* ---------------------------------------------------- scroll affordance --
@@ -220,11 +225,21 @@
      The home page's popular-search chips are the same component in spirit
      (a shortcut row that scrolls on a phone), so they are picked up here too
      rather than duplicating the listener in a second file. */
-  function markOverflow(el) {
+  function readOverflowState(el) {
     var max = el.scrollWidth - el.clientWidth;
-    if (max <= 2) { el.removeAttribute('data-overflow'); return; }
+    if (max <= 2) return '';
     var x = el.scrollLeft;
-    el.setAttribute('data-overflow', x <= 2 ? 'start' : (x >= max - 2 ? 'end' : 'middle'));
+    return x <= 2 ? 'start' : (x >= max - 2 ? 'end' : 'middle');
+  }
+  function writeOverflowState(el, edge) {
+    if (!edge) {
+      if (el.hasAttribute('data-overflow')) el.removeAttribute('data-overflow');
+    } else if (el.getAttribute('data-overflow') !== edge) {
+      el.setAttribute('data-overflow', edge);
+    }
+  }
+  function markOverflow(el) {
+    writeOverflowState(el, readOverflowState(el));
   }
 
   var FADE_ROWS = '[data-xp-facets], .xp-facets, .popular-chips, .toc-inner, nav.toc, .hero-jumps, #featured, #trending';
@@ -453,22 +468,11 @@
     for (var i = 0; i < shelves.length; i++) setupShelf(shelves[i]);
   }
 
-  /* The floating toolbox button sits over the end of the page. On a phone it
-     lands exactly on the footer's last links once you scroll to the bottom, so
-     the page gets clearance under its content — but only the pages that
-     actually carry the button, which is why this is a class on the document
-     rather than padding in one stylesheet. Cheap to re-check, so it rides
-     along with the same "what does the page look like now" pass. */
-  function markFloatingClearance() {
-    document.documentElement.classList.toggle('xp-has-float', !!document.querySelector('.xp-tb-float'));
-  }
-
-  /* Coalesced into one animation frame. Reading scrollWidth straight after a
-     toolbar or facet rebuild forced a synchronous layout of the whole list
-     mid-task (the largest self-time in a throttled load profile); in rAF the
-     read reuses the layout the frame performs anyway. The fade is cosmetic,
-     so one frame late is invisible. */
+  /* Coalesced into one animation frame, with every geometry read performed
+     before any <html> class/custom-property write so sticky measurement never
+     dirties document styles mid-frame before scrollWidth is read. */
   var fadeQueued = false;
+  var pendingStickyMeasure = false;
   var fadeResizeObserver = null;
   function scheduleOverflowFades() {
     if (fadeQueued) return;
@@ -477,18 +481,30 @@
   }
 
   function syncOverflowFades() {
-    markFloatingClearance();
+    var stickyNext = pendingStickyMeasure ? computeStickyOffset() : null;
+    pendingStickyMeasure = false;
+    var hasFloat = !!document.querySelector('.xp-tb-float');
     var rows = document.querySelectorAll(FADE_ROWS);
+    var edges = new Array(rows.length);
+    for (var r = 0; r < rows.length; r++) edges[r] = readOverflowState(rows[r]);
+
+    if (stickyNext !== null) applyStickyOffset(stickyNext);
+    var docEl = document.documentElement;
+    if (docEl.classList.contains('xp-has-float') !== hasFloat) {
+      docEl.classList.toggle('xp-has-float', hasFloat);
+    }
     for (var i = 0; i < rows.length; i++) {
-      markOverflow(rows[i]);
-      // A hidden recent-search row can become visible after this first pass.
-      // Re-measure it when its box appears; scroll/resize listeners then own
-      // the normal start/middle/end changes without another observer.
-      if (fadeResizeObserver) fadeResizeObserver.observe(rows[i]);
+      writeOverflowState(rows[i], edges[i]);
+      if (fadeResizeObserver && !rows[i].__xpFadeObserved) {
+        rows[i].__xpFadeObserved = true;
+        fadeResizeObserver.observe(rows[i]);
+      }
     }
     // The CSS fallback is only for disabled/broken JavaScript. From this pass
     // onward, data-overflow owns the cue and also removes it when a row fits.
-    document.documentElement.classList.add('xp-overflow-cues-ready');
+    if (!docEl.classList.contains('xp-overflow-cues-ready')) {
+      docEl.classList.add('xp-overflow-cues-ready');
+    }
   }
 
   function watchOverflowFades() {
@@ -496,13 +512,6 @@
       fadeResizeObserver = new ResizeObserver(scheduleOverflowFades);
     }
     scheduleOverflowFades();
-    // One capturing listener on the document, not one per row. Scroll events
-    // do not bubble, but a capture-phase listener still receives them from
-    // every scroller under the document — including the rows that do not exist
-    // yet. The first version bound directly to the elements it found at mount,
-    // and the list toolbar rebuilds its facet row as soon as the catalogue
-    // arrives, so from that moment the fade was frozen at "start" (measured,
-    // then fixed).
     document.addEventListener('scroll', function (e) {
       var el = e.target;
       if (!el || el.nodeType !== 1 || !el.matches(FADE_ROWS)) return;
@@ -511,33 +520,39 @@
       requestAnimationFrame(function () { el.__xpFadeQueued = false; markOverflow(el); });
     }, true);
     window.addEventListener('resize', function () {
-      if (window.__xpFadeResizeQueued) return;
-      window.__xpFadeResizeQueued = true;
-      requestAnimationFrame(function () { window.__xpFadeResizeQueued = false; syncOverflowFades(); });
+      pendingStickyMeasure = true;
+      scheduleOverflowFades();
     }, { passive: true });
   }
 
   function watchStickyOffset() {
     /* Measuring chrome on every scroll frame forced layout for the whole
-       scroll. The offset only changes when the command bar shows or hides,
-       or when the viewport changes size — so the scroll path is a class
-       check, and getBoundingClientRect runs only when that signature moves. */
+       scroll. The offset only changes when the viewport changes size — so the
+       scroll path is a signature check, and the initial mount piggybacks on
+       the same read-first frame pass as syncOverflowFades(). */
     var queued = false;
     var sig = '';
     var schedule = function (force) {
-      if (queued && !force) return;
+      if (force) {
+        sig = window.innerWidth + '|' + window.innerHeight;
+        pendingStickyMeasure = true;
+        scheduleOverflowFades();
+        return;
+      }
+      if (queued) return;
       queued = true;
       requestAnimationFrame(function () {
         queued = false;
         var next = window.innerWidth + '|' + window.innerHeight;
-        if (!force && next === sig) return;
+        if (next === sig) return;
         sig = next;
         measureStickyOffset();
       });
     };
     window.addEventListener('scroll', function () { schedule(false); }, { passive: true });
     window.addEventListener('resize', function () { schedule(true); }, { passive: true });
-    schedule(true);
+    sig = window.innerWidth + '|' + window.innerHeight;
+    pendingStickyMeasure = true;
     watchOverflowFades();
     return schedule;
   }
@@ -609,7 +624,7 @@
 
   /* ------------------------------------------------------------ row model */
   function rowFromTool(t) {
-    var row = {
+    return {
       slug: t.slug,
       title: t.title,
       desc: t.description || '',
@@ -619,14 +634,14 @@
       pop: t.popularity || 0,
       updated: t.updated || '',
       featured: !!t.featured,
-      url: t.url || ('tool/' + encodeURIComponent(t.slug) + '.html')
+      url: t.url || ('tool/' + encodeURIComponent(t.slug) + '.html'),
+      _hay: ''
     };
-    row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
-    return row;
   }
 
-  function rowFromElement(el, catName) {
-    var a = el.querySelector('a[href]');
+  function rowFromElement(el, catName, knownGroup, knownAnchor) {
+    var first = el.firstElementChild;
+    var a = knownAnchor || ((first && first.tagName === 'A' && first.hasAttribute('href')) ? first : el.querySelector('a[href]'));
     if (!a) return null;
     var slug = el.getAttribute('data-slug') || '';
     if (!slug) {
@@ -634,41 +649,45 @@
       if (m) slug = decodeURIComponent(m[1]);
     }
     if (!slug) return null;
-    var titleEl = el.querySelector('.ti-title, .xp-title, .tool-card-title');
-    var descEl = el.querySelector('.ti-desc, .xp-desc, .tool-card-desc');
+    var aFirst = a.firstElementChild;
+    var titleEl = (aFirst && aFirst.classList && aFirst.classList.contains('xp-title'))
+      ? aFirst
+      : el.querySelector('.ti-title, .xp-title, .tool-card-title');
+    var next = a.nextElementSibling;
+    var descEl = (next && next.classList && next.classList.contains('xp-desc'))
+      ? next
+      : (el.children.length > 1 ? el.querySelector('.ti-desc, .xp-desc, .tool-card-desc') : null);
     var tags = [];
-    el.querySelectorAll('.tag, .xp-tag').forEach(function (tagEl) {
-      tags.push(tagEl.textContent.replace(/^#/, '').trim());
-    });
-    var group = el.closest ? el.closest('[data-xp-group]') : null;
-    var row = {
+    if (el.children.length > 2 || (descEl && descEl.firstElementChild)) {
+      el.querySelectorAll('.tag, .xp-tag').forEach(function (tagEl) {
+        tags.push(tagEl.textContent.replace(/^#/, '').trim());
+      });
+    }
+    var group = knownGroup !== undefined ? knownGroup : (el.closest ? el.closest('[data-xp-group]') : null);
+    return {
       slug: slug,
       title: (titleEl ? titleEl.textContent : a.textContent).trim(),
       desc: descEl ? descEl.textContent.trim() : '',
       cat: el.getAttribute('data-cat') || '',
       catName: el.getAttribute('data-cat-name') ||
-        (group ? group.getAttribute('data-xp-group') : '') || catName || '',
+        (group && group.getAttribute ? (group.getAttribute('data-xp-group') || '') : '') || catName || '',
       tags: tags,
       pop: parseInt(el.getAttribute('data-pop') || '0', 10) || 0,
       updated: el.getAttribute('data-updated') || '',
       featured: el.getAttribute('data-featured') === '1',
-      url: a.getAttribute('href')
+      url: a.getAttribute('href'),
+      _hay: ''
     };
-    // The search haystack, built once — not rebuilt for every row on every
-    // keystroke (tools.html filters 1,338 served rows).
-    row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
-    return row;
   }
 
   /* ------------------------------------------------------------ filtering */
   function matches(row, q, words) {
     if (!q) return true;
     // Every word has to appear somewhere: "truck weight" should not return
-    // every trucking tool plus every weight tool. _hay is filled once when the
-    // catalogue arrives; fixtures and static rows still build it here.
-    // `words` is the query already split — visible() splits it once per
-    // filter instead of once per row (1,338 splits per keystroke before).
-    var hay = row._hay || norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug);
+    // every trucking tool plus every weight tool. _hay is computed lazily on
+    // the first search and cached on the row, so mounting 1,424 static rows
+    // never pays to lowercase every description before a key is pressed.
+    var hay = row._hay || (row._hay = norm(row.title + ' ' + row.desc + ' ' + row.catName + ' ' + row.tags.join(' ') + ' ' + row.slug));
     if (!words) words = q.split(/\s+/).filter(Boolean);
     for (var i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false;
     return true;
@@ -791,8 +810,11 @@
   }
 
   function render(opts) {
+    if (state.mode !== 'json' && state.staticRows) {
+      var unfiltered = !state.cat && !norm(state.q).trim();
+      return renderStatic(unfiltered ? state.rows : visible());
+    }
     var list = visible();
-    if (state.mode !== 'json' && state.staticRows) return renderStatic(list);
     var shown = Math.min(state.shown, list.length);
     var key = state.sort + '\n' + state.cat + '\n' + norm(state.q).trim();
     var append = !!(opts && opts.append && key === paintKey && shown > paintCount &&
@@ -872,23 +894,30 @@
 
     var groups = state.staticGroups;
     var revealed = state.staticRevealed;
+    var allMatch = list === state.rows;
     // The matching result is memoised. Repeated inputs (including the hero
     // and toolbar forwarding the same query) do not revisit 1,391 DOM rows.
     if (state.staticPaintList !== list || state.staticPaintShown !== state.shown ||
         state.staticPaintSort !== state.sort) {
-      var wanted = Object.create(null);
-      list.forEach(function (r) { wanted[r.slug] = true; });
+      var wanted = null;
+      if (!allMatch) {
+        wanted = Object.create(null);
+        for (var w = 0; w < list.length; w++) wanted[list[w].slug] = true;
+      }
       revealed = 0;
-      groups.forEach(function (bucket) {
+      for (var g = 0; g < groups.length; g++) {
+        var bucket = groups[g];
+        var bItems = bucket.items;
         var n = 0;
-        bucket.items.forEach(function (item) {
-          var matching = !!wanted[item.row.slug];
+        for (var k = 0; k < bItems.length; k++) {
+          var item = bItems[k];
+          var matching = allMatch || !!wanted[item.row.slug];
           var show = matching && n < state.shown;
           if (show) { n++; revealed++; }
           if (item.el.hidden !== !show) item.el.hidden = !show;
-        });
+        }
         if (bucket.el.hidden !== (n === 0)) bucket.el.hidden = n === 0;
-      });
+      }
       state.staticRevealed = revealed;
       state.staticPaintList = list;
       state.staticPaintShown = state.shown;
@@ -923,24 +952,27 @@
      something else, and grouped lists (tools.html is one section per category,
      with a TOC pointing at those headings) keep their grouping, so the headings
      a visitor clicked to get here never move out from under them. */
+  function isBucketSorted(items, compare) {
+    for (var i = 1; i < items.length; i++) {
+      if (compare(items[i - 1], items[i]) > 0) return false;
+    }
+    return true;
+  }
+
   function orderStatic() {
     var compare = function (a, b) { return byTitle(a.row.title, b.row.title, state.sort); };
     state.staticLists.forEach(function (bucket) {
+      if (isBucketSorted(bucket.items, compare)) return;
       bucket.items.sort(compare);
-      bucket.items.forEach(function (item) { bucket.list.appendChild(item.el); });
+      var frag = document.createDocumentFragment();
+      for (var i = 0; i < bucket.items.length; i++) frag.appendChild(bucket.items[i].el);
+      bucket.list.appendChild(frag);
     });
     // Reveal in the same order as the sorted DOM, not the original HTML.
-    state.staticGroups.forEach(function (bucket) { bucket.items.sort(compare); });
-    state.appliedSort = state.sort;
-  }
-
-  function syncToolboxButtons() {
-    if (!window.mpToolbox) return;
-    els.wrap.querySelectorAll('[data-toolbox-add]').forEach(function (btn) {
-      var inBox = window.mpToolbox.has(btn.getAttribute('data-toolbox-add'));
-      if (btn.classList.contains('xp-in') !== inBox) btn.classList.toggle('xp-in', inBox);
-      if (btn.getAttribute('aria-pressed') !== String(inBox)) btn.setAttribute('aria-pressed', String(inBox));
+    state.staticGroups.forEach(function (bucket) {
+      if (!isBucketSorted(bucket.items, compare)) bucket.items.sort(compare);
     });
+    state.appliedSort = state.sort;
   }
 
   /* -------------------------------------------------------------- url state */
@@ -1549,36 +1581,38 @@
     // fetched and nothing is re-rendered. The generator writes the same row
     // markup the JSON mode does; this adds only what needs script (the ＋ and
     // the details toggle) and then filters by hiding rows.
-    var rows = [];
+    var rows = [], groups = [], lists = [];
+    var groupMap = new Map(), listMap = new Map();
     var catName = container.getAttribute('data-cat-name') || '';
-    // The generator once stringified an object here ("[object Object]"); never
-    // let a bad attribute become every row's category again.
     if (catName === '[object Object]') catName = '';
-    container.querySelectorAll('.xp-row[data-slug]').forEach(function (el) {
-      var row = rowFromElement(el, catName);
-      if (row) rows.push({ el: el, row: row });
-    });
+    var prevListEl = null, prevRawGroup = null, prevGroup = null, prevList = null;
+    var cats = Object.create(null), catCount = 0;
+    var rowEls = container.querySelectorAll('.xp-row[data-slug]');
+    for (var rIdx = 0; rIdx < rowEls.length; rIdx++) {
+      var el = rowEls[rIdx];
+      var listEl = el.parentNode || container;
+      var sameList = listEl === prevListEl;
+      var rawGroup = sameList ? prevRawGroup : (el.closest ? el.closest('[data-xp-group]') : null);
+      var firstChild = el.firstElementChild;
+      var anchor = (firstChild && firstChild.tagName === 'A' && firstChild.hasAttribute('href'))
+        ? firstChild : el.querySelector('a[href]');
+      var row = rowFromElement(el, catName, rawGroup, anchor);
+      if (!row) continue;
+      var groupEl = rawGroup || container;
+      var group = sameList ? prevGroup : groupMap.get(groupEl);
+      if (!group) { group = { el: groupEl, items: [] }; groups.push(group); groupMap.set(groupEl, group); }
+      var listBucket = sameList ? prevList : listMap.get(listEl);
+      if (!listBucket) { listBucket = { list: listEl, items: [] }; lists.push(listBucket); listMap.set(listEl, listBucket); }
+      prevListEl = listEl; prevRawGroup = rawGroup; prevGroup = group; prevList = listBucket;
+      var item = { el: el, row: row, a: anchor, grouped: !!rawGroup };
+      rows.push(item); group.items.push(item); listBucket.items.push(item);
+      if (row.catName && !cats[row.catName]) { cats[row.catName] = true; catCount++; }
+    }
     state.rows = rows.map(function (r) { return r.row; });
     state.staticRows = rows;
-    // Structural references are fixed for this served page. Cache both group
-    // wrappers and each row's own list once, not on every filter/sort.
-    var groups = [], lists = [];
-    rows.forEach(function (item) {
-      var groupEl = item.el.closest('[data-xp-group]') || container;
-      var listEl = item.el.parentNode || container;
-      var group = null, list = null;
-      groups.forEach(function (bucket) { if (bucket.el === groupEl) group = bucket; });
-      lists.forEach(function (bucket) { if (bucket.list === listEl) list = bucket; });
-      if (!group) { group = { el: groupEl, items: [] }; groups.push(group); }
-      if (!list) { list = { list: listEl, items: [] }; lists.push(list); }
-      group.items.push(item);
-      list.items.push(item);
-    });
     state.staticGroups = groups;
     state.staticLists = lists;
-    var cats = {};
-    rows.forEach(function (item) { if (item.row.catName) cats[item.row.catName] = true; });
-    state.multiCategory = Object.keys(cats).length > 1;
+    state.multiCategory = catCount > 1;
     categoryCounts = [{ name: catName || 'Tools', count: state.rows.length }];
     bar.innerHTML = toolbarHTML();
     els.input = bar.querySelector('#xp-input');
@@ -1590,34 +1624,47 @@
     wire();
     setDensity(savedDensity());
 
-    // Decorate the served rows in place. Everything here is additive: the row
-    // is already a working link, so a visitor whose script failed still has the
-    // full index.
-    rows.forEach(function (item, idx) {
-      var li = item.el;
-      var a = li.querySelector('a[href]');
-      /* A category chip says which category a row belongs to — useful on the
-         index, noise on a page that is that category. So: only when the row
-         has a category and the list shows more than one, and never when the
-         page already grouped it under a heading. */
-      var showCat = item.row.catName && !li.closest('[data-xp-group]') && state.multiCategory;
-      if (a && showCat && !li.querySelector('.xp-cat')) {
+    // Clone one parsed action-bar template across all static rows instead of
+    // running the HTML parser per row.
+    var actionsTpl = document.createElement('div');
+    actionsTpl.className = 'xp-actions';
+    actionsTpl.innerHTML =
+      '<button type="button" class="xp-icon" data-xp-details aria-expanded="false" title="Description">▸</button>' +
+      '<button type="button" class="xp-icon" data-toolbox-add="" aria-pressed="false" title="Add to my toolbox">＋</button>';
+
+    var tb = window.mpToolbox;
+    var tbHasAny = !!(tb && (typeof tb.count !== 'function' || tb.count() > 0));
+    for (var idx = 0; idx < rows.length; idx++) {
+      var dItem = rows[idx], li = dItem.el, a = dItem.a;
+      if (a && dItem.row.catName && !dItem.grouped && state.multiCategory && !a.querySelector('.xp-cat')) {
         var cat = document.createElement('span');
         cat.className = 'xp-cat';
-        cat.textContent = item.row.catName;
+        cat.textContent = dItem.row.catName;
         a.appendChild(cat);
       }
-      if (!li.querySelector('[data-toolbox-add]')) {
-        var actions = document.createElement('div');
-        actions.className = 'xp-actions';
-        actions.innerHTML =
-          '<button type="button" class="xp-icon" data-xp-details aria-expanded="false" title="Description" aria-label="Show details for ' + esc(item.row.title) + '">▸</button>' +
-          '<button type="button" class="xp-icon" data-toolbox-add="' + esc(item.row.slug) + '" aria-pressed="false" title="Add to my toolbox" aria-label="Add ' + esc(item.row.title) + ' to your toolbox">＋</button>';
+      var lastChild = li.lastElementChild;
+      var plainRow = li.children.length <= 2 && lastChild && (lastChild.tagName === 'P' || lastChild.tagName === 'A');
+      if (plainRow || !li.querySelector('[data-toolbox-add]')) {
+        var actions = actionsTpl.cloneNode(true);
+        actions.firstChild.setAttribute('aria-label', 'Show details for ' + dItem.row.title);
+        var addBtn = actions.lastChild;
+        addBtn.setAttribute('data-toolbox-add', dItem.row.slug);
+        addBtn.setAttribute('aria-label', 'Add ' + dItem.row.title + ' to your toolbox');
+        if (tbHasAny && tb.has(dItem.row.slug)) {
+          addBtn.classList.add('xp-in');
+          addBtn.setAttribute('aria-pressed', 'true');
+        }
         li.appendChild(actions);
+      } else if (tbHasAny) {
+        var existingBtn = li.querySelector('[data-toolbox-add]');
+        if (existingBtn) {
+          var inBox = tb.has(existingBtn.getAttribute('data-toolbox-add'));
+          if (existingBtn.classList.contains('xp-in') !== inBox) existingBtn.classList.toggle('xp-in', inBox);
+          if (existingBtn.getAttribute('aria-pressed') !== String(inBox)) existingBtn.setAttribute('aria-pressed', String(inBox));
+        }
       }
       li.setAttribute('data-index', String(idx));
-    });
-    syncToolboxButtons();
+    }
     render();
     document.dispatchEvent(new CustomEvent('mp:explore-ready'));
     return Promise.resolve();

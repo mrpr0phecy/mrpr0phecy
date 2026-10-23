@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 52;
+  const APP_VERSION = 53;
 
   // Three blacks, no hue: the page is black, gold and #555555, and a background
   // theme only decides how far toward grey the canvas is allowed to drift.
