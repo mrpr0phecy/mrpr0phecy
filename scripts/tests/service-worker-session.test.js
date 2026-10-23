@@ -304,6 +304,44 @@ const settle = (ms) => new Promise((r) => setTimeout(r, ms));
     await settle(200);
   }
 
+  // ── phase 2b: cold / expired-window clicks and Back mid-download ──────────
+  // Phase 1 and 2 ran against a freshly warmed cache, so subresources hit the
+  // 10-minute window and never entered foregroundRunning. On a cold visit — or
+  // a return >10 minutes later — every uncached/stale subresource (like the
+  // 779 KB tools-index.json) enters foregroundRunning, and the browser will
+  // NOT unload the outgoing page until the incoming navigation commits. If
+  // clearBacklog() leaves foregroundRunning holding all 6 origin sockets, the
+  // next tool click or Back navigation deadlocks into stallPage() (504).
+  {
+    const coldLog = [];
+    const coldOrigin = new Origin(ORIGIN_BUDGET, coldLog);
+    coldOrigin.serviceMs = 35;                     // < scaled 80 ms patience, > 10 ms click interval
+    const wCold = makeWorker(coldOrigin, coldLog);
+    for (let i = 0; i < 8; i++) {
+      const v = views[i % views.length];
+      const nav = wCold.dispatch(v.doc, 'navigate');
+      const res = await nav;
+      assert.strictEqual(res.status, 200,
+        `cold/back click ${i + 1} (${v.doc}) stalled with HTTP ${res.status} behind previous page subresources`);
+      const text = await res.text();
+      assert.ok(text.includes(`PAGE:${ORIGIN}${v.doc}`),
+        `cold/back click ${i + 1} served wrong document for ${v.doc}`);
+      // Start 8 cold subresources (saturating all 6 origin sockets + queue),
+      // then click onward 10 ms later BEFORE they finish — exact shape of
+      // clicking a tool or Back while tools-index.json / cards-lite.json stream.
+      for (const u of v.assets) void wCold.dispatch(u).catch(() => null);
+      await settle(10);
+    }
+    // One final click must immediately clear all in-flight foreground fetches.
+    const mark = coldLog.length;
+    const finalRes = await wCold.dispatch('/index.html', 'navigate');
+    assert.strictEqual(finalRes.status, 200);
+    const leakedBeforeCommit = coldLog.slice(0, mark).filter((r) => !r.settled && !r.aborted);
+    assert.strictEqual(leakedBeforeCommit.length, 0,
+      `${leakedBeforeCommit.length} foreground subresource download(s) survived clearBacklog() across navigation`);
+    console.log('  ok   cold/expired clicks & Back abort in-flight subresources instead of deadlocking sockets (8/8)');
+  }
+
   // ── the escape hatch ──────────────────────────────────────────────────────
   // Three navigations the worker could only answer with a fallback means the
   // worker is the problem. It then stops intercepting and releases the

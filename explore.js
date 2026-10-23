@@ -70,6 +70,8 @@
   var categoryCounts = [];
   // JSON pages are not ready until tools-index.json lands. Static pages are.
   var catalogueReady = true;
+  var catalogueLoading = false;
+  var catalogueFailed = false;
   var queuedQuery = null;
   var ensureCatalogue = function () {};
   var paintKey = '';
@@ -1327,8 +1329,12 @@
          link, a search, the list scrolling into view, or the browser going
          idle. A search that arrives first is queued, not dropped. */
       catalogueReady = false;
+      catalogueLoading = false;
+      catalogueFailed = false;
       var loading = null;
       var failed = false;
+      var pageHiding = false;
+      window.addEventListener('pagehide', function () { pageHiding = true; });
       function wantsNow() {
         try {
           var params = new URLSearchParams(location.search);
@@ -1344,8 +1350,11 @@
         }
         var nextRows = data.tools.filter(function (t) { return t && t.slug && t.title; }).map(rowFromTool);
         if (!nextRows.length) throw new Error('catalogue has no usable rows');
+        loading = null;
+        catalogueLoading = false;
         catalogueReady = true;
         failed = false;
+        catalogueFailed = false;
         state.rows = nextRows;
         categoryCounts = data.categories.filter(Boolean).map(function (c) { return { name: c.name, count: c.count, slug: c.slug }; });
         bar.innerHTML = toolbarHTML();
@@ -1375,8 +1384,10 @@
         // scroll or tap retries the fetch, and the list itself says what
         // happened, with a retry next to the directory link.
         loading = null;
+        catalogueLoading = false;
         catalogueReady = false;
         failed = true;
+        catalogueFailed = true;
         paintKey = '';
         paintCount = -1;
         bar.innerHTML = '<span class="xp-count">The full list could not load here. ' +
@@ -1390,19 +1401,30 @@
         }
       }
       function loadCatalogue() {
+        if (catalogueReady) return Promise.resolve();
         if (loading) return loading;
         // The abort window spans the fetch AND the body read: headers that
         // arrive with a body that never follows are the same hang from the
         // visitor's side. Without AbortController (very old browsers) this is
         // a plain fetch — the worker's own bound is still the backstop.
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, CATALOGUE_TIMEOUT_MS) : null;
+        var timedOut = false;
+        var timer = ctrl ? setTimeout(function () { timedOut = true; ctrl.abort(); }, CATALOGUE_TIMEOUT_MS) : null;
         var clearTimer = function () { if (timer) { clearTimeout(timer); timer = null; } };
+        catalogueLoading = true;
+        catalogueFailed = false;
         loading = fetch('tools-index.json', ctrl ? { signal: ctrl.signal } : undefined)
           .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
           .then(function (data) { clearTimer(); finish(data); })
           .catch(function (err) {
             clearTimer();
+            // Leaving the page (clicking a tool) aborts in-flight subresources:
+            // do not poison bfcache with an error banner for the Back button.
+            if (!timedOut && pageHiding) {
+              loading = null;
+              catalogueLoading = false;
+              return;
+            }
             // Network, HTTP, malformed payload or a throw while building the
             // list: every one of them ends in the same honest state — a
             // retry and the plain directory — never a blank or frozen list.
@@ -1417,17 +1439,19 @@
       window.addEventListener('online', function () {
         if (failed && !catalogueReady) loadCatalogue();
       });
-      /* Intent: a visitor who focuses (or points at) the search box, or a
-         popular chip, is about to search. Starting the catalogue then, rather
-         than on their first keystroke, hides most of its download behind the
-         time it takes to type a word. Deduped by loadCatalogue's `loading`. */
+      /* Intent: a visitor who focuses or taps the search box, or a popular
+         chip, is about to search. Starting the catalogue then, rather than on
+         their first keystroke, hides most of its download behind the time it
+         takes to type a word. `pointerover` is deliberately excluded so a
+         cursor sweeping across the hero toward a Featured tool never kicks off
+         a 779 KB download right before navigation. */
       var INTENT = '#tool-search, #stickySearchInput, .popular-chip:not(.surprise-chip), .hero-search, [data-xp-warm]';
       var onIntent = function (e) {
         if (catalogueReady || loading) return;
         var t = e.target;
         if (t && t.nodeType === 1 && t.closest && t.closest(INTENT)) loadCatalogue();
       };
-      ['focusin', 'pointerdown', 'pointerover', 'touchstart'].forEach(function (type) {
+      ['focusin', 'pointerdown', 'touchstart'].forEach(function (type) {
         document.addEventListener(type, onIntent, { capture: true, passive: true });
       });
       // Retry for a failed catalogue load: delegated from the wrapper because
@@ -1464,16 +1488,24 @@
          Deduped by loadCatalogue's own `loading`. */
       var section = document.getElementById('all-tools-section') || container;
       var begin = function () { loadCatalogue(); };
-      if (window.IntersectionObserver) {
-        var io = new IntersectionObserver(function (entries) {
+      var io = null;
+      function armObserver() {
+        if (io) { try { io.disconnect(); } catch (e) {} io = null; }
+        if (!window.IntersectionObserver) return;
+        var currentIo = new IntersectionObserver(function (entries) {
           for (var i = 0; i < entries.length; i++) {
             if (!entries[i].isIntersecting) continue;
-            io.disconnect();
+            currentIo.disconnect();
+            if (io === currentIo) io = null;
             loadCatalogue();
             return;
           }
         }, { rootMargin: '1500px 0px' });
-        io.observe(section);
+        io = currentIo;
+        currentIo.observe(section);
+      }
+      if (window.IntersectionObserver) {
+        armObserver();
       } else {
         // No observer (very old browser): the list is what the page is for.
         window.addEventListener('load', begin, { once: true });
@@ -1486,6 +1518,30 @@
       };
       if (hashWantsIt()) loadCatalogue();
       window.addEventListener('hashchange', function () { if (hashWantsIt()) loadCatalogue(); });
+      window.addEventListener('pageshow', function (e) {
+        pageHiding = false;
+        if (!e.persisted || catalogueReady || loading) return;
+        var activeSearch = wantsNow() || hashWantsIt()
+          || !!(queuedQuery && String(queuedQuery).trim())
+          || !!(state.q && String(state.q).trim());
+        if (activeSearch) {
+          if (failed) {
+            failed = false;
+            catalogueFailed = false;
+            bar.innerHTML = '<span class="xp-count">Loading the full list…</span>';
+            if (els.list) els.list.innerHTML = '<li class="xp-row"><div class="xp-empty xp-pending">Loading the catalogue…</div></li>';
+          }
+          loadCatalogue();
+        } else if (failed) {
+          // A previous navigation aborted an in-flight background fetch before
+          // pagehide fired: restore the resting state and re-arm proximity.
+          failed = false;
+          catalogueFailed = false;
+          bar.innerHTML = '<span class="xp-count">The full list loads as you reach it.</span>';
+          if (els.list) els.list.innerHTML = '';
+          armObserver();
+        }
+      });
       return Promise.resolve();
     }
 
@@ -1593,12 +1649,9 @@
     // search to the full directory instead of reporting "No matches" for a
     // list that never arrived.
     ready: function () { return catalogueReady; },
+    loading: function () { return catalogueLoading; },
+    failed: function () { return catalogueFailed; },
     warm: function () { return ensureCatalogue(); },
-    // The flywheel's index: the catalogue in its own order, uncopied so a
-    // 1,424-row slice does not run on every landing. Read-only by contract.
-    all: function () {
-      return catalogueReady && state.rows && state.rows.length ? state.rows : null;
-    },
     state: state
   };
 

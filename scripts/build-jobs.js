@@ -51,7 +51,12 @@ const CARDS = path.join(ROOT, 'cards');
 const OUT_JSON = path.join(ROOT, 'jobs.json');
 const OUT_HTML = path.join(ROOT, 'jobs.html');
 const BASE = 'https://www.themostusefulsiteintheworld.com';
-const VERSION = new Date().toISOString().slice(0, 10);
+/* The stamp in jobs.json. Bumped by hand when JOBS below changes, and
+   deliberately NOT `new Date()`: a clock-derived stamp makes the file differ
+   from its own rebuild at every UTC midnight, so `npm test` (which re-derives
+   and compares byte-for-byte) failed all day on a clean checkout, and the
+   drift check reported jobs.json stale every morning. */
+const VERSION = '2026-10-23';
 
 /* ------------------------------------------------------------------ jobs --- */
 // `fills`    starter values for the first screen (rare — only where a job's
