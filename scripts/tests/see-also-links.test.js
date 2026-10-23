@@ -11,6 +11,17 @@ const GROUPS = [
   ['capacitor-calculator', 'rc-time-constant-calculator'],
   ['hourly-to-annual-salary-converter', 'salary', 'pro-rata-salary-calculator'],
   ['oven-gas-mark-temperature-converter', 'air-fryer-oven-conversion'],
+  // 2026-10-19 audit (batch 5 cross-links)
+  ['mean-median-mode', 'mean-median-mode-stdev', 'mean-median-mode-trainer'],
+  ['sl-exchange', 'sl-linden-dollar-converter'],
+  ['timer', 'stopwatch-precision-timer'],
+  ['speed-reading-rsvp-trainer', 'speed-reading-trainer'],
+  ['equation-solver', 'quadratic-solver'],
+  ['timezone', 'world-clock-timezone-board'],
+  ['solar-system-3d-orrery', 'solar-system-simulator'],
+  ['orbital-mechanics-calculator', 'orbital-mechanics-playground'],
+  ['screw-drill-chart', 'tap-drill-size-chart'],
+  ['color-palette-extractor', 'image-color-picker-palette-extractor'],
 ];
 function seeAlso(slug) {
   const html = fs.readFileSync(path.join(CARDS, slug + '.html'), 'utf8');
