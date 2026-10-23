@@ -72,6 +72,11 @@ def asset_version() -> str:
 # because the single quotes inside onload would end a '-quoted f-string.
 TOOLBOX_CSS_LINK = ('<link rel="stylesheet" href="toolbox.css?v={v}" media="print" '
                     "onload=\"this.media='all';this.onload=null\">")
+SPECULATION_RULES = (
+    '<script type="speculationrules">'
+    '{"prefetch":[{"where":{"href_matches":["/tool/*","/categories/*","/index.html","/"]},"eagerness":"conservative"}]}'
+    '</script>'
+)
 
 
 def version_head(head: str) -> str:
@@ -111,6 +116,14 @@ def version_head(head: str) -> str:
             f'<link rel="stylesheet" href="explore.css?v={version}">',
             f'<link rel="stylesheet" href="explore.css?v={version}">\n'
             f'  {TOOLBOX_CSS_LINK.format(v=version)}',
+        )
+    if "speculationrules" not in head:
+        head = head.replace("</head>", f"  {SPECULATION_RULES}\n</head>")
+    else:
+        head = re.sub(
+            r'<script type="speculationrules"[^>]*>[\s\S]*?</script>',
+            lambda _m: SPECULATION_RULES,
+            head,
         )
     return head
 

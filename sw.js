@@ -211,7 +211,12 @@
 // orderStatic() DOM re-appends on already-sorted buckets, clone one action
 // template per list instead of per-row innerHTML parsing, and batch sticky +
 // overflow-fade geometry reads ahead of DOM writes.
-const CACHE_VERSION = 'v53-2026-10-23';
+// v54: make organic entry pages (tool/*.html, categories/*.html, tools.html,
+// tools-index.html) warm the next click — precache cards/card.css alongside
+// tool-page.css in STATIC_CACHE, register sw.js at post-load idle from
+// toolbox.js with root scope across nested directories, and ship conservative
+// pointerdown speculation rules on tool, category and directory pages.
+const CACHE_VERSION = 'v54-2026-10-23';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -255,12 +260,14 @@ const PRECACHE_ASSETS = [
     `./explore.js?v=${PAGE_VERSION}`,
     `./toolbox.js?v=${PAGE_VERSION}`,
     `./home-core.js?v=${PAGE_VERSION}`,
-    // Warm the shared tool frame at install/idle, not on the first tool click.
-    `./tool-page.css?v=${PAGE_VERSION}`
+    // Warm both shared tool-page stylesheets at install/idle, not on the first tool click.
+    `./tool-page.css?v=${PAGE_VERSION}`,
+    `./cards/card.css?v=${PAGE_VERSION}`
 ];
 // Pathnames the handler must serve from STATIC_CACHE, where they are precached.
 const PAGE_ASSET_PATHS = ['/home.css', '/home-deferred.css', '/risk-notices.js',
-                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js', '/home-core.js', '/tool-page.css'];
+                          '/explore.css', '/toolbox.css', '/explore.js', '/toolbox.js',
+                          '/home-core.js', '/tool-page.css', '/cards/card.css'];
 
 // GitHub Pages serves max-age=600, so a copy younger than this is exactly as
 // fresh as the browser's own HTTP cache entry.
@@ -489,13 +496,8 @@ function route(event) {
 
     // Scripts / styles / JSON: freshFast — never pin code to the version a
     // visitor first saw (v4 note), and never serve the version from before the
-    // deploy either (v5 note). card.css stamped with ?v=${PAGE_VERSION} is
-    // deploy-immutable too, so repeat tool clicks do not revalidate it.
+    // deploy either (v5 note).
     if (/\.(js|css|json)$/.test(url.pathname)) {
-        if (url.pathname === '/cards/card.css' && url.searchParams.get('v') === PAGE_VERSION) {
-            event.respondWith(cacheFirst(req, RUNTIME_CACHE, undefined, event));
-            return;
-        }
         event.respondWith(freshFast(req, RUNTIME_CACHE, event));
         return;
     }

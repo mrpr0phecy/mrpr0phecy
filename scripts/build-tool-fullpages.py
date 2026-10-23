@@ -260,6 +260,13 @@ FOOT_LINKS = (
 )
 
 
+SPECULATION_RULES = (
+    '<script type="speculationrules">'
+    '{"prefetch":[{"where":{"href_matches":["/tool/*","/categories/*","/index.html","/"]},"eagerness":"conservative"}]}'
+    '</script>'
+)
+
+
 def boot_script(slug: str, title: str, category: str) -> str:
     # Plain string + placeholder substitution: the JavaScript below is full
     # of braces, and an f-string turns every one into a footgun.
@@ -416,6 +423,7 @@ def render_page(tool: dict, fragment: str, ctx: dict) -> str:
      print/onload swap index.html uses for home-deferred.css. -->
 <link rel="stylesheet" href="../toolbox.css?v={v}" media="print" onload="this.media='all';this.onload=null">
 <link rel="stylesheet" href="../tool-page.css?v={v}">
+{SPECULATION_RULES}
 </head>
 <body>
 {MARKER}

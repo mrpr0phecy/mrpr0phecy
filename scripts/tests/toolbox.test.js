@@ -112,7 +112,10 @@ function makeSandbox(opts) {
       origin: 'https://example.test',
       href: 'https://example.test/' + (opts.pathname || '/index.html').replace(/^\//, '')
     },
-    navigator: { clipboard: { writeText: () => Promise.resolve() } },
+    navigator: Object.assign(
+      { clipboard: { writeText: () => Promise.resolve() } },
+      opts.serviceWorker ? { serviceWorker: opts.serviceWorker } : {}
+    ),
     localStorage: {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
       setItem: (k, v) => store.set(k, String(v)),
@@ -137,6 +140,7 @@ function makeSandbox(opts) {
   };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
+  if (opts.preRegistered) sandbox.__mpSwRegistered = true;
   vm.createContext(sandbox);
   vm.runInContext(SOURCE, sandbox, { filename: 'toolbox.js' });
   return { sandbox, store, content, addButtons: opts.addButtons || [] };
@@ -248,20 +252,68 @@ function makeSandbox(opts) {
 
 /* ---------------------------- 6. the lite tier is found from any page depth */
 {
-  // Category pages live one directory down. Asking for `cards/cards-lite.json`
-  // from /categories/ 404s, and because the failure is swallowed the panel
-  // quietly shows raw slugs instead of titles — a bug that looks like styling.
+  // Category and standalone tool pages live one directory down. Asking for
+  // `cards/cards-lite.json` from /categories/ or /tool/ 404s, and relative
+  // `tool/<slug>.html` links from /tool/ 404 as `/tool/tool/<slug>.html`.
   const deep = makeSandbox({ pathname: '/categories/mathematics.html' });
   deep.sandbox.window.mpToolbox.ready();
   const deepUrls = (deep.sandbox.fetched || []).join(',');
   assert.ok(deepUrls.indexOf('../cards/cards-lite.json') !== -1,
     'a category page must ask for the lite tier one level up: ' + (deepUrls || '(nothing fetched)'));
 
+  const toolDeep = makeSandbox({ pathname: '/tool/bmi.html', rawStorage: JSON.stringify(['json-formatter']) });
+  toolDeep.sandbox.window.mpToolbox.ready();
+  const toolUrls = (toolDeep.sandbox.fetched || []).join(',');
+  assert.ok(toolUrls.indexOf('../cards/cards-lite.json') !== -1,
+    'a standalone tool page must ask for the lite tier one level up: ' + (toolUrls || '(nothing fetched)'));
+  assert.ok(toolDeep.content.innerHTML.includes('href="../tool/json-formatter.html"'),
+    'saved-tool links on /tool/* must step up out of /tool/: ' + toolDeep.content.innerHTML.slice(0, 400));
+  assert.ok(toolDeep.content.innerHTML.includes('href="../donate.html"') &&
+            toolDeep.content.innerHTML.includes('href="../sponsor.html"'),
+    'footer links inside the toolbox on /tool/* must step up to root');
+
   const root = makeSandbox({});
   root.sandbox.window.mpToolbox.ready();
   const rootUrls = (root.sandbox.fetched || []).join(',');
   assert.ok(rootUrls.indexOf('cards/cards-lite.json') === 0,
     'a root page must ask for it in place: ' + (rootUrls || '(nothing fetched)'));
+}
+
+/* --------------------- 6b. organic entry pages warm sw.js at root scope --- */
+{
+  const makeSw = (rejectModule) => {
+    const calls = [];
+    return {
+      calls,
+      register(url, opts) {
+        calls.push({ url, opts });
+        if (rejectModule && opts && opts.type === 'module') return Promise.reject(new Error('no module sw'));
+        return Promise.resolve({});
+      }
+    };
+  };
+
+  const swTool = makeSw(false);
+  makeSandbox({ pathname: '/tool/bmi.html', serviceWorker: swTool });
+  same(swTool.calls, [{ url: '../sw.js', opts: { type: 'module', scope: '../' } }],
+    'a standalone tool page registers ../sw.js at root scope ../');
+
+  const swCat = makeSw(false);
+  makeSandbox({ pathname: '/categories/mathematics.html', serviceWorker: swCat });
+  same(swCat.calls, [{ url: '../sw.js', opts: { type: 'module', scope: '../' } }],
+    'a category page registers ../sw.js at root scope ../');
+
+  const swRootFallback = makeSw(true);
+  makeSandbox({ pathname: '/tools.html', serviceWorker: swRootFallback });
+  // Wait a microtask for the module rejection fallback; check the initial call synchronously too.
+  assert.strictEqual(swRootFallback.calls[0].url, './sw.js');
+  same(swRootFallback.calls[0].opts, { type: 'module', scope: './' },
+    'a root list page registers ./sw.js with scope ./');
+
+  const swDedup = makeSw(false);
+  makeSandbox({ pathname: '/index.html', serviceWorker: swDedup, preRegistered: true });
+  assert.strictEqual(swDedup.calls.length, 0,
+    'when home-core.js has already claimed registration, toolbox.js does not double-register');
 }
 
 

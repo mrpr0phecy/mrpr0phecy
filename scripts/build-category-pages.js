@@ -396,6 +396,7 @@ function renderCategoryPage(cat, allCategories, tools, totalSiteTools) {
       .cat-pill, .search-hint { transition: none; }
     }
   </style>
+  <script type="speculationrules">{"prefetch":[{"where":{"href_matches":["/tool/*","/categories/*","/index.html","/"]},"eagerness":"conservative"}]}</script>
 </head>
 <body>
   <a class="xp-skip" href="#explore">Skip to tools</a>

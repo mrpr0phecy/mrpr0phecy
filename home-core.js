@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 53;
+  const APP_VERSION = 54;
 
   // Three blacks, no hue: the page is black, gold and #555555, and a background
   // theme only decides how far toward grey the canvas is allowed to drift.
@@ -795,12 +795,20 @@
   function registerServiceWorker() {
     if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
     var doRegister = function () {
+      if (window.__mpSwRegistered) return;
+      window.__mpSwRegistered = true;
       navigator.serviceWorker.register('sw.js', { type: 'module' }).catch(function () {
         navigator.serviceWorker.register('sw.js').catch(function () {});
       });
     };
-    if ('requestIdleCallback' in window) requestIdleCallback(doRegister, { timeout: 4000 });
-    else window.addEventListener('load', function () { setTimeout(doRegister, 1500); });
+    var afterLoad = function () {
+      setTimeout(function () {
+        if ('requestIdleCallback' in window) requestIdleCallback(doRegister, { timeout: 3000 });
+        else doRegister();
+      }, 900);
+    };
+    if (document.readyState === 'complete') afterLoad();
+    else window.addEventListener('load', afterLoad, { once: true });
   }
 
   /* ------------------------------------------------ cross-page transitions */

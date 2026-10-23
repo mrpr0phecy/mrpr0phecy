@@ -761,7 +761,8 @@ const body = (res) => res.text();
                                 ['/risk-notices.js', 'CACHED NOTICES'], ['/explore.css', 'CACHED LIST CSS'],
                                 ['/toolbox.css', 'CACHED TOOLBOX CSS'],
                                 ['/explore.js', 'CACHED LIST'], ['/toolbox.js', 'CACHED TOOLBOX'],
-                                ['/home-core.js', 'CACHED CORE'], ['/tool-page.css', 'CACHED TOOL FRAME']]) {
+                                ['/home-core.js', 'CACHED CORE'], ['/tool-page.css', 'CACHED TOOL FRAME'],
+                                ['/cards/card.css', 'CACHED CARD CSS']]) {
       await w.put(STATIC, `${name}?v=${version}`, text, 0);
     }
     w.setNetwork(() => Promise.reject(new Error('offline')));
@@ -769,7 +770,8 @@ const body = (res) => res.text();
                                 ['/risk-notices.js', 'CACHED NOTICES'], ['/explore.css', 'CACHED LIST CSS'],
                                 ['/toolbox.css', 'CACHED TOOLBOX CSS'],
                                 ['/explore.js', 'CACHED LIST'], ['/toolbox.js', 'CACHED TOOLBOX'],
-                                ['/home-core.js', 'CACHED CORE'], ['/tool-page.css', 'CACHED TOOL FRAME']]) {
+                                ['/home-core.js', 'CACHED CORE'], ['/tool-page.css', 'CACHED TOOL FRAME'],
+                                ['/cards/card.css', 'CACHED CARD CSS']]) {
       const res = await w.dispatch(`${name}?v=${version}`);
       assert.strictEqual(res.status, 200, `${name} must be served offline from the precache`);
       assert.strictEqual(await body(res), text, `${name} offline body came from the wrong store`);
@@ -783,9 +785,9 @@ const body = (res) => res.text();
   {
     const paths = [...((SRC.match(/const PAGE_ASSET_PATHS = \[([^\]]*)\]/) || [])[1] || '')
       .matchAll(/'([^']+)'/g)].map((m) => m[1]);
-    // The home assets plus the shared tool-page frame: warm its stylesheet
+    // The home assets plus both shared tool-page stylesheets: warm them
     // at install/idle, and prove that offline tool visits use the same store.
-    assert.strictEqual(paths.length, 9, `expected 9 page assets, found ${paths.length}`);
+    assert.strictEqual(paths.length, 10, `expected 10 page assets, found ${paths.length}`);
     assert.ok(SRC.includes("const PAGE_VERSION = CACHE_VERSION.split('-')[0]"),
       'PAGE_VERSION must be derived from CACHE_VERSION, or a deploy serves the old version');
     for (const name of paths) {
@@ -915,7 +917,7 @@ const body = (res) => res.text();
     const pageVer = CACHE_VERSION.split('-')[0].replace(/^v/, '');
     const twoHours = 2 * 60 * 60 * 1000;
     await w.put(STATIC, `/home.css?v=${pageVer}`, '/*v-home*/', twoHours);
-    await w.put(RUNTIME, `/cards/card.css?v=${pageVer}`, '/*v-card*/', twoHours);
+    await w.put(STATIC, `/cards/card.css?v=${pageVer}`, '/*v-card*/', twoHours);
     await w.put(STATIC, '/home.css', '/*unversioned-old*/', twoHours);
     w.setNetwork((url) => new Response(`NET:${url}`, { status: 200, headers: { date: new Date().toUTCString() } }));
 

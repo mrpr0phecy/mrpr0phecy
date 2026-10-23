@@ -656,10 +656,11 @@ every list page (§2). Its rules:
   fetched with `cache: 'reload'`, so a URL served from another cache is
   downloaded twice per install.
 - **`PAGE_ASSET_PATHS`**: `home.css`, `home-deferred.css`, `risk-notices.js`,
-  `explore.css`, `toolbox.css`, `explore.js`, `toolbox.js`, `home-core.js` and
-  the shared `tool-page.css` frame are fetched
-  before the worker controls anything (the tool frame is warmed at install),
-  so they are precached into `STATIC_CACHE`
+  `explore.css`, `toolbox.css`, `explore.js`, `toolbox.js`, `home-core.js`,
+  `tool-page.css` and `cards/card.css` are fetched
+  before the worker controls anything (both shared tool-page stylesheets are
+  warmed at install/idle, and `toolbox.js` registers `sw.js` at root scope once
+  organic entry pages finish loading), so they are precached into `STATIC_CACHE`
   and served from there — **without** `cache: 'reload'`, because their `?v=` URL
   makes a stale entry impossible and lets the precache reuse the response the
   page just downloaded. **Bump `CACHE_VERSION` (and the matching `?v=`) or a

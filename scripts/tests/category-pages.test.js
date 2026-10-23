@@ -60,8 +60,10 @@ test('every generated category page ships its complete category list pre-sorted 
     );
     const headEnd = html.indexOf('</head>');
     const cssPos = html.indexOf('explore.css?v=');
+    const specPos = html.indexOf('<script type="speculationrules">');
     const ldPos = html.indexOf('application/ld+json');
     assert.ok(cssPos > 0 && cssPos < headEnd, `${category.slug} links explore.css inside <head>`);
+    assert.ok(specPos > cssPos && specPos < headEnd, `${category.slug} ships conservative speculationrules after critical styles in <head>`);
     assert.ok(ldPos > headEnd, `${category.slug} defers bulky JSON-LD past <head> so CSS/JS start in the first packet`);
     assert.deepEqual(rowsIn(html), expected, `${category.slug} contains every expected tool pre-sorted A–Z`);
   }
