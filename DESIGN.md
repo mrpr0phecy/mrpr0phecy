@@ -113,14 +113,24 @@ below); anything dimmer has to be decoration, not text.
 A tool page is a shell plus a card, and the card ships its own `<style>`. When
 the shell went gold the interiors did not: 474 cards hard-coded `#2dd4ff`, and
 another 1,209 painted from `var(--accent)` and inherited the shell by luck. The
-fix is a rewrite of colour literals only — **50 cards at a time, most-used
+fix is a rewrite of colour literals only — **150 cards at a time, most-used
 first**, because 1,424 cards cannot be reviewed as one diff.
 
 - **Only colour moves.** `scripts/retheme-cards.py` rewrites hex and `rgba()`
   literals; every other byte of the file is untouched, so structure, ids,
   handlers and layout cannot drift. The diff for a converted card is a set of
-  one-for-one line swaps, and the gate checks that by stripping colour from both
-  sides and comparing.
+  one-for-one line swaps, and `scripts/check-colour-only.py` proves it before
+  the PR: it strips colour from both sides of every changed line and fails if
+  anything else moved.
+- **A gradient is one object.** Turning one end of a two-stop gradient gold and
+  leaving the other blue or teal is a clash, not a palette, so where one stop
+  converts the other is pulled to the gold nearest its own lightness and the
+  gradient keeps its light-to-dark direction.
+- **The theme colour comes too.** A card whose palette is already moving should
+  not keep a green title over gold buttons. The one cool hue it leans on most
+  (three hits or more, and never one of the warm warning hues) joins the gold
+  family at the tone nearest its lightness. A card that is not moving is not
+  touched at all.
 - **One hue per job, then a four-gold rotation.** A card with one or two accents
   keeps the page's job split — action `#ffd700`, readout `#d4af37`. A card with
   three or more sibling accents (four stat tiles, a legend, a series) rotates
@@ -131,8 +141,12 @@ first**, because 1,424 cards cannot be reviewed as one diff.
   *card-wide*, so a legend label keeps matching the stop it names. A protected
   list (contrast checkers, colour pickers, physics and light toys, and the cards
   where hue is a *key* — the periodic table's category tiles, the anatomy
-  explorer's body-system chips) is skipped entirely, because recolouring them
-  would break the thing they do.
+  explorer's body-system chips, a word cloud's named palettes) is skipped
+  entirely, because recolouring them would break the thing they do. So is a
+  card with a legend: when three or more hues paint one scale (heart-rate
+  zones, a battery-health bar) and two of them would land on the same gold,
+  the whole card is left alone — converting some of the buckets would look
+  deliberate and would not be.
 - **A hue can be both.** `bodyfat` spends `#39ff14` as its theme accent *and* as
   the low stop of a green→yellow→red scale. The rule: if that hue is also the
   card's most-used chromatic colour (six hits or more) **and it paints a
