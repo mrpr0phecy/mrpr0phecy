@@ -205,7 +205,15 @@
 // version, so a returning visitor's cached page can never pair the new
 // band with the old stylesheet, or the new stylesheet with a page that has
 // no band to style.
-const CACHE_VERSION = 'v51-2026-10-20';
+// v52: quash the multi-click / Back navigation stall ("This page did not load")
+// and remove the home-page flywheel (spin.js). clearBacklog() now aborts
+// orphaned foreground subresource downloads from the outgoing page so they
+// cannot deadlock the browser's 6-socket origin pool before commit; navigations
+// mint a safe signal-bearing fetch when cloning a mode:'navigate' Request
+// throws TypeError (WebKit/Safari); ?v=-stamped shell assets serve cache-first
+// from STATIC_CACHE instead of revalidating all 9 files every 10 minutes; and
+// navigationPreload enables in activate() with the full uncached budget.
+const CACHE_VERSION = 'v52-2026-10-23';
 const STATIC_CACHE = `static-${CACHE_VERSION}`;
 const CARDS_CACHE = `cards-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
@@ -302,10 +310,6 @@ self.addEventListener('install', (event) => {
             for (const url of PRECACHE_ASSETS) {
                 try { await cache.add(url); } catch { /* dev / partial deploy */ }
             }
-            // Enable navigation preload if available
-            if ('navigationPreload' in self.registration) {
-                try { await self.registration.navigationPreload.enable(); } catch {}
-            }
             self.skipWaiting();
         })()
     );
@@ -324,6 +328,13 @@ self.addEventListener('activate', (event) => {
                         .map(k => caches.delete(k).catch(() => {}))
                 );
             } catch (e) { /* no old stores to drop */ }
+            // Enable navigation preload here in activate (where registration.active
+            // exists — calling enable() in install rejects with InvalidStateError).
+            try {
+                if (self.registration && 'navigationPreload' in self.registration) {
+                    await self.registration.navigationPreload.enable();
+                }
+            } catch (e) { /* unsupported or already enabled */ }
             await readCooloff();
             try { await self.clients.claim(); } catch (e) { /* already claimed */ }
         })()
@@ -402,6 +413,9 @@ function route(event) {
     // Only handle same-origin GET
     if (req.method !== 'GET' || url.origin !== self.location.origin) return;
 
+    // Fetch-spec invariant: only-if-cached cannot be fetched outside same-origin.
+    if (req.cache === 'only-if-cached' && req.mode !== 'same-origin') return;
+
     // Speculation-rule prefetches — and any other document request that is not
     // an actual navigation — are left to the browser. It already gives them
     // idle priority and cancels them when the visitor commits somewhere else;
@@ -463,18 +477,27 @@ function route(event) {
     // The page's own code and stylesheets: precached, and served from the same
     // STATIC_CACHE they are precached into — otherwise a worker that has never
     // fetched them (first visit, before it controlled anything) answers an
-    // offline navigation with a styled, script-less page.
+    // offline navigation with a styled, script-less page. When stamped with
+    // this deploy's ?v=${PAGE_VERSION}, the URL itself is versioned, so serving
+    // cacheFirst avoids firing 9 foreground revalidations every 10 minutes.
     if (PAGE_ASSET_PATHS.includes(url.pathname)) {
+        if (url.searchParams.get('v') === PAGE_VERSION) {
+            event.respondWith(cacheFirst(req, STATIC_CACHE, undefined, event));
+            return;
+        }
         event.respondWith(freshFast(req, STATIC_CACHE, event));
         return;
     }
 
     // Scripts / styles / JSON: freshFast — never pin code to the version a
     // visitor first saw (v4 note), and never serve the version from before the
-    // deploy either (v5 note). Inside the 10-minute window a repeat visit
-    // still costs no request at all; explore.js, toolbox.js and
-    // risk-notices.js are small enough that revalidating them is noise.
+    // deploy either (v5 note). card.css stamped with ?v=${PAGE_VERSION} is
+    // deploy-immutable too, so repeat tool clicks do not revalidate it.
     if (/\.(js|css|json)$/.test(url.pathname)) {
+        if (url.pathname === '/cards/card.css' && url.searchParams.get('v') === PAGE_VERSION) {
+            event.respondWith(cacheFirst(req, RUNTIME_CACHE, undefined, event));
+            return;
+        }
         event.respondWith(freshFast(req, RUNTIME_CACHE, event));
         return;
     }
@@ -673,12 +696,41 @@ function adoptRefresh(request, ctl, promise) {
     return true;
 }
 
-// The next click outranks ALL cache-only traffic, including in-flight bodies.
-// Let their completion handlers return the slots; resetting the counter here
-// would let late completions inflate the budget on every navigation.
+// The next click outranks ALL previous-page traffic, including in-flight
+// foreground subresources (e.g. a 779 KB tools-index.json started by the page
+// the visitor just clicked away from — the browser will not unload that page or
+// abort its request signals until this navigation commits, so holding those
+// sockets deadlocks the commit). Let background completion handlers return their
+// slots; resetting refreshSlots directly would inflate the budget.
 function clearBacklog() {
     backgroundQueue.length = 0;
     backgroundRunning.forEach((ctl) => abort(ctl));
+    foregroundRunning.forEach((entry) => abort(entry.ctl));
+    foregroundRunning.clear();
+}
+
+// Safe signal-bearing fetch across engines. WebKit/Safari and strict Fetch
+// implementations throw synchronously in `new Request(navRequest, { signal })`
+// when `navRequest.mode === 'navigate'`; testing that synchronous construction
+// first lets Chromium/Firefox keep the original Request while Safari falls back
+// to fetching the URL string with matching same-origin manual-redirect semantics.
+function fetchCancellable(request, ctl) {
+    if (!ctl) return ctl ? fetch(request, { signal: ctl.signal }) : fetch(request);
+    if (request && request.mode === 'navigate') {
+        let canCloneNavigate = false;
+        if (typeof Request === 'function' && request instanceof Request) {
+            try {
+                void new Request(request, { signal: ctl.signal });
+                canCloneNavigate = true;
+            } catch (e) {
+                canCloneNavigate = false;
+            }
+        }
+        return canCloneNavigate
+            ? fetch(request, { signal: ctl.signal })
+            : fetch(request.url, { signal: ctl.signal, credentials: 'same-origin', redirect: 'manual' });
+    }
+    return fetch(request, { signal: ctl.signal });
 }
 
 // The one safe way into a cache: a rejected `open()`/`match()`/`put()` used to
@@ -752,7 +804,9 @@ const STALLED = { stalled: true };
 const foregroundRunning = new Map();
 const FOREGROUND_LIMIT = 64;
 function foreground(request, ms, cacheName, event, adopt) {
-    if (request.mode === 'navigate') return fetchForeground(request, ms, cacheName, event, adopt);
+    if (request.mode === 'navigate') return fetchForeground(request, ms, cacheName, event, adopt, newAbort());
+    const callerSignal = event && event.request && event.request.signal;
+    if (callerSignal && callerSignal.aborted) return Promise.resolve(null);
     let key;
     try {
         key = JSON.stringify([request.url, cacheName, ms, !!adopt,
@@ -760,29 +814,58 @@ function foreground(request, ms, cacheName, event, adopt) {
             request.redirect, request.integrity, request.referrer, request.referrerPolicy,
             request.headers ? Array.from(request.headers.entries()) : []]);
     } catch (e) {
-        return fetchForeground(request, ms, cacheName, event, adopt);
+        return fetchForeground(request, ms, cacheName, event, adopt, newAbort());
     }
-    let pending = foregroundRunning.get(key);
-    if (!pending) {
+    let entry = foregroundRunning.get(key);
+    if (!entry) {
         // Keep bookkeeping bounded even if a page requests many distinct URLs.
         if (foregroundRunning.size >= FOREGROUND_LIMIT) {
-            return fetchForeground(request, ms, cacheName, event, adopt);
+            return fetchForeground(request, ms, cacheName, event, adopt, newAbort());
         }
-        pending = fetchForeground(request, ms, cacheName, event, adopt);
-        foregroundRunning.set(key, pending);
-        const clear = () => { foregroundRunning.delete(key); };
+        const ctl = newAbort();
+        const item = { pending: null, ctl, consumers: 0, untracked: 0, liveSignals: 0, adopt: !!adopt, settled: false };
+        const pending = fetchForeground(request, ms, cacheName, event, adopt, ctl);
+        item.pending = pending;
+        foregroundRunning.set(key, item);
+        const clear = () => {
+            item.settled = true;
+            if (foregroundRunning.get(key) === item) foregroundRunning.delete(key);
+        };
         pending.then(clear, clear);
+        entry = item;
     }
-    return pending.then((res) => res ? res.clone() : null);
+    entry.consumers++;
+    let cleanupSignal = null;
+    if (callerSignal && typeof callerSignal.addEventListener === 'function') {
+        entry.liveSignals++;
+        const onAbort = () => {
+            entry.liveSignals = Math.max(0, entry.liveSignals - 1);
+            if (!entry.settled && !entry.adopt && entry.untracked === 0 && entry.liveSignals === 0) {
+                abort(entry.ctl);
+            }
+        };
+        callerSignal.addEventListener('abort', onAbort, { once: true });
+        cleanupSignal = () => {
+            try { callerSignal.removeEventListener('abort', onAbort); } catch (e) {}
+        };
+    } else {
+        entry.untracked++;
+    }
+    return entry.pending.then((res) => {
+        if (cleanupSignal) cleanupSignal();
+        entry.consumers = Math.max(0, entry.consumers - 1);
+        if (!res) return null;
+        return entry.consumers > 0 ? res.clone() : res;
+    });
 }
 
-async function fetchForeground(request, ms, cacheName, event, adopt) {
-    const ctl = newAbort();
+async function fetchForeground(request, ms, cacheName, event, adopt, ctlIn) {
+    const ctl = ctlIn === undefined ? newAbort() : ctlIn;
     let settled = false;
     let saved = Promise.resolve();
     let work;
     try {
-        work = ctl ? fetch(request, { signal: ctl.signal }) : fetch(request);
+        work = fetchCancellable(request, ctl);
     } catch (e) {
         return null;
     }
@@ -815,6 +898,7 @@ async function cacheFirst(request, cacheName, maxAge, event) {
     const cache = await openCache(cacheName);
     const cached = await matchQuietly(cache, request);
     if (cached) {
+        stats.cacheHits++;
         // Immutable-ish binaries: a copy inside the caller's maxAge is the
         // answer, and asking the origin about it is pure queue pressure.
         if (!maxAge || ageWithin(cached, maxAge)) return cached;
@@ -867,8 +951,9 @@ async function navigateFast(request, preload, event) {
     // nothing because the preload already won the race.
     const ctl = newAbort();
     let saved = Promise.resolve();
-    const start = () => (ctl ? fetch(request, { signal: ctl.signal }) : fetch(request));
-    const network = bounded(preload || Promise.resolve(null), NETWORK_PATIENCE_MS)
+    const preloadPatience = cached ? NETWORK_PATIENCE_MS : UNCACHED_PATIENCE_MS;
+    const start = () => fetchCancellable(request, ctl);
+    const network = bounded(preload || Promise.resolve(null), preloadPatience)
         .then((p) => (p === STALLED || !p ? start() : p))
         .then((res) => {
             if (res && res.ok) {

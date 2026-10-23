@@ -60,9 +60,9 @@ const kb = (bytes) => (bytes / 1024).toFixed(1) + ' KB';
 // in the head with no media trick). The font is not here — the head's
 // @font-face is font-display: swap, so text paints in the fallback first.
 const FIRST_PAINT = ['index.html', 'home.css', 'explore.css'];
-// 43 KB as of 2026-10-20: the home page now carries the flywheel band's resting
-// state (an SVG dial and its shell), deliberately in the document so it paints
-// with no script at all. That is 0.9 KB of the 43 KB, and nothing else moved.
+// 43 KB as of 2026-10-20: the home page carries its own small sections
+// (seasonal band, random-tool band) directly in the document so they paint
+// with no script at all.
 const FIRST_PAINT_BUDGET = 43 * 1024;
 
 // Everything a first-time visitor downloads for the first screen: the above,
@@ -86,9 +86,10 @@ const FIRST_SCREEN_BUDGET = 150 * 1024;
 // arriving with 5 KB of new script has to be a decision.
 const FILE_BUDGETS = {
     'index.html': 17 * 1024,
-    // +1.5 KB on 2026-10-20 for the flywheel band: the dial's shell, readout and
-    // result card. The instrument itself (physics, canvas) is spin.js, loaded on
-    // intent, and is not on the first screen at all.
+    // The random-tool band (00 / Random) replaced a canvas instrument that cost
+    // 4.5 KB of CSS and a lazily fetched 19 KB script for the same job. This
+    // ceiling did not move: the band it pays for is smaller than the dial it
+    // replaced, and the difference is headroom, not a target.
     'home.css': 20 * 1024,
     'home-deferred.css': 3 * 1024,
     // +0.4 KB on 2026-10-20 for the shelf arrows' styling and a drag cursor:
@@ -104,10 +105,6 @@ const FILE_BUDGETS = {
     'explore.js': 25 * 1024,
     'toolbox.js': 12 * 1024,
     'fonts/inter-latin.woff2': 50 * 1024,
-    // The flywheel's instrument. Not on the first screen at all — index.html
-    // must not reference it (checked below) — so its ceiling is about what one
-    // hand-written module of this size should cost.
-    'spin.js': 12 * 1024,
     // The catalogue is the biggest transfer on the site. It is allowed to be
     // big (1,424 tools with their descriptions); it is not allowed to grow
     // without someone noticing.
@@ -160,31 +157,6 @@ function catalogueStaysLazy(problems) {
     if (!/hashchange/.test(explore)) {
         problems.push('explore.js does not listen for hashchange — a "#all-tools" link from another page ' +
                       'must load the catalogue directly');
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 3. The flywheel is fetched on intent
-// ---------------------------------------------------------------------------
-
-function flywheelStaysLazy(problems) {
-    const home = text('index.html');
-    const ref = /<script[^>]+spin\.js|<link[^>]+spin\.js|preload[^>]*spin\.js/i.exec(home);
-    if (ref) {
-        problems.push(`index.html references spin.js (${ref[0].slice(0, 70)}) — the dial is a ` +
-                      'picture until somebody touches it; home-core.js fetches it on intent');
-    }
-    if (!/<section[^>]+id="flywheel"/.test(home)) {
-        problems.push('the flywheel band is missing from index.html — the home page lost its dial');
-    }
-    if (!/<svg[^>]+id="flywheel-idle"/.test(home)) {
-        problems.push('the flywheel has no resting SVG — without it the band is blank until ' +
-                      'spin.js arrives, and blank for a visitor with no JavaScript');
-    }
-    const core = text('home-core.js');
-    if (!/spin\.js\?v=' \+ APP_VERSION/.test(core)) {
-        problems.push("home-core.js must load spin.js with the page's own version — an unversioned " +
-                      'script can pair with the previous deploy\'s markup');
     }
 }
 
@@ -248,7 +220,6 @@ function main() {
     }
 
     catalogueStaysLazy(problems);
-    flywheelStaysLazy(problems);
     scrollPathStaysCheap(problems);
 
     if (problems.length) {

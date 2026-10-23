@@ -34,7 +34,7 @@
   // index.html's ?v= and sw.js's CACHE_VERSION: a page must never run against
   // another deploy's script, and the service worker's precache list carries the
   // same number.
-  const APP_VERSION = 51;
+  const APP_VERSION = 52;
 
   // Three blacks, no hue: the page is black, gold and #555555, and a background
   // theme only decides how far toward grey the canvas is allowed to drift.
@@ -275,11 +275,17 @@
       // a match count: same catalogue, the values already in place.
       var hit = solveFor(value);
       if (hit) { solveShow(hit); return; }
-      // The list never arrived (offline, blocked, timed out — report() runs
-      // after the catalogue promise has settled, so not ready means failed):
-      // "No matches" would be a lie. Say what Enter will actually do.
+      // Only report failure when the catalogue actually failed: solveLoad()
+      // (intents.json) settles well before the full catalogue on a cold or
+      // throttled visit, and calling report() then used to flash "The list
+      // could not load here" while the list was merely still arriving.
       if (!listReady()) {
-        status.textContent = 'The list could not load here — press Enter to search the full directory';
+        if (window.mpExplore.failed && window.mpExplore.failed()) {
+          status.textContent = 'The list could not load here — press Enter to search the full directory';
+        } else {
+          if (typeof window.mpExplore.warm === 'function') window.mpExplore.warm();
+          status.textContent = 'Loading the tool list…';
+        }
         return;
       }
       var n = window.mpExplore.rows().length;
@@ -395,6 +401,10 @@
       }
       if (clearBtn) clearBtn.style.display = value ? 'block' : 'none';
     };
+
+    document.addEventListener('mp:explore-ready', function () {
+      if (boxes[0] && boxes[0].value.trim()) report(boxes[0].value);
+    });
 
     boxes.forEach(function (box) {
       box.addEventListener('input', function () {
@@ -595,7 +605,9 @@
   }
 
   function setupSurpriseButtons() {
-    ['heroSurpriseBtn', 'stickySurpriseBtn'].forEach(function (id) {
+    /* The home page's own band (00 / Random) joins the hero chip and the
+       sticky bar: one picker, three buttons, so they cannot disagree. */
+    ['heroSurpriseBtn', 'stickySurpriseBtn', 'randomToolBtn'].forEach(function (id) {
       var btn = document.getElementById(id);
       if (btn) btn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -612,49 +624,6 @@
         pickRandomTool();
       }
     });
-  }
-
-  /* ------------------------------------------------------------- the flywheel --
-     The dial is a picture until somebody wants it: one SVG, no script. This
-     fetches spin.js (and its behaviour) on the first sign of intent — a pointer
-     over the band, keyboard focus inside it, or 600 px of proximity — and with
-     the same ?v= as every other asset, so a cached copy can never pair with
-     another deploy's HTML.
-
-     The 600 px head start is the same idea as the catalogue's: be ready before
-     the visitor arrives, but never fetch something for a visit that never gets
-     there. A visitor who reads the hero and leaves downloads none of it. */
-  function setupFlywheel() {
-    var band = document.getElementById('flywheel');
-    if (!band) return;
-    var requested = false;
-    function request() {
-      if (requested) return;
-      requested = true;
-      var s = document.createElement('script');
-      s.src = 'spin.js?v=' + APP_VERSION;
-      s.async = true;
-      document.head.appendChild(s);
-    }
-    ['pointerenter', 'pointerdown', 'focusin', 'touchstart'].forEach(function (type) {
-      band.addEventListener(type, request, { passive: true, once: true });
-    });
-    /* Proximity, but never during the first screen. Observing at mount made the
-       dial's script arrive alongside the first paint on every phone whose
-       viewport reached the band (measured: it loaded before `load`). The
-       observer starts after the page has finished loading, so the instrument
-       can only ever cost a frame the visitor is already reading. */
-    function observeLater() {
-      if (!window.IntersectionObserver) return;
-      var io = new IntersectionObserver(function (entries) {
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) { io.disconnect(); request(); return; }
-        }
-      }, { rootMargin: '300px' });
-      io.observe(band);
-    }
-    if (document.readyState === 'complete') setTimeout(observeLater, 0);
-    else window.addEventListener('load', function () { setTimeout(observeLater, 0); }, { once: true });
   }
 
   /* ------------------------------------------- popovers: a11y sync + fallback */
@@ -906,7 +875,6 @@
       if (e.persisted) safely('restored recents', setupRecents);
     });
     safely('surprise', setupSurpriseButtons);
-    safely('flywheel', setupFlywheel);
     safely('panels', setupPanels);
     safely('popover a11y', syncPopoverA11y);
     safely('popover fallback', popoverFallback);

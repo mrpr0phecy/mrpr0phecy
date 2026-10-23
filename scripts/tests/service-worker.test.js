@@ -866,6 +866,71 @@ const body = (res) => res.text();
     assert.equal(threw, null, `an unrelated message took the worker down: ${threw && threw.message}`);
   }
 
+  // ----------------------------------------- WebKit navigate Request + ?v=
+  {
+    // WebKit/Safari (and strict WHATWG Fetch) throw synchronously when script
+    // constructs `new Request(navReq, { signal })` (which `fetch(navReq, { signal })`
+    // performs internally) if `navReq.mode === 'navigate'`. Previously that
+    // TypeError was swallowed as `null`, skipping retry and immediately serving
+    // the 504 stallPage ("This page did not load").
+    const w = makeWorker();
+    class StrictNavigateRequest extends Request {
+      constructor(input, init) {
+        if (input instanceof StrictNavigateRequest && init !== undefined) {
+          throw new TypeError("Cannot construct a Request with a Request object that has mode 'navigate'");
+        }
+        super(typeof input === 'string' ? input : input.url, init);
+      }
+      get mode() { return 'navigate'; }
+    }
+    w.sandbox.Request = StrictNavigateRequest;
+    let strictCalls = 0;
+    w.sandbox.fetch = (req, init) => {
+      if (req instanceof StrictNavigateRequest && init !== undefined) {
+        return Promise.reject(new TypeError("Cannot construct a Request with a Request object that has mode 'navigate'"));
+      }
+      strictCalls++;
+      return Promise.resolve(new Response('LIVE_SAFARI_TOOL', { status: 200 }));
+    };
+    const navReq = new StrictNavigateRequest('https://example.test/tool/bmi.html');
+    let answered = null;
+    w.listeners.fetch({
+      request: navReq,
+      preloadResponse: Promise.resolve(undefined),
+      respondWith: (p) => { answered = p; },
+      waitUntil: () => {},
+    });
+    const res = await answered;
+    assert.strictEqual(res.status, 200, 'WebKit mode:navigate Request fell into stallPage() instead of fetching URL');
+    assert.strictEqual(await body(res), 'LIVE_SAFARI_TOOL');
+    assert.strictEqual(strictCalls, 1);
+    console.log('  ok   WebKit/Safari mode:navigate Request fetches cleanly with signal without TypeError');
+  }
+
+  {
+    // Versioned shell assets (?v=${PAGE_VERSION}) are immutable for this deploy:
+    // even hours after install (past FRESH_WINDOW_MS), opening home or clicking
+    // between tools must serve them from cache with zero network revalidations.
+    const w = makeWorker();
+    const pageVer = CACHE_VERSION.split('-')[0].replace(/^v/, '');
+    const twoHours = 2 * 60 * 60 * 1000;
+    await w.put(STATIC, `/home.css?v=${pageVer}`, '/*v-home*/', twoHours);
+    await w.put(RUNTIME, `/cards/card.css?v=${pageVer}`, '/*v-card*/', twoHours);
+    await w.put(STATIC, '/home.css', '/*unversioned-old*/', twoHours);
+    w.setNetwork((url) => new Response(`NET:${url}`, { status: 200, headers: { date: new Date().toUTCString() } }));
+
+    const rHome = await w.dispatch(`/home.css?v=${pageVer}`);
+    const rCard = await w.dispatch(`/cards/card.css?v=${pageVer}`);
+    assert.strictEqual(await body(rHome), '/*v-home*/');
+    assert.strictEqual(await body(rCard), '/*v-card*/');
+    assert.strictEqual(w.networkCalls.length, 0,
+      'versioned ?v= assets revalidated over the network after 10 minutes');
+
+    const rUnver = await w.dispatch('/home.css');
+    assert.match(await body(rUnver), /^NET:/, 'unversioned PAGE_ASSET_PATHS must still revalidate via freshFast');
+    console.log('  ok   ?v=-stamped shell and card stylesheets stay cache-first past the 10-minute window');
+  }
+
   // ------------------------------------------------------------- discipline
   {
     assert.match(CACHE_VERSION, /^v\d+-/, 'CACHE_VERSION must be bumped when the policy changes');
