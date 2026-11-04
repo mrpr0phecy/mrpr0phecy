@@ -12,7 +12,7 @@ One GitHub Pages site serving **two unrelated products** from one domain:
 
 | | Product | Entry point |
 |---|---|---|
-| **A** | **The Most Useful Site In The World** — 1424 self-contained browser tools | `index.html` |
+| **A** | **The Most Useful Site In The World** — 1434 self-contained browser tools | `index.html` |
 | **B** | **MrProphecy** — the owner's music project | `listen.html` |
 
 **They are kept separate deliberately** (owner instruction): no music players,
@@ -37,7 +37,7 @@ explore.js / explore.css  the list engine + its styles (rows, toolbar, empty sta
 toolbox.js              the visitor's saved list (slugs) and the ＋ buttons
 cards/
   cards-lite.json       generated critical-path tier: {n,t,c}
-  cards.json            generated full index of all 1424 tools (descriptions feed search)
+  cards.json            generated full index of all 1434 tools (descriptions feed search)
   <tool>.html           1312 fragments — NOT full documents
 generate-cards-json.js  rebuilds cards.json + cards-lite.json from cards/
 ai.html                 Lantern: standalone on-device AI (own name, mark, palette; no
@@ -91,7 +91,7 @@ tool (half-drawn cards, clicks landing before listeners exist, phones out of
 memory), and each way lost a visitor. What is left is a page that links:
 
 - first paint waits for nothing but its own chrome;
-- `tool.html` fails the same way for all 1,424 tools, and
+- `tool.html` fails the same way for all 1,434 tools, and
   `scripts/check-tool-graph.py` proves every link into it lands on a real tool;
 - filtering, sorting, keyboard nav, density and the toolbox are properties of a
   *list*, and were impossible while the catalogue's first job was executing;
@@ -278,7 +278,7 @@ A card is an **HTML fragment** — no `<!doctype>`, `<html>`, `<head>` or `<body
 ```
 
 1. **Fragment only.** A nested full document breaks the shell's layout.
-2. **IDs must be globally unique across all 1424 cards** (one shared DOM). Use a
+2. **IDs must be globally unique across all 1434 cards** (one shared DOM). Use a
    short per-tool prefix (`b3js-`, `cwf-`, `mytl-`) on every element — a
    collision silently makes another tool misbehave.
 3. **Inline styles** plus the CSS variables in §5; there is no per-card stylesheet.
@@ -323,32 +323,32 @@ reads `tools-index.json` for the category hub links it writes into `index.html`.
 `title` and `description` are scraped from `#<prefix>-title` and
 `#<prefix>-desc`; a card missing them shows up blank in the catalogue.
 
-### Categories (1424 tools)
+### Categories (1434 tools)
 
 Derived from `cards/cards.json` — regenerate rather than hand-edit.
 
 | Count | Category | | Count | Category |
 |---|---|---|---|---|
 | 204 | Science & Engineering | | 22 | Halloween |
-| 182 | Productivity & Lifestyle | | 21 | Virtual Worlds & Gaming |
-| 102 | Finance & Money | | 17 | Mind-Blowing Demos |
-| 84 | Mathematics | | 13 | Lucid Dreaming & Sleep |
-| 79 | Algorithms & Computer Science | | 13 | Survival & Emergency Readiness |
+| 185 | Productivity & Lifestyle | | 21 | Virtual Worlds & Gaming |
+| 103 | Finance & Money | | 17 | Mind-Blowing Demos |
+| 84 | Mathematics | | 15 | Survival & Emergency Readiness |
+| 79 | Algorithms & Computer Science | | 13 | Lucid Dreaming & Sleep |
 | 73 | Writing & Language | | 10 | Anime & Otaku Culture |
 | 72 | SaaS & Business Killers | | 10 | Aquatics & Fishkeeping |
 | 56 | Sports | | 10 | Birdwatching & Ornithology |
 | 52 | Home & DIY | | 10 | Dogs & Canine Care |
 | 51 | Interactive Art & Living Worlds | | 10 | Field Investigation & Evidence |
-| 48 | Health & Fitness | | 10 | Fire & Rescue Service |
+| 49 | Health & Fitness | | 10 | Fire & Rescue Service |
 | 40 | Music & Audio | | 10 | Horror & Paranormal |
-| 36 | Astronomy & Space | | 10 | Natural Remedies & Herbs |
-| 36 | Wellbeing & Community | | 10 | Rocketry & Propulsion |
+| 38 | Wellbeing & Community | | 10 | Natural Remedies & Herbs |
+| 36 | Astronomy & Space | | 10 | Rocketry & Propulsion |
 | 33 | Culinary & Food Science | | 10 | Trucking & Freight |
-| 29 | Arcade | | 5 | Cats & Feline Care |
-| 29 | Museum & Collection | | 5 | Legal & Professional |
+| 29 | Arcade | | 6 | Legal & Professional |
+| 29 | Museum & Collection | | 5 | Cats & Feline Care |
 | 22 | AI & Autonomous Agents | | | |
 
-Total: 1424 tools in 35 categories.
+Total: 1434 tools in 35 categories.
 
 ## 4. Product B — MrProphecy music
 
@@ -569,7 +569,7 @@ The 12 language pages are an **hreflang cluster**: each lists all twelve
 siblings plus `en` and `x-default` → `listen.html`. Add a language in all
 thirteen pages or Google treats them as duplicates competing with each other.
 
-`sitemap.xml` lists all indexable pages (1,424 cards included) and is built by
+`sitemap.xml` lists all indexable pages (1,434 cards included) and is built by
 `python3 scripts/build-sitemap.py` **from git, not the working tree**, so a
 sparse checkout cannot silently drop the card pages. URLs are percent-encoded —
 some `images/` filenames contain spaces. `scan-seo.py` scans every root `*.html`;
@@ -752,7 +752,7 @@ for about a minute) and every six hours; failure modes are pinned by
 
 ## 9. Current state
 
-1424 tools in `cards/` across 35 categories, one shared DOM, every derived
+1434 tools in `cards/` across 35 categories, one shared DOM, every derived
 surface regenerated by `npm run build`. Gate: `npm run verify`; `verify:deep`
 for shared infrastructure. CI runs the fast gate on PRs and pushes, and the deep
 gate on `main` (the deploy) and nightly. Local validation: AGENTS.md §1.
@@ -822,7 +822,7 @@ are missing. Run it before and after anything that touches the first screen.
 
 The home page's first section is one button: *Pick a random tool*. It replaced a
 fidget-spinner dial on 2026-10-23 at the owner's request. The dial's angle was
-the catalogue index (one turn walked all 1,424 tools), and that idea was the
+the catalogue index (one turn walked all 1,434 tools), and that idea was the
 reason it cost what it did: a 19 KB canvas instrument fetched on intent, 4.5 KB
 of CSS and a resting SVG, all to answer "give me something I did not come for".
 
