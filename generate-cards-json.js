@@ -182,6 +182,17 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // Fireworks Night planning and safety tools.
+  'fireworks-night-checklist': 'Survival & Emergency Readiness',
+  'fireworks-pet-preparation': 'Wellbeing & Community',
+  'bonfire-wildlife-checklist': 'Wellbeing & Community',
+  'fireworks-spectator-packing-list': 'Productivity & Lifestyle',
+  'sparkler-safety-checklist': 'Survival & Emergency Readiness',
+  'fireworks-burn-first-aid': 'Health & Fitness',
+  'fireworks-night-budget': 'Finance & Money',
+  'fireworks-display-travel-planner': 'Productivity & Lifestyle',
+  'fireworks-night-countdown': 'Productivity & Lifestyle',
+  'uk-fireworks-curfew-guide': 'Legal & Professional',
   // 2026-10-20 — the consent-tech watchlist. The catalogue had privacy tools
   // (password hygiene, recovery maps, evidence manifests) but nothing that
   // named the technologies that can be pointed at a person without their
