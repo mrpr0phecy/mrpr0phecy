@@ -182,6 +182,28 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // More practical Fireworks Night tools.
+  'firework-shapes-and-effects-guide': 'Science & Engineering',
+  'fireworks-neighbour-notice-maker': 'Writing & Language',
+  'fireworks-group-meeting-plan': 'Productivity & Lifestyle',
+  'fireworks-dog-walk-time-planner': 'Dogs & Canine Care',
+  'bonfire-night-sausage-rolls-calculator': 'Culinary & Food Science',
+  'fireworks-noise-incident-diary': 'Wellbeing & Community',
+  'fireworks-display-accessibility-questions': 'Wellbeing & Community',
+  'after-fireworks-safety-checklist': 'Survival & Emergency Readiness',
+  'fireworks-night-craft-ideas': 'Productivity & Lifestyle',
+  'fireworks-video-storage-calculator': 'Productivity & Lifestyle',
+  // Fireworks Night discovery, sharing and accessible celebrations.
+  'fireworks-photo-settings': 'Productivity & Lifestyle',
+  'fireworks-night-captions': 'Writing & Language',
+  'fireworks-night-invitation': 'Writing & Language',
+  'bonfire-night-hot-chocolate-calculator': 'Culinary & Food Science',
+  'fireworks-night-what-to-wear': 'Productivity & Lifestyle',
+  'fireworks-sensory-friendly-plan': 'Wellbeing & Community',
+  'report-fireworks-noise-uk': 'Wellbeing & Community',
+  'bonfire-night-ideas-without-fireworks': 'Productivity & Lifestyle',
+  'fireworks-night-bingo': 'Arcade',
+  'fireworks-night-quiz': 'Arcade',
   // Fireworks Night planning and safety tools.
   'fireworks-night-checklist': 'Survival & Emergency Readiness',
   'fireworks-pet-preparation': 'Wellbeing & Community',
