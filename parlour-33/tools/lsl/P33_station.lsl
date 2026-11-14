@@ -11,8 +11,16 @@
 //  1 script.  0 listeners.  0 timers.
 // =====================================================================
 
-integer CH_LEDGER = -3303;
-integer CH_CARD   = -3304;
+
+// ---- channels ------------------------------------------------------
+// Derived from the owner, never fixed: a sandbox is full of other
+// people's scripts on every negative channel already.
+integer chan(integer base)
+{
+    return -(base + (integer)("0x" + llGetSubString((string)llGetOwner(), 0, 5)));
+}
+
+integer CH_LEDGER_BASE = 3303;
 
 vector BRASS   = <0.788, 0.635, 0.290>;
 vector CYAN    = <0.137, 0.898, 0.831>;
@@ -97,7 +105,7 @@ default
 
         if (mine == "") {
             llLinksetDataWrite("S|" + (string)who, "1");
-            llRegionSay(CH_LEDGER, "STAMP|" + (string)who + "|" + (string)deg);
+            llRegionSay(chan(CH_LEDGER_BASE), "STAMP|" + (string)who + "|" + (string)deg);
             llPlaySound("P33_STAMP", 0.8);
             whisper(who);
         } else {

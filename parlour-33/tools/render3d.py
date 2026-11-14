@@ -584,6 +584,70 @@ def view_pool(W, H):
     return img
 
 
+def build_kiosk(sc):
+    """The sandbox edition: 20 x 20 m, one gallery, two rooms, three games."""
+    Y = 0.0
+    T = 0.35
+    # floor
+    sc.plate((0, 20), (0, 20), Y, (0.10, 0.10, 0.12))
+    sc.plate((0.6, 8), (0.6, 19.4), Y + 0.03, (0.20, 0.14, 0.08))     # the Lane
+    sc.plate((8, 12), (0.6, 19.4), Y + 0.03, (0.10, 0.13, 0.17))      # the gallery
+    sc.plate((12, 19.4), (0.6, 19.4), Y + 0.03, (0.16, 0.06, 0.20))   # Cabinet Row
+    # walls: north, east, west (south left open for the cutaway)
+    sc.box((0, 20), (Y, 6.0), (0, T), P["slab"])
+    sc.box((0, T), (Y, 6.0), (0, 20), P["slab"])
+    # no roof and only two walls: this is a cutaway, not a box
+    sc.box((0, 20), (5.9, 6.0), (0, 0.35), P["brass"], em=0.25)
+    sc.box((0, 0.35), (5.9, 6.0), (0, 20), P["brass"], em=0.25)
+    sc.box((0, 20), (0, 0.3), (0, 0.3), P["brass"], em=0.15)
+    # gallery glazing + mullions
+    for x in (8.0, 12.0):
+        sc.quad((x, Y + 0.1, 0.6), (x, Y + 0.1, 19.4), (x, Y + 4.6, 19.4), (x, Y + 4.6, 0.6),
+                (0.45, 0.75, 0.82), alpha=0.10)
+    for k in range(6):
+        z = 0.6 + k * 3.76
+        for x in (8.0, 12.0):
+            sc.box((x - 0.06, x + 0.06), (Y, Y + 4.6), (z, z + 0.16), P["brass"], em=0.2)
+    # the two lanes
+    for i in range(2):
+        z0 = 5.0 + i * 3.6
+        sc.box((1.2, 7.6), (Y, Y + 0.06), (z0, z0 + 3.2), (0.22, 0.16, 0.09))
+        for k in range(10):
+            zc = z0 + 0.4 + k * 0.28
+            sc.cyl((7.9, Y + 0.06, zc), (7.9, Y + 0.85, zc), 0.08, P["bone"], 6)
+    # eight cabinets on the gallery wall
+    for i in range(8):
+        z = 3.0 + i * 2.0
+        sc.box((12.3, 13.2), (Y, Y + 1.9), (z, z + 1.5), (0.05, 0.04, 0.07))
+        sc.box((12.85, 13.2), (Y + 1.3, Y + 1.8), (z + 0.1, z + 1.4),
+               P["cyan"] if i % 2 else P["magenta"], em=0.95)
+    # the flume, crossing overhead
+    p0 = np.array([17.4, 5.6, 17.4])
+    p1 = np.array([3.0, 0.5, 3.4])
+    prev = p0
+    for i in range(1, 9):
+        f = i / 8.0
+        p = p0 + (p1 - p0) * f
+        sc.cyl(tuple(prev), tuple(p), 0.85, (0.55, 0.85, 0.90), 8, em=0.10, alpha=0.35)
+        prev = p
+    # the bell + the threshold
+    sc.cyl((10, 6.0, 9.0), (10, 7.6, 9.0), 1.3, P["brass"], 14, em=0.2)
+    sc.box((6, 14), (Y, Y + 3.4), (19.4, 21.4), (0.10, 0.08, 0.07))
+    sc.box((7, 13), (Y + 0.9, Y + 2.6), (19.6, 20.0), P["amber"], em=0.85)
+    sc.box((7.4, 12.0), (Y + 2.9, Y + 3.3), (19.5, 20.0), P["magenta"], em=1.0)
+    # the 34th door + the mirror
+    sc.box((12.0, 12.4), (Y, Y + 2.4), (9.4, 10.6), (0.16, 0.05, 0.08), em=0.25)
+    sc.box((19.3, 19.7), (Y, Y + 3.2), (3, 8), (0.06, 0.06, 0.08), em=0.05)
+
+
+def view_kiosk(W, H):
+    sc = Scene()
+    build_kiosk(sc)
+    img = render(sc, eye=(27, 12.0, 30), target=(9.5, 2.6, 9.0), W=W, H=H, fov=44,
+                 fog=(26, 120), amb=0.55, sun=(0.3, 0.9, 0.35))
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
@@ -595,6 +659,7 @@ def main():
         ("exterior", "render-03-exterior.png", view_exterior),
         ("gallery", "render-04-gallery.png", view_gallery),
         ("pool", "render-05-pool.png", view_pool),
+        ("kiosk", "render-06-kiosk.png", view_kiosk),
     ]
     for key, name, fn in jobs:
         if which not in ("all", key):

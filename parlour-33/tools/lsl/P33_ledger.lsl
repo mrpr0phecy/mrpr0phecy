@@ -10,8 +10,17 @@
 //  1 script.  1 listener.  0 timers.
 // =====================================================================
 
-integer CH_LEDGER = -3303;   // stations -> ledger
-integer CH_CARD   = -3304;   // ledger -> avatar
+
+// ---- channels ------------------------------------------------------
+// Derived from the owner, never fixed: a sandbox is full of other
+// people's scripts on every negative channel already.
+integer chan(integer base)
+{
+    return -(base + (integer)("0x" + llGetSubString((string)llGetOwner(), 0, 5)));
+}
+
+integer CH_LEDGER_BASE = 3303;   // stations -> ledger
+integer CH_CARD_BASE   = 3304;   // ledger -> avatar
 
 vector BRASS   = <0.788, 0.635, 0.290>;
 vector CYAN    = <0.137, 0.898, 0.831>;
@@ -44,7 +53,7 @@ say_card(key who)
     if (c == 0)      line = "THE HOUSE DOES NOT HAVE YOU YET.";
     else if (c < 33) line = "THE HOUSE HAS " + (string)c + " OF YOUR 33 DEGREES.";
     else             line = "THIRTY-THREE. THE LAMP ON THE 34TH IS WHITE.";
-    llRegionSayTo(who, CH_CARD, "P33|CARD|" + nm + "|" + (string)c + "|" + mask + "|" + line);
+    llRegionSayTo(who, chan(CH_CARD_BASE), "P33|CARD|" + nm + "|" + (string)c + "|" + mask + "|" + line);
     llRegionSayTo(who, 0, line);
 }
 
@@ -54,7 +63,7 @@ default
 {
     state_entry()
     {
-        llListen(CH_LEDGER, "", NULL_KEY, "");
+        llListen(chan(CH_LEDGER_BASE), "", NULL_KEY, "");
         llSetText("THE LEDGER\n\n  every guest is in the book\n  touch to be read", BRASS, 1.0);
     }
 
@@ -78,7 +87,7 @@ default
             llLinksetDataWrite("D|" + (string)who, (string)mask);
             integer now = count_bits((string)mask);
             if (now == 33) {
-                llRegionSay(CH_CARD, "P33|THIRTYTHREE|" + (string)who);
+                llRegionSay(chan(CH_CARD_BASE), "P33|THIRTYTHREE|" + (string)who);
                 llRegionSayTo(who, 0, "THE HOUSE HAS ALL OF YOU. THE LAMP ON THE 34TH IS WHITE.");
             } else if (now > had) {
                 llRegionSayTo(who, 0, "DEGREE " + (string)now + " OF 33.");

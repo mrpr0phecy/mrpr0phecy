@@ -91,7 +91,21 @@ The board therefore always shows a number **one above the best human score**, an
 
 ---
 
-## 5. Performance rules these scripts obey
+## 5. Channels — derived, never fixed
+
+A sandbox is already full of other people's scripts on every negative channel, so **no script uses a hard-coded channel.** All four that talk to each other derive the same number from the owner:
+
+```lsl
+integer chan(integer base)
+{
+    return -(base + (integer)("0x" + llGetSubString((string)llGetOwner(), 0, 5)));
+}
+// 3302 the House's book · 3303 stations -> ledger · 3304 ledger -> avatar
+```
+
+Two copies owned by two residents can never collide; the seven linksets of one build always agree. **If you sell or give the build away, the channels move with the owner automatically** — which is exactly what you want in a sandbox.
+
+## 6. Performance rules these scripts obey
 
 - **No `llSensor`, no `llCastRay`, no physics, no bullets** in any arcade script.
 - **One timer per cabinet**, `llSetTimerEvent(0.0)` when idle.

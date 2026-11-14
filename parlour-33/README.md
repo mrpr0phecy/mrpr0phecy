@@ -15,6 +15,11 @@
 
 ---
 
+> **Two editions.** The **WEAVE** is the region build: eight decks, 28 400 LI, everything in `01`–`10`.
+> The **BOX** is the sandbox edition: 20 × 20 m, **109 LI**, seven linksets, one gallery and three working
+> games — see [`11-sandbox-edition.md`](11-sandbox-edition.md) and [`plans/kiosk.svg`](plans/kiosk.svg).
+> Same scripts, same lore, same arithmetic; the Box is the Weave with the Weave taken out.
+
 ## What is in this package
 
 Read in order if you are building. Read 01 + 02 + 03 if you are approving.
@@ -32,6 +37,7 @@ Read in order if you are building. Read 01 + 02 + 03 if you are approving.
 | [`09-space-audit.md`](09-space-audit.md) | **no unused metre**: every cubic metre assigned, the five rooms that came out of the audit, the 12-object filler kit |
 | [`10-arcade.md`](10-arcade.md) | the 24 cabinets that actually work: build spec, the 8 game types, the Penny Parlour, the House's hand |
 | [`tools/lsl/`](tools/lsl/) | **the scripts**: cabinet core, three playable games, the scoreboard, the ledger, the station plaques |
+| [`11-sandbox-edition.md`](11-sandbox-edition.md) | **the sandbox edition**: the P33 BOX, 109 LI on a free parcel, its bill, its assembly, its 90-second demo, and the six decisions that make it survive a sandbox |
 | [`build_manifest.yaml`](build_manifest.yaml) | the same data, machine-readable, for the build bots |
 | [`plans/`](plans/) | generated SVG plans: one per deck, two sections, and the weave diagram |
 | [`renders/`](renders/) | **3D renders of the actual model** — cutaway, exterior, exploded stack, gallery and pool. Generated from `gen_plans.py` by `tools/render3d.py` |

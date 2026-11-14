@@ -26,8 +26,16 @@ integer MSG_READY = 104;   // game -> core, str = title
 integer MSG_BEAT  = 105;   // game -> core, str = score (player beat the House's hand)
 integer MSG_TOLL  = 200;   // the Toll
 
+
 // ---- channels ------------------------------------------------------
-integer CH_BOOK = -3302;   // the House's book (scoreboard)
+// Derived from the owner, never fixed: a sandbox is full of other
+// people's scripts on every negative channel already.
+integer chan(integer base)
+{
+    return -(base + (integer)("0x" + llGetSubString((string)llGetOwner(), 0, 5)));
+}
+
+integer CH_BOOK_BASE = 3302;   // the House's book (scoreboard)
 
 // ---- colour --------------------------------------------------------
 vector CYAN    = <0.137, 0.898, 0.831>;
@@ -116,7 +124,7 @@ finish(integer score)
 
     string nm = who_name(player);
     nm = llDumpList2String(llParseStringKeepNulls(nm, ["|"], []), " ");
-    llRegionSay(CH_BOOK, "P33|" + (string)llGetKey() + "|" + (string)score + "|" + nm);
+    llRegionSay(chan(CH_BOOK_BASE), "P33|" + (string)llGetKey() + "|" + (string)score + "|" + nm);
 
     player = NULL_KEY;
     cool = 5;

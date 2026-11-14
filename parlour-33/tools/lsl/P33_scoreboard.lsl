@@ -8,7 +8,16 @@
 //  1 script.  1 listener.  1 timer (20 s).
 // =====================================================================
 
-integer CH_BOOK = -3302;
+
+// ---- channels ------------------------------------------------------
+// Derived from the owner, never fixed: a sandbox is full of other
+// people's scripts on every negative channel already.
+integer chan(integer base)
+{
+    return -(base + (integer)("0x" + llGetSubString((string)llGetOwner(), 0, 5)));
+}
+
+integer CH_BOOK_BASE = 3302;
 integer MAX_ROWS = 10;
 
 list   rows     = [];       // "score|name|uuid"
@@ -67,7 +76,7 @@ default
         if (rows == [""]) rows = [];
         integer t = llGetUnixTime() / 3600;
         hourmark = (integer)t;
-        llListen(CH_BOOK, "", NULL_KEY, "");
+        llListen(chan(CH_BOOK_BASE), "", NULL_KEY, "");
         draw();
         llSetTimerEvent(20.0);
     }
