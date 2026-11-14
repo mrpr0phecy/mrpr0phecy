@@ -182,6 +182,39 @@ const aquariumList = [
 // Explicit slug → category map for tools added after 2026-09-05.
 // Checked before every substring list so nothing can steal these.
 const categoryMap = {
+  // Viral Christmas & Boxing Day planning, games, DIY and physics tools.
+  'christmas-dinner-oven-tetris': 'Culinary & Food Science',
+  'wrapping-paper-cut-calculator': 'Home & DIY',
+  'christmas-tree-lights-calculator': 'Home & DIY',
+  'white-elephant-game-moderator': 'Arcade',
+  'elf-midnight-rescue-planner': 'Productivity & Lifestyle',
+  'christmas-family-bingo-card': 'Arcade',
+  'christmas-movie-matchmaker-bracket': 'Arcade',
+  'santa-sleigh-physics-calculator': 'Science & Engineering',
+  'christmas-table-diplomat': 'Writing & Language',
+  'boxing-day-sandwich-architect': 'Culinary & Food Science',
+  // Wave 2 viral Christmas, Twixmas, maths & WebAudio carol tools.
+  'christmas-cheeseboard-grazing-calculator': 'Culinary & Food Science',
+  'gingerbread-house-blueprint-calculator': 'Culinary & Food Science',
+  'mulled-wine-festive-drinks-scaler': 'Culinary & Food Science',
+  'christmas-tree-pet-proofing-planner': 'Home & DIY',
+  'regift-detective-social-circle-checker': 'Productivity & Lifestyle',
+  'christmas-jumper-party-award-generator': 'Arcade',
+  'twixmas-survival-compass': 'Productivity & Lifestyle',
+  'christmas-shipping-post-cutoff-planner': 'Productivity & Lifestyle',
+  'twelve-days-of-christmas-cost-calculator': 'Mathematics',
+  'christmas-carol-bell-synth-quiz': 'Music & Audio',
+  // Wave 3 viral Christmas Eve, food science, hearth, etiquette & Cold Moon sky tools.
+  'santa-boot-footprint-stencil-planner': 'Home & DIY',
+  'christmas-chocolate-tin-peace-treaty': 'Arcade',
+  'christmas-guest-bed-airbed-tetris': 'Productivity & Lifestyle',
+  'christmas-morning-battery-toy-prep': 'Productivity & Lifestyle',
+  'roast-potato-crispness-lab': 'Culinary & Food Science',
+  'christmas-light-walk-hot-flask-planner': 'Productivity & Lifestyle',
+  'christmas-pub-quiz-round-generator': 'Arcade',
+  'christmas-tipping-thank-you-planner': 'Productivity & Lifestyle',
+  'fireplace-yule-log-heat-burn-calculator': 'Home & DIY',
+  'christmas-eve-night-sky-star-finder': 'Astronomy & Space',
   // More practical Fireworks Night tools.
   'firework-shapes-and-effects-guide': 'Science & Engineering',
   'fireworks-neighbour-notice-maker': 'Writing & Language',

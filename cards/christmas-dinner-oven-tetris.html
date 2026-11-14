@@ -1,0 +1,440 @@
+<h2 id="cdot-title" style="margin-top:0;color:var(--accent);">🍗 Christmas Dinner Oven Tetris &amp; Shelf Planner</h2>
+
+<div id="cdot-root">
+  <p id="cdot-desc" class="small">
+    Solve the Christmas Day oven bottleneck: map every tray onto a real shelf, resolve 180 °C vs 210 °C temperature clashes using the foil-rest window, and copy a minute-by-minute kitchen battle plan.
+  </p>
+
+  <form id="cdot-form" onsubmit="event.preventDefault();" style="margin:0;">
+    <div class="cdot-grid">
+      <div>
+        <label class="cdot-label" for="cdot-main">Centrepiece</label>
+        <select id="cdot-main" class="cdot-input">
+          <option value="turkey-whole" selected>Whole turkey (180 °C fan)</option>
+          <option value="turkey-crown">Turkey crown on bone (180 °C fan)</option>
+          <option value="beef">Beef rib / sirloin joint, medium (190 °C fan)</option>
+          <option value="gammon">Honey-glazed roast gammon (180 °C fan)</option>
+          <option value="nutroast">Festive Wellington / nut roast (190 °C fan)</option>
+        </select>
+      </div>
+      <div>
+        <label class="cdot-label" for="cdot-weight">Centrepiece weight (kg)</label>
+        <input id="cdot-weight" class="cdot-input" type="number" min="0.8" max="10" step="0.1" value="4.5" inputmode="decimal">
+      </div>
+      <div>
+        <label class="cdot-label" for="cdot-guests">Diners</label>
+        <input id="cdot-guests" class="cdot-input" type="number" min="2" max="24" step="1" value="8" inputmode="numeric">
+      </div>
+      <div>
+        <label class="cdot-label" for="cdot-oven">Kitchen setup</label>
+        <select id="cdot-oven" class="cdot-input">
+          <option value="single" selected>Single 60 cm fan oven (3 shelves)</option>
+          <option value="airfryer">Single fan oven + air fryer</option>
+          <option value="double">Double oven (main + top cavity)</option>
+        </select>
+      </div>
+      <div>
+        <label class="cdot-label" for="cdot-serve">Serve dinner at</label>
+        <input id="cdot-serve" class="cdot-input" type="time" value="14:30">
+      </div>
+    </div>
+
+    <fieldset class="cdot-fieldset">
+      <legend class="cdot-legend">Trimmings &amp; sides in play</legend>
+      <div class="cdot-checks">
+        <label class="cdot-check" for="cdot-side-roasties"><input id="cdot-side-roasties" type="checkbox" checked><span>Crispy roast potatoes (210 °C)</span></label>
+        <label class="cdot-check" for="cdot-side-pigs"><input id="cdot-side-pigs" type="checkbox" checked><span>Pigs in blankets (205 °C)</span></label>
+        <label class="cdot-check" for="cdot-side-parsnips"><input id="cdot-side-parsnips" type="checkbox" checked><span>Honey parsnips &amp; carrots (205 °C)</span></label>
+        <label class="cdot-check" for="cdot-side-stuffing"><input id="cdot-side-stuffing" type="checkbox" checked><span>Stuffing traybake (200 °C)</span></label>
+        <label class="cdot-check" for="cdot-side-yorkies"><input id="cdot-side-yorkies" type="checkbox" checked><span>Yorkshire puddings (215 °C)</span></label>
+        <label class="cdot-check" for="cdot-side-sprouts"><input id="cdot-side-sprouts" type="checkbox" checked><span>Chestnut &amp; bacon sprouts (hob)</span></label>
+        <label class="cdot-check" for="cdot-side-gravy"><input id="cdot-side-gravy" type="checkbox" checked><span>Pan gravy &amp; bread sauce (hob)</span></label>
+      </div>
+    </fieldset>
+
+    <div class="cdot-actions">
+      <button id="cdot-run" class="cdot-btn cdot-btn-primary" type="button">Calculate Oven Battle Plan</button>
+      <button id="cdot-copy" class="cdot-btn" type="button">Copy Plan for Group Chat</button>
+      <button id="cdot-reset" class="cdot-btn" type="button">Reset Defaults</button>
+      <span id="cdot-status" class="cdot-status" role="status" aria-live="polite"></span>
+    </div>
+  </form>
+
+  <div id="cdot-out" aria-live="polite">
+    <div id="cdot-banner" class="cdot-banner">—</div>
+
+    <div class="cdot-tiles">
+      <div class="cdot-tile">
+        <span class="cdot-k">Peak Oven Occupancy</span>
+        <strong id="cdot-stat-load" class="cdot-v">—</strong>
+        <span id="cdot-stat-load-sub" class="cdot-s">during high-heat crisp phase</span>
+      </div>
+      <div class="cdot-tile">
+        <span class="cdot-k">First Action</span>
+        <strong id="cdot-stat-start" class="cdot-v">—</strong>
+        <span id="cdot-stat-start-sub" class="cdot-s">kitchen start time</span>
+      </div>
+      <div class="cdot-tile">
+        <span class="cdot-k">Thermal Rest Window</span>
+        <strong id="cdot-stat-rest" class="cdot-v">—</strong>
+        <span class="cdot-s">frees oven for 210 °C crunch</span>
+      </div>
+      <div class="cdot-tile">
+        <span class="cdot-k">Hob Rings Active</span>
+        <strong id="cdot-stat-hob" class="cdot-v">—</strong>
+        <span class="cdot-s">out of 4 standard burners</span>
+      </div>
+    </div>
+
+    <div class="cdot-svgwrap">
+      <div class="cdot-svghead">Peak Crunch Window — Live Shelf &amp; Zone Allocation</div>
+      <svg id="cdot-svg" viewBox="0 0 680 250" aria-hidden="true" focusable="false"></svg>
+      <p id="cdot-caption" class="cdot-caption">—</p>
+    </div>
+
+    <div class="cdot-panel">
+      <h3 class="cdot-h3">Reverse-Timed Christmas Kitchen Schedule</h3>
+      <div id="cdot-timeline" class="cdot-timeline"></div>
+    </div>
+
+    <p class="cdot-note">
+      Food safety: oven timings are planning guides, not guarantees. Always check the thickest part of poultry and stuffing reaches <strong>75 °C</strong> (165 °F) with clear juices before resting.
+    </p>
+
+    <p class="cdot-links">
+      Pair with: <a href="/tool/turkey-thaw-cook-time.html">Turkey Thaw &amp; Cook Time</a> ·
+      <a href="/tool/sunday-roast-dinner-timeline.html">Sunday Roast Timeline</a> ·
+      <a href="/tool/christmas-table-diplomat.html">Table Topic Deflector</a> ·
+      <a href="/tool/boxing-day-sandwich-architect.html">Boxing Day Sandwich Architect</a>
+    </p>
+  </div>
+
+  <details class="cdot-details">
+    <summary>How Oven Tetris resolves temperature &amp; shelf clashes</summary>
+    <h3>Why roast potatoes go soggy when cooked alongside the turkey</h3>
+    <p>A whole turkey roasts gently at 180 °C fan and releases continuous steam into the cavity, whereas crisp roast potatoes and Yorkshire puddings need dry 210–215 °C heat. Crowding both into one oven steams the potatoes and dries the breast meat.</p>
+    <h3>The 45-minute thermal rest secret</h3>
+    <p>A 4–6 kg roast bird or joint insulated loosely under a double layer of foil and two clean dry tea towels holds piping-hot carving temperature for 40–55 minutes while muscle fibres relax and reabsorb juices. Pulling the centrepiece out 45–50 minutes before serving vacates the entire oven so you can turn the dial straight up to 210 °C fan for roasties, pigs in blankets, parsnips and Yorkshire puddings.</p>
+    <h3>Shelf physics inside a fan oven</h3>
+    <p>Even in a fan-assisted cavity, heat rises when trays block airflow: put Yorkshire puddings or roast potatoes on the top shelf, parsnips and pigs in blankets in the middle, and stuffing on the lower shelf. Rotate potato trays halfway if feeding more than 8 diners.</p>
+    <p class="cdot-muted">Last reviewed: 2026-11-12. Timings follow UK Food Standards Agency (FSA) roasting rules of thumb for preheated fan ovens.</p>
+  </details>
+
+  <style>
+    #cdot-root { color: var(--text, #d6d6d6); font-family: var(--font-sans, system-ui, sans-serif); }
+    #cdot-root * { box-sizing: border-box; }
+    #cdot-root .cdot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 10px; }
+    #cdot-root .cdot-label { display: block; font-size: .75rem; color: var(--text-secondary, #a3a3a3); margin-bottom: 4px; font-weight: 600; }
+    #cdot-root .cdot-input { width: 100%; min-height: 42px; padding: 9px 10px; border-radius: 8px; background: #04070a; color: var(--text, #d6d6d6); border: 1px solid rgba(255,255,255,.18); font: inherit; font-size: 16px; }
+    #cdot-root .cdot-fieldset { margin: 12px 0 0; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.025); }
+    #cdot-root .cdot-legend { padding: 0 6px; font-size: .78rem; font-weight: 700; color: var(--readout, #d4af37); }
+    #cdot-root .cdot-checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px; }
+    #cdot-root .cdot-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; cursor: pointer; padding: 4px 2px; }
+    #cdot-root .cdot-check input { width: 18px; height: 18px; accent-color: #ffd700; flex: none; }
+    #cdot-root .cdot-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+    #cdot-root .cdot-btn { min-height: 42px; padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(255,215,0,.4); background: rgba(255,215,0,.1); color: var(--text, #d6d6d6); font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer; }
+    #cdot-root .cdot-btn-primary { background: #ffd700; color: #04070a; border-color: #ffd700; }
+    #cdot-root .cdot-btn:hover { filter: brightness(1.08); }
+    #cdot-root .cdot-btn:focus-visible, #cdot-root .cdot-input:focus-visible, #cdot-root .cdot-check input:focus-visible { outline: 3px solid #ffd700; outline-offset: 2px; }
+    #cdot-root .cdot-status { font-size: .8rem; color: var(--readout, #d4af37); }
+    #cdot-root .cdot-banner { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: rgba(255,215,0,.08); border: 1px solid rgba(255,215,0,.32); font-size: .88rem; line-height: 1.5; font-weight: 600; }
+    #cdot-root .cdot-banner[data-warn="1"] { background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.45); }
+    #cdot-root .cdot-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 10px; margin-bottom: 12px; }
+    #cdot-root .cdot-tile { padding: 12px; border-radius: 10px; background: #0b1219; border: 1px solid rgba(255,255,255,.12); }
+    #cdot-root .cdot-k { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary, #a3a3a3); }
+    #cdot-root .cdot-v { display: block; margin-top: 4px; font-size: 1.18rem; font-weight: 800; color: var(--readout, #d4af37); font-variant-numeric: tabular-nums; }
+    #cdot-root .cdot-s { display: block; margin-top: 3px; font-size: .72rem; color: var(--text-secondary, #a3a3a3); line-height: 1.35; }
+    #cdot-root .cdot-svgwrap { padding: 12px; border-radius: 12px; background: #04070a; border: 1px solid rgba(255,255,255,.12); margin-bottom: 12px; }
+    #cdot-root .cdot-svghead { font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; color: var(--readout, #d4af37); margin-bottom: 8px; font-weight: 700; }
+    #cdot-root #cdot-svg { display: block; width: 100%; height: auto; }
+    #cdot-root .cdot-caption { margin: 6px 0 0; font-size: .75rem; color: var(--text-secondary, #a3a3a3); text-align: center; }
+    #cdot-root .cdot-panel { padding: 14px; border-radius: 12px; background: #0b1219; border: 1px solid rgba(255,255,255,.12); }
+    #cdot-root .cdot-h3 { margin: 0 0 10px; font-size: .95rem; color: var(--text, #d6d6d6); }
+    #cdot-root .cdot-timeline { display: grid; gap: 6px; }
+    #cdot-root .cdot-step { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.025); border-left: 3px solid #555555; font-size: .84rem; line-height: 1.45; align-items: baseline; }
+    #cdot-root .cdot-step[data-key="1"] { background: rgba(255,215,0,.07); border-left-color: #ffd700; font-weight: 600; }
+    #cdot-root .cdot-time { font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); font-weight: 800; color: #ffd700; font-variant-numeric: tabular-nums; }
+    #cdot-root .cdot-note { font-size: .8rem; color: var(--text-secondary, #a3a3a3); line-height: 1.5; margin: 12px 0 6px; }
+    #cdot-root .cdot-links { font-size: .8rem; color: var(--text-secondary, #a3a3a3); line-height: 1.6; margin: 6px 0 0; }
+    #cdot-root .cdot-links a { color: var(--accent, #ffd700); }
+    #cdot-root .cdot-details { margin-top: 14px; font-size: .84rem; color: var(--text-secondary, #a3a3a3); line-height: 1.6; }
+    #cdot-root .cdot-details summary { cursor: pointer; color: var(--accent, #ffd700); font-weight: 700; }
+    #cdot-root .cdot-details h3 { margin: 12px 0 4px; font-size: .88rem; color: var(--text, #d6d6d6); }
+    #cdot-root .cdot-muted { font-size: .76rem; color: var(--text-secondary, #a3a3a3); }
+  </style>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var MAINS = {
+    'turkey-whole': { label: 'Whole turkey', temp: '180 °C fan', rest: 45, calc: function (kg) { return kg < 4 ? Math.round(20 * kg + 70) : Math.round(20 * kg + 90); } },
+    'turkey-crown': { label: 'Turkey crown', temp: '180 °C fan', rest: 35, calc: function (kg) { return Math.round(20 * kg + 70); } },
+    'beef': { label: 'Beef roast joint', temp: '190 °C fan', rest: 35, calc: function (kg) { return Math.round(40 * kg + 25); } },
+    'gammon': { label: 'Honey-glazed gammon', temp: '180 °C fan', rest: 30, calc: function (kg) { return Math.round(40 * kg + 30); } },
+    'nutroast': { label: 'Festive Wellington / nut roast', temp: '190 °C fan', rest: 15, calc: function (kg) { return Math.max(45, Math.round(32 * kg + 25)); } }
+  };
+
+  function fmtTime(mins) {
+    var m = ((Math.round(mins) % 1440) + 1440) % 1440;
+    var hh = Math.floor(m / 60);
+    var mm = m % 60;
+    return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  }
+
+  function svgNode(tag, attrs, text) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (var k in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, k)) el.setAttribute(k, attrs[k]);
+    }
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function init() {
+    var root = document.getElementById('cdot-root');
+    if (!root || root.dataset.ready === '1') return;
+    root.dataset.ready = '1';
+
+    var $ = function (id) { return root.querySelector('#cdot-' + id); };
+    var lastShareText = '';
+
+    function compute() {
+      if (!document.getElementById('cdot-root')) return;
+      var mainKey = $('main').value in MAINS ? $('main').value : 'turkey-whole';
+      var main = MAINS[mainKey];
+      var kg = Math.min(10, Math.max(0.8, parseFloat($('weight').value) || 4.5));
+      var guests = Math.min(24, Math.max(2, parseInt($('guests').value, 10) || 8));
+      var ovenMode = $('oven').value;
+      var serveStr = $('serve').value || '14:30';
+      var parts = serveStr.split(':');
+      var serveMins = (parseInt(parts[0], 10) || 14) * 60 + (parseInt(parts[1], 10) || 30);
+
+      var hasRoasties = $('side-roasties').checked;
+      var hasPigs = $('side-pigs').checked;
+      var hasParsnips = $('side-parsnips').checked;
+      var hasStuffing = $('side-stuffing').checked;
+      var hasYorkies = $('side-yorkies').checked;
+      var hasSprouts = $('side-sprouts').checked;
+      var hasGravy = $('side-gravy').checked;
+
+      var cookMins = main.calc(kg);
+      var restMins = Math.max(main.rest, (hasRoasties || hasParsnips) ? 45 : main.rest);
+      if (mainKey === 'nutroast' && ovenMode !== 'double') restMins = 20;
+
+      // Slot capacity in half-shelf tray units (each standard oven shelf = 2 half-trays; large roastie sheet = 2 units)
+      var mainUnits = 6; // 3 shelves * 2 half-trays
+      var extraUnits = ovenMode === 'double' ? 4 : (ovenMode === 'airfryer' ? 2 : 0);
+      var totalCap = mainUnits + extraUnits;
+
+      var trays = [];
+      if (hasYorkies) trays.push({ name: 'Yorkshire Puddings', units: guests > 10 ? 2 : 1, zone: 'Top (215 °C)', mins: 22, color: '#ffd700' });
+      if (hasRoasties) trays.push({ name: guests > 8 ? 'Roast Potatoes (×2 trays)' : 'Roast Potatoes', units: guests > 8 ? 3 : 2, zone: 'Top/Mid (210 °C)', mins: 50, color: '#f0dc9a' });
+      if (hasPigs) trays.push({ name: 'Pigs in Blankets', units: guests > 10 ? 2 : 1, zone: ovenMode === 'airfryer' ? 'Air Fryer (200 °C)' : 'Mid (205 °C)', mins: ovenMode === 'airfryer' ? 18 : 30, color: '#d4af37' });
+      if (hasParsnips) trays.push({ name: 'Honey Parsnips & Carrots', units: guests > 10 ? 2 : 1, zone: 'Mid (205 °C)', mins: 38, color: '#e8a33d' });
+      if (hasStuffing) trays.push({ name: 'Stuffing Traybake', units: 1, zone: ovenMode === 'double' ? '2nd Oven (195 °C)' : 'Bottom (200 °C)', mins: 35, color: '#a1791f' });
+      if (mainKey === 'nutroast' && restMins < 35) {
+        trays.push({ name: main.label + ' (finishing)', units: 2, zone: 'Bottom/2nd', mins: 20, color: '#c084fc' });
+      }
+
+      var usedUnits = trays.reduce(function (s, t) { return s + t.units; }, 0);
+      var loadPct = Math.round((usedUnits / totalCap) * 100);
+
+      var hobRings = (hasRoasties ? 1 : 0) + (hasSprouts ? 1 : 0) + (hasGravy ? 2 : 0);
+      var peakHob = (hasSprouts ? 1 : 0) + (hasGravy ? 2 : 0);
+
+      var banner = $('banner');
+      if (loadPct > 100) {
+        banner.dataset.warn = '1';
+        banner.textContent = 'Shelf overload (' + loadPct + '% capacity for ' + guests + ' diners): pre-roast parsnips & stuffing 30 min early and flash-reheat for 6 min, or borrow a countertop air fryer for pigs in blankets.';
+      } else {
+        banner.dataset.warn = '0';
+        banner.textContent = 'Zero-clash plan locked: ' + main.label + ' (' + kg.toFixed(1) + ' kg) roasts at ' + main.temp + ', then rests ' + restMins + ' min under foil + towels while the oven jumps to 210 °C fan (' + loadPct + '% shelf load).';
+      }
+
+      var steps = [];
+      function addStep(minsBeforeServe, text, isKey) {
+        steps.push({ at: serveMins - minsBeforeServe, text: text, key: !!isKey });
+      }
+
+      var birdInOffset = restMins + cookMins;
+      var prepStartOffset = birdInOffset + 35;
+
+      addStep(prepStartOffset, 'Take ' + main.label.toLowerCase() + ' out of fridge to lose chill; peel potatoes & parsnips; preheat oven to ' + main.temp + '.', true);
+      addStep(birdInOffset, main.label + ' (' + kg.toFixed(1) + ' kg) INTO main oven at ' + main.temp + ' for ~' + cookMins + ' min.', true);
+      if (hasRoasties) {
+        addStep(restMins + 65, 'Parboil potatoes in salted water (9 min), drain, steam-dry & rough up edges in colander.', false);
+      }
+      if (mainKey === 'gammon') {
+        addStep(restMins + 25, 'Score diamond fat on gammon, stud cloves & brush honey-mustard glaze for final 25 min.', false);
+      }
+      addStep(restMins + 8, 'Put roasting fat/oil tray into oven to get smoking hot before bird comes out.', false);
+      addStep(restMins, 'PROBE CHECK (75 °C+) -> ' + main.label + ' OUT to warm board; tent loosely in double foil + 2 tea towels (' + restMins + ' min rest). Crank oven to 210 °C fan!', true);
+      if (hasRoasties) {
+        addStep(Math.min(restMins, 50), 'Turn potatoes in hot fat -> top/middle shelf at 210 °C fan (50 min, turn halfway).', true);
+      }
+      if (hasParsnips) {
+        addStep(38, 'Honey-glazed parsnips & carrots onto middle shelf (38 min).', false);
+      }
+      if (hasStuffing) {
+        addStep(35, 'Stuffing traybake into ' + (ovenMode === 'double' ? 'top/second oven (195 °C)' : 'lower shelf (35 min)') + '.', false);
+      }
+      if (hasPigs) {
+        if (ovenMode === 'airfryer') {
+          addStep(18, 'Pigs in blankets into Air Fryer at 200 °C (18 min, shake once — saves a whole oven shelf!).', true);
+        } else {
+          addStep(30, 'Pigs in blankets onto middle shelf (30 min until sticky & crisp).', false);
+        }
+      }
+      if (hasYorkies) {
+        addStep(22, 'Oven up to 215 °C -> Yorkshire pudding tin onto TOP shelf (22 min — DO NOT open door for first 18 min!).', true);
+      }
+      if (hasGravy) {
+        addStep(16, 'Hob rings 1 & 2: deglaze meat juices for gravy + warm bread/cranberry sauce on gentle simmer.', false);
+      }
+      if (hasSprouts) {
+        addStep(10, 'Hob ring 3: pan-sear shredded sprouts with bacon/chestnuts & butter (8–10 min); warm dinner plates.', false);
+      }
+      addStep(0, 'CARVE & SERVE — everything lands piping hot at ' + fmtTime(serveMins) + '!', true);
+
+      steps.sort(function (a, b) { return a.at - b.at; });
+
+      $('stat-load').textContent = loadPct + '% (' + usedUnits + '/' + totalCap + ')';
+      $('stat-load-sub').textContent = loadPct > 100 ? 'Over capacity — stagger 1 tray' : 'Tray units comfortably fitted';
+      $('stat-start').textContent = fmtTime(steps[0].at);
+      $('stat-start-sub').textContent = Math.round((serveMins - steps[0].at) / 60 * 10) / 10 + ' hrs total run time';
+      $('stat-rest').textContent = restMins + ' min';
+      $('stat-hob').textContent = peakHob + ' / 4 rings';
+
+      // Render SVG shelf diagram
+      var svg = $('svg');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      // Main Oven Box
+      svg.appendChild(svgNode('rect', { x: 14, y: 12, width: 390, height: 226, rx: 12, fill: '#0b1219', stroke: '#ffd700', 'stroke-width': '1.5' }));
+      svg.appendChild(svgNode('text', { x: 28, y: 34, fill: '#ffd700', 'font-size': '12', 'font-weight': '700' }, 'MAIN FAN OVEN (PHASE 2: 210 °C CRUNCH)'));
+
+      var shelfLabels = ['TOP SHELF (215 °C)', 'MID SHELF (205–210 °C)', 'LOWER SHELF (200 °C)'];
+      var shelfItems = [[], [], []];
+      trays.forEach(function (t) {
+        if (t.zone.indexOf('Air Fryer') === 0 || t.zone.indexOf('2nd Oven') === 0) return;
+        if (t.zone.indexOf('Top') === 0 && shelfItems[0].length < 2) shelfItems[0].push(t);
+        else if (shelfItems[1].length < 2) shelfItems[1].push(t);
+        else shelfItems[2].push(t);
+      });
+
+      for (var s = 0; s < 3; s++) {
+        var sy = 48 + s * 60;
+        svg.appendChild(svgNode('line', { x1: 26, y1: sy + 44, x2: 392, y2: sy + 44, stroke: '#555555', 'stroke-width': '2', 'stroke-dasharray': '6 3' }));
+        svg.appendChild(svgNode('text', { x: 28, y: sy + 12, fill: '#8a8a8a', 'font-size': '10' }, shelfLabels[s]));
+        var items = shelfItems[s];
+        if (items.length === 0) {
+          svg.appendChild(svgNode('text', { x: 205, y: sy + 32, fill: '#8a8a8a', 'font-size': '11', 'text-anchor': 'middle' }, 'Free airflow space'));
+        } else {
+          var wEach = Math.floor((356 - (items.length - 1) * 8) / items.length);
+          items.forEach(function (it, idx) {
+            var ix = 28 + idx * (wEach + 8);
+            svg.appendChild(svgNode('rect', { x: ix, y: sy + 17, width: wEach, height: 24, rx: 5, fill: 'rgba(255,215,0,0.14)', stroke: it.color, 'stroke-width': '1.2' }));
+            svg.appendChild(svgNode('text', { x: ix + wEach / 2, y: sy + 33, fill: '#f8fafc', 'font-size': '11', 'font-weight': '600', 'text-anchor': 'middle' }, it.name));
+          });
+        }
+      }
+
+      // Right column: Resting Station + Aux/Hob
+      svg.appendChild(svgNode('rect', { x: 420, y: 12, width: 246, height: 106, rx: 12, fill: '#0b1219', stroke: '#d4af37', 'stroke-width': '1.2' }));
+      svg.appendChild(svgNode('text', { x: 434, y: 34, fill: '#d4af37', 'font-size': '11', 'font-weight': '700' }, 'FOIL + TOWEL REST STATION'));
+      svg.appendChild(svgNode('rect', { x: 434, y: 44, width: 218, height: 34, rx: 6, fill: 'rgba(212,175,55,0.13)', stroke: '#d4af37' }));
+      svg.appendChild(svgNode('text', { x: 543, y: 65, fill: '#f8fafc', 'font-size': '11', 'font-weight': '700', 'text-anchor': 'middle' }, main.label + ' (' + restMins + 'm hold)'));
+      var auxLabel = ovenMode === 'airfryer' ? 'Air Fryer: ' + (hasPigs ? 'Pigs in Blankets' : 'Standby crisp') : (ovenMode === 'double' ? '2nd Oven: ' + (hasStuffing ? 'Stuffing / Warm plates' : 'Warm plates') : 'Counter: Warm plates & jug');
+      svg.appendChild(svgNode('text', { x: 434, y: 102, fill: '#a3a3a3', 'font-size': '10.5' }, auxLabel));
+
+      svg.appendChild(svgNode('rect', { x: 420, y: 132, width: 246, height: 106, rx: 12, fill: '#0b1219', stroke: '#555555', 'stroke-width': '1.2' }));
+      svg.appendChild(svgNode('text', { x: 434, y: 153, fill: '#f0dc9a', 'font-size': '11', 'font-weight': '700' }, '4-RING HOB ASSIGNMENT'));
+      var rings = [
+        hasGravy ? 'Gravy pan' : 'Free ring',
+        hasGravy ? 'Bread/cranberry' : 'Free ring',
+        hasSprouts ? 'Sprouts & bacon' : 'Free ring',
+        'Kettle / veg'
+      ];
+      rings.forEach(function (rLabel, ri) {
+        var rx = 434 + (ri % 2) * 112;
+        var ry = 164 + Math.floor(ri / 2) * 34;
+        var active = rLabel.indexOf('Free') !== 0;
+        svg.appendChild(svgNode('rect', { x: rx, y: ry, width: 104, height: 26, rx: 6, fill: active ? 'rgba(240,220,154,0.1)' : 'rgba(255,255,255,0.03)', stroke: active ? '#f0dc9a' : '#555555' }));
+        svg.appendChild(svgNode('text', { x: rx + 52, y: ry + 17, fill: active ? '#f8fafc' : '#8a8a8a', 'font-size': '10', 'text-anchor': 'middle' }, rLabel));
+      });
+
+      $('caption').textContent = 'Serving ' + guests + ' at ' + fmtTime(serveMins) + ' · ' + usedUnits + ' of ' + totalCap + ' tray slots used during the 210 °C crunch window.';
+
+      // Render Timeline
+      var tl = $('timeline');
+      while (tl.firstChild) tl.removeChild(tl.firstChild);
+      steps.forEach(function (st) {
+        var row = document.createElement('div');
+        row.className = 'cdot-step';
+        row.dataset.key = st.key ? '1' : '0';
+        var tSpan = document.createElement('span');
+        tSpan.className = 'cdot-time';
+        tSpan.textContent = fmtTime(st.at);
+        var dSpan = document.createElement('span');
+        dSpan.textContent = st.text;
+        row.appendChild(tSpan);
+        row.appendChild(dSpan);
+        tl.appendChild(row);
+      });
+
+      var lines = ['🍗 CHRISTMAS DINNER OVEN BATTLE PLAN (' + guests + ' diners · Serve ' + fmtTime(serveMins) + ')', 'Centrepiece: ' + main.label + ' (' + kg.toFixed(1) + ' kg) · Peak shelf load: ' + loadPct + '%', ''];
+      steps.forEach(function (st) {
+        lines.push(fmtTime(st.at) + ' — ' + st.text);
+      });
+      lines.push('', 'Built on https://www.themostusefulsiteintheworld.com/tool/christmas-dinner-oven-tetris.html');
+      lastShareText = lines.join('\n');
+    }
+
+    $('run').addEventListener('click', compute);
+    ['main', 'weight', 'guests', 'oven', 'serve', 'side-roasties', 'side-pigs', 'side-parsnips', 'side-stuffing', 'side-yorkies', 'side-sprouts', 'side-gravy'].forEach(function (id) {
+      var el = $(id);
+      el.addEventListener('change', compute);
+      if (el.tagName === 'INPUT' && el.type !== 'checkbox') el.addEventListener('input', compute);
+    });
+
+    $('reset').addEventListener('click', function () {
+      $('main').value = 'turkey-whole';
+      $('weight').value = '4.5';
+      $('guests').value = '8';
+      $('oven').value = 'single';
+      $('serve').value = '14:30';
+      ['side-roasties', 'side-pigs', 'side-parsnips', 'side-stuffing', 'side-yorkies', 'side-sprouts', 'side-gravy'].forEach(function (id) {
+        $(id).checked = true;
+      });
+      $('status').textContent = 'Reset to 8-diner classic setup.';
+      compute();
+    });
+
+    $('copy').addEventListener('click', function () {
+      if (!lastShareText) compute();
+      var status = $('status');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(lastShareText).then(function () {
+          if (!document.getElementById('cdot-root')) return;
+          status.textContent = 'Battle plan copied to clipboard!';
+        }).catch(function () {
+          if (!document.getElementById('cdot-root')) return;
+          status.textContent = 'Select the schedule below to copy manually.';
+        });
+      } else {
+        status.textContent = 'Select the schedule below to copy manually.';
+      }
+    });
+
+    compute();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
