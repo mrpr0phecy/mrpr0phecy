@@ -29,6 +29,8 @@ One region, one building, no sim crossings. The footprint is deliberately small:
 
 ---
 
+> **See it in 3D:** [`renders/render-02-section.png`](renders/render-02-section.png) (cutaway), [`render-04-gallery.png`](renders/render-04-gallery.png) (eye level) and the exploded stack are generated straight from this document's numbers by `tools/render3d.py`. If the render and the text disagree, the text is wrong.
+
 ## 2. Why a block and not a drum
 
 The first draft of this house was a drum with a 28 m hole down the middle, and it was wrong in one specific way: **an atrium is a shopping centre.** Put everything on the edge of a void and you have built a mall with games in it — you can see the whole building from the door, so there is nothing to discover, and the space reads as one big room rather than a place you go *into*.

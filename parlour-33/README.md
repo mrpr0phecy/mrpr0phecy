@@ -34,15 +34,18 @@ Read in order if you are building. Read 01 + 02 + 03 if you are approving.
 | [`tools/lsl/`](tools/lsl/) | **the scripts**: cabinet core, three playable games, the scoreboard, the ledger, the station plaques |
 | [`build_manifest.yaml`](build_manifest.yaml) | the same data, machine-readable, for the build bots |
 | [`plans/`](plans/) | generated SVG plans: one per deck, two sections, and the weave diagram |
+| [`renders/`](renders/) | **3D renders of the actual model** — cutaway, exterior, exploded stack, gallery and pool. Generated from `gen_plans.py` by `tools/render3d.py` |
 | [`art/`](art/) | concept images: `concept-the-weave.png` (the interior, as built), `concept-the-block.png` (the building from the plaza at 3 am), `the-croupier.png` (the House's hands) and `cabinet-row.png` (the arcade). `concept-the-well.png` / `concept-the-drum.png` are the superseded first draft, kept for the light |
 | [`tools/gen_plans.py`](tools/gen_plans.py) | the coordinate model. Every dimension in the docs comes from here |
+| [`tools/render3d.py`](tools/render3d.py) | the 3D renderer: reads the coordinate model, writes `renders/*.png` |
 
 The nine documents run **place → programme → build → character**. If you are only reading two, read `02` (how it stands up) and `08` (who it is).
 
-Regenerate the drawings any time with:
+Regenerate the drawings and the 3D any time with:
 
 ```bash
-python3 parlour-33/tools/gen_plans.py
+python3 parlour-33/tools/gen_plans.py     # plans/*.svg
+python3 parlour-33/tools/render3d.py      # renders/*.png   (~25 s, numpy + pillow)
 ```
 
 The plans are **schematics**: metres, zones, circulation and sightlines. They are not prim plans. They are drawn to a single coordinate model so a bot can trust the numbers.
