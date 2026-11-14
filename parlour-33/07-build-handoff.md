@@ -97,12 +97,12 @@ Build in this order, because they are what people judge:
 
 ### Phase 8 — The degrees (33 sigils, HUD, controller)
 - 33 plaques, the HUD, the season state, the 34th Door
-- **Gate:** a fresh alt collects all 33 using only in-world information, and opens the door. LI ≤ 26 500 cumulative.
+- **Gate:** a fresh alt collects all 33 using only in-world information, and opens the door. LI ≤ 26 500 cumulative. **Scripts:** `P33_ledger.lsl` on the Hive and `P33_station.lsl` on all 33 plaques (see `tools/lsl/`), and the voice lines in `08` §6.3.
 
 ### Phase 9 — Dressing, light, sound, and the lie
 - the Threshold's shabby frontage (the last thing built, the first thing seen)
 - lamps, rugs, evidence, taxidermy, flyers, the wrong clocks
-- **Gate:** the five images in `05` §10 exist and are good. LI ≤ 28 400.
+- **Gate:** the five images in `05` §10 exist and are good. LI ≤ 28 400. **Dress from the filler kit in `09` §5, not from taste** — 400 placements have to read as one house. Cabinets swap modules per `10` §2, and every cabinet's marquee must show the House's hand.
 
 ---
 

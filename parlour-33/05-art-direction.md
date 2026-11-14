@@ -201,6 +201,8 @@ Concept images live in [`art/`](art/) and are the visual target for tone, not fo
 
 - **`art/concept-the-weave.png`** — **the primary target.** One gallery, straight down the building: water and swimmers through the left glass, ice and skaters and a velvet bar through the right, the flume tube crossing overhead, card and mah-jongg suits inlaid in brass in the wet black floor, neon blades stacked above the shopfronts. Everything the art direction is trying to do is in this frame: two games, three metres apart, through one pane.
 - **`art/concept-the-block.png`** — the exterior, 3 am, rain: a blank black 68 m block with a brass parapet line, band windows, a coaster cresting the roof — and a crummy two-storey shopfront glued to its base, mah-jongg players visible inside. This is the lie and the reveal in one image.
+- **`art/the-croupier.png`** — the character target: the mirror above the Pit's table, the coat, the gloves, the mask of thirty-three holes. Everything about how the House should feel is in this frame, including the fact that you cannot see him directly.
+- **`art/cabinet-row.png`** — the arcade target: black lacquer, brass token trays, and screens that are visibly **made of lit cubes**, which is exactly what the sprite system in `10` is.
 - **`concept-the-well.png`** / **`concept-the-drum.png`** — *superseded first draft, with the atrium. Keep them for light, palette and density only; ignore the geometry entirely.*
 
 Use them for light, colour and density. Do **not** copy their layout: the plans are the layout. In particular, `concept-the-weave.png` was generated with a gate-frame in the middle distance — the real gallery has no portal, only a continuous mullion rhythm at 14.5 m intervals.

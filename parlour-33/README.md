@@ -28,10 +28,16 @@ Read in order if you are building. Read 01 + 02 + 03 if you are approving.
 | [`05-art-direction.md`](05-art-direction.md) | palette, materials, signage, type, the symbol lexicon (parlour / masonic / occult, twisted), light, sound |
 | [`06-secondlife-constraints.md`](06-secondlife-constraints.md) | land impact, LOD, alpha, physics, scripts, Experiences, casino & rating policy, performance budget |
 | [`07-build-handoff.md`](07-build-handoff.md) | phases, object naming, bot task order, QA gates, launch checklist |
+| [`08-the-house.md`](08-the-house.md) | **the character bible**: the House, the Croupier, the Hare, the Stewards, the nine rules, the voice, the rituals, the twelve secrets, three endings |
+| [`09-space-audit.md`](09-space-audit.md) | **no unused metre**: every cubic metre assigned, the five rooms that came out of the audit, the 12-object filler kit |
+| [`10-arcade.md`](10-arcade.md) | the 24 cabinets that actually work: build spec, the 8 game types, the Penny Parlour, the House's hand |
+| [`tools/lsl/`](tools/lsl/) | **the scripts**: cabinet core, three playable games, the scoreboard, the ledger, the station plaques |
 | [`build_manifest.yaml`](build_manifest.yaml) | the same data, machine-readable, for the build bots |
 | [`plans/`](plans/) | generated SVG plans: one per deck, two sections, and the weave diagram |
-| [`art/`](art/) | concept images: `concept-the-weave.png` (the interior, as built) and `concept-the-block.png` (the building from the plaza at 3 am). `concept-the-well.png` / `concept-the-drum.png` are the superseded first draft, kept for the light |
+| [`art/`](art/) | concept images: `concept-the-weave.png` (the interior, as built), `concept-the-block.png` (the building from the plaza at 3 am), `the-croupier.png` (the House's hands) and `cabinet-row.png` (the arcade). `concept-the-well.png` / `concept-the-drum.png` are the superseded first draft, kept for the light |
 | [`tools/gen_plans.py`](tools/gen_plans.py) | the coordinate model. Every dimension in the docs comes from here |
+
+The nine documents run **place → programme → build → character**. If you are only reading two, read `02` (how it stands up) and `08` (who it is).
 
 Regenerate the drawings any time with:
 
@@ -51,6 +57,7 @@ The plans are **schematics**: metres, zones, circulation and sightlines. They ar
 4. **You enter under a shabby shopfront** and drop four metres into the dark. Then you climb the degrees — every deck is a degree.
 5. **Every modern attraction is a Victorian parlour game, supersized.** Bowling is skittles. Mini golf is croquet. Laser quest is blind man's buff. Karting is hoop-trundling.
 6. **The occult furniture is the house's joke.** Square and compasses redrawn as a cocktail glass and a joypad. The letter G replaced with a glowing 33. The lodge thinks it has the degrees; the house has thirty-four.
+7. **The House is a character, not a theme.** It writes you down, it posts a score one point above yours, it notices when you beat it, and at thirty-three degrees the door it says is not locked turns out to be occupied. See `08`.
 
 ---
 

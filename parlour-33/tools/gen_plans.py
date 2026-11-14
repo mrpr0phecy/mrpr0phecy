@@ -124,6 +124,8 @@ DECKS = [
              (99, 99, 125, 157, "THE MIRROR · hall", "ice"),
              (107, 114, 121, 142, "THE RINK · ice on glass", "ice"),
              (121, 130, 125, 148, "RINKSIDE", "bar"),
+             (99, 99, 106, 157, "~THE BLADE LIBRARY", "structure"),
+             (99, 114, 106, 142, "~THE COLD BENCH", "ice"),
              (125, 99, 131, 157, "THE GLASS GALLERY", "gallery"),
              (131, 99, 143, 112, "THE COLD ROOM", "ice"),
              (145, 99, 157, 112, "THE BLIND DOOR", "dark"),
@@ -146,13 +148,15 @@ DECKS = [
              (124, 103, 130, 120, "PIN DECK", "lane"),
              (131, 99, 157, 125, "THE SALON · the hub", "bar"),
              (99, 131, 157, 157, "CABINET ROW · 24 machines", "arcade"),
+             (99, 143, 110, 152, "~THE DEEP END", "arcade"),
+             (128, 143, 134, 149, "~THE CHANGE BOOTH", "service"),
              (139, 143, 150, 154, "THE FORTUNE", "arcade"),
              (139, 132, 150, 142, "THE CLAW", "arcade"),
              (99, 125, 157, 131, "THE GLASS GALLERY", "gallery"),
          ],
          voids=[(107, 120, 121, 125, "LOOK DOWN · THE ICE"),
                 (107, 131, 121, 140, "LOOK DOWN · THE ICE")],
-         feats=[],
+         feats=[("lanes", [], "")],
          stairs=True,
          notes="At the foul line the ice is one deck under your ball and the casino one deck over your pinsetters."),
 
@@ -181,6 +185,7 @@ DECKS = [
              (125, 99, 131, 157, "THE GLASS GALLERY", "gallery"),
              (131, 99, 157, 157, "THE SPIRAL · kart circuit", "kart"),
              (133, 99, 155, 110, "PIT LANE / GARAGE", "kart"),
+             (136, 114, 152, 138, "~THE ISLAND · bar", "bar"),
          ],
          voids=[(101, 101, 111, 111, "LOOK DOWN · THE LODGE")],
          feats=[("kart", [(133, 112), (155, 112), (155, 140), (133, 140), (133, 112)], ""),
@@ -300,15 +305,39 @@ def plan_sheet(d):
              f'font-family="ui-monospace,monospace">THE RIBBON · {d["ribbon"]}</text>')
 
     # rooms
-    body, marks, rows = [], [], []
+    body, marks, rows, labels = [], [], [], []
+    centres = []
+    for (x0, z0, x1, z1, name, key) in d["rooms"]:
+        if x0 == "__lanes__":
+            centres.append(None)
+        else:
+            centres.append(((x0 + x1) / 2.0, (z0 + z1) / 2.0))
     idx = 0
     for (x0, z0, x1, z1, name, key) in d["rooms"]:
         if x0 == "__lanes__":
             continue
         fill, stroke = FILL[key]
-        o.append(rect(x0, z0, x1, z1, fill, stroke, 1.4))
+        sub = name.startswith("~")
+        o.append(rect(x0, z0, x1, z1, fill, stroke, 1.1 if sub else 1.4, op=0.55 if sub else 1.0))
+        if sub:
+            continue
         idx += 1
         cx, cz = px((x0 + x1) / 2, (z0 + z1) / 2)
+        crowded = False
+        me = ((x0 + x1) / 2.0, (z0 + z1) / 2.0)
+        for other in centres:
+            if other is None or other == me:
+                continue
+            if abs(other[0] - me[0]) < 7.0 and abs(other[1] - me[1]) < 7.0:
+                crowded = True
+        if crowded:
+            rows.append((idx, stroke, name))
+            if min(x1 - x0, z1 - z0) >= 12:
+                nm = name.split(" · ")[0]
+                labels.append(f'<text x="{cx:.1f}" y="{cz+34:.1f}" fill="{PAPER}" font-size="10.5" '
+                              f'text-anchor="middle" font-family="ui-monospace,monospace" '
+                              f'opacity="0.75" letter-spacing="0.6">{esc(nm)}</text>')
+            continue
         marks.append(
             f'<circle cx="{cx:.1f}" cy="{cz:.1f}" r="10.5" fill="#07070A" '
             f'fill-opacity="0.94" stroke="{stroke}" stroke-width="1.5"/>'
@@ -318,9 +347,9 @@ def plan_sheet(d):
         rows.append((idx, stroke, name))
         if min(x1 - x0, z1 - z0) >= 12:
             nm = name.split(" · ")[0]
-            o.append(f'<text x="{cx:.1f}" y="{cz+22:.1f}" fill="{PAPER}" font-size="10.5" '
-                     f'text-anchor="middle" font-family="ui-monospace,monospace" '
-                     f'opacity="0.75" letter-spacing="0.6">{esc(nm)}</text>')
+            labels.append(f'<text x="{cx:.1f}" y="{cz+22:.1f}" fill="{PAPER}" font-size="10.5" '
+                          f'text-anchor="middle" font-family="ui-monospace,monospace" '
+                          f'opacity="0.75" letter-spacing="0.6">{esc(nm)}</text>')
 
     # voids
     for (x0, z0, x1, z1, label) in d["voids"]:
@@ -426,6 +455,7 @@ def plan_sheet(d):
                      f'font-family="ui-monospace,monospace">ENTRY</text>')
 
     o.append("".join(marks))
+    o.append("".join(labels))
 
     # section lines
     o.append(f'<line x1="{px(112,84)[0]:.1f}" y1="{PY0}" x2="{px(112,84)[0]:.1f}" '
