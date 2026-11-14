@@ -11,6 +11,8 @@ Seven scripts. Two of them run on all 24 arcade cabinets; the rest run once each
 | `P33_scoreboard.lsl` | the board in Cabinet Row, root | the House's book: hourly Toll, records, initials |
 | `P33_ledger.lsl` | the Hive, B1, root | the degrees: per-avatar persistence in linkset data |
 | `P33_station.lsl` | the 33 plaques | a stamp, a degree, a whisper, the Hare |
+| `P33_bell.lsl` | the Bell on the roof | the ring on a beat, the Toll on the hour, the Séance, the Third Hour |
+| `P33_door.lsl` | the 34th door plaque | a three-second window on the hour, once a day, for one guest |
 
 ---
 
@@ -69,7 +71,18 @@ Column 0 on the **player's left** means `y` decreases as the column increases �
 | 103 | core → game | stop / go to attract |
 | 104 | game → core | module ready (`str` = game title) |
 | 105 | game → core | the player beat the House's hand |
+| 106 | core → game | play the tape (the Ghost, `12-the-loop.md` 3.1) |
+| 107 | game → core | the tape finished; back to attract |
 | 200 | core → linkset | the Toll: re-strike the board |
+
+**Region channel messages** (all on derived channels, all two-argument `llRegionSay`):
+
+| Message | From | Meaning |
+|---|---|---|
+| `P33\|<cabinet key>\|<score>\|<name>` | every cabinet | a finished run; the Bell rings, the book is struck |
+| `STAMP\|<uuid>\|<degree>` | the 33 plaques | a degree claimed |
+| `COUNT\|RUN\|n` · `COUNT\|BEAT\|n` | every cabinet | the Ledger's local counters |
+| `COUNT\|DOOR\|1` | the 34th door | the door opened |
 
 **One rule:** the core never writes a sprite, and a game never reads a pad. That is what lets the Mechanic swap a module into any cabinet in the house without touching anything else.
 
@@ -108,8 +121,8 @@ Two copies owned by two residents can never collide; the seven linksets of one b
 ## 6. Performance rules these scripts obey
 
 - **No `llSensor`, no `llCastRay`, no physics, no bullets** in any arcade script.
-- **One timer per cabinet**, `llSetTimerEvent(0.0)` when idle.
+- **One timer per cabinet.** Idle, it is set for the next hour boundary (the Toll); busy, 0.5 s for the Tell or 1 s for the cooldown. Never a 0.1 s poll.
 - `llSetLinkPrimitiveParamsFast` only — never `llSetPrimitiveParams` in a loop.
 - Listeners: **none** on cabinets. State lives in linkset data, not in chat.
-- Scoreboard uses `llRegionSay(-3302, …)` once per completed run, and nothing else, ever.
+- Region traffic is one `llRegionSay` per completed run on the derived book channel, and nothing else, ever.
 - Estimates: **0.6 ms per cabinet at idle, 0.05 ms per active game**, × 24 = well inside the `06` §6 ceiling.

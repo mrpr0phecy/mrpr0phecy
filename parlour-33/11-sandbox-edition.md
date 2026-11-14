@@ -73,6 +73,8 @@ The Box is not a demo of the building. **It is a demo of the machine**: the glas
 
 Seven linksets: **shell** (14), **lanes** (14), **cabinets** (40), **flume** (8), **bell** (6), **ledger+plaques+door** (11), **dressing** (16).
 
+**Plus two, from `12`:** the **Board of the House** on the gallery's end wall — one prim, one script, ten names and their gaps. That is the sandbox build as it should be shipped: **111 of 117 LI**, 6 spare.
+
 ---
 
 ## 4. Assembly — ten minutes, no notecard

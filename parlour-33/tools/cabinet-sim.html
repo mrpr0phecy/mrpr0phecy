@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>THE ADDER · PARLOUR XXXIII cabinet simulator</title>
+<style>
+  :root{
+    --ink:#07070A; --bone:#E8E1D0; --brass:#C9A24A; --cyan:#23E5D4;
+    --magenta:#FF2E88; --oxblood:#6E1B22; --dim:#3a3a44;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--bone);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    -webkit-font-smoothing:antialiased}
+  body{display:grid;place-items:center;padding:24px}
+  .rig{display:grid;grid-template-columns:auto 340px;gap:26px;align-items:start}
+
+  /* ---------------- the cabinet ---------------- */
+  .cab{
+    position:relative;padding:18px 18px 22px;border-radius:6px;
+    background:linear-gradient(180deg,#12121a 0%,#0b0b10 60%,#08080c 100%);
+    border:1px solid #23232e;
+    box-shadow:0 0 0 1px #000 inset, 0 30px 80px -20px #000, 0 0 90px -40px var(--cyan);
+  }
+  .marquee{
+    display:flex;justify-content:space-between;gap:12px;align-items:baseline;
+    padding:10px 14px;margin-bottom:14px;border-radius:3px;
+    background:#0a0a0e;border:1px solid #241f14;
+    box-shadow:inset 0 0 24px -8px var(--brass), 0 0 22px -12px var(--brass);
+    letter-spacing:.14em;font-size:12px;color:var(--brass);
+    transition:color .18s, box-shadow .18s;
+  }
+  .marquee.play{color:var(--cyan);box-shadow:inset 0 0 26px -8px var(--cyan),0 0 26px -10px var(--cyan)}
+  .marquee.win{color:var(--magenta);box-shadow:inset 0 0 26px -8px var(--magenta),0 0 30px -8px var(--magenta)}
+  .marquee b{font-weight:600}
+  #title{color:var(--bone);opacity:.85}
+
+  .screen{
+    position:relative;padding:12px;border-radius:4px;background:#050507;
+    border:1px solid #1b1b24;box-shadow:inset 0 0 40px -14px #000;
+    transition:box-shadow .12s;
+  }
+  .screen.close{box-shadow:inset 0 0 40px -14px #000, 0 0 26px -6px var(--magenta)}
+  canvas{display:block;image-rendering:pixelated;border-radius:2px}
+
+  .pads{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px;width:100%}
+  .pad{
+    height:44px;border-radius:3px;background:#141420;border:1px solid #262634;
+    color:#8c8ca0;font-size:15px;display:grid;place-items:center;cursor:pointer;
+    user-select:none;transition:background .08s,color .08s,transform .06s;
+  }
+  .pad:active,.pad.hit{background:#1d2b2e;color:var(--cyan);transform:translateY(1px);
+    border-color:#2b5a58;box-shadow:0 0 16px -6px var(--cyan)}
+  .pad.spacer{visibility:hidden}
+
+  /* ---------------- the house panel ---------------- */
+  .panel{display:flex;flex-direction:column;gap:14px;font-size:12px;line-height:1.6}
+  .card{border:1px solid #1e1e28;border-radius:4px;padding:14px 16px;background:#0a0a0f}
+  .card h2{margin:0 0 10px;font-size:10px;letter-spacing:.22em;color:var(--brass);
+    font-weight:500;text-transform:uppercase}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+  .row span:last-child{color:var(--bone)}
+  .gap{display:flex;align-items:baseline;justify-content:center;gap:14px;
+    padding:6px 0 2px;font-size:26px;letter-spacing:.06em}
+  .gap .you{color:var(--cyan)}
+  .gap .house{color:var(--magenta)}
+  .gap .vs{font-size:10px;color:var(--dim);letter-spacing:.2em}
+  #log{height:150px;overflow:auto;font-size:11px;line-height:1.55;color:#9a9aae}
+  #log div{padding:2px 0;border-bottom:1px solid #14141c}
+  #log .house{color:var(--magenta)}
+  #log .you{color:var(--cyan)}
+  #log .brass{color:var(--brass)}
+  .hint{color:var(--dim);font-size:10.5px;letter-spacing:.04em}
+  .kbd{border:1px solid #262634;border-radius:3px;padding:0 4px;color:#9a9aae}
+  .foot{grid-column:1/3;color:var(--dim);font-size:10.5px;letter-spacing:.06em;line-height:1.7}
+  .foot b{color:var(--brass);font-weight:500}
+  @media (max-width:860px){.rig{grid-template-columns:1fr}.foot{grid-column:auto}}
+</style>
+</head>
+<body>
+<div class="rig">
+
+  <div class="cab">
+    <div class="marquee" id="marquee">
+      <span><b id="title">THE ADDER</b></span>
+      <span id="mq">BEST 0 · HOUSE 1</span>
+    </div>
+    <div class="screen" id="screen">
+      <canvas id="cv" width="336" height="336"></canvas>
+    </div>
+    <div class="pads">
+      <div class="pad spacer"></div>
+      <div class="pad" data-dir="0">▲</div>
+      <div class="pad spacer"></div>
+      <div class="pad" data-dir="3">◀</div>
+      <div class="pad" data-dir="2">▼</div>
+      <div class="pad" data-dir="1">▶</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="card">
+      <h2>the gap</h2>
+      <div class="gap"><span class="you" id="gyou">0</span><span class="vs">VS</span><span class="house" id="ghouse">1</span></div>
+      <div class="row"><span>your best</span><span id="best">0</span></div>
+      <div class="row"><span>the house's hand</span><span id="hand">1</span></div>
+      <div class="row"><span>raised by tolls</span><span id="raised">0</span></div>
+      <div class="row"><span>runs played</span><span id="runs">0</span></div>
+      <div class="row"><span>times beaten</span><span id="beats">0</span></div>
+    </div>
+
+    <div class="card">
+      <h2>the house</h2>
+      <div id="log"></div>
+    </div>
+
+    <div class="card">
+      <h2>controls</h2>
+      <div class="hint">
+        <span class="kbd">←</span> <span class="kbd">↑</span> <span class="kbd">↓</span> <span class="kbd">→</span> or WASD ·
+        <span class="kbd">space</span> to take the seat · <span class="kbd">G</span> ghost on/off ·
+        <span class="kbd">T</span> force a toll
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>PARLOUR XXXIII · cabinet simulator.</b> This page runs the same arithmetic as
+    <code>tools/lsl/P33_cab_core.lsl</code> + <code>P33_game_adder.lsl</code>: a seeded 12×12 board, +3 an apple,
+    a tick that tightens to 0.18 s, and <b>the House's hand = your best + 1 + every toll it has taken.</b>
+    The idle cabinet replays <b>a real run</b> — the last one that beat the record — because the board is
+    deterministic and the run is stored as a tape. Beat the House and the Bell rings.
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- constants: these mirror the LSL exactly -------------------------
+  const W = 12, H = 12, CELL = 28, PAD = 6;
+  const SCORE_PER_APPLE = 3, TICK0 = 0.30, TICK_MIN = 0.18, TICK_STEP = 0.006;
+  const SPEEDUP_ON_FILL = 10;
+
+  // ---- storage (stands in for linkset data) ----------------------------
+  const KEY = "p33.adder.v1";
+  const store = {
+    best: 0, raised: 0, runs: 0, beats: 0, tape: null,
+    load() {
+      try {
+        const o = JSON.parse(localStorage.getItem(KEY) || "{}");
+        Object.assign(this, { best: o.best | 0, raised: o.raised | 0, runs: o.runs | 0, beats: o.beats | 0, tape: o.tape || null });
+      } catch (e) {}
+    },
+    save() {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(
+          { best: this.best, raised: this.raised, runs: this.runs, beats: this.beats, tape: this.tape }));
+      } catch (e) {}
+    }
+  };
+  store.load();
+
+  // ---- the House -------------------------------------------------------
+  const house = {
+    hand() { return store.best + 1 + store.raised; }
+  };
+
+  // ---- deterministic board --------------------------------------------
+  // mulberry32: the same seed always produces the same apples, which is what
+  // makes a tape replayable.
+  function rng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---- game state ------------------------------------------------------
+  const game = {
+    seed: 1, rand: rng(1),
+    body: [], food: 0, dir: 1, nextDir: 1,
+    tick: TICK0, acc: 0, t: 0,
+    running: false, dying: 0, score: 0,
+    demo: false, tape: [], tapeIdx: 0, rec: [],
+    mode: "attract",     // attract | run | over
+    overUntil: 0
+  };
+
+  const el = (id) => document.getElementById(id);
+  const cv = el("cv"), ctx = cv.getContext("2d");
+  const COL = { ink: "#050507", cyan: "#23E5D4", mag: "#FF2E88", dim: "#0d4b47", ghost: "#2a2f3a", food: "#FF2E88" };
+
+  // ---- sound: a synthesised struck bell --------------------------------
+  let actx = null;
+  function bell(strokes = 1) {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = actx.currentTime;
+      for (let s = 0; s < strokes; s++) {
+        const at = t0 + s * 0.34;
+        [1, 2.02, 2.98, 4.11].forEach((mult, i) => {
+          const o = actx.createOscillator(), g = actx.createGain();
+          o.type = "sine";
+          o.frequency.value = 392 * mult * (1 + 0.0009 * i);
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(0.22 / (i + 1.6), at + 0.006);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 2.6 - i * 0.4);
+          o.connect(g).connect(actx.destination);
+          o.start(at); o.stop(at + 2.7);
+        });
+      }
+    } catch (e) {}
+  }
+
+  // ---- the marquee / log ----------------------------------------------
+  function say(where, txt, cls) {
+    const d = document.createElement("div");
+    d.textContent = txt;
+    if (cls) d.className = cls;
+    const log = el("log");
+    log.prepend(d);
+    while (log.children.length > 40) log.lastChild.remove();
+  }
+
+  function marquee(txt, cls) {
+    el("mq").textContent = txt;
+    const m = el("marquee");
+    m.classList.remove("play", "win");
+    if (cls) m.classList.add(cls);
+  }
+
+  const LINES = [
+    "THE HOUSE KNEW YOU WOULD.", "ONE POINT. THAT IS THE WHOLE GAME.",
+    "SOMEBODY HAS BEEN PRACTISING.", "THE BELL RINGS FOR THE GUEST.",
+    "YOU ARE AHEAD. IT WILL NOT LAST.", "THE HOUSE IS INTERESTED.",
+    "AGAIN?"
+  ];
+
+  function paintPanel() {
+    const hand = house.hand();
+    el("best").textContent = store.best;
+    el("hand").textContent = hand;
+    el("raised").textContent = store.raised;
+    el("runs").textContent = store.runs;
+    el("beats").textContent = store.beats;
+    el("ghouse").textContent = hand;
+    el("gyou").textContent = store.best;
+  }
+
+  // ---- board mechanics -------------------------------------------------
+  function freeCell() {
+    const head = game.body[0];
+    for (let tries = 0; tries < 40; tries++) {
+      const c = Math.floor(game.rand() * (W * H));
+      if (game.body.includes(c)) continue;
+      const dx = Math.abs((c % W) - (head % W));
+      const dy = Math.abs(Math.floor(c / W) - Math.floor(head / W));
+      if (dx + dy >= 2) return c;         // never adjacent: the House's edge
+    }
+    return Math.floor(game.rand() * (W * H));
+  }
+
+  function startBoard(demo, seed) {
+    game.demo = demo;
+    game.seed = seed >>> 0;
+    game.rand = rng(game.seed);
+    game.tape = demo && store.tape ? store.tape.moves : [];
+    game.body = [66, 65, 64];
+    game.dir = game.nextDir = 1;
+    game.score = 0;
+    game.tick = TICK0;
+    game.acc = 0; game.t = 0;
+    game.dying = 0;
+    game.tapeIdx = 0;
+    game.rec = [];
+    game.running = true;
+    game.food = 0;                         // must exist before freeCell reads body
+    game.food = freeCell();
+    paintPanel();
+  }
+
+  function step() {
+    game.t++;
+
+    if (game.demo) {
+      while (game.tapeIdx < game.tape.length && game.tape[game.tapeIdx][0] <= game.t) {
+        const d = game.tape[game.tapeIdx][1];
+        if (d !== (game.dir + 2) % 4) game.nextDir = d;
+        game.tapeIdx++;
+      }
+    }
+
+    if (game.nextDir !== (game.dir + 2) % 4 && game.nextDir !== game.dir) {
+      game.dir = game.nextDir;
+      if (!game.demo) game.rec.push([game.t, game.dir]);
+    }
+
+    let hx = game.body[0] % W, hy = Math.floor(game.body[0] / W);
+    if (game.dir === 0) hy++; else if (game.dir === 1) hx++;
+    else if (game.dir === 2) hy--; else hx--;
+
+    if (hx < 0 || hx >= W || hy < 0 || hy >= H) return die();
+    const nc = hy * W + hx;
+    if (game.body.includes(nc)) return die();
+
+    game.body.unshift(nc);
+    if (nc === game.food) {
+      game.score += SCORE_PER_APPLE;
+      game.tick = Math.max(TICK_MIN, TICK0 - game.score * TICK_STEP);
+      if (game.body.length >= W * H) { game.score += SPEEDUP_ON_FILL; return endRun(); }
+      game.food = freeCell();
+      if (!game.demo) marquee(`YOU ${game.score} · HOUSE ${house.hand()}`, "play");
+    } else {
+      game.body.pop();
+    }
+    if (!game.demo && game.score >= house.hand() - 2) el("screen").classList.add("close");
+  }
+
+  function die() {
+    if (game.demo) {
+      // the tape ran out: back to the top of the show in a moment
+      game.running = false;
+      game.mode = "over";
+      game.overUntil = performance.now() + 800;
+      return;
+    }
+    game.running = false;
+    game.dying = 1;
+    endRun();
+  }
+
+  function endRun() {
+    if (game.demo) return;
+    store.runs++;
+    const score = game.score;
+    const oldHand = house.hand();
+
+    if (score > store.best) {
+      store.best = score;
+      if (game.rec.length) store.tape = { seed: game.seed, moves: game.rec.slice(0, 220) };
+    }
+    if (score > oldHand) {
+      store.beats++;
+      marquee(`THE HOUSE NOTICES · ${score}`, "win");
+      say("house", LINES[store.beats % LINES.length], "house");
+      bell(3);
+      el("screen").classList.add("close");
+    } else {
+      marquee(`YOU ${score} · HOUSE ${oldHand}`, "");
+      say("you", `run over · ${score} to the House's ${oldHand}`, "you");
+    }
+    store.save();
+    paintPanel();
+
+    game.mode = "over";
+    game.overUntil = performance.now() + 2600;
+    el("screen").classList.remove("close");
+  }
+
+  // ---- the ghost: attract mode plays the stored tape -------------------
+  function attract() {
+    game.mode = "attract";
+    game.running = false;
+    el("screen").classList.remove("close");
+    if (store.tape && store.tape.moves && store.tape.moves.length) {
+      marquee("SOMEONE · " + store.best, "");
+      startBoard(true, store.tape.seed);
+    } else {
+      marquee("BEST " + store.best + " · HOUSE " + house.hand(), "");
+    }
+  }
+
+  function beginRun() {
+    const seed = (Math.random() * 2147483000) | 0;
+    startBoard(false, seed);
+    game.mode = "run";
+    marquee("PLAY · GUEST", "play");
+    say("brass", "the House is one point ahead.", "brass");
+  }
+
+  // ---- input -----------------------------------------------------------
+  function input(d) {
+    if (game.mode !== "run" || !game.running) {
+      if (game.mode === "attract") beginRun();
+      return;
+    }
+    if (d !== (game.dir + 2) % 4) game.nextDir = d;
+  }
+
+  const KEYMAP = {
+    ArrowUp: 0, ArrowRight: 1, ArrowDown: 2, ArrowLeft: 3,
+    w: 0, d: 1, s: 2, a: 3, W: 0, D: 1, S: 2, A: 3
+  };
+
+  addEventListener("keydown", (e) => {
+    if (e.key === " " || e.key === "Enter") { e.preventDefault(); if (game.mode === "attract") beginRun(); return; }
+    if (e.key === "t" || e.key === "T") { forceToll(); return; }
+    if (e.key === "g" || e.key === "G") { say("brass", "the ghost is always on. that is the point.", "brass"); return; }
+    const d = KEYMAP[e.key];
+    if (d !== undefined) { e.preventDefault(); input(d); }
+  });
+
+  document.querySelectorAll(".pad[data-dir]").forEach((p) => {
+    const dir = +p.dataset.dir;
+    const hit = () => { p.classList.add("hit"); setTimeout(() => p.classList.remove("hit"), 90); input(dir); };
+    p.addEventListener("pointerdown", (e) => { e.preventDefault(); hit(); });
+  });
+
+  function forceToll() {
+    store.raised++;
+    store.save();
+    paintPanel();
+    marquee("THE HOUSE HAS RAISED ITS HAND · " + house.hand(), "");
+    say("house", "the toll · the House is one further away.", "house");
+    bell(1);
+  }
+
+  // ---- render ----------------------------------------------------------
+  function draw() {
+    ctx.fillStyle = COL.ink;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    // board grid: a very quiet lattice
+    ctx.strokeStyle = "rgba(120,140,160,0.05)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= W; i++) {
+      const p = PAD + i * CELL + 0.5;
+      ctx.beginPath(); ctx.moveTo(p, PAD); ctx.lineTo(p, PAD + H * CELL); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(PAD, p); ctx.lineTo(PAD + W * CELL, p); ctx.stroke();
+    }
+
+    const cellPos = (c) => [PAD + (c % W) * CELL, PAD + (H - 1 - Math.floor(c / W)) * CELL];
+
+    // the apple
+    let [fx, fy] = cellPos(game.food);
+    ctx.shadowColor = COL.mag; ctx.shadowBlur = 14;
+    ctx.fillStyle = COL.mag;
+    ctx.fillRect(fx + 10, fy + 10, CELL - 20, CELL - 20);
+    ctx.shadowBlur = 0;
+
+    // the body
+    game.body.forEach((c, i) => {
+      const [x, y] = cellPos(c);
+      const head = i === 0;
+      let col = head ? COL.cyan : (game.demo ? COL.ghost : COL.dim);
+      ctx.shadowColor = head ? COL.cyan : "transparent";
+      ctx.shadowBlur = head ? 16 : 0;
+      ctx.fillStyle = col;
+      const inset = head ? 4 : 6;
+      ctx.fillRect(x + inset, y + inset, CELL - inset * 2, CELL - inset * 2);
+    });
+    ctx.shadowBlur = 0;
+
+    if (game.mode === "attract" && !game.running) {
+      ctx.fillStyle = "rgba(232,225,208,0.22)";
+      ctx.font = "10px ui-monospace,monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("TOUCH A PAD TO TAKE THE SEAT", cv.width / 2, cv.height - 12);
+      ctx.textAlign = "start";
+    }
+  }
+
+  // ---- loop ------------------------------------------------------------
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+
+    if (game.mode === "over" && now > game.overUntil) attract();
+
+    if (game.running) {
+      game.acc += dt;
+      const interval = game.demo ? game.tick * 0.8 : game.tick;
+      if (game.acc >= interval) {
+        game.acc -= interval;
+        step();
+      }
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---- boot ------------------------------------------------------------
+  paintPanel();
+  say("brass", "the cabinet is warm. the House is one point ahead.", "brass");
+  marquee("BEST " + store.best + " · HOUSE " + house.hand(), "");
+  attract();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
