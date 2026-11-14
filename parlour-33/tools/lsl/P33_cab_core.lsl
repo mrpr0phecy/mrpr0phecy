@@ -3,8 +3,11 @@
 //  Link 1 (root) of every arcade cabinet.  See tools/lsl/README.md
 //
 //  Owns: the five pads, the marquee, the credit, the House's hand,
-//        the high score, the queue, the Tell, the Toll, and the
-//        hand-off to the House's book.
+//        the high score, the queue, the Tell, the Toll, the Pull,
+//        and the hand-off to the House's book.
+//
+//  Talks in two voices: the House's (capitals, arithmetic) and,
+//  once in eight showings, the Root's (lowercase, shorter, true).
 //  Never touches a sprite.  Never contains a game.
 //
 //  1 script.  0 listeners.  0 sensors.  1 timer (idle: set for the next
@@ -62,6 +65,19 @@ key     player    = NULL_KEY;
 key     nextPlayer = NULL_KEY;
 integer pulsing   = FALSE;
 integer pulseOn   = 0;
+
+// the Root gets the marquee one showing in eight. See 14-the-root.md 5.
+list ROOT_LINES = [
+    "it's always one. go on.",
+    "have you eaten.",
+    "they're counting again.",
+    "we were here first.",
+    "the number isn't real.",
+    "don't sign anything.",
+    "take the seat. it's warm.",
+    "you're doing fine."
+];
+
 
 // =====================================================================
 //  helpers
@@ -134,9 +150,18 @@ attract()
 {
     running = FALSE;
     stop_pulse();
-    set_marq(gameTitle + "  ·  BEST " + (string)best + "  ·  HOUSE " + (string)hand, BRASS);
-    // the Ghost: if a tape exists, the cabinet plays a real person's run
-    if (llLinksetDataRead("TAPE") != "")
+
+    // the marquee war: seven showings in eight the House, one the Root
+    if ((integer)llFrand(8.0) == 0) {
+        integer i = (integer)llFrand((float)llGetListLength(ROOT_LINES));
+        set_marq(llList2String(ROOT_LINES, i), CYAN);
+    } else {
+        set_marq(gameTitle + "  ·  BEST " + (string)best + "  ·  HOUSE " + (string)hand, BRASS);
+    }
+
+    // the Ghost: if the cabinet has something to show, it shows it.
+    // TAPE = a recorded run (the Adder). SIGIL = a judged stroke (the Scribe).
+    if (llLinksetDataRead("TAPE") != "" || llLinksetDataRead("SIGIL") != "")
         llMessageLinked(LINK_SET, MSG_DEMO, "", NULL_KEY);
     else
         llMessageLinked(LINK_SET, MSG_STOP, "", NULL_KEY);
@@ -176,6 +201,17 @@ finish(integer score)
         set_marq("YOU " + (string)score + "  ·  HOUSE " + (string)oldHand, BRASS);
     }
     llRegionSay(chan(CH_LEDGER_BASE), "COUNT|RUN|" + (string)score);
+
+    // ---- the Pull: on this cabinet's 33rd run, the Root takes one back
+    integer runs = (integer)llLinksetDataRead("RUNS") + 1;
+    llLinksetDataWrite("RUNS", (string)runs);
+    if (runs % 33 == 0 && raised > 0) {
+        raised -= 1;
+        hand = head_of_house();
+        llLinksetDataWrite("RAISE", (string)raised);
+        set_marq("the root pulled  ·  HOUSE " + (string)hand, CYAN);
+        llTriggerSound("P33_pull", 0.8);
+    }
 
     string nm = who_name(player);
     nm = llDumpList2String(llParseStringKeepNulls(nm, ["|"], []), " ");

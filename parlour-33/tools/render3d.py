@@ -648,6 +648,90 @@ def view_kiosk(W, H):
     return img
 
 
+def build_root(sc):
+    """Infestation stage 2: the Root has the gallery. See 14-the-root.md."""
+    Y = 0.0
+    VERD = (0.10, 0.29, 0.23)
+    RUST = (0.48, 0.23, 0.12)
+    SODI = (1.00, 0.72, 0.36)
+    PAPR = (0.72, 0.70, 0.64)
+
+    def cable(a, b, r=0.09):
+        sc.cyl(a, b, r, VERD, 5, em=0.05)
+
+    def polyline(pts, r=0.05):
+        for i in range(1, len(pts)):
+            cable(pts[i - 1], pts[i], r)
+
+    # ---- the trunk: a sagging bundle along the gallery ceiling ----
+    sag = [(11.55, 4.35 - 0.22 * abs(((z % 4.0) / 4.0) - 0.5) * 2, z) for z in range(1, 20)]
+    polyline(sag, 0.11)
+    polyline([(x - 0.20, y - 0.05, z) for (x, y, z) in sag], 0.07)
+    polyline([(x + 0.19, y + 0.06, z) for (x, y, z) in sag], 0.06)
+
+    # ---- drops to the floor, and the run under the cabinets ----
+    for z in (3.2, 9.5, 15.2):
+        polyline([(11.55, 4.2, z), (11.8, 3.0, z), (11.95, 1.4, z),
+                  (11.95, 0.25, z), (11.4, 0.07, z - 0.4), (11.4, 0.07, z - 1.6)], 0.085)
+    polyline([(11.4, 0.06, 1.6), (11.4, 0.06, 19.2)], 0.08)
+
+    # ---- up the mullions: the room has been re-wired ----
+    for z in (1.9, 5.6, 9.4, 13.2, 17.0):
+        polyline([(8.06, 0.08, z), (7.98, 1.4, z + 0.1), (8.04, 2.8, z - 0.05),
+                  (7.99, 4.3, z + 0.08)], 0.035)
+    for z in (5.6, 13.2):
+        polyline([(12.06, 0.08, z), (12.10, 1.5, z - 0.12), (12.05, 3.0, z + 0.1),
+                  (12.08, 4.25, z)], 0.03)
+
+    # ---- the sheeting over the east end ----
+    for k in range(3):
+        x0 = 12.4 + k * 2.3
+        sc.quad((x0, Y + 0.9, 14.15), (x0 + 2.25, Y + 0.9, 14.2),
+                (x0 + 2.25, Y + 4.05, 14.18), (x0, Y + 4.10, 14.16),
+                (0.80, 0.77, 0.70), alpha=0.45)
+        sc.cyl((x0 + 0.12, 0.92, 14.16), (x0 + 0.10, 4.06, 14.17), 0.015, (0.62, 0.58, 0.52), 4)
+    sc.box((12.35, 19.15), (0.88, 0.94), (14.12, 14.22), (0.70, 0.66, 0.58), alpha=0.8)
+    sc.cyl((12.2, 4.12, 14.1), (19.3, 4.05, 14.2), 0.035, RUST, 4)
+
+    # ---- hanging drops: cable that goes nowhere ----
+    for (x, z, y0) in ((13.4, 6.2, 3.4), (16.2, 8.8, 2.6), (14.6, 11.4, 3.1), (17.6, 16.2, 2.9)):
+        polyline([(x, 4.3, z), (x + 0.06, y0 + 0.5, z - 0.05), (x - 0.04, y0, z + 0.04)], 0.045)
+
+    # ---- the one warm light in the building ----
+    sc.box((12.55, 13.05), (2.80, 3.16), (16.9, 17.5), SODI, em=0.62)
+    sc.plate((11.0, 13.4), (15.2, 18.8), Y + 0.02, (0.42, 0.30, 0.15), em=0.55)
+    sc.plate((13.5, 15.6), (13.6, 17.4), Y + 0.02, (0.24, 0.17, 0.09), em=0.30)
+    cable((12.6, 2.95, 17.3), (12.5, 0.9, 17.9), 0.03)
+    cable((12.5, 0.9, 17.9), (12.2, 0.08, 18.4), 0.03)
+
+    # ---- the ladder, going up to nothing ----
+    sc.cyl((6.9, 0.05, 12.0), (6.9, 3.7, 12.0), 0.035, RUST, 5)
+    sc.cyl((7.3, 0.05, 12.0), (7.3, 3.7, 12.0), 0.035, RUST, 5)
+    for k in range(8):
+        sc.cyl((6.9, 0.3 + k * 0.45, 12.0), (7.3, 0.3 + k * 0.45, 12.0), 0.02, RUST, 4)
+
+    # ---- hand-drawn marks: thin plates, never a texture, never straight ----
+    marks = [(12.27, 1.05, 3.6, 0.30, 0.02), (12.27, 1.45, 4.1, 0.22, 0.015),
+             (12.27, 0.95, 9.8, 0.34, 0.02), (12.27, 1.55, 11.4, 0.18, 0.015),
+             (12.27, 1.10, 15.6, 0.40, 0.02), (12.27, 1.65, 16.4, 0.24, 0.015),
+             (7.94, 1.25, 8.2, 0.26, 0.018), (7.94, 0.80, 14.8, 0.32, 0.018)]
+    for (x, y, z, ln, th) in marks:
+        sc.quad((x, y, z), (x, y, z + ln), (x, y + th, z + ln - 0.02), (x, y + th, z + 0.03),
+                PAPR, alpha=0.85)
+
+    # ---- a brass plaque bolted onto a root: the House catalogues it ----
+    sc.box((11.44, 11.50), (1.30, 1.46), (10.2, 10.9), P["brass"], em=0.30)
+
+
+def view_root(W, H):
+    sc = Scene()
+    build_kiosk(sc)
+    build_root(sc)
+    img = render(sc, eye=(15.3, 1.68, 18.9), target=(13.3, 1.15, 5.5), W=W, H=H, fov=60,
+                 fog=(5, 46), amb=0.30, sun=(0.20, 0.86, 0.26))
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
@@ -660,6 +744,7 @@ def main():
         ("gallery", "render-04-gallery.png", view_gallery),
         ("pool", "render-05-pool.png", view_pool),
         ("kiosk", "render-06-kiosk.png", view_kiosk),
+        ("root", "render-07-root.png", view_root),
     ]
     for key, name, fn in jobs:
         if which not in ("all", key):

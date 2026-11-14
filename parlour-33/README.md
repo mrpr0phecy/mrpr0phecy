@@ -41,8 +41,10 @@ Read in order if you are building. Read 01 + 02 + 03 if you are approving.
 | [`10-arcade.md`](10-arcade.md) | the 24 cabinets that actually work: build spec, the 8 game types, the Penny Parlour, the House's hand |
 | [`tools/lsl/`](tools/lsl/) | **the scripts**: cabinet core, three playable games, the scoreboard, the ledger, the station plaques |
 | [`11-sandbox-edition.md`](11-sandbox-edition.md) | **the sandbox edition**: the P33 BOX, 109 LI on a free parcel, its bill, its assembly, its 90-second demo, and the six decisions that make it survive a sandbox |
+| [`14-the-root.md`](14-the-root.md) | **the twist**: Zion — the Root — strangling the lodge from inside. Two grammars, the contested number (Toll vs Pull), infestation stages 0-3, the marquee war, THE SCRIBE, the second palette, thirty details |
 | [`12-the-loop.md`](12-the-loop.md) | **the compulsion architecture**: the gap, the four loops, the Ghost, the ratchet, the Tell, the queue, the Toll, the door protocol — and the four refusals that keep it out of casino territory |
 | [`13-finish.md`](13-finish.md) | **the finish**: prim and LOD discipline, materials table, light and sound budgets, the four signage tiers, the cabinet state machine, twenty-five acceptance tests, failure modes, definition of done |
+| [`14-the-root.md`](14-the-root.md) | **the twist**: Zion (the Root) strangling the lodge from inside — two grammars, the contested number, the infestation stages, the marquee war, THE SCRIBE, and thirty details that make it lived-in |
 | [`tools/cabinet-sim.html`](tools/cabinet-sim.html) | **the playable proof**: THE ADDER as a single-file browser cabinet, running the same arithmetic as the LSL — the House's hand, the Tell, and the Ghost replaying a real tape |
 | [`build_manifest.yaml`](build_manifest.yaml) | the same data, machine-readable, for the build bots |
 | [`plans/`](plans/) | generated SVG plans: one per deck, two sections, and the weave diagram |

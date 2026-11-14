@@ -11,6 +11,7 @@ Seven scripts. Two of them run on all 24 arcade cabinets; the rest run once each
 | `P33_scoreboard.lsl` | the board in Cabinet Row, root | the House's book: hourly Toll, records, initials |
 | `P33_ledger.lsl` | the Hive, B1, root | the degrees: per-avatar persistence in linkset data |
 | `P33_station.lsl` | the 33 plaques | a stamp, a degree, a whisper, the Hare |
+| `P33_game_scribe.lsl` | any cabinet, one child | THE SCRIBE — draw one stroke in twenty seconds; the House judges it by symmetry and keeps the best forever (`14` §6) |
 | `P33_bell.lsl` | the Bell on the roof | the ring on a beat, the Toll on the hour, the Séance, the Third Hour |
 | `P33_door.lsl` | the 34th door plaque | a three-second window on the hour, once a day, for one guest |
 
