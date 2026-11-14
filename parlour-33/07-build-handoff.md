@@ -31,7 +31,7 @@ P33_L0_FLUD_pool_shell
 P33_L0_FLUD_water_plane
 P33_L4_WARN_net_panel_07
 P33_L5_TIRD_train_02
-P33_U2_LASR_vest_red_11
+P33_B1_LASR_vest_red_11
 P33_L1_MIRR_ice_surface
 P33_ALL_SIGN_plaque_sigil_23
 P33_ALL_SHRD_lamp_brass_058
@@ -40,7 +40,7 @@ P33_ALL_SHRD_lamp_brass_058
 | Field | Values |
 |---|---|
 | `P33` | always |
-| deck | `U1 U2 L0 L1 L2 L3 L4 L5 RF` |
+| deck | `B1 B1 L0 L1 L2 L3 L4 L5 RF` |
 | zone | `THRS SUMP HIVE UNDR HOOD EYE FLUD GROT MIRR LANE CABR SALN LODG SANC WARN NEST CHUT RIBB TIRD SPIR CROWN BELV` |
 | element | free but from a controlled vocabulary: `shell deck wall glass rail lane pins ball rink ice pool water flume net tube vest tager train kart cabnet table seat lamp sign plaque rug post script` |
 | index | `01`… |
@@ -58,30 +58,30 @@ Nothing in a later phase may start before its gate is passed.
 
 ### Phase 0 — Site and datum (½ day)
 - parcel set, rating Moderate, fixed sun 03:00, landing point at the Threshold
-- a **datum grid**: 4 survey markers at the drum's cardinal points at +20.00, named `P33_RF_SITE_datum_N/E/S/W`
+- a **datum grid**: 4 survey markers at the block's corners at +20.00, named `P33_RF_SITE_datum_NE/NW/SW/SE`, plus a centre mark at 128.00/128.00
 - a 1 LI "metre cube" reference object, linked, to verify scale
 - **Gate:** the four datums are within 20 mm of the plan coordinates.
 
-### Phase 1 — Envelope (the drum)
-- drum wall, roof, Oculus ring, parapet, façade band windows, plaza apron
+### Phase 1 — Envelope (the block)
+- the 68 × 68 m shell, roof, parapet, the perimeter band, the plaza apron
 - **no interior anything**
-- **Gate:** LOD test at 60 m and 120 m; the drum must read as a drum. LI ≤ 2 600.
+- **Gate:** LOD test at 60 m and 120 m; the block must read as one blank volume with a shabby shopfront at its base. LI ≤ 2 600.
 
 ### Phase 2 — Structure (decks, ramps, lifts)
-- 8 decks with the Oculus opening, the Thread ramp, 4 Needle shafts and cars
+- 8 decks on the right-angled grid, the Zigzag's four stairs, 2 lift shafts and cars, the floor openings (the Watch)
 - colliders for everything walkable
-- **Gate:** walk from U1 to the roof using only the Thread, never falling through, at LOD factor 1.0. LI ≤ 3 130 cumulative (structure + circulation).
+- **Gate:** walk from B1 to the roof using only the Zigzag, never falling through, at LOD factor 1.0 — and arrive facing a different direction on every deck. LI ≤ 3 130 cumulative.
 
-### Phase 3 — The shaft (the show)
-- water planes, the Lodestone, the shaft haze, the light column, the 8 hero shadow spots
-- **Gate:** the vertical sightline test — from the pool floor, from the Belvedere, and from the Lane's foul line, each of the other decks is visible with no unintended obstruction. **This gate is the project.** If it fails, stop everything.
+### Phase 3 — The galleries (the show)
+- the 6 m glazed gallery on every deck, the haze, the gallery light strip, the 8 hero shadow spots, the Lodestone
+- **Gate:** the **two-rooms test** — stand in the gallery of each deck and you must be able to name two attractions you are not in. Then the **anti-test** — stand anywhere and try to see more than four attractions at once, and you must fail. **These two gates are the project.** If either fails, stop everything.
 
 ### Phase 4 — The three anchors
 Build in this order, because they are what people judge:
-1. **The Lane** (bowling bridge) — the structural centrepiece
+1. **The Lane** (ten lanes + the Salon) — the social centrepiece
 2. **The Mirror** (rink over pool) — the hard alpha case
 3. **The Salon** — the social hub
-- **Gate:** bowl a full frame, skate a lap, sit at the bar; all three at once with 20 avatars. LI ≤ 8 000 cumulative.
+- **Gate:** bowl a full frame, skate a lap, sit at the bar; all three at once with 20 avatars, and each visible from the gallery. LI ≤ 8 000 cumulative.
 
 ### Phase 5 — The attractors (arcade, casino, laser quest)
 - Cabinet Row, the Penny Parlour, the Lodge, the Sanctum, the Undercroft
@@ -114,7 +114,7 @@ Build in this order, because they are what people judge:
 | **LOD** | walk to 60 m at `RenderVolumeLODFactor 1.0` | silhouette holds |
 | **Sightline** | stand at the 10 photo spots | matrix in `02` §5 is true |
 | **Physics** | walk every walkable surface; run at every parapet | nothing falls through, nothing is climbable that should not be |
-| **Alpha** | orbit the camera 360° at the rink, the pool and the shaft | no flicker, no sort errors |
+| **Alpha** | orbit the camera 360° in each gallery, at the rink and at the pool | no flicker, no sort errors |
 | **Scripts** | region stats at idle and at 40 avatars | < 2.0 ms / < 6.0 ms |
 | **Rides** | 3 circuits, all seats | no clip, no desync, camera returns |
 | **Eject** | stand up from every seat mid-ride | lands on a deck, never in the void |
@@ -149,10 +149,10 @@ That last one is the only test that matters, and it cannot be automated.
 | LI overrun on the arcade or golf | high \(|\)| medium | both are pre-cut in `06` §1.3; cut early, not at the end |
 | The rink-over-pool alpha flickers | medium \(|\)| high | the masked-porthole solution in `06` §3 is not optional |
 | Riders stranded mid-ride | medium \(|\)| high | ejectors + resync (§9 of `06`) |
-| Coaster clips the Lane deck | medium \(|\)| high | the aperture is specified at 3.6 m for a 2.4 m envelope |
+| Coaster clips a deck | medium \(|\)| high | every aperture is specified at 3.6 m for a 2.4 m envelope |
 | Someone asks about L$ betting | certain \(|\)| critical | the brass plate, the parcel description, and `06` §6.1 |
 | 24 cabinets = 24 listeners | high \(|\)| medium | one script per cabinet, integer IDs, no public channel |
-| The shaft reads as an empty hole | medium \(|\)| high | the Lodestone, the haze, the light column, the crossing rides — all of them exist for this |
+| The building accidentally becomes an atrium | medium \(|\)| high | the 14 × 10 m cap on any opening, and the anti-test in Phase 3 |
 | Scope creep into a "proper" casino | certain \(|\)| critical | it is not a casino. It is a room that looks like one |
 
 ---

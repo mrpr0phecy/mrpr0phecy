@@ -43,38 +43,38 @@ None of these cost L$ or prims beyond what is already there. All are per-avatar 
 
 | # | Sigil | Deck | Where | What you do | Parlour ancestor |
 |---|---|---|---|---|---|
-| 1 | **The Flood** | L0 | pool deck, south | swim to the north lip and look up | *sardines* |
+| 1 | **The Flood** | L0 | the pool's east edge | swim the full 24 m and touch the far wall | *sardines* |
 | 2 | **The Grotto** | L0 | under the pool's west end | sit at the sunken bar, order nothing | the cellar |
-| 3 | **The Sunbeam** | L0 | open water under the Oculus | float directly under the centre of the well | *the well* |
+| 3 | **The Sunbeam** | L0 | the mirror-well at the pool's north-west corner | stand in the blade of light and look up 33 m | *the light well* |
 | 4 | **The Water Chute** | L4 → L0 | launch tower, south-west | ride any of the three flumes down | *the water chute* (Victorian) |
 | 5 | **The Mirror** | L1 | centre ice | stand still on the ice and look down | *the looking glass* |
-| 6 | **Rinkside** | L1 | rail bar, north lip | take a drink to the rail over the pool | — |
+| 6 | **Rinkside** | L1 | rail bar, rink's east edge | take a drink to the rail and watch the skaters fall | — |
 | 7 | **The Cold Room** | L1 | skate hire, west | have a blade sharpened | the knife grinder |
-| 8 | **The Drowned Parlour** | L0 | north of the shaft | sit in the booth with the mirrored ceiling | *consequences* |
+| 8 | **The Drowned Parlour** | L0 | east hall, south end | sit in the booth with the mirrored ceiling | *consequences* |
 
-**Pentacles — coin and cabinet.** *Games of chance and small theft.* U1–L3.
+**Pentacles — coin and cabinet.** *Games of chance and small theft.* B1–L3.
 
 | # | Sigil | Deck | Where | What you do | Parlour ancestor |
 |---|---|---|---|---|---|
-| 9 | **The Hive** | U1 | token booth | take the token; the hand gives it without looking | *the lucky dip* |
-| 10 | **The Penny Parlour** | L0 | east of the shaft | play any machine free — the handle sticks | *the penny arcade* |
+| 9 | **The Hive** | B1 | token booth | take the token; the hand gives it without looking | *the lucky dip* |
+| 10 | **The Penny Parlour** | L0 | east hall, north end | play any machine free — the handle sticks | *the penny arcade* |
 | 11 | **Cabinet Row** | L2 | arcade, east | score on any three cabinets | *the arcade* |
 | 12 | **The Fortune** | L2 | arcade, north-east | ask the oracle a question with a yes or no | *the talking board* |
 | 13 | **The Claw** | L2 | arcade, south-east | win the small brass hare | *the grab machine* |
 | 14 | **The Lodge** | L3 | casino ring | play three hands. There is no stake | *faro / hazard* |
-| 15 | **The Croupier's Pit** | L3 | shaft lip | stand at the table with the drop behind you | *roulette* |
+| 15 | **The Croupier's Pit** | L3 | the sunken round table, glass floor | stand at the table and look down through the floor at the lanes | *roulette* |
 | 16 | **The Sanctum** | L3 | north inner room | knock. Somebody answers. Nobody is there | *the inner room* |
 
-**Swords — dark, cold, sealed.** *Games of blindness and looking.* U1–L4.
+**Swords — dark, cold, sealed.** *Games of blindness and looking.* B1–L4.
 
 | # | Sigil | Deck | Where | What you do | Parlour ancestor |
 |---|---|---|---|---|---|
-| 17 | **The Fall** | U1 | the lift | ride it down once, alone | — |
-| 18 | **The Hoodwink** | U2 | briefing airlock | let the goggles go on | *blind man's buff* |
-| 19 | **The Undercroft** | U2 | laser field | tag three and be tagged once | *blind man's buff* |
-| 20 | **The Eye** | U2 | viewing mezzanine | watch a round you are not in | *the peep show* |
+| 17 | **The Fall** | B1 | the lift | ride it down once, alone | — |
+| 18 | **The Hoodwink** | B1 | briefing airlock | let the goggles go on | *blind man's buff* |
+| 19 | **The Undercroft** | B1 | laser field | tag three and be tagged once | *blind man's buff* |
+| 20 | **The Eye** | B1 | viewing mezzanine | watch a round you are not in | *the peep show* |
 | 21 | **The Blind Door** | L1 | west wall, behind the bookcase | find the door that is not a door | *the priest hole* |
-| 22 | **The Eye of the House** | L4 | north of the shaft | look through the lens at the Belvedere | the camera obscura |
+| 22 | **The Eye of the House** | L4 | the gallery, facing the Crown | look through the periscope and see two halls at once | the camera obscura |
 | 23 | **The Warren** | L4 | nets, east half of the void | cross the nets from north to south | *cat's cradle* |
 | 24 | **The 34th Door** | L5 | north wall | only opens with 32 pips | — |
 
@@ -84,12 +84,12 @@ None of these cost L$ or prims beyond what is already there. All are per-avatar 
 |---|---|---|---|---|---|
 | 25 | **The Lane** | L2 | bowling, foul line | bowl a strike or bowl a gutter — both count | *skittles* |
 | 26 | **The Pin** | L2 | pin deck, south cantilever | stand behind the pinsetters and look back up the lanes | — |
-| 27 | **The Ribbon** | L1–L5 | golf ledge | complete any three holes | *croquet* |
+| 27 | **The Ribbon** | L1–L5 | the golf ledge, one lap per deck | complete any three holes | *croquet* |
 | 28 | **The Thread** | L5 → L5 | coaster station | ride the whole circuit | *snapdragon* |
 | 29 | **The Station** | L5 | coaster station, pre-show | watch the zoetrope turn once | the zoetrope |
 | 30 | **The Spiral** | L5 → +20 | kart pit lane | complete a lap of the helix | *hoop-trundling* |
 | 31 | **The Pit Lane** | L5 | kart garage | sit in a kart and start it | — |
-| 32 | **The Crown** | Roof | Belvedere, north edge | look down 33 m and count the pool | *the drop* |
+| 32 | **The Crown** | Roof | Belvedere, north parapet | look 33 m down into the roof slot and count the pool | *the drop* |
 
 **The Fool.**
 

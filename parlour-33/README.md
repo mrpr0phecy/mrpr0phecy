@@ -1,6 +1,6 @@
 # PARLOUR XXXIII
 
-**A combined leisure house for Second Life — bowling, jungle gym, ice rink, laser quest, arcade, casino, karting, mini golf, rollercoaster and a pool with slides — woven into one neo-Tokyo parlour, built as a single 72 m drum around a 28 m open shaft.**
+**A combined leisure house for Second Life — bowling, jungle gym, ice rink, laser quest, arcade, casino, karting, mini golf, rollercoaster and a pool with a glass flume — built as one tight 68 m block, woven deck by deck so that two games always run side by side, three metres apart, through a single pane of glass.**
 
 > *Thirty-three degrees. The four suits, eight stations each, and the Fool — which is you.*
 
@@ -9,8 +9,8 @@
 | **Working name** | PARLOUR XXXIII (signage: `PARLOUR 33`) |
 | **Alternates** | HARE & LODGE · The Gilded Warren · The Nine of Cups · Bottle Green · SNAPDRAGON |
 | **Region** | one full private region, 256 × 256 m, 30 000 LI, plaza at +20.00 |
-| **Building** | 72 m diameter drum, 14.00 → 60.50, eight decks, one open shaft |
-| **The number** | exactly 33.00 m from the pool deck (the Flood) to the roof (the Crown) |
+| **Building** | one 68 × 68 m block, +20.00 → +58.60, eight decks, **no atrium** |
+| **The number** | exactly 33.00 m from the pool deck (the Flood) to the roof (the Belvedere) |
 | **Rating** | Moderate. No L$ wagering anywhere in the build |
 
 ---
@@ -29,8 +29,8 @@ Read in order if you are building. Read 01 + 02 + 03 if you are approving.
 | [`06-secondlife-constraints.md`](06-secondlife-constraints.md) | land impact, LOD, alpha, physics, scripts, Experiences, casino & rating policy, performance budget |
 | [`07-build-handoff.md`](07-build-handoff.md) | phases, object naming, bot task order, QA gates, launch checklist |
 | [`build_manifest.yaml`](build_manifest.yaml) | the same data, machine-readable, for the build bots |
-| [`plans/`](plans/) | generated SVG plans: one per deck, a long section, the stack |
-| [`art/`](art/) | two concept images: `concept-the-well.png` (the interior, looking down the shaft) and `concept-the-drum.png` (the building from the plaza at 3 am) |
+| [`plans/`](plans/) | generated SVG plans: one per deck, two sections, and the weave diagram |
+| [`art/`](art/) | concept images: `concept-the-weave.png` (the interior, as built) and `concept-the-block.png` (the building from the plaza at 3 am). `concept-the-well.png` / `concept-the-drum.png` are the superseded first draft, kept for the light |
 | [`tools/gen_plans.py`](tools/gen_plans.py) | the coordinate model. Every dimension in the docs comes from here |
 
 Regenerate the drawings any time with:
@@ -45,19 +45,20 @@ The plans are **schematics**: metres, zones, circulation and sightlines. They ar
 
 ## The idea in five lines
 
-1. **One building, not ten rooms.** A drum with a hole in the middle. All ten activities hang off that hole, so from any one of them you can see at least four of the others.
-2. **The shaft is the show.** 28 m wide, open from the water to the roof. Swimmers look up 33 m and see the rollercoaster cross the void; bowlers look down 11 m and see the pool.
-3. **You enter under a shabby shopfront** and drop six metres into the dark. Then you climb the degrees — every deck is a degree, and the building is the ladder.
-4. **Every modern attraction is a Victorian parlour game, supersized.** Bowling is skittles. Mini golf is croquet. Laser quest is blind man's buff. The kart track is hoop-trundling. The house knows this and says so on the wall.
-5. **The occult furniture is the house's joke.** Square and compasses redrawn as a cocktail glass and a joypad. The letter G replaced with a glowing 33. The lodge thinks it has the degrees; the house has thirty-four.
+1. **Two games per deck, three metres apart.** Every deck holds two attractions side by side with a 6 m glazed gallery between them. You are never in a room where one thing is happening.
+2. **No atrium.** There is no central hole and no long sightline anywhere in the building. The vertical views are eleven small openings in the floors — a warren, not a mall.
+3. **The decks turn ninety degrees every two levels**, so the building is woven: every deck is at right angles to the one below, and the stairs turn you with it. You never walk the same direction twice.
+4. **You enter under a shabby shopfront** and drop four metres into the dark. Then you climb the degrees — every deck is a degree.
+5. **Every modern attraction is a Victorian parlour game, supersized.** Bowling is skittles. Mini golf is croquet. Laser quest is blind man's buff. Karting is hoop-trundling.
+6. **The occult furniture is the house's joke.** Square and compasses redrawn as a cocktail glass and a joypad. The letter G replaced with a glowing 33. The lodge thinks it has the degrees; the house has thirty-four.
 
 ---
 
 ## What the build must feel like
 
-Dark, close, cheap-lacquered, hot with neon — and then it opens into a 33 m well of water and light. It should feel like a Victorian gentlemen's club that was rebuilt inside a Tokyo parking structure and then infected by an arcade. Velvet and mahogany next to brushed steel and cable. Brass fittings that are also joysticks.
+Dark, close, cheap-lacquered, hot with neon, and then it opens into a room with a swimming pool in it. It should feel like a Victorian gentlemen's club that was rebuilt inside a Tokyo parking structure and then infected by an arcade. Velvet and mahogany next to brushed steel and cable. Brass fittings that are also joysticks.
 
-Every turn should give a framed view of another game in progress. You are never in a corridor; you are always on a balcony over something.
+Every turn gives a framed view of another game in progress, through glass, at three metres. You are never in a corridor; you are always either in a gallery between two games or on a ledge looking into one.
 
 ---
 
@@ -65,13 +66,14 @@ Every turn should give a framed view of another game in progress. You are never 
 
 This programme — ten attractions plus arcade cabinets plus a coaster — wants about **31 000 LI**. One full region gives you 30 000. The budget in `06-secondlife-constraints.md` commits **28 400** and holds the rest as contingency, which means the build only works if the discipline holds:
 
-- the drum is **mesh, low-LOD, atlased**, and shared across all decks
+- the shell is **mesh, low-LOD, atlased**, and shared across all decks
+- every hall is the **same module** (26 × 58 × 4.9 m), so the mesh is built once and used twelve times
 - nothing is physical that does not need to be
 - the arcade is **24 machines, not 60**
 - mini golf is **18 holes on a 5 m ledge**, not a landscaped course
 - **no L$ wagering.** The casino is a design language, not a business. This is both a policy requirement and the thing that keeps the sim out of trouble
 
-If you are on a 20 000 LI region, see the trim plan in `06`. It loses two of the three slides, half the arcade, half the golf, two bowling lanes and one laser deck — and it still works, because the shaft is free.
+If you are on a 20 000 LI region, see the trim plan in `06`. It loses half the arcade, half the golf, four lanes, four tables, three karts and the roof loop — and it still works, because the galleries are free.
 
 ---
 

@@ -1,6 +1,10 @@
-# 02 — Masterplan: the spatial system
+# 02 — Masterplan: the Weave
 
-Every number here is generated from `tools/gen_plans.py`. If a drawing and this document disagree, the drawing is right and this document is out of date — regenerate both.
+Every number here is generated from `tools/gen_plans.py`. If a drawing and this document disagree, regenerate both.
+
+**There is no atrium.** There is no central hole, no grand void, no sightline straight through the building. The whole design is built to prevent that: the House is a warren, and a warren is a place where you cannot see the whole of it from anywhere in it.
+
+Instead, the building is **woven**.
 
 ---
 
@@ -8,238 +12,279 @@ Every number here is generated from `tools/gen_plans.py`. If a drawing and this 
 
 | Thing | Value |
 |---|---|
-| Region | 256 × 256 m, ground / plaza at **+20.00** |
-| Building centre | **128.00, 128.00** (region-relative metres) |
-| Drum outer wall | **radius 36.00 m** — 72 m diameter |
-| The Oculus (open shaft) | **radius 14.00 m** — 28 m diameter |
+| Region | 256 × 256 m, plaza at **+20.00** |
+| Building footprint | **x 94.00 – 162.00, z 94.00 – 162.00** — 68 × 68 m |
+| Perimeter band | **5 m** all round — the Ribbon (golf) |
+| Interior | 99.00 – 157.00 — **58 × 58 m** |
+| Halls | **26 × 58 m**, two per deck |
+| The Glass Gallery | **6 × 58 m**, one per deck, between the halls |
 | Floor to floor | **5.50 m** (clear 4.90, slab 0.60) |
-| The stack | U1 +14.00 → Roof +57.00 |
-| The number | L0 (+24.00) to Roof (+57.00) = **33.00 m** |
-| Kart helix | radius **38–46 m**, outside the drum, 1.4 laps |
-| Plaza apron | radius 46 → 70 m, all round |
-| Height above plaza | 37 m of blank façade + 3.5 m of parapet |
+| Decks | B1 +20.00 · L0 +25.00 · L1 +30.50 · L2 +36.00 · L3 +41.50 · L4 +47.00 · L5 +52.50 · Roof +58.00 |
+| Parapet | +58.60 |
+| The number | L0 to Roof = **33.00 m** |
+| Lifts | 2, in the east and west bands |
+| Stairs | 4, in the four corners of the band — **the Zigzag** |
 
-Nothing crosses a region boundary. **One region, one building.** This is not an aesthetic choice: rides, karts and coasters break at a sim crossing, and a build that stutters every 40 seconds is not "unproblematic".
-
----
-
-## 2. Why a drum with a hole in it
-
-The brief asked for two things that normally fight: **everything visible from everywhere**, and **everything packed into a small space**.
-
-A ring-plan around a shared void solves both at once, and it is the oldest trick in entertainment architecture (the panopticon, the circus, the mall atrium). Put the games on the ring. Put the **hole** in the middle. Now:
-
-- the longest possible sightline in the building is 72 m — under the crowd-draw distance, so every zone is visible from every other zone without any LOD trickery
-- the void does the work of a **courtyard, a stage, a lift shaft and a light well**, for zero land impact
-- vertical stacking means ten attractions share **one roof, one floor system, one set of walls, one lighting rig**
-- you can build the whole thing out of one repeating structural bay, which is how you make 28 400 LI behave like 40 000
-
-The single most important line in this document:
-
-> **The shaft is not circulation. The shaft is the show.**
-
-### 2.1 The one rule that makes the plan work
-
-> **The dark game goes in the core. The views go on the ring.**
-
-Laser quest is the only attraction that *needs* to be windowless and *gives nothing back* in return for a view. Every other activity is improved by being seen. So laser quest goes underground (the Undercroft) and every metre of perimeter glass, every balcony, every ledge goes to the things people want to watch.
-
-This is why the plan is efficient: **each activity is in the position that suits it**, rather than every activity getting an equal share of the good space.
+One region, one building, no sim crossings. The footprint is deliberately small: 68 m each way on a 256 m region leaves an 84 m apron for the plaza, the queue, and the outside of the building that people photograph.
 
 ---
 
-## 3. The stack
+## 2. Why a block and not a drum
 
-| Deck | Elevation | Clear | Name | The one thing on this deck |
-|---|---|---|---|---|
-| **Roof** | +57.00 | open | **The Belvedere** | 360° views, the Oculus mouth, the coaster lift hill |
-| **L5** | +51.50 | 4.90 | **The Crown** | coaster station, kart pit lane, terrace bar, the 34th Door |
-| **L4** | +46.00 | 4.90 | **The Warren** | nets and tubes in the void, the Nest, the Water Chute launch |
-| **L3** | +40.50 | 3.20 + soffit | **The Lodge** | casino ring, the Croupier's Pit, the Sanctum |
-| **L2** | +35.00 | 4.90 | **The Lane** | the bowling bridge, Cabinet Row arcade, the Salon |
-| **L1** | +29.50 | 4.90 | **The Mirror** | the ice rink on glass, over the pool |
-| **L0** | +24.00 | 4.90 | **The Flood** | the pool, the grotto, the Drowned Parlour, the Penny Parlour |
-| *(plenum)* | +20.00–+24.00 | 3.40 | service | pool plant, ducts, the service stair. Not public |
-| **U2** | +16.40 | 3.00 | **The Undercroft** | laser quest, the Eye |
-| **U1** | +14.00 | 3.20 | **The Sump** | arrival, the Hive, cloakroom, the Hoodwink |
-| *(plaza)* | +20.00 | — | | the street, the shopfront, the kart finish |
+The first draft of this house was a drum with a 28 m hole down the middle, and it was wrong in one specific way: **an atrium is a shopping centre.** Put everything on the edge of a void and you have built a mall with games in it — you can see the whole building from the door, so there is nothing to discover, and the space reads as one big room rather than a place you go *into*.
 
-The deck naming is the degree ladder: **Sump → Flood → Mirror → Lane → Lodge → Warren → Crown → Belvedere.** You are climbing a house that thinks it is a lodge.
+The brief asked for the opposite: **a compressed warren where the games run cleverly parallel to each other.** So:
+
+| The drum with a hole | The block with a weave |
+|---|---|
+| one big sightline, always | no long sightline anywhere |
+| one hero view, then you have seen it | a new view at every turn, forty times |
+| galleries hang off a central emptiness | halls sit *beside* each other, sharing walls |
+| vertical drama | lateral intimacy |
+| you always know where you are | you are pleasantly, productively lost |
+
+You still see people doing other things — **constantly, and much more closely than before.** You see them through a shared glazed wall three metres away, through a grill in the floor, round the corner of a gallery, up a stairwell light. You never see them across sixty metres of air. That is the difference between a warren and an atrium, and it is the whole point.
 
 ---
 
-## 4. Deck by deck
+## 3. The Weave
 
-Plans: [`plans/plan-u1.svg`](plans/plan-u1.svg) … `plan-roof.svg`. Numbers below match the plan legends.
+### 3.1 The pair
+**Every deck holds two attractions side by side**, separated by a 6 m glazed gallery. You are never in a room with one thing happening in it. The bowling is next to the arcade. The casino is next to the tea room. The nets are next to the karts.
 
-### U1 — THE SUMP (+14.00) · arrival
-Sump lobby, the Hive (token booth), cloakroom, the Hoodwink airlock to laser quest, coach yard / back-of-house, and the foot of the Thread.
-The **Shoebox** — the street entrance pavilion — sits on the plaza at (124–144, 160–176) and drops into this deck by lift.
+### 3.2 The turn
+Decks come in **pairs that share an orientation**, and each pair turns 90° from the pair below:
 
-### U2 — THE UNDERCROFT (+16.40) · laser quest
-One 1 400 m² field on a single flat deck with three raised catwalks, briefing room, and **the Eye** — a one-way viewing mezzanine for people who would rather watch. No windows. Ever.
+```
+        B1   full plate, blind (the plinth)
+        L0   halls run north–south
+        L1   halls run north–south
+        L2   halls run east–west
+        L3   halls run east–west
+        L4   halls run north–south
+        L5   halls run north–south
+        Roof full plate
+```
 
-### L0 — THE FLOOD (+24.00) · water
-The pool (26 × 15 m, water at +23.30, 2.1 m deep) occupies the south of the deck and **its north lip is the bottom of the Oculus** — the well ends in water. Grotto swim-up bar under the pool's west end. The Drowned Parlour lounge wraps the north of the shaft; the Penny Parlour (8 free-play machines) is the east; Chrysalis (changing) is the west.
-First reveal of the building: you come up the ramp in the dark and the room turns into a 28 m cylinder of water and air.
+So the building is a stack of four woven layers, alternating. **Every deck is structurally at right angles to the one below it**, which means:
 
-### L1 — THE MIRROR (+29.50) · ice
-A 30 × 18 m rink laid on a **structural glass deck, directly over the pool**. Rinkside is a rail bar at the north lip where the rink meets the shaft — drinkers look across the void, skaters look down through their own ice.
-Cold Room (skate hire, sharpening) west. The Blind Door (a bookcase that swings) in the west wall. The Ribbon starts here.
+- the slab above a hall is supported by the walls of a hall running the other way — the structure is a grid, and it is cheap
+- where a hall passes over the *end* of the hall below, you get a natural place to cut an opening — a **glance**
+- walking up, the building changes direction under you. You never walk the same way twice.
 
-### L2 — THE LANE (+35.00) · the hub
-**The bowling lanes are the bridge.** Eight lanes, 25 m, spanning the full width of the Oculus, with the approach deck on the north floor and the pin deck cantilevered over the south lip. Standing at the foul line, your ball is 11 m above the water and the casino is 5.5 m above your pinsetters.
-The Salon — the house's social hub and bar — sits at the bridge head, at the exact centre of the gradient. **Every route passes through or past the Salon.** If a player only ever finds one room, it should be this one.
-Cabinet Row (the arcade) fills the east; the Fortune and the Claw are its two set-piece machines.
+### 3.3 The gallery
+One **6 m × 58 m glazed gallery** runs the length of every deck, between the two halls, and it is the best room in the building: glazed on both sides, the karts visible through the end wall on L4, and the coaster thundering along the roof above your head. Standing in the gallery you can see two whole attractions at once, in full, from three metres away.
 
-### L3 — THE LODGE (+40.50) · the casino ring
-The only deck with a **ceiling**: a 3.2 m lacquer soffit at +43.70, so the casino feels like a private room inside a public building. Twelve tables on the ring, the Sanctum (a closed inner room for events and high-table play, no wagering) to the north, the Beehive champagne bar to the east, and **the Croupier's Pit** at the lip of the shaft — a single round table at the edge of a 16 m drop. That is the shot.
+### 3.4 The four systems
+The Weave is made of four interleaved circulation systems, each with its own geometry and its own job:
 
-### L4 — THE WARREN (+46.00) · jungle gym
-The jungle gym is not a room. It is a **net-and-tube sculpture hung across the east half of the void**, so climbers are visible from every deck above and below. The Nest (ball pit) sits on the south-west plate, the Water Chute launch tower to the west, the Eye of the House (camera obscura) north.
-
-### L5 — THE CROWN (+51.50) · launch
-The Thread's station (3 trains, zoetrope pre-show), the Pit Lane and kart garage, the Crown Bar terrace over the shaft, the Ribbon's last three holes, and the sealed **34th Door**.
-
-### Roof — THE BELVEDERE (+57.00) · the number
-An open ring, 16 m wide, around the mouth of the Oculus. 360° across the region. Coaster lift hill and inversion outside the ring. This is the build's postcard and its event space.
-
----
-
-## 5. The sightline matrix
-
-Read across: *what can I see from here?* Every cell is a real line of sight in the model, not a claim.
-
-| From ↓ | Flood | Mirror | Lane | Lodge | Warren | Crown | Belvedere | Coaster | Karts | Arcade | Golf |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Flood** (pool) | — | ● up through ice | ● up 11 m | ◐ | ● up 22 m | ○ | ● up 33 m | ● | ○ | ◐ | ● |
-| **Mirror** (rink) | ● down through ice | — | ● | ● | ● | ○ | ● | ● | ○ | ◐ | ● |
-| **Lane** (bowling) | ● down 11 m | ● down | — | ● up | ● up | ○ | ● | ● | ◐ | ● | ● |
-| **Lodge** (casino) | ● down the shaft | ● down | ● down | — | ● | ○ | ◐ | ● | ◐ | ○ | ● |
-| **Warren** (nets) | ● | ● | ● | ● | — | ● | ● | ● | ● | ● | ● |
-| **Crown** | ● | ● | ● | ● | ● | — | ● | ● | ● | ● | ● |
-| **Belvedere** | ● 33 m | ● | ● | ◐ | ● | ● | — | ● | ● | ◐ | ● |
-| **Arcade** (Cabinet Row) | ◐ | ◐ | ● | ○ | ● | ○ | ◐ | ● | ● | — | ● |
-| **Golf** (Ribbon) | ● | ● | ● | ● | ● | ● | ● | ● | ● | ● | — |
-
-● clear · ◐ oblique or partial · ○ glimpses only
-
-**The design test:** if any row has more than two ○, that zone has been walled in and the plan has been broken. Only two rows are allowed to be poor — the arcade (it is a lined hall, deliberately) and the Lodge (it has a ceiling, deliberately).
-
-**The Warren and the Ribbon are the two most connected places in the building.** That is by design: one of them is play equipment hung in the void, the other is a ledge that spirals the entire façade. They are how a player *sees the whole house* without doing anything structured.
-
----
-
-## 6. Circulation
-
-### 6.1 The Thread — the promenade
-A 3 m wide helical ramp at radius 14.5–17.5, climbing **43 m** from the Sump (+14.00) to the Belvedere (+57.00). One turn per deck, 1:12 slope, 3 m clear headroom minimum, 1.2 m parapet with a neon handrail.
-
-- 1 turn per deck means you **circle the void** between every pair of decks — you always see the well from a new height, and you always pass the Ribbon.
-- The ramp is **the only way up** that never stops. It is also the fire escape *de facto*.
-
-### 6.2 The Needles — four lifts
-Four glass lifts at radius 30, at the four diagonals (45°, 135°, 225°, 315°). Three are classical columns (Doric, Ionic, Corinthian). The fourth, the north-east, is **the impossible one**: a twisted/inverted order that defies its own entablature, because the house is bettering the lodge. Cars are 2.6 m glass cylinders, slow, and stop at every deck. Their whole job is to be a mobile viewpoint.
-
-### 6.3 Down-only shortcuts — the drama
-| Shortcut | From → to | Why |
+| System | What it is | Its job |
 |---|---|---|
-| the Water Chute | L4 → Flood | 3 flumes, 23 m fall, into the pool |
-| the Thread coaster | Crown → Crown | 420 m, threads every deck |
-| the Spiral | Crown → plaza | 1.4 laps of kart helix outside the drum |
-| the Fall (lift) | street → Sump | 6 m, once, on arrival |
+| **The Zigzag** | four stairs, four corners; every stair turns you 90° | the promenade — B1 to the roof without repeating a direction |
+| **The Gallery** | the 6 m slot on every deck | the social spine — see two games from one place |
+| **The Ribbon** | a 5 m golf ledge spiralling the perimeter, one lap per deck | the slow route — touches every deck, sees every hall through windows |
+| **The Glances** | 11 small openings in the floors | the vertical views — a hole you look down through, never an atrium |
 
-**Only the coaster and the karts go up.** Everything else is a controlled fall. That asymmetry is the building's personality: the house lifts you, and then you choose how to come down.
+Plus three things that move:
 
-### 6.4 Service
-One service stair in the west wall (Blind Door at L1) down to the plenum and the Sump; the Vestry (staff) on L3; the coach yard on U1. The service route never crosses a public zone. Two dumbwaiters: Salon ↔ Crown Bar, and Lodge ↔ Drowned Parlour.
+| | |
+|---|---|
+| **The Flume** | one glass waterslide tube, 33 m, from the Crown down through every deck into the pool |
+| **The Thread** | the coaster — 380 m: the roof twice, then one dive through the Warren |
+| **The Spiral** | the kart circuit, 250 m, folded into the L4 east hall |
 
 ---
 
-## 7. Capacity and dwell
+## 4. The deck schedule
+
+| Deck | +y | Clear | West / South hall | Gallery | East / North hall |
+|---|---|---|---|---|---|
+| **Roof** | 58.00 | open | The Belvedere terrace, the bell, the lift hill | — | roof plant |
+| **L5** | 52.50 | 4.90 | **The Warren**, upper ropes | gallery | **The Crown** — coaster station, Crown Bar, the 34th Door |
+| **L4** | 47.00 | 4.90 | **The Warren**, net hall (2 decks tall) | gallery | **The Spiral** — kart circuit, pit lane |
+| **L3** | 41.50 | 3.20 | **The Lodge** — casino floor, the Croupier's Pit | gallery | **The Sanctum**, the Beehive, the tea room |
+| **L2** | 36.00 | 4.90 | **The Lane** — ten lanes, the Salon | gallery | **Cabinet Row** — the arcade |
+| **L1** | 30.50 | 4.90 | **The Mirror** — ice rink on glass, Rinkside | gallery | Cold Room, Warm Room, the Blind Door |
+| **L0** | 25.00 | 4.90 | **The Flood** — pool, grotto, Sunbeam terrace | gallery | Drowned Parlour, Penny Parlour, Chrysalis |
+| **B1** | 20.00 | 4.60 | **The Undercroft** — laser quest | — | **The Sump** — entry, the Hive, the Eye |
+
+---
+
+## 5. Deck by deck
+
+Plans: [`plans/plan-b1.svg`](plans/plan-b1.svg) … `plan-roof.svg`. Legend numbers match.
+
+### B1 — THE UNDERCROFT (+20.00) · entry and laser quest
+The plinth. Blind on all four sides: no windows at any point on this deck, which is why laser quest is here. You come in off the plaza through a shabby shopfront at (134, 161), down a low corridor, and into **the Sump** — a dark lobby with one booth (the Hive), a cloakroom, and the Fall, a lift that drops four metres and stops hard.
+
+Half of B1 is **the Undercroft**: 1,400 m² of laser field under the whole building, with **the Eye** — a mezzanine behind one-way glass — looking down into it.
+
+### L0 — THE FLOOD (+25.00) · water
+West hall: **the pool**, 18 × 24 m, with the Grotto swim-up bar under its north end and a Sunbeam terrace at the south. East hall: **the Drowned Parlour** (velvet, mirrored ceiling, no windows), **the Penny Parlour** (eight free mechanical machines), and Chrysalis (the changing warren).
+
+You come up out of the dark into the gallery. On your left, through glass, is 300 m² of water. On your right, through glass, a velvet room. **The first thing you see in the House is two things at once**, and that is the design in one image.
+
+### L1 — THE MIRROR (+30.50) · ice
+West hall: a 14 × 28 m **ice rink on a structural glass deck directly over the pool**. Rinkside is a rail bar at the rink's east edge, where the ice meets the gallery. East hall: the Cold Room (hire and sharpening), the Warm Room (tea, radiators, wet gloves), the skaters' lounge, and **the Blind Door** — a bookcase that isn't.
+
+Skaters look down through their own ice at swimmers. Two openings in the L2 floor above drop light — and people's faces — onto the ice.
+
+### L2 — THE LANE (+36.00) · the hub
+South hall: **ten bowling lanes running east–west**, with the approach at the west end, the pin deck at the east, and **the Salon** — the House's bar and social hub — filling the east 26 m of the hall. North hall: **Cabinet Row**, 24 working machines, with the Fortune and the Claw in their own alcoves.
+
+This is the deck where the spiral route and the Zigzag cross most people, so it is the busiest. It is also the deck with the most openings in its floor: **two, straight down onto the ice.**
+
+### L3 — THE LODGE (+41.50) · the casino
+South hall: twelve tables under a **3.2 m lacquer soffit** — the only deck with a ceiling — with **the Croupier's Pit**, a sunken round table with a glass floor panel, over an opening that looks down at the bowling. North hall: the tea room, **the Beehive** champagne bar, and **the Sanctum**, a closed room with one table and one door that only opens from the inside.
+
+### L4 — THE WARREN (+47.00) · play and speed
+West hall: **the Warren** — a two-deck-tall net hall, 26 × 58 m, filled with nets, tubes, rope bridges and the Nest (a ball pit at its south end). East hall: **the Spiral** — a 250 m kart circuit folded into the hall, with the pit lane and garage at its north end.
+
+They share a 58 m glass wall. **Karts on one side, climbers on the other, running parallel, watching each other.** If the building has one image, this is it.
+
+### L5 — THE CROWN (+52.50) · launch
+West hall: the Warren's upper level — rope bridges, the Jacob's ladder, a 9 m drop to the Nest. East hall: **the Thread's station** (three trains, the zoetrope pre-show), **the Crown Bar** over the gallery, and **the 34th Door**, sealed.
+
+### Roof — THE BELVEDERE (+58.00) · sky
+An open terrace with a parapet, the bell, twenty brass telescopes, and the coaster's lift hill and inversion. **The only place in the House you can see the sky.** 33.00 m above the pool deck.
+
+---
+
+## 6. Sightlines — how you see other people
+
+Read this as: *from here, what do I see, and how?* The mechanism matters more than the list.
+
+| From → | Mechanism | What you see |
+|---|---|---|
+| any hall | **the shared glazed gallery wall**, ~3 m away | both neighbouring halls in full |
+| the gallery | glazed both sides | two attractions running parallel, and karts/coaster overhead |
+| the Lane | **two floor openings** | the ice rink, one deck down, lit from under the pool |
+| the Lodge | **two floor openings + a glass panel** | the bowling lanes, fifteen metres below your table |
+| the Warren | the 58 m shared wall + a floor opening | the kart circuit, and the casino through the floor |
+| the Crown | the gallery + the flume tube + the roof slot | the coasters, the karts, the nets, the ice |
+| the Ribbon | **windows on every deck** | every hall you pass, at eye level, from the perimeter |
+| the Flume | 33 m of glass tube | the whole building, at speed, from inside a pipe |
+| the Thread | the roof, one glass aperture, and the Warren's double height | the whole region, the sky, and the nets from above |
+| the Belvedere | nothing above ground | the region, the plaza, the sky |
+
+**The design test:** stand in the gallery of any deck. You must be able to name two attractions you are not in. If you can't, that deck is broken.
+
+**The anti-test:** stand anywhere and try to see more than four attractions at once. You must fail. If you can see the whole House, we have accidentally built an atrium again.
+
+---
+
+## 7. Circulation
+
+### 7.1 The Zigzag — the promenade
+Four stairs, one in each corner of the perimeter band. Each stair is 5 × 5 m and rises 5.50 m. Because the decks alternate, **every stair turns you ninety degrees**:
+
+| Leg | From → to | Direction |
+|---|---|---|
+| 1 | Sump → L0 | west along the south band, stair III |
+| 2 | L0 → L1 | north along the west band, stair II |
+| 3 | L1 → L2 | east along the north band, stair I |
+| 4 | L2 → L3 | south along the east band, stair IV |
+| 5 | L3 → L4 | west along the south band, stair III |
+| 6 | L4 → L5 | north along the west band, stair II |
+| 7 | L5 → Roof | east along the north band, stair I |
+
+Seven legs. **You walk a spiral without ever walking a spiral**, and the Ribbon (the golf ledge) is in the same band, so you are always alongside putters.
+
+### 7.2 The Gallery — the social spine
+The 6 m × 58 m glazed slot on each deck. It is the fastest way to cross a deck, it is where the karts and coaster pass overhead, and it is where you go when you want to see without joining in.
+
+### 7.3 The Ribbon — the golf
+A 5 m ledge spiralling the perimeter at one lap per deck, from L1 to the roof, carrying 18 holes. It connects every deck without a lift and gives the longest, slowest, best views in the building.
+
+### 7.4 The lifts
+Two glass lifts in the east and west bands, stopping at every deck. Slow on purpose. They are a moving viewpoint and they are also the accessible route, because the Zigzag is stairs.
+
+### 7.5 Service
+One service core in the plinth (B1, coach yard), one service stair in the north-east band, and two dumbwaiters (Salon ↔ Beehive, Lodge ↔ Drowned Parlour). The Vestry on L3 is staff-only. **No service route crosses a public hall.**
+
+---
+
+## 8. Capacity and dwell
 
 | | |
 |---|---|
 | Comfortable population | **40–50 avatars** |
-| Design maximum | 80 (with FX budget cut, see `06` §7) |
+| Design maximum | 80, with mode C (`06` §7) |
 | Average dwell | 50–75 min |
-| Target first-screenshot | within **90 seconds** of arrival |
-| Bowling | 8 lanes, 4 per lane, 10 min → 190/hr theoretical |
-| Ice rink | 30 skaters concurrent |
+| Target first screenshot | within **90 seconds** of arrival |
+| Bowling | 10 lanes, 4 per lane, 10 min → 240/hr |
+| Ice rink | 30 skaters |
 | Pool | 25 concurrent |
-| Laser quest | 2 teams of 12 per 15 min → 96/hr |
-| Arcade | 24 machines, 1–3 min each |
+| Laser quest | 2 teams × 12 per 15 min → 96/hr |
+| Arcade | 24 machines + 8 mechanical |
 | Casino | 12 tables × 5 seats |
-| Karts | 6 karts, 2.5 min laps → ~140/hr |
-| Coaster | 3 trains × 8 seats, 2:10 circuit → ~330/hr |
-| Mini golf | 18 holes, 2 per hole → 36 concurrent, ~40 min round |
+| Karts | 6 karts, 2:30 laps → ~140/hr |
+| Coaster | 3 trains × 8, 2:10 → ~330/hr |
+| Mini golf | 18 holes → 36 concurrent |
+| The Warren | 25 concurrent |
 
-The **Salon is the buffer**: it is the only room sized for 30 people standing, and it is the room with the best view of the most things. Everything queues *through* it.
+**The galleries are the buffer.** They are the only spaces sized for 25 people standing, they exist on all six public decks, and they have the best views. Queues form *through* them, never in a dead-end corridor.
 
 ---
 
-## 8. Ten photo spots
-
-Give these to the Stewards. Put a discreet brass floor-plate at each one.
+## 9. Ten photo spots
 
 | # | Where | What you are shooting |
 |---|---|---|
-| 1 | The Flood, waterline, looking up the shaft | 33 m of building, people on the lane bridge, the coaster crossing |
-| 2 | The Mirror, centre ice | skaters' reflections with the pool glowing underneath |
-| 3 | The Lane, foul line, lane 1 | pins, the casino soffit above, water 11 m below |
-| 4 | The Croupier's Pit, L3 | one table, one wheel, a 16 m drop behind it |
-| 5 | The Warren, inside the net | the whole stack from inside a game |
-| 6 | The Crown Bar terrace | the coaster launching past your glass |
-| 7 | The Belvedere, north edge | the Oculus mouth, 33 m down, the pool a coin |
-| 8 | The Ribbon, hole 12 (L3 ledge) | the kart helix outside and the Lodge inside, one frame |
-| 9 | The Drowned Parlour booth | velvet, brass, a mirrored ceiling, no exits |
-| 10 | The 34th Door, open | a chair, a mirror, and you |
+| 1 | the L0 gallery, mid-building | pool through the left glass, velvet parlour through the right, the flume cutting past |
+| 2 | the L1 gallery, at the rink | skaters above, swimmers below, one frame, through glass |
+| 3 | the Lane, foul line, lane 1 | pins, and the ceiling opening with the Lodge's light coming down |
+| 4 | the Croupier's Pit | one table, one wheel, a glass floor, the bowling lanes 16 m below |
+| 5 | the L4 gallery | nets to the left, karts to the right, both in motion |
+| 6 | the Crown Bar | the coaster launching past the window |
+| 7 | the Belvedere, north parapet | the roof slot, the lift hill, the plaza far below |
+| 8 | the Ribbon, hole 12 (L3) | the casino inside and the karts outside, one frame |
+| 9 | inside the Flume | the House through a glass tube at 40 km/h |
+| 10 | the 34th Door, open | a chair, a mirror, and you |
 
 ---
 
-## 9. Ten non-negotiables
+## 10. Ten non-negotiables
 
-If a builder bot has to break one of these, it must ask.
-
-1. **The Oculus is never obstructed.** Nothing crosses it below +35.00 except the lane bridge, the slides, the nets, the Lodestone and the two coaster crossings.
-2. **Floor to floor stays 5.50 m.** Every clearance, every ride envelope and every slide depends on it.
-3. **The bowling lanes stay 25 m and stay over the void.** They are the structural and visual centrepiece.
-4. **The rink stays over the pool and stays glass.** It is the build's best idea.
+1. **No atrium.** No opening in any slab larger than 14 × 10 m, and never two of them stacked.
+2. **Every deck holds two attractions separated by a glazed gallery.** No single-purpose decks except the plinth and the roof.
+3. **Floor to floor stays 5.50 m.**
+4. **The rink stays over the pool and stays glass.** The Flume stays a glass tube for its whole 33 m.
 5. **Laser quest never gets a window.**
 6. **The Lodge keeps its ceiling.** It is the only deck with one.
-7. **Nothing is physical that does not need to be.** (see `06` §4)
-8. **The Thread is continuous** from +14.00 to +57.00. No gaps, no ladder, no teleport.
-9. **One region.** No sim crossings anywhere in the ride envelope.
+7. **The Zigzag stays continuous.** Four stairs, four corners, no ladders, no cuts.
+8. **Nothing is physical that does not need to be** (`06` §4).
+9. **One region.** No sim crossings in any ride envelope.
 10. **No L$ wagering.** Anywhere. Ever.
 
 ---
 
-## 10. Clearance envelope (for the bots)
+## 11. Clearance envelope (for the bots)
 
 | Element | Envelope |
 |---|---|
-| Coaster track | 2.80 m above any walkable surface, 1.60 m to any wall or fixed object, 2.40 m to any other track |
-| Coaster aperture through a slab | 3.60 m diameter, chamfered both faces, edge trimmed in brass |
-| Kart track | 3.00 m running width, 1.10 m barrier, 2.20 m headroom, 6.00 m outside radius clearance |
-| Water Chute flume | 1.70 m internal diameter, 1.10 m radius min at the bends, 4.00 m floor clearance at the splashdown |
-| The Thread ramp | 3.00 m wide, 1:12, 3.00 m headroom, 1.20 m parapet |
-| Lantern / signage | bottom edge 2.60 m above the deck |
+| Coaster track | 2.80 m above any walkable surface, 1.60 m to any wall, 2.40 m to other track |
+| Coaster aperture | 3.60 m diameter, chamfered both faces, brass-trimmed. **Exactly two on the whole ride**: one in the roof glazing over the Warren, one in the L5 ceiling at the station lift |
+| Kart track | 3.00 m running width, 1.10 m barrier, 2.20 m headroom |
+| Flume | 1.70 m internal, 1.10 m minimum bend radius, 4.00 m clear at the splashdown |
+| Gallery | 6.00 m wide, 3.00 m clear to the kart ribbon, 1.60 m emergency lane |
+| The Zigzag stair | 1.80 m clear, 2.20 m headroom, 1.10 m rail |
+| The Ribbon ledge | 5.00 m wide, 0.45 m kerb, 1.10 m guard to the glass |
+| Glance opening | 6 × 6 m minimum, 14 × 10 m maximum, 1.10 m guard |
 | Doorway | 2.40 m high, 1.80 m wide (2.20 for the Blind Door and the 34th) |
 
 ---
 
-## 11. How the plan stays unproblematic in a small space
-
-The brief's real worry — *"make it as unproblematic as possible within a small space"* — is answered structurally, not by tuning:
+## 12. Why this is the unproblematic version
 
 | Problem | Structural answer |
 |---|---|
-| Ten activities need ten footprints | One drum, eight decks, **shared structure, shared roof, shared lighting** |
-| Crowds collide | The ring plan separates flows without corridors; the Salon absorbs the crowd |
-| Rides need height | The drum is 37 m tall and the Oculus already exists — *height is free* |
-| Vehicles break on sim borders | **One region.** |
-| Darkness for laser quest fights daylight for views | The dark game goes underground |
-| Some games want water, some ice, some fire | **Stack them**: water under ice, smoke over lanes |
-| Prims run out | Three shared atlases, one structural bay, one palette, `06` §1 budget |
-| Lag at events | FX budget switches in `06` §7 — one command, ~4 000 LI of effects off |
-| New content later | Three deliberately *empty* niches: L2 west, L4 north-east, Roof south. Reserved, unbuilt, with power and script hooks already run |
+| ten attractions, one small footprint | **two per deck, six decks** — 12 halls, each 1 508 m², no wasted circulation |
+| you must always see something | **the gallery** — 6 × 58 m of glazing between two halls, on every deck |
+| but you must never see everything | **no atrium, and 11 small openings** — always a glimpse, never a panorama |
+| the rides need height | the Flume, the Thread and the karts all use the building's own voids and galleries |
+| people get lost | the Zigzag always turns left or right at the top of a stair, and the Ribbon always circles |
+| corners are dead | the four stairs are *in* the corners, so every corner is busy |
+| prims run out | one structural grid at right angles, one palette, one atlas set, repeated hall module |
+| events | galleries absorb crowds; mode C shuts the rides, not the building |
+| new content later | two halls are semi-vacant by design (L3 north, L5 east) with power and script hooks already run |

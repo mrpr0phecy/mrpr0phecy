@@ -12,18 +12,18 @@ This is the file that keeps the build from becoming a beautiful thing that nobod
 
 | # | Zone | LI | % |
 |---|---|---:|---:|
-| 1 | Envelope & façade (drum wal, glazing, roof, Oculus ring, parapet) | 2 600 | 9.2 |
-| 2 | Structure, slabs, columns, deck finishes | 1 800 | 6.3 |
-| 3 | Circulation — the Thread ramp, 4 Needles, rails | 1 330 | 4.7 |
+| 1 | Envelope & façade (block walls, glazing, roof, parapet) | 2 600 | 9.2 |
+| 2 | Structure — the right-angled grid, slabs, deck finishes | 1 800 | 6.3 |
+| 3 | Circulation — the Zigzag (4 stairs), 2 lifts, the gallery rails | 1 330 | 4.7 |
 | 4 | The Threshold + the Shoebox (street) | 450 | 1.6 |
-| 5 | The Sump + the Hive (U1) | 350 | 1.2 |
-| 6 | **The Undercroft** — laser quest (U2) | 1 500 | 5.3 |
+| 5 | The Sump + the Hive (B1) | 350 | 1.2 |
+| 6 | **The Undercroft** — laser quest (B1) | 1 500 | 5.3 |
 | 7 | **The Flood** — pool, grotto, bar | 1 150 | 4.0 |
 | 8 | Chrysalis — changing | 380 | 1.3 |
 | 9 | The Drowned Parlour | 680 | 2.4 |
 | 10 | The Penny Parlour — 8 machines | 620 | 2.2 |
 | 11 | **The Mirror** — ice rink, glass, boards, hire | 950 | 3.3 |
-| 12 | **The Lane** — bowling ×8 | 2 050 | 7.2 |
+| 12 | **The Lane** — bowling ×10 | 2 050 | 7.2 |
 | 13 | The Salon | 680 | 2.4 |
 | 14 | **Cabinet Row** — arcade ×24 | 1 750 | 6.2 |
 | 15 | **The Lodge** — casino ×12 | 1 450 | 5.1 |
@@ -43,7 +43,7 @@ This is the file that keeps the build from becoming a beautiful thing that nobod
 
 **Rules of the budget:**
 - No zone may exceed its target by more than **15 %** without a re-plan.
-- Contingency is spent **last**, and only on the shaft, the Salon or the Lane — the three places a visitor forms an opinion.
+- Contingency is spent **last**, and only on the galleries, the Salon or the Lane — the three places a visitor forms an opinion.
 - A zone that comes in under budget returns the surplus to contingency, and it is not immediately spent.
 
 ### 1.2 Where the savings actually come from
@@ -60,23 +60,23 @@ This is the file that keeps the build from becoming a beautiful thing that nobod
 
 ### 1.3 The 20 000 LI trim
 
-If the region gives you 20 000, cut in this order — every cut is designed to cost you *breadth*, never the shaft:
+If the region gives you 20 000, cut in this order — every cut is designed to cost you *breadth*, never the galleries:
 
 | Cut | Saves |
 |---|---:|
 | Arcade 24 → 14 cabinets | 700 |
 | Mini golf 18 → 9 holes (keep 1, 6, 12, 18) | 750 |
-| Bowling 8 → 6 lanes | 500 |
+| Bowling 10 → 6 lanes | 600 |
 | Casino 12 → 8 tables | 480 |
 | Laser quest: 2 decks → 1, drop the catwalks | 450 |
-| Slides 3 → 2 flumes | 200 |
-| Karts 6 → 3, shorten the helix to 1 lap | 600 |
-| Coaster: cut the exterior loop, keep the interior thread | 650 |
+| Cut the Warren's upper deck (L5 west) | 300 |
+| Karts 6 → 3, halve the circuit | 600 |
+| Coaster: cut the roof loop, keep the interior thread | 650 |
 | Dressing 750 → 400 | 350 |
 | Facade detail → flat band with emissive windows | 500 |
 | **Total** | **5 180** |
 
-Result ≈ **19 300 LI** and the building still reads exactly as designed, because the Oculus, the Lane bridge and the Mirror are untouched.
+Result ≈ **19 200 LI** and the building still reads exactly as designed, because the galleries, the Lane and the Mirror are untouched.
 
 ---
 
@@ -93,8 +93,8 @@ Result ≈ **19 300 LI** and the building still reads exactly as designed, becau
 **LOD discipline — this is where SL builds die.**
 - Author all four LOD models at upload time. **Never** use auto-generated LOD on anything larger than 2 m.
 - Test every hero asset at `RenderVolumeLODFactor = 1.0` (the low default) — if it collapses into a blob at 30 m, it is wrong.
-- The drum, the tracks and the rides must all hold silhouette at **60 m at LOD factor 1.0**, because from the plaza that is the distance at which people judge the build.
-- The Oculus ring, the coaster track and the kart barrier are the four assets that must never disintegrate.
+- The block, the walls and the rides must all hold silhouette at **60 m at LOD factor 1.0**, because from the plaza that is the distance at which people judge the build.
+- The parapet, the coaster track, the kart barrier and the gallery glazing are the four assets that must never disintegrate.
 
 ---
 
@@ -107,10 +107,14 @@ The build has more glass than a normal SL build and will be punished for it if t
 | **Alpha-masked everywhere possible; alpha-blended only where unavoidable** | masking sorts correctly and is cheaper |
 | **Glass is one plane, never two** | two blended planes = guaranteed flicker |
 | Maximum **2 blended layers** in any single sightline | the rink over the pool is the hard case; see below |
-| No alpha in the shaft except the slides and the Lodestone | the shaft is looked *through* from every deck |
+| The gallery glazing is the one big alpha surface on the build | it is looked *through* from every hall, on every deck |
 | Nets and foliage are masked, with a **solid proxy collider** beneath | walkable, cheap, no sorting |
 
-**The rink-over-pool case (the only genuinely hard one):**
+**The two hard cases.**
+
+**One — the gallery glazing.** 58 m of glass on every deck, with a hall on each side. It is the build's whole idea and it is also the single biggest alpha risk. Rules: **one plane**, alpha-masked, split into four 14.5 m panels with 0.3 m mullions, and **no second sheet anywhere behind it**. Where a kart ribbon or a coaster passes on the other side, add a solid 1.1 m kerb so the eye has something opaque to anchor on.
+
+**Two — the rink-over-pool case:**
 - the rink deck top plane = **alpha-masked**, with cut portholes near the boards
 - the pool is seen through those cuts and through the 1.2 m perimeter band
 - the ice material is opaque-with-portholes, not transparent
@@ -215,7 +219,7 @@ Everything on. 9 particle systems, 12 shadow-casting spots, all rides running on
 
 ### 7.2 Busy (20–50 avatars)
 The controller drops to **mode B** automatically at 40 avatars:
-- particles 9 → 4 (keep the shaft haze, the Lodge smoke, the pool caustics, the steam)
+- particles 9 → 4 (keep the gallery haze, the Lodge smoke, the pool caustics, the steam)
 - shadow spots 12 → 4
 - rides run on demand only (coaster and karts park)
 - the arcade's `llSetText` off
@@ -228,10 +232,10 @@ The controller drops to **mode B** automatically at 40 avatars:
 - the Warren's loose balls despawn
 - bowling goes to 4 lanes with a queue
 
-Mode C should cost **~4 000 LI of visual effect and ~28 % of script time**, and the building should still look like itself: the shaft, the water, the neon and the lanes all stay.
+Mode C should cost **~4 000 LI of visual effect and ~28 % of script time**, and the building should still look like itself: the galleries, the water, the neon and the lanes all stay.
 
 ### 7.4 What never gets cut
-The shaft haze, the water planes, the neon textures, the 33 plaques, the Salon, and the view down from the Croupier's Pit. Those are the build.
+The gallery haze, the water planes, the gallery glazing, the neon textures, the 33 plaques, the Salon, and the view down from the Croupier's Pit. Those are the build.
 
 ---
 
@@ -276,4 +280,4 @@ Cheap things that make people stay:
 - **No permission dialogs** — everything inside the Experience.
 - **Readable signage at 12 m** minimum.
 - **A way out of every space** in one click (the lifts stop at every deck; the Thread is continuous).
-- **A quiet room**: the tea room on L4 is deliberately low-sound with a view. Some people need one.
+- **A quiet room**: the tea room on L3 is deliberately low-sound with a view. Some people need one.
