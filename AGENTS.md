@@ -63,6 +63,7 @@ Noindex music pages (superseded — don't re-index):
 | `ai.html` | Lantern — on-device AI | own brand, no catalogue data |
 | `maps.html` | MostUsefulMaps | open-data map engine |
 | `opensourcenews.html` | global live news broadcast | open RSS feeds, no backend |
+| `denim.html` | Lawas Denim House — Bandung thrift denim storefront | own brand, imagery in `denim-assets/`, illustrative demo (see its footer) |
 
 ### Experiments / personal pages
 
